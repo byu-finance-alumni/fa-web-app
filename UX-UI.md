@@ -1,0 +1,135 @@
+# UX-UI.md — fa-web-app Design System
+
+The visual design system for the BYU Finance Alumni Database frontend: brand assets, color tokens,
+typography, and UI conventions. `CLAUDE.md` in this repo holds the engineering/architecture context;
+this file is the single source of truth for **design**. Read both.
+
+> Stack: Next.js (App Router) + TypeScript + Tailwind CSS + shadcn/ui + React Query.
+> Screen/feature inventory lives in `docs/Features.md` at the workspace root.
+
+---
+
+## Brand assets
+
+Located in `fa-web-app/public/branding/`:
+
+| File | Use |
+| --- | --- |
+| `finance-logo.jpg` | Primary logo — solid navy block, "BYU Finance / Marriott School of Business". Top header and login. |
+| `finance-logo-secondary.jpg` | Secondary "BYU FINANCE" gradient lockup. Use sparingly (splash/marketing). |
+| `marriott-school-inside.jpg` | Tanner Building atrium photo — login hero / empty-state backdrop. |
+| `marriott-school-outside.jpg` | Tanner Building exterior — login hero / banner. |
+
+**To-do (not blocking):** request a **transparent SVG/PNG** of the primary logo (the `.jpg` has a
+baked navy background that looks wrong on light surfaces) plus an **icon-only mark** for the
+collapsed sidebar and favicon. Until then, use the navy `finance-logo.jpg` only on navy/white
+surfaces.
+
+This is a **BYU Marriott School** product — follow official BYU branding where possible. The palette
+below is derived from the two supplied logos and aligned to BYU's official navy.
+
+---
+
+## Color system
+
+Derived directly from the brand logos:
+- `finance-logo.jpg` → navy **`#1C2E54`** (primary brand block)
+- `finance-logo-secondary.jpg` → deep royal blue **`#053160`**, which aligns with BYU's official
+  navy **`#002E5D`**.
+
+### Brand / primary (navy & blue)
+
+| Token | Hex | Use |
+| --- | --- | --- |
+| `navy-900` | `#0F1B33` | Darkest — text on light, deepest backgrounds |
+| `navy-800` | `#1C2E54` | **Primary brand navy** (header, sidebar, primary buttons) — from primary logo |
+| `navy-700` | `#243B6B` | Hover/active on navy surfaces |
+| `royal-700` | `#002E5D` | BYU official navy — deep accents, gradients |
+| `blue-600` | `#2E4A86` | Primary interactive (buttons, links, active nav) |
+| `blue-500` | `#3B5C9A` | Hover state for primary interactive |
+| `blue-300` | `#9DB2D8` | Subtle accents, borders on navy, disabled-on-navy |
+| `blue-50`  | `#EEF2FA` | Selected rows, info backgrounds, hover tint on light |
+
+### Neutrals (gray)
+
+| Token | Hex | Use |
+| --- | --- | --- |
+| `gray-900` | `#111827` | Primary body text |
+| `gray-700` | `#374151` | Secondary text, labels |
+| `gray-500` | `#6B7280` | Muted/placeholder text, icons |
+| `gray-300` | `#D1D5DB` | Borders, dividers |
+| `gray-100` | `#F3F4F6` | Page background, table header fill |
+| `gray-50`  | `#F9FAFB` | Cards / raised surfaces on gray bg |
+| `white`    | `#FFFFFF` | Surfaces, text on navy |
+
+### Semantic / status
+
+| Token | Hex | Use |
+| --- | --- | --- |
+| `success-600` | `#15803D` | Verified data, completed tasks, success toasts |
+| `success-50`  | `#ECFDF3` | Success background tint |
+| `warning-600` | `#B45309` | **Missing-data badges**, due-soon, caution |
+| `warning-50`  | `#FEF6E7` | Warning background tint |
+| `danger-600`  | `#B42318` | **Duplicate warnings**, destructive (archive/delete), errors |
+| `danger-50`   | `#FEF3F2` | Danger background tint |
+| `info-600`    | `#2E4A86` | Informational (reuse `blue-600`) |
+
+### Data-viz palette (charts, map clusters, tags)
+
+Sequential blues for cohort/employer/industry charts; keep categorical hues distinct but on-brand:
+`#1C2E54`, `#2E4A86`, `#3B5C9A`, `#5B7BC0`, `#8AA4D6`, then accent with `#15803D` (green),
+`#B45309` (amber), `#7C3AED` (violet), `#0E7490` (teal) for additional categories. Use with Recharts.
+
+### Tailwind mapping
+
+Add these to `tailwind.config.ts` under `theme.extend.colors` as `navy`, `royal`, `brand-blue`,
+plus standard `gray`/semantic scales. shadcn/ui CSS variables (`--primary`, `--destructive`, etc.)
+should map to these tokens. Reference tokens by name in components — **never hardcode hex values in
+JSX**.
+
+---
+
+## Typography
+
+- **UI font:** Inter (or system stack `ui-sans-serif`) for all app text — clean, dense, legible in
+  data tables. BYU's official font is **HCo Ringside**; if licensed, use it for headings/logo lockups
+  only, otherwise Inter throughout.
+- **Numeric/tabular:** use `font-variant-numeric: tabular-nums` for counts, years, and table figures
+  so columns align.
+- **Scale:** page title 24–30px/600 · section heading 18–20px/600 · body 14px/400 · table & meta
+  13px/400 · label/caption 12px/500 uppercase tracking-wide.
+
+---
+
+## Layout & UX conventions
+
+- **App shell:** fixed left sidebar (navy `navy-800`) + top bar; content area on `gray-100`.
+- **Density:** this is a data-heavy CRM for 10,000+ records — favor compact tables, sticky table
+  headers, and server-side pagination over spacious marketing layouts.
+- **Cards/surfaces:** white on `gray-100`, `gray-300` 1px borders, subtle shadow, ~8px radius.
+- **Primary action** = `blue-600` solid; **secondary** = white with `gray-300` border; **destructive**
+  = `danger-600`. One primary action per view.
+- **Role-aware UI:** render a **View-Only** variant of every screen — for faculty, edit/create/
+  import/export/merge/upload controls are hidden (not just disabled). Authorization is always
+  enforced server-side; the UI only reflects it.
+- **Required states for every data screen:** loading (skeleton), empty, error, and view-only.
+- **Badges/chips:** tags = `blue-50`/`navy-800` text; status labels = neutral; missing-data =
+  `warning`; duplicate = `danger`; archived/deceased = muted gray.
+
+---
+
+## Iconography
+
+Use **Lucide** (consistent, MIT-licensed, React-ready, pairs with shadcn/ui). Do not import multiple
+icon sets. Common: search, sliders/filter, edit, archive, upload, download, map-pin, users, calendar,
+bar-chart, tag, alert-triangle (missing data), copy/merge (duplicates), history (audit).
+
+---
+
+## Accessibility
+
+- Maintain WCAG AA contrast: navy `navy-800`/`royal-700` on white and white on navy all pass; never
+  put `blue-300` text on white for body copy.
+- Don't encode meaning by color alone — pair status colors with an icon or label (missing-data badge
+  has both a color and text).
+- All interactive elements keyboard-reachable with a visible focus ring (`blue-500`).
