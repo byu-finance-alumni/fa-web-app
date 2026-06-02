@@ -26,7 +26,7 @@ npm run dev                  # http://localhost:3000
 
 ## CI Checks
 
-Every **pull request** and every **push to `main` or `dev`** runs the GitHub Actions workflow in
+Every **pull request** and every **push to `prod` or `dev`** runs the GitHub Actions workflow in
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml). The job **Lint, Typecheck & Build** runs:
 
 1. **Install** — `npm ci` (clean install against the committed lockfile)

@@ -1,12 +1,12 @@
 name: CI
 
-# Runs on PRs into main/dev and on direct pushes to main/dev so branch
+# Runs on PRs into prod/dev and on direct pushes to prod/dev so branch
 # protection can require these checks before merging.
 on:
   push:
-    branches: [main, dev]
+    branches: [prod, dev]
   pull_request:
-    branches: [main, dev]
+    branches: [prod, dev]
 
 # Read-only token; CI never needs write access to the repo.
 permissions:
