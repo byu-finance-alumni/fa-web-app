@@ -13,6 +13,9 @@ Update as work progresses. Scope and rules live in `CLAUDE.md` (architecture) an
 - [x] Placeholder login page (`/login`) — disabled form, no auth logic yet
 - [x] Typed env accessor (`src/lib/env.ts`) + `.env.example`
 - [x] Supabase SSR clients (browser/server) + session-refresh middleware
+- [x] Temporary API connection indicator on home page (`ApiStatus`, Lucide icons)
+- [x] **Deployed live to Vercel** → https://fa-web-app-five.vercel.app
+      (project `gunnjakes-projects/fa-web-app`; Supabase env vars set for production)
 
 ---
 
@@ -65,7 +68,20 @@ Required states for every data screen: **loading (skeleton), empty, error, view-
 - [ ] Add shadcn/ui + base component primitives
 - [ ] Set up testing (auth flows, search, forms, role-based UI per `CLAUDE.md`)
 - [ ] Add a transparent SVG/PNG primary logo + icon-only mark (see `UX-UI.md` to-do)
-- [ ] Configure Vercel project + environment variables for deployment
+- [x] Configure Vercel project + environment variables for deployment
+
+---
+
+## Deployment
+
+- **Live URL:** https://fa-web-app-five.vercel.app
+- **Deploy command:** `vercel --prod` (manual, from this repo)
+- [ ] **Enable push-to-deploy** — GitHub auto-connect failed because the repo is private +
+      org-owned (needs Vercel Pro). Options: upgrade to Pro, transfer repo to a personal account,
+      or keep deploying manually via CLI.
+- [ ] Set `NEXT_PUBLIC_API_URL` in Vercel once the FastAPI backend is deployed to a public URL
+      (currently unset in prod, so the API badge shows "not reachable" on the live site)
+- [ ] Add a custom domain when ready
 
 ---
 
