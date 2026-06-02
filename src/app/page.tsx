@@ -19,6 +19,9 @@ export default function HomePage() {
           This is a placeholder home page — dashboard, search, and alumni
           profiles are coming next.
         </p>
+        <p className="mt-4 text-sm font-medium text-brand-blue-600">
+          One home for recruiting, mentorship, and alumni engagement.
+        </p>
         <div className="mt-8">
           <Link
             href="/login"
