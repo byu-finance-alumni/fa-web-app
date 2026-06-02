@@ -1,0 +1,53 @@
+name: CI
+
+# Runs on PRs into prod/dev and on direct pushes to prod/dev so branch
+# protection can require these checks before merging.
+on:
+  push:
+    branches: [prod, dev]
+  pull_request:
+    branches: [prod, dev]
+
+# Read-only token; CI never needs write access to the repo.
+permissions:
+  contents: read
+
+# Cancel superseded runs on the same ref to save minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Lint, Typecheck & Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Clean, lockfile-faithful install (fails if package-lock.json is out of sync).
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # Next.js production build. The app builds without secrets (env vars default
+      # to empty strings), so CI needs no real credentials. If you later add
+      # build-time required public env vars, set them as GitHub Secrets and they
+      # will flow in below (empty/absent secrets are safe — they resolve to "").
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
