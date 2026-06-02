@@ -45,17 +45,23 @@ Update as work progresses. Scope and rules live in `CLAUDE.md` (architecture) an
 
 ## Immediate next steps
 
-### 1. Real authentication on `/login`
-- [ ] Convert the login form to a Client Component
-- [ ] Call `supabase.auth.signInWithPassword()` with email/password
-- [ ] Form validation with React Hook Form + Zod
-- [ ] Loading + error states; redirect to a protected page on success
-- [ ] `signOut()` action
+### 1. Real authentication on `/login` ✅
+- [x] Convert the login form to a Client Component (`src/components/auth/LoginForm.tsx`)
+- [x] Call `supabase.auth.signInWithPassword()` with email/password
+- [x] Form validation with React Hook Form + Zod (`react-hook-form`, `zod`, `@hookform/resolvers`)
+- [x] Loading + error states; redirect to a protected page on success (honors a
+      same-origin `?next=` param; generic error so we don't leak which accounts exist)
+- [x] `signOut()` action (`src/components/auth/SignOutButton.tsx`)
 
 ### 2. Protected routes
-- [ ] Extend `src/middleware.ts` to redirect unauthenticated users to `/login`
-- [ ] Add an authenticated app shell (sidebar + top bar per `UX-UI.md`)
-- [ ] Wire the navy `finance-logo.jpg` into the header/login (navy surfaces only)
+- [x] Extend `src/middleware.ts` to redirect unauthenticated users to `/login`
+      (via `updateSession` in `src/utils/supabase/middleware.ts`; public paths = `/`, `/login`;
+      authenticated users on `/login` bounce to `/dashboard`). Verified: unauth `/dashboard` → 307
+      `/login?next=/dashboard`.
+- [ ] Add an authenticated app shell (sidebar + top bar per `UX-UI.md`) — `/dashboard` currently
+      has a minimal navy top bar only; full sidebar shell still to build
+- [x] Wire the navy `finance-logo.jpg` into the header/login (navy surfaces only) — login card
+      navy header band; dashboard top bar
 
 ### 3. API client layer
 - [ ] Typed fetch wrapper around `NEXT_PUBLIC_API_URL` (FastAPI backend)
