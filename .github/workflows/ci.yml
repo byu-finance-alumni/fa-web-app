@@ -1,7 +1,12 @@
 name: CI
 
-# Runs on PRs into prod/dev and on direct pushes to prod/dev so branch
-# protection can require these checks before merging.
+# Gates code entering the long-lived branches. Mirrors fa-web-api/ci.yml:
+#   - PR into dev:  BASE checks must pass (lint, typecheck, build)
+#   - PR into prod: BASE checks PLUS the prod-only tier (dependency audit)
+#
+# "Will it break on Vercel?" is verified by Vercel's own GitHub deployment
+# check (each branch deploys to its own Vercel project), which is required
+# separately via branch protection — not duplicated here.
 on:
   push:
     branches: [prod, dev]
@@ -12,12 +17,17 @@ on:
 permissions:
   contents: read
 
-# Cancel superseded runs on the same ref to save minutes.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  NODE_VERSION: "24" # matches the Vercel project's Node runtime
+
 jobs:
+  # ---------------------------------------------------------------------------
+  # BASE TIER — required for BOTH dev and prod.
+  # ---------------------------------------------------------------------------
   build:
     name: Lint, Typecheck & Build
     runs-on: ubuntu-latest
@@ -28,7 +38,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
       # Clean, lockfile-faithful install (fails if package-lock.json is out of sync).
@@ -41,13 +51,39 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      # Next.js production build. The app builds without secrets (env vars default
-      # to empty strings), so CI needs no real credentials. If you later add
-      # build-time required public env vars, set them as GitHub Secrets and they
-      # will flow in below (empty/absent secrets are safe — they resolve to "").
+      # Next.js production build — the same build Vercel runs, so a green build
+      # here means the Vercel deploy will not break on a compile/build error.
       - name: Build
         run: npm run build
         env:
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+
+  # ---------------------------------------------------------------------------
+  # PROD-ONLY TIER — extra hardening required only when promoting to prod.
+  # Runs on PRs targeting prod and on direct pushes to prod. Do NOT mark this
+  # check "required" on the dev branch — it is skipped there and a skipped
+  # required check would block dev merges forever.
+  # ---------------------------------------------------------------------------
+  audit:
+    name: Dependency audit (prod only)
+    if: github.base_ref == 'prod' || github.ref_name == 'prod'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Fail only on high/critical advisories so routine low-severity noise
+      # doesn't block releases. Runtime deps only (--omit=dev).
+      - name: Audit dependencies for known vulnerabilities
+        run: npm audit --omit=dev --audit-level=high
