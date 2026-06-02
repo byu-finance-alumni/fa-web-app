@@ -6,6 +6,8 @@ Finance program. Built with Next.js (App Router), TypeScript, Tailwind CSS, and 
 See `CLAUDE.md` for architecture/context and `UX-UI.md` for the design system. The running
 checklist of work lives in `NEXT-STEPS.md`.
 
+**Live:** https://finance-alumni-database.vercel.app (deployed on Vercel)
+
 ## Local development
 
 ```bash
@@ -43,3 +45,15 @@ to the build step.)
 
 **Where to see results:** open a pull request and look at the **Checks** section at the bottom, or
 go to the repo's **Actions** tab on GitHub to see each run, its logs, and pass/fail status.
+
+The **Lint, Typecheck & Build** check is a **required status check** on `prod` and `dev`, so a PR
+can't merge until it passes. Vercel also builds a **preview deploy** on every PR (advisory).
+
+## Branching
+
+| Branch | Role |
+| --- | --- |
+| `prod` | Default / production. Merges here trigger the Vercel production deploy. |
+| `dev`  | Integration branch for active work. |
+
+Flow: branch off `dev` → PR into `dev` → CI passes → merge → PR `dev` → `prod` to release.
