@@ -29,31 +29,42 @@ npm run dev                  # http://localhost:3000
 ## CI Checks
 
 Every **pull request** and every **push to `prod` or `dev`** runs the GitHub Actions workflow in
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml). The job **Lint, Typecheck & Build** runs:
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml). Checks are **two-tiered**:
 
-1. **Install** — `npm ci` (clean install against the committed lockfile)
-2. **Lint** — `npm run lint`
-3. **Typecheck** — `npm run typecheck`
-4. **Build** — `npm run build` (Next.js production build)
+**Base tier — runs for both `dev` and `prod`:**
 
-If lint, typecheck, or the build fails, the check fails and the PR is marked accordingly. There are
-no tests yet, so no test step runs.
+1. **Lint, Typecheck & Build** — `npm ci` → `npm run lint` → `npm run typecheck` → `npm run build`.
+   The build is the same Next.js production build Vercel runs, so a green build means the deploy
+   won't break on a compile error.
+2. **Secret scan (gitleaks)** — `gitleaks detect` over full git history; blocks committed secrets.
+
+**Prod-only tier — runs only when promoting to `prod`:**
+
+3. **Dependency audit (prod only)** — `npm audit --omit=dev --audit-level=high`; blocks
+   known-vulnerable runtime dependencies before release.
 
 The build needs **no secrets** — public env vars default to empty strings during CI. (If build-time
 required env vars are added later, set them as repository **Secrets** and the workflow forwards them
-to the build step.)
+to the build step.) There are no unit tests yet, so no test step runs.
 
-**Where to see results:** open a pull request and look at the **Checks** section at the bottom, or
-go to the repo's **Actions** tab on GitHub to see each run, its logs, and pass/fail status.
+**Where to see results:** a pull request's **Checks** section, or the repo's **Actions** tab on GitHub.
 
-The **Lint, Typecheck & Build** check is a **required status check** on `prod` and `dev`, so a PR
-can't merge until it passes. Vercel also builds a **preview deploy** on every PR (advisory).
+Base checks are **required status checks** on `prod` and `dev` (plus the prod-only audit on `prod`),
+so a PR can't merge until they pass.
 
-## Branching
+## Branching & deploy
 
-| Branch | Role |
-| --- | --- |
-| `prod` | Default / production. Merges here trigger the Vercel production deploy. |
-| `dev`  | Integration branch for active work. |
+| Branch | Role | Vercel project |
+| --- | --- | --- |
+| `prod` | Default / production | `finance-alumni-database` (builds `prod` only) |
+| `dev`  | Integration branch for active work | `dev-fa-web-app` (builds `dev` + PR previews) |
 
-Flow: branch off `dev` → PR into `dev` → CI passes → merge → PR `dev` → `prod` to release.
+Flow: branch off `dev` → PR into `dev` (base checks + `dev-fa-web-app` preview) → merge →
+PR `dev` → `prod` (adds the prod-only audit) → merge → `finance-alumni-database` deploys production.
+Both branches reject direct pushes.
+
+Vercel is split into **two projects (one per branch)**, both linked to this repo. Each uses an
+*Ignored Build Step* (Settings → Git) so it only builds its own branch:
+
+- `dev-fa-web-app` → `[ "$VERCEL_GIT_COMMIT_REF" = "prod" ]` (build everything except `prod`)
+- `finance-alumni-database` → `[ "$VERCEL_GIT_COMMIT_REF" != "prod" ]` (build `prod` only)
