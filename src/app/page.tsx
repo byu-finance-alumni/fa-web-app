@@ -1,9 +1,13 @@
 import Link from "next/link";
+import { ApiStatus } from "@/components/shared/ApiStatus";
 
 export default function HomePage() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-6 text-center">
       <div className="max-w-xl">
+        <div className="mb-4 flex justify-center">
+          <ApiStatus />
+        </div>
         <p className="text-xs font-medium uppercase tracking-wide text-brand-blue-600">
           BYU Marriott School of Business
         </p>
