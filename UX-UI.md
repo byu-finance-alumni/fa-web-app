@@ -9,6 +9,23 @@ this file is the single source of truth for **design**. Read both.
 
 ---
 
+## Styling framework (hard rule)
+
+**Tailwind CSS is the one and only styling framework for this app.** All styling is done with
+Tailwind utility classes (and the shadcn/ui components built on top of Tailwind).
+
+- **Do not add Bootstrap** — or any other CSS framework (Bulma, Foundation, Materialize, Ant,
+  MUI, Chakra, etc.). They collide with Tailwind's reset and utilities, bloat the bundle, and fight
+  shadcn/ui. One framework, no exceptions.
+- No competing global stylesheets, no `!important` overrides to undo another library, no CDN
+  `<link>` to a third-party CSS framework.
+- Style with Tailwind utilities first; reach for a small amount of custom CSS (via `@layer` /
+  CSS variables) only when a utility genuinely can't express it.
+- Reference design tokens by their Tailwind class names (see Color system below) — **never hardcode
+  hex values in JSX.**
+
+---
+
 ## Brand assets
 
 Located in `fa-web-app/public/branding/`:
@@ -115,6 +132,63 @@ JSX**.
 - **Required states for every data screen:** loading (skeleton), empty, error, and view-only.
 - **Badges/chips:** tags = `blue-50`/`navy-800` text; status labels = neutral; missing-data =
   `warning`; duplicate = `danger`; archived/deceased = muted gray.
+
+---
+
+## Don't look AI-generated (hard rule)
+
+The UI must read as a **deliberately designed, human-crafted internal tool** — not a generic
+LLM/template default. Tasteful, specific, and on-brand beats flashy. Avoid the tells that scream
+"AI generated":
+
+- **No generic gradient-and-emoji landing look:** no purple→indigo hero gradients, no glassmorphism
+  blur cards, no floating emoji as section icons (use Lucide line icons), no "🚀 Supercharge your
+  workflow" marketing copy. This is a CRM for staff, not a SaaS splash page.
+- **Use the real brand palette,** not Tailwind's default `indigo-500`/`violet-600`/`slate` straight
+  out of the box. Every color must map to a token in the Color system above (navy/blue/BYU navy).
+- **Write real copy.** No lorem ipsum, no placeholder "Card Title / Card description goes here," no
+  invented stats. Labels match the actual data model and the language staff use.
+- **Specific spacing and hierarchy,** not uniform `gap-4 p-4` everywhere. Make intentional choices:
+  dense tables, real alignment, purposeful whitespace — see Density below.
+- **No decorative filler:** drop empty "Features" grids of 3 identical cards, fake testimonials,
+  redundant hero sections, and centered-everything layouts. Every element earns its place.
+- **Restraint over effects:** minimal animation, no gratuitous shadows/rounded-pill-everything, no
+  rainbow charts. Professional, calm, fast (this echoes the engineering CLAUDE.md's "avoid excessive
+  animations / visual clutter").
+- **Consistency:** reuse the established shadcn/ui components and tokens rather than one-off bespoke
+  styling per screen. Sameness here is a feature.
+
+Litmus test: if a screen looks like it could belong to any random AI-scaffolded app, it's not done.
+It should look like **the BYU Finance Alumni Database** specifically.
+
+---
+
+## Mobile experience
+
+Desktop is the primary target, but **mobile is not an afterthought — on a phone the app must feel
+like a polished native app, not a shrunk-down website.** Staff will pull this up on their phones
+between meetings and at events; it has to be genuinely good, not merely "usable."
+
+What "native-feeling" means here:
+
+- **Touch-first ergonomics:** minimum 44×44px tap targets; primary actions reachable in the thumb
+  zone (bottom of the screen, not buried in a top corner). Generous spacing between tappable rows.
+- **Native navigation patterns:** a **bottom tab bar** for top-level sections on mobile (not the
+  desktop sidebar squeezed in); full-screen pushes for drill-downs; swipe-back where it fits.
+- **Sheets over modals:** use bottom sheets / slide-up panels for filters, actions, and detail
+  peeks — the pattern users expect from native apps — rather than centered desktop dialogs.
+- **Responsive data display:** the dense desktop tables collapse to **stacked cards or list rows**
+  on mobile; never force horizontal scrolling through a wide table. Sticky search/filter at top.
+- **Performance & feel:** momentum scrolling, instant tap feedback (active/pressed states), skeleton
+  loaders, and no layout shift. Interactions should feel immediate (<100ms perceived response).
+- **Respect the device:** safe-area insets (notch/home indicator), large-text/Dynamic-Type support,
+  honor system light/dark and reduced-motion preferences.
+- **Installable:** ship a proper PWA — web-app manifest, app icon, theme color, and a standalone
+  display mode so it launches chrome-free from the home screen like a real app.
+
+Test every primary workflow (search, view a profile, log an interaction, check the dashboard) on a
+real phone-sized viewport before considering a screen done. If a flow feels awkward with a thumb,
+it isn't finished.
 
 ---
 
