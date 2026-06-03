@@ -63,6 +63,18 @@ Flow: branch off `dev` → PR into `dev` (base checks + `dev-fa-web-app` preview
 PR `dev` → `prod` (adds the prod-only audit) → merge → `finance-alumni-database` deploys production.
 Both branches reject direct pushes.
 
+**Back-merge `prod → dev` after every release (end-of-day routine).** A `dev → prod` merge creates a
+merge commit that lives only on `prod`, so `dev` immediately reads as "N commits behind prod" even
+though the code is identical — one commit per release. Sync it back so the count resets to 0:
+
+```bash
+git fetch origin
+git push origin origin/prod:dev   # fast-forward dev up to prod (works while dev has no unmerged work)
+```
+
+If branch protection blocks the direct push, open a quick `prod → dev` PR instead. Do this at the end
+of each working day so `dev` never drifts.
+
 Vercel is split into **two projects (one per branch)**, both linked to this repo. Each uses an
 *Ignored Build Step* (Settings → Git) so it only builds its own branch:
 

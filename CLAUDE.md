@@ -472,6 +472,33 @@ Only expose variables intended for client-side use.
 
 ---
 
+# Local Development
+
+Install and run:
+
+```bash
+npm install
+npm run dev:local    # NEXT_PUBLIC_API_URL → http://localhost:8000 (use when running fa-web-api locally)
+# npm run dev:remote # NEXT_PUBLIC_API_URL → https://dev-fa-web-api.vercel.app
+# npm run dev        # uses NEXT_PUBLIC_API_URL from .env as-is
+```
+
+App runs at http://localhost:3000.
+
+**The middleware builds a Supabase client on every request**, so if
+`NEXT_PUBLIC_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` is missing,
+**every route returns 500**. These two (plus `NEXT_PUBLIC_API_URL`) are the only
+vars the app reads. Pull them from the Vercel project (`finance-alumni-database`,
+scope `gunnjakes-projects`) with `vercel env pull .env --environment=production`
+— they are browser-safe (publishable) keys, identical to the values in
+`fa-web-api`'s env.
+
+The landing page (`/`) renders an **`ApiStatus`** badge that pings the API's
+`/health` and shows "API connected" / "API not reachable" — a quick visual check
+that the frontend can reach the backend.
+
+---
+
 # Security Requirements
 
 Never:
