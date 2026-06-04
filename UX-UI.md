@@ -121,6 +121,15 @@ JSX**.
 ## Layout & UX conventions
 
 - **App shell:** fixed left sidebar (navy `navy-800`) + top bar; content area on `gray-100`.
+- **Breadcrumbs:** every screen below the top level shows a breadcrumb trail in the top bar so users
+  always know where they are in the hierarchy (e.g. `Alumni / Jane Smith`, `Events / Spring Mixer /
+  Attendance`). Conventions: render with the shadcn/ui `Breadcrumb` component; the **last crumb is
+  the current page** (not a link, `gray-900`), ancestor crumbs are links (`blue-600`); separators are
+  the Lucide `chevron-right` icon; the first crumb is the section root (the sidebar item), not
+  "Home"; truncate long middle crumbs with an ellipsis rather than wrapping. Top-level section pages
+  (Dashboard, Alumni list, Events list) show no breadcrumb. On mobile, collapse to a single
+  **back affordance** (`‹ Parent`) instead of the full trail — it pairs with the full-screen drill-down
+  pushes in the Mobile experience section.
 - **Density:** this is a data-heavy CRM for 10,000+ records — favor compact tables, sticky table
   headers, and server-side pagination over spacious marketing layouts.
 - **Cards/surfaces:** white on `gray-100`, `gray-300` 1px borders, subtle shadow, ~8px radius.
