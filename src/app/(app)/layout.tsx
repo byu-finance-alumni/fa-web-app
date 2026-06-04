@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { Sidebar } from "@/components/shell/Sidebar";
+import { MobileNav } from "@/components/shell/MobileNav";
 import { apiGet } from "@/lib/api";
 import type { UserContext } from "@/types/alumni";
 
@@ -40,7 +41,10 @@ export default async function AppLayout({
   return (
     <div className="flex min-h-screen bg-gray-100">
       <Sidebar email={user.email ?? ""} role={role} />
-      <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+      <div className="flex min-w-0 flex-1 flex-col pb-16 md:pb-0">
+        {children}
+      </div>
+      <MobileNav />
     </div>
   );
 }

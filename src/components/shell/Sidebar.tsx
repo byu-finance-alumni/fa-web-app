@@ -39,7 +39,7 @@ export function Sidebar({ email, role }: { email: string; role: string }) {
   const isSuperAdmin = role === "super_admin";
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col bg-navy-800 px-3 py-5">
+    <aside className="hidden w-60 shrink-0 flex-col bg-navy-800 px-3 py-5 md:flex">
       <div className="px-2 pb-3">
         <p className="text-[13px] font-semibold tracking-[0.15em] text-white">
           BYU FINANCE
