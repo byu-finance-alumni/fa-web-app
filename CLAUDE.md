@@ -159,7 +159,7 @@ For all visual specifics — colors, typography, spacing, component styling, bra
 
 Desktop is the primary target.
 
-The application must still function on:
+The application must also work well on:
 
 * Tablets
 * Smaller laptops
@@ -167,7 +167,13 @@ The application must still function on:
 
 Do not build desktop-only experiences.
 
-All pages should remain usable on smaller screens.
+**Mobile is not an afterthought.** On a phone the app must feel like a polished native app — not a
+shrunk-down website. Staff will use it on their phones between meetings and at events, so it has to
+be genuinely good: touch-first ergonomics, native navigation patterns (bottom tab bar, bottom
+sheets), dense tables that collapse to cards, instant tap feedback, and an installable PWA.
+
+See the **Mobile experience** section in `UX-UI.md` for the concrete bar and patterns — follow it
+for any mobile/responsive work.
 
 ---
 
