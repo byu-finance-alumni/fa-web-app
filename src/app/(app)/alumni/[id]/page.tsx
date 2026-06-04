@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { apiGet, ApiError } from "@/lib/api";
 import type { Alumni } from "@/types/alumni";
 import { Topbar } from "@/components/shell/Topbar";
+import { archiveAlumni } from "../actions";
 
 const TABS = [
   "Overview",
@@ -58,17 +59,37 @@ export default async function AlumniProfilePage({
           <span className="font-medium text-gray-900">{name}</span>
         </nav>
 
-        <div className="mb-4 flex items-center gap-4 rounded-xl border border-gray-300 bg-white p-5">
-          <span className="flex h-14 w-14 items-center justify-center rounded-full border border-brand-blue-300 bg-brand-blue-50 text-lg font-semibold text-brand-blue-600">
-            {(name[0] ?? "?").toUpperCase()}
-          </span>
-          <div>
-            <h2 className="text-2xl font-semibold text-gray-900">{name}</h2>
-            <p className="text-sm text-gray-500">
-              {a.graduation_year ? `Class of ${a.graduation_year} · ` : ""}
-              {a.byu_id ? `BYU ID ${a.byu_id}` : ""}
-              {a.net_id ? ` · Net ID ${a.net_id}` : ""}
-            </p>
+        <div className="mb-4 flex items-center justify-between gap-4 rounded-xl border border-gray-300 bg-white p-5">
+          <div className="flex items-center gap-4">
+            <span className="flex h-14 w-14 items-center justify-center rounded-full border border-brand-blue-300 bg-brand-blue-50 text-lg font-semibold text-brand-blue-600">
+              {(name[0] ?? "?").toUpperCase()}
+            </span>
+            <div>
+              <h2 className="text-2xl font-semibold text-gray-900">{name}</h2>
+              <p className="text-sm text-gray-500">
+                {a.graduation_year ? `Class of ${a.graduation_year} · ` : ""}
+                {a.byu_id ? `BYU ID ${a.byu_id}` : ""}
+                {a.net_id ? ` · Net ID ${a.net_id}` : ""}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/alumni/${a.alumni_id}/edit`}
+              className="rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500"
+            >
+              Edit
+            </Link>
+            {!a.archived ? (
+              <form action={archiveAlumni.bind(null, a.alumni_id)}>
+                <button
+                  type="submit"
+                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                  Archive
+                </button>
+              </form>
+            ) : null}
           </div>
         </div>
 

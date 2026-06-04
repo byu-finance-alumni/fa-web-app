@@ -31,12 +31,7 @@ async function authHeaders(): Promise<Record<string, string>> {
     : {};
 }
 
-export async function apiGet<T>(path: string): Promise<T> {
-  if (!API_URL) throw new ApiError(0, "API URL is not configured.");
-  const res = await fetch(`${API_URL}${path}`, {
-    headers: await authHeaders(),
-    cache: "no-store",
-  });
+async function handle<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let message = res.statusText;
     try {
@@ -49,3 +44,38 @@ export async function apiGet<T>(path: string): Promise<T> {
   }
   return (await res.json()) as T;
 }
+
+export async function apiGet<T>(path: string): Promise<T> {
+  if (!API_URL) throw new ApiError(0, "API URL is not configured.");
+  return handle<T>(
+    await fetch(`${API_URL}${path}`, {
+      headers: await authHeaders(),
+      cache: "no-store",
+    }),
+  );
+}
+
+async function apiSend<T>(
+  method: "POST" | "PATCH" | "DELETE",
+  path: string,
+  body?: unknown,
+): Promise<T> {
+  if (!API_URL) throw new ApiError(0, "API URL is not configured.");
+  return handle<T>(
+    await fetch(`${API_URL}${path}`, {
+      method,
+      headers: {
+        ...(await authHeaders()),
+        ...(body ? { "Content-Type": "application/json" } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      cache: "no-store",
+    }),
+  );
+}
+
+export const apiPost = <T>(path: string, body: unknown) =>
+  apiSend<T>("POST", path, body);
+export const apiPatch = <T>(path: string, body: unknown) =>
+  apiSend<T>("PATCH", path, body);
+export const apiDelete = <T>(path: string) => apiSend<T>("DELETE", path);
