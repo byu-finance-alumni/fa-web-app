@@ -159,7 +159,7 @@ For all visual specifics — colors, typography, spacing, component styling, bra
 
 Desktop is the primary target.
 
-The application must still function on:
+The application must also work well on:
 
 * Tablets
 * Smaller laptops
@@ -167,7 +167,13 @@ The application must still function on:
 
 Do not build desktop-only experiences.
 
-All pages should remain usable on smaller screens.
+**Mobile is not an afterthought.** On a phone the app must feel like a polished native app — not a
+shrunk-down website. Staff will use it on their phones between meetings and at events, so it has to
+be genuinely good: touch-first ergonomics, native navigation patterns (bottom tab bar, bottom
+sheets), dense tables that collapse to cards, instant tap feedback, and an installable PWA.
+
+See the **Mobile experience** section in `UX-UI.md` for the concrete bar and patterns — follow it
+for any mobile/responsive work.
 
 ---
 
@@ -469,6 +475,33 @@ NODE_ENV=
 Never hardcode secrets.
 
 Only expose variables intended for client-side use.
+
+---
+
+# Local Development
+
+Install and run:
+
+```bash
+npm install
+npm run dev:local    # NEXT_PUBLIC_API_URL → http://localhost:8000 (use when running fa-web-api locally)
+# npm run dev:remote # NEXT_PUBLIC_API_URL → https://dev-fa-web-api.vercel.app
+# npm run dev        # uses NEXT_PUBLIC_API_URL from .env as-is
+```
+
+App runs at http://localhost:3000.
+
+**The middleware builds a Supabase client on every request**, so if
+`NEXT_PUBLIC_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` is missing,
+**every route returns 500**. These two (plus `NEXT_PUBLIC_API_URL`) are the only
+vars the app reads. Pull them from the Vercel project (`finance-alumni-database`,
+scope `gunnjakes-projects`) with `vercel env pull .env --environment=production`
+— they are browser-safe (publishable) keys, identical to the values in
+`fa-web-api`'s env.
+
+The landing page (`/`) renders an **`ApiStatus`** badge that pings the API's
+`/health` and shows "API connected" / "API not reachable" — a quick visual check
+that the frontend can reach the backend.
 
 ---
 
