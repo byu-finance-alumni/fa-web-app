@@ -1,5 +1,8 @@
 import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
+import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
+import { TopbarSearch } from "@/components/shared/TopbarSearch";
+import { RoleManager } from "@/components/admin/RoleManager";
 
 interface AdminUser {
   user_id: number;
@@ -8,27 +11,6 @@ interface AdminUser {
   last_name: string | null;
   active: boolean;
   roles: string[];
-}
-
-const ROLE_LABEL: Record<string, string> = {
-  super_admin: "Super admin",
-  full_access: "Full access",
-  view_only: "View only",
-};
-
-function RoleChip({ role }: { role: string }) {
-  const isAdmin = role === "super_admin";
-  return (
-    <span
-      className={`rounded-md px-2 py-0.5 text-xs font-medium ${
-        isAdmin
-          ? "bg-brand-blue-50 text-brand-blue-600"
-          : "bg-gray-100 text-gray-700"
-      }`}
-    >
-      {ROLE_LABEL[role] ?? role}
-    </span>
-  );
 }
 
 export default async function AdminPage() {
@@ -42,15 +24,10 @@ export default async function AdminPage() {
 
   return (
     <>
-      <Topbar title="User administration" />
+      <Topbar title="User administration">
+        <TopbarSearch />
+      </Topbar>
       <main className="flex-1 overflow-auto p-6">
-        <div className="mb-4">
-          <h2 className="text-2xl font-semibold text-gray-900">Users</h2>
-          <p className="text-sm text-gray-500">
-            Roles &amp; access · super_admin only
-          </p>
-        </div>
-
         {error ? (
           <div className="rounded-xl border border-gray-300 bg-white p-10 text-center">
             <p className="font-medium text-gray-900">
@@ -65,10 +42,51 @@ export default async function AdminPage() {
             No users provisioned yet.
           </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-gray-300 bg-white">
+          <>
+          {/* Mobile: stacked cards */}
+          <div className="space-y-2 md:hidden">
+            {users!.map((u) => (
+              <div
+                key={u.user_id}
+                className="rounded-xl border border-gray-300 bg-white p-3"
+              >
+                <div className="flex items-center gap-3">
+                  <InitialsAvatar
+                    name={
+                      [u.first_name, u.last_name].filter(Boolean).join(" ") ||
+                      u.email
+                    }
+                    size="sm"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium text-gray-900">
+                      {[u.first_name, u.last_name].filter(Boolean).join(" ") ||
+                        "—"}
+                    </p>
+                    <p className="truncate text-xs text-gray-500">{u.email}</p>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium ${
+                      u.active
+                        ? "bg-gray-100 text-gray-700"
+                        : "bg-gray-100 text-gray-400"
+                    }`}
+                  >
+                    {u.active ? "Active" : "Disabled"}
+                  </span>
+                </div>
+                <div className="mt-2">
+                  <RoleManager userId={u.user_id} roles={u.roles} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop: table */}
+          <div className="hidden overflow-hidden rounded-xl border border-gray-300 bg-white md:block">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-300 bg-gray-100 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                <tr className="border-b border-gray-300 bg-gray-50 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                   <th className="px-4 py-3">Name</th>
                   <th className="px-4 py-3">Email</th>
                   <th className="px-4 py-3">Role</th>
@@ -81,19 +99,26 @@ export default async function AdminPage() {
                     key={u.user_id}
                     className="border-b border-gray-300 last:border-0"
                   >
-                    <td className="px-4 py-3 font-medium text-gray-900">
-                      {[u.first_name, u.last_name].filter(Boolean).join(" ") ||
-                        "—"}
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <InitialsAvatar
+                          name={
+                            [u.first_name, u.last_name]
+                              .filter(Boolean)
+                              .join(" ") || u.email
+                          }
+                          size="sm"
+                        />
+                        <span className="font-medium text-gray-900">
+                          {[u.first_name, u.last_name]
+                            .filter(Boolean)
+                            .join(" ") || "—"}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-gray-700">{u.email}</td>
                     <td className="px-4 py-3">
-                      <div className="flex gap-1.5">
-                        {u.roles.length ? (
-                          u.roles.map((r) => <RoleChip key={r} role={r} />)
-                        ) : (
-                          <span className="text-gray-300">—</span>
-                        )}
-                      </div>
+                      <RoleManager userId={u.user_id} roles={u.roles} />
                     </td>
                     <td className="px-4 py-3">
                       <span
@@ -111,6 +136,7 @@ export default async function AdminPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </main>
     </>

@@ -1,5 +1,6 @@
 import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
+import { TopbarSearch } from "@/components/shared/TopbarSearch";
 
 interface EventRow {
   event_id: number;
@@ -30,15 +31,10 @@ export default async function EventsPage() {
 
   return (
     <>
-      <Topbar title="Events" />
+      <Topbar title="Events">
+        <TopbarSearch />
+      </Topbar>
       <main className="flex-1 overflow-auto p-6">
-        <div className="mb-4">
-          <h2 className="text-2xl font-semibold text-gray-900">Events</h2>
-          <p className="text-sm text-gray-500">
-            {events ? `${events.length} events` : "Attendance tracking"}
-          </p>
-        </div>
-
         {error ? (
           <div className="rounded-xl border border-gray-300 bg-white p-10 text-center">
             <p className="font-medium text-gray-900">
@@ -53,10 +49,37 @@ export default async function EventsPage() {
             No events yet.
           </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-gray-300 bg-white">
+          <>
+          {/* Mobile: stacked cards */}
+          <div className="space-y-2 md:hidden">
+            {events!.map((e) => (
+              <div
+                key={e.event_id}
+                className="rounded-xl border border-gray-300 bg-white p-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-medium text-gray-900">{e.event_name}</p>
+                  {e.event_type ? (
+                    <span className="shrink-0 rounded-md bg-brand-blue-50 px-2 py-0.5 text-xs font-medium text-brand-blue-600">
+                      {e.event_type}
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  {[formatDate(e.event_date), e.event_location]
+                    .filter((x) => x && x !== "—")
+                    .join(" · ")}
+                  {` · ${e.attendance_count} attending`}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop: table */}
+          <div className="hidden overflow-hidden rounded-xl border border-gray-300 bg-white md:block">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-300 bg-gray-100 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                <tr className="border-b border-gray-300 bg-gray-50 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                   <th className="px-4 py-3">Event</th>
                   <th className="w-44 px-4 py-3">Type</th>
                   <th className="w-36 px-4 py-3">Date</th>
@@ -96,6 +119,7 @@ export default async function EventsPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </main>
     </>

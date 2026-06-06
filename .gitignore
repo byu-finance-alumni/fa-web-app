@@ -42,3 +42,6 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# Claude Code — agents and local settings stay out of git
+.claude/

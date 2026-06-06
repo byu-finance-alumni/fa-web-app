@@ -52,7 +52,7 @@ export function AlumniForm({
   return (
     <form
       action={formAction}
-      className="max-w-2xl space-y-4 rounded-xl border border-gray-300 bg-white p-6"
+      className="max-w-2xl space-y-4 rounded-xl border border-gray-300 bg-white p-6 shadow-sm"
     >
       <div className="grid grid-cols-2 gap-4">
         <Field label="First name" name="first_name" defaultValue={defaults?.first_name ?? ""} />

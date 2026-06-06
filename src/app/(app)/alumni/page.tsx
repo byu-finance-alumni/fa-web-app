@@ -3,6 +3,7 @@ import { ExternalLink, Search, Plus } from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
 import type { Alumni, AlumniPage } from "@/types/alumni";
 import { Topbar } from "@/components/shell/Topbar";
+import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
 
 const LIMIT = 25;
 
@@ -10,6 +11,14 @@ function fullName(a: Alumni): string {
   const last = a.last_name ?? "";
   const first = a.preferred_first_name ?? a.first_name ?? "";
   return last && first ? `${last}, ${first}` : last || first || "—";
+}
+
+function avatarName(a: Alumni): string {
+  return (
+    [a.preferred_first_name ?? a.first_name, a.last_name]
+      .filter(Boolean)
+      .join(" ") || "?"
+  );
 }
 
 function Chip({ label }: { label: string }) {
@@ -70,13 +79,7 @@ export default async function AlumniListPage({
     <>
       <Topbar title="Alumni" />
       <main className="flex-1 overflow-auto p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-semibold text-gray-900">Alumni</h2>
-            <p className="text-sm text-gray-500">
-              {data ? `${data.total} records` : "Class records"}
-            </p>
-          </div>
+        <div className="mb-4 flex justify-end">
           <Link
             href="/alumni/new"
             className="inline-flex items-center gap-1.5 rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500"
@@ -143,10 +146,42 @@ export default async function AlumniListPage({
           </div>
         ) : (
           <>
-            <div className="overflow-hidden rounded-xl border border-gray-300 bg-white">
+            {/* Mobile: stacked cards (dense tables collapse, never h-scroll) */}
+            <div className="space-y-2 md:hidden">
+              {data!.items.map((a) => (
+                <Link
+                  key={a.alumni_id}
+                  href={`/alumni/${a.alumni_id}`}
+                  className="flex items-center gap-3 rounded-xl border border-gray-300 bg-white p-3"
+                >
+                  <InitialsAvatar name={avatarName(a)} size="md" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium text-gray-900">
+                      {fullName(a)}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {[
+                        a.graduation_year ? `Class of ${a.graduation_year}` : null,
+                        a.byu_id,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") || "—"}
+                    </p>
+                  </div>
+                  {a.archived ? (
+                    <Chip label="Archived" />
+                  ) : a.deceased ? (
+                    <Chip label="Deceased" />
+                  ) : null}
+                </Link>
+              ))}
+            </div>
+
+            {/* Desktop: dense table */}
+            <div className="hidden overflow-hidden rounded-xl border border-gray-300 bg-white md:block">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-300 bg-gray-100 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                  <tr className="border-b border-gray-300 bg-gray-50 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                     <th className="px-4 py-3">Name</th>
                     <th className="w-24 px-4 py-3">Grad</th>
                     <th className="w-40 px-4 py-3">BYU ID</th>
@@ -161,12 +196,15 @@ export default async function AlumniListPage({
                       className="border-b border-gray-300 last:border-0 hover:bg-brand-blue-50/40"
                     >
                       <td className="px-4 py-3">
-                        <Link
-                          href={`/alumni/${a.alumni_id}`}
-                          className="font-medium text-gray-900 hover:text-brand-blue-600"
-                        >
-                          {fullName(a)}
-                        </Link>
+                        <div className="flex items-center gap-3">
+                          <InitialsAvatar name={avatarName(a)} size="sm" />
+                          <Link
+                            href={`/alumni/${a.alumni_id}`}
+                            className="font-medium text-gray-900 hover:text-brand-blue-600"
+                          >
+                            {fullName(a)}
+                          </Link>
+                        </div>
                       </td>
                       <td className="px-4 py-3 tabular-nums text-gray-700">
                         {a.graduation_year ?? "—"}
