@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, AlertTriangle } from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
 import type { Breakdown } from "@/types/geography";
@@ -40,13 +40,17 @@ export default async function BreakdownPage({
 
   let data: Breakdown | null = null;
   let notProvisioned = false;
+  let loadError = false;
   try {
+    const sep = qs ? `&${qs}` : "";
     data = await apiGet<Breakdown>(
-      `/geography/breakdown?dimension=${dimension}&${qs}`,
+      `/geography/breakdown?dimension=${dimension}${sep}`,
     );
   } catch (e) {
+    // Render an in-page error state rather than throwing to the route error
+    // boundary, which on the deployed build surfaced as a blank panel.
     if (e instanceof ApiError && e.status === 403) notProvisioned = true;
-    else throw e;
+    else loadError = true;
   }
 
   const items = data?.items ?? [];
@@ -73,6 +77,17 @@ export default async function BreakdownPage({
         {notProvisioned ? (
           <div className="rounded-xl border border-gray-300 bg-white p-4 text-sm text-gray-700">
             Your account is authenticated but not yet provisioned.
+          </div>
+        ) : loadError ? (
+          <div className="mx-auto max-w-3xl rounded-xl border border-danger-600/20 bg-danger-50 p-10 text-center">
+            <AlertTriangle className="mx-auto mb-2 h-6 w-6 text-danger-600" />
+            <p className="text-sm font-semibold text-gray-900">
+              Couldn’t load this breakdown
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              Something went wrong fetching the {dimension} list. Go back to the
+              map and try again.
+            </p>
           </div>
         ) : (
           <div className="mx-auto max-w-3xl">

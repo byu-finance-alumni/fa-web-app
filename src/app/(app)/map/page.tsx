@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
 import { TopbarSearch } from "@/components/shared/TopbarSearch";
 import { GeographyExplorer } from "@/components/geography/GeographyExplorer";
+import { MapFilters } from "@/components/geography/MapFilters";
 import type { GeoSummary, StateCount } from "@/types/geography";
 
 const FILTER_KEYS = ["employer", "industry", "year", "region", "tag"] as const;
@@ -59,88 +59,29 @@ export default async function GeographyPage({
             filterQuery={qs}
             initialState={sp.state ?? null}
             filters={
-              <form method="get" className="flex flex-wrap items-end gap-2">
-                <Filter
-                  name="employer"
-                  label="Employer"
-                  value={sp.employer}
-                  options={summary?.options.employers ?? []}
-                />
-                <Filter
-                  name="industry"
-                  label="Industry"
-                  value={sp.industry}
-                  options={summary?.options.industries ?? []}
-                />
-                <Filter
-                  name="year"
-                  label="Grad year"
-                  value={sp.year}
-                  options={(summary?.options.graduation_years ?? []).map(String)}
-                />
-                <Filter
-                  name="region"
-                  label="Region"
-                  value={sp.region}
-                  options={summary?.options.regions ?? []}
-                />
-                <Filter
-                  name="tag"
-                  label="Tag"
-                  value={sp.tag}
-                  options={summary?.options.tags ?? []}
-                />
-                <button
-                  type="submit"
-                  className="rounded-lg bg-brand-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500"
-                >
-                  Apply
-                </button>
-                {qs ? (
-                  <Link
-                    href="/map"
-                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                  >
-                    Clear
-                  </Link>
-                ) : null}
-              </form>
+              <MapFilters
+                hasFilters={!!qs}
+                values={{
+                  employer: sp.employer,
+                  industry: sp.industry,
+                  year: sp.year,
+                  region: sp.region,
+                  tag: sp.tag,
+                }}
+                options={{
+                  employers: summary?.options.employers ?? [],
+                  industries: summary?.options.industries ?? [],
+                  graduation_years: (summary?.options.graduation_years ?? []).map(
+                    String,
+                  ),
+                  regions: summary?.options.regions ?? [],
+                  tags: summary?.options.tags ?? [],
+                }}
+              />
             }
           />
         )}
       </main>
     </>
-  );
-}
-
-function Filter({
-  name,
-  label,
-  value,
-  options,
-}: {
-  name: string;
-  label: string;
-  value?: string;
-  options: string[];
-}) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-        {label}
-      </span>
-      <select
-        name={name}
-        defaultValue={value ?? ""}
-        className="w-32 rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-brand-blue-600"
-      >
-        <option value="">All</option>
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }

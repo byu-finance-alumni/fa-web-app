@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { X, ArrowLeft, ChevronRight } from "lucide-react";
+import { X, ArrowLeft, ChevronRight, AlertTriangle } from "lucide-react";
 import { clientGet } from "@/lib/api-client";
 import { UsStateMap } from "./UsStateMap";
 import type {
@@ -45,6 +45,8 @@ export function GeographyExplorer({
   const [cityDetail, setCityDetail] = useState<CityDetail | null>(null);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const fq = filterQuery ? `${filterQuery}&` : "";
 
@@ -52,6 +54,7 @@ export function GeographyExplorer({
     if (!state || city) return;
     let cancelled = false;
     setLoading(true);
+    setError(false);
     Promise.all([
       clientGet<StateDetail>(`/geography/states/${state}?${filterQuery}`),
       clientGet<GeoAlumniPage>(
@@ -64,25 +67,34 @@ export function GeographyExplorer({
           setAlumni(a);
         }
       })
+      .catch(() => {
+        // Surface a real error state instead of an indefinite "…" placeholder
+        // (the deployed client fetch can reject on network/CORS/expired token).
+        if (!cancelled) setError(true);
+      })
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
-  }, [state, city, offset, filterQuery, fq]);
+  }, [state, city, offset, filterQuery, fq, reloadKey]);
 
   useEffect(() => {
     if (!state || !city) return;
     let cancelled = false;
     setLoading(true);
+    setError(false);
     clientGet<CityDetail>(
       `/geography/cities?state=${state}&city=${encodeURIComponent(city)}&${filterQuery}`,
     )
       .then((d) => !cancelled && setCityDetail(d))
+      .catch(() => {
+        if (!cancelled) setError(true);
+      })
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
-  }, [state, city, filterQuery]);
+  }, [state, city, filterQuery, reloadKey]);
 
   function openState(code: string) {
     setCity(null);
@@ -90,6 +102,7 @@ export function GeographyExplorer({
     setOffset(0);
     setDetail(null);
     setAlumni(null);
+    setError(false);
     setState(code);
   }
   function close() {
@@ -98,6 +111,7 @@ export function GeographyExplorer({
     setDetail(null);
     setAlumni(null);
     setCityDetail(null);
+    setError(false);
   }
   function applyFilter(key: string, value: string) {
     const p = new URLSearchParams(filterQuery);
@@ -184,11 +198,21 @@ export function GeographyExplorer({
       {state ? (
         <Drawer
           loading={loading}
+          error={error}
+          stateLabel={
+            topStates.find((s) => s.state === state)?.state_name ??
+            state ??
+            "State"
+          }
           city={city}
           detail={detail}
           alumni={alumni}
           cityDetail={cityDetail}
           offset={offset}
+          onRetry={() => {
+            setError(false);
+            setReloadKey((k) => k + 1);
+          }}
           onClose={close}
           onCity={(c) => {
             setCityDetail(null);
@@ -273,6 +297,8 @@ function RankBox({
 
 function Drawer({
   loading,
+  error,
+  stateLabel,
   city,
   detail,
   alumni,
@@ -282,8 +308,11 @@ function Drawer({
   onCity,
   onBack,
   onPage,
+  onRetry,
 }: {
   loading: boolean;
+  error: boolean;
+  stateLabel: string;
   city: string | null;
   detail: StateDetail | null;
   alumni: GeoAlumniPage | null;
@@ -293,6 +322,7 @@ function Drawer({
   onCity: (city: string) => void;
   onBack: () => void;
   onPage: (offset: number) => void;
+  onRetry: () => void;
 }) {
   return (
     <>
@@ -312,16 +342,22 @@ function Drawer({
           />
         ) : (
           <Header
-            title={detail?.state_name ?? "…"}
+            title={detail?.state_name ?? stateLabel}
             subtitle={
-              detail ? `${detail.alumni_count.toLocaleString()} alumni` : ""
+              detail
+                ? `${detail.alumni_count.toLocaleString()} alumni`
+                : error
+                  ? "Couldn’t load details"
+                  : "Loading…"
             }
             onClose={onClose}
           />
         )}
 
         <div className="flex-1 space-y-4 overflow-auto p-5">
-          {loading && !detail && !cityDetail ? (
+          {error && !detail && !cityDetail ? (
+            <DrawerError onRetry={onRetry} />
+          ) : loading && !detail && !cityDetail ? (
             <DrawerSkeleton />
           ) : city && cityDetail ? (
             <>
@@ -516,6 +552,27 @@ function PageBtn({
     >
       {label}
     </button>
+  );
+}
+
+function DrawerError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="rounded-xl border border-danger-600/20 bg-danger-50 p-5 text-center">
+      <AlertTriangle className="mx-auto mb-2 h-6 w-6 text-danger-600" />
+      <p className="text-sm font-semibold text-gray-900">
+        Couldn’t load this state
+      </p>
+      <p className="mt-1 text-sm text-gray-500">
+        Something went wrong fetching the details. Please try again.
+      </p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-3 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+      >
+        Try again
+      </button>
+    </div>
   );
 }
 

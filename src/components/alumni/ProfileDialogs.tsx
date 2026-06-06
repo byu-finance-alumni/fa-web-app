@@ -10,6 +10,7 @@ import {
   restoreAlumni,
   setTaskComplete,
 } from "@/app/(app)/alumni/actions";
+import { useToast } from "@/components/ui/Toast";
 
 const INTERACTION_TYPES = [
   "Phone Call",
@@ -89,17 +90,21 @@ function FormButtons({
   );
 }
 
-/** Close the dialog once a submit completes without error. */
-function useCloseOnSuccess(
+/** Run a side effect once a submit transitions from pending to resolved. */
+function useOnSubmitSettled(
   pending: boolean,
   error: string | undefined,
-  close: () => void,
+  onSuccess: () => void,
+  onError: () => void,
 ) {
   const wasPending = useRef(false);
   useEffect(() => {
-    if (wasPending.current && !pending && !error) close();
+    if (wasPending.current && !pending) {
+      if (error) onError();
+      else onSuccess();
+    }
     wasPending.current = pending;
-  }, [pending, error, close]);
+  }, [pending, error, onSuccess, onError]);
 }
 
 /* -------------------------------------------------- add interaction -------- */
@@ -113,12 +118,21 @@ export function AddInteractionButton({
   label?: string;
   primary?: boolean;
 }) {
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(
     addInteraction.bind(null, alumniId),
     null,
   );
-  useCloseOnSuccess(pending, state?.error, () => setOpen(false));
+  useOnSubmitSettled(
+    pending,
+    state?.error,
+    () => {
+      setOpen(false);
+      toast.success("Interaction logged.");
+    },
+    () => toast.error(state?.error ?? "Failed to add interaction."),
+  );
 
   const cls = primary
     ? "rounded-lg bg-brand-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-blue-500"
@@ -187,12 +201,21 @@ export function AddTaskButton({
   alumniId: number;
   label?: string;
 }) {
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(
     addTask.bind(null, alumniId),
     null,
   );
-  useCloseOnSuccess(pending, state?.error, () => setOpen(false));
+  useOnSubmitSettled(
+    pending,
+    state?.error,
+    () => {
+      setOpen(false);
+      toast.success("Task created.");
+    },
+    () => toast.error(state?.error ?? "Failed to add task."),
+  );
 
   return (
     <>
@@ -267,6 +290,7 @@ export function ArchiveControls({
   archived: boolean;
   name: string;
 }) {
+  const { toast } = useToast();
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -281,6 +305,8 @@ export function ArchiveControls({
             startTransition(async () => {
               const res = await restoreAlumni(alumniId);
               setError(res?.error ?? null);
+              if (res?.error) toast.error(res.error);
+              else toast.success("Record unarchived.");
             })
           }
           className="inline-flex items-center gap-2 rounded-lg border border-success-600 bg-white px-4 py-2 text-sm font-semibold text-success-600 hover:bg-success-50 disabled:opacity-60"
@@ -331,8 +357,13 @@ export function ArchiveControls({
               onClick={() =>
                 startTransition(async () => {
                   const res = await archiveAlumni(alumniId);
-                  if (res?.error) setError(res.error);
-                  else setConfirming(false);
+                  if (res?.error) {
+                    setError(res.error);
+                    toast.error(res.error);
+                  } else {
+                    setConfirming(false);
+                    toast.success("Record archived.");
+                  }
                 })
               }
               className="inline-flex items-center gap-2 rounded-lg bg-danger-600 px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
@@ -359,13 +390,18 @@ export function TaskCheckbox({
   completed: boolean;
   disabled?: boolean;
 }) {
+  const { toast } = useToast();
   const [pending, startTransition] = useTransition();
   return (
     <button
       type="button"
       disabled={disabled || pending}
       onClick={() =>
-        startTransition(() => setTaskComplete(alumniId, taskId, !completed))
+        startTransition(async () => {
+          const res = await setTaskComplete(alumniId, taskId, !completed);
+          if (res?.error) toast.error(res.error);
+          else toast.success(completed ? "Task reopened." : "Task completed.");
+        })
       }
       aria-pressed={completed}
       title={completed ? "Mark open" : "Mark completed"}

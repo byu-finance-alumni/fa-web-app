@@ -33,6 +33,7 @@ import {
   type ActivityCategory,
   type ActivityItem,
 } from "@/components/alumni/ProfileActivity";
+import { ExportProfileButton } from "@/components/alumni/ExportProfileButton";
 import { MetricCard } from "@/components/shared/MetricCard";
 
 /* ----------------------------------------------------------------- helpers */
@@ -350,14 +351,10 @@ export default async function AlumniProfilePage({
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
                   <AddInteractionButton alumniId={aid} label="+ Add interaction" />
                   <AddTaskButton alumniId={aid} label="Create task" />
-                  <button
-                    type="button"
-                    disabled
-                    title="Coming soon"
-                    className="cursor-not-allowed rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-400"
-                  >
-                    Export
-                  </button>
+                  <ExportProfileButton
+                    profile={profile}
+                    fileBaseName={`${name.replace(/\s+/g, "-").toLowerCase()}-${aid}`}
+                  />
                   <Link
                     href={`/alumni/${aid}/edit`}
                     className="rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500"

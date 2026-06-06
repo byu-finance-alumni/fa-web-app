@@ -1,14 +1,8 @@
 import Link from "next/link";
-import {
-  Users,
-  Mail,
-  Briefcase,
-  Copy,
-  MessageSquare,
-  CheckSquare,
-} from "lucide-react";
+import { Users, Mail, Briefcase, Copy } from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
+import { KpiDrawers } from "@/components/dashboard/KpiDrawers";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { TopbarSearch } from "@/components/shared/TopbarSearch";
 import { UsStateMap } from "@/components/geography/UsStateMap";
@@ -26,14 +20,6 @@ interface Summary {
   by_graduation_year: { year: number; count: number }[];
   top_employers: { employer: string; count: number }[];
   by_state: { state: string; count: number }[];
-  recent_activity: {
-    interaction_id: number;
-    alumni_id: number;
-    alumni_name: string;
-    type: string | null;
-    when: string | null;
-    by: string | null;
-  }[];
 }
 
 function Panel({
@@ -60,7 +46,7 @@ function BarList({
   rows,
   emptyLabel,
 }: {
-  rows: { label: string; count: number }[];
+  rows: { label: string; count: number; href?: string }[];
   emptyLabel: string;
 }) {
   if (rows.length === 0)
@@ -68,33 +54,42 @@ function BarList({
   const max = Math.max(1, ...rows.map((r) => r.count));
   return (
     <ul className="space-y-3">
-      {rows.map((r) => (
-        <li key={r.label} className="flex items-center gap-3">
-          <span className="w-28 shrink-0 truncate text-sm text-gray-700">
-            {r.label}
-          </span>
-          <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
-            <div
-              className="h-full rounded-full bg-brand-blue-600"
-              style={{ width: `${Math.round((r.count / max) * 100)}%` }}
-            />
-          </div>
-          <span className="w-6 shrink-0 text-right text-sm font-medium tabular-nums text-gray-900">
-            {r.count}
-          </span>
-        </li>
-      ))}
+      {rows.map((r) => {
+        const row = (
+          <>
+            <span className="w-28 shrink-0 truncate text-sm text-gray-700">
+              {r.label}
+            </span>
+            <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
+              <div
+                className="h-full rounded-full bg-brand-blue-600"
+                style={{ width: `${Math.round((r.count / max) * 100)}%` }}
+              />
+            </div>
+            <span className="w-6 shrink-0 text-right text-sm font-medium tabular-nums text-gray-900">
+              {r.count}
+            </span>
+          </>
+        );
+        return (
+          <li key={r.label}>
+            {r.href ? (
+              <Link
+                href={r.href}
+                aria-label={`View ${r.label} in alumni list`}
+                className="-mx-2 flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1 transition hover:bg-brand-blue-50/40"
+              >
+                {row}
+              </Link>
+            ) : (
+              <div className="flex items-center gap-3">{row}</div>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }
-
-const fmtDate = (iso: string | null) =>
-  iso
-    ? new Date(iso).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      })
-    : "";
 
 export default async function DashboardPage() {
   let s: Summary | null = null;
@@ -114,21 +109,6 @@ export default async function DashboardPage() {
   const maxCohort = s
     ? Math.max(1, ...s.by_graduation_year.map((d) => d.count))
     : 1;
-
-  const alerts = [
-    {
-      label: `${s?.missing_email ?? 0} alumni missing an email`,
-      show: (s?.missing_email ?? 0) > 0,
-    },
-    {
-      label: `${s?.missing_employer ?? 0} alumni missing an employer`,
-      show: (s?.missing_employer ?? 0) > 0,
-    },
-    {
-      label: `${s?.duplicate_count ?? 0} potential duplicate records`,
-      show: (s?.duplicate_count ?? 0) > 0,
-    },
-  ].filter((a) => a.show);
 
   return (
     <>
@@ -151,6 +131,8 @@ export default async function DashboardPage() {
                 label="Total alumni"
                 value={s?.total_alumni ?? "—"}
                 sub="Mock dataset"
+                href="/alumni"
+                linkLabel="View all alumni"
               />
               <MetricCard
                 size="lg"
@@ -159,6 +141,8 @@ export default async function DashboardPage() {
                 value={s?.missing_email ?? "—"}
                 sub="Needs enrichment"
                 subTone="warning"
+                href="/alumni?missing_email=1"
+                linkLabel="View alumni missing an email"
               />
               <MetricCard
                 size="lg"
@@ -167,6 +151,8 @@ export default async function DashboardPage() {
                 value={s?.missing_employer ?? "—"}
                 sub="Needs enrichment"
                 subTone="warning"
+                href="/alumni?missing_employer=1"
+                linkLabel="View alumni missing an employer"
               />
               <MetricCard
                 size="lg"
@@ -175,21 +161,12 @@ export default async function DashboardPage() {
                 value={s?.duplicate_count ?? "—"}
                 sub="Review queue"
                 subTone="danger"
+                href="/alumni?duplicate=1"
+                linkLabel="View potential duplicate records"
               />
-              <MetricCard
-                size="lg"
-                icon={MessageSquare}
-                label="Contacted this month"
-                value={s?.contacted_this_month ?? "—"}
-                sub="Interactions"
-                subTone="success"
-              />
-              <MetricCard
-                size="lg"
-                icon={CheckSquare}
-                label="Upcoming follow-ups"
-                value={s?.upcoming_follow_ups ?? "—"}
-                sub="Tasks due"
+              <KpiDrawers
+                contacted={s?.contacted_this_month ?? "—"}
+                followUps={s?.upcoming_follow_ups ?? "—"}
               />
             </div>
 
@@ -200,6 +177,7 @@ export default async function DashboardPage() {
                   rows={(s?.top_employers ?? []).map((e) => ({
                     label: e.employer,
                     count: e.count,
+                    href: `/alumni?employer=${encodeURIComponent(e.employer)}`,
                   }))}
                   emptyLabel="No employer data yet."
                 />
@@ -209,20 +187,23 @@ export default async function DashboardPage() {
                 {s && s.by_graduation_year.length > 0 ? (
                   <div className="flex items-end gap-3" style={{ height: 160 }}>
                     {s.by_graduation_year.map((d) => (
-                      <div
+                      <Link
                         key={d.year}
-                        className="flex flex-1 flex-col items-center gap-2"
+                        href={`/alumni?ymin=${d.year}&ymax=${d.year}`}
+                        aria-label={`View alumni who graduated in ${d.year}`}
+                        title={`${d.count} alumni · class of ${d.year}`}
+                        className="group flex h-full flex-1 cursor-pointer flex-col items-center justify-end gap-2 rounded-md transition hover:bg-brand-blue-50/40"
                       >
                         <div
-                          className="w-full rounded-t bg-navy-800"
+                          className="w-full rounded-t bg-navy-800 transition group-hover:bg-brand-blue-600"
                           style={{
                             height: `${Math.round((d.count / maxCohort) * 120)}px`,
                           }}
                         />
-                        <span className="text-[11px] tabular-nums text-gray-500">
+                        <span className="text-[11px] tabular-nums text-gray-500 group-hover:text-brand-blue-600">
                           &apos;{String(d.year).slice(-2)}
                         </span>
-                      </div>
+                      </Link>
                     ))}
                   </div>
                 ) : (
@@ -233,73 +214,8 @@ export default async function DashboardPage() {
               </Panel>
             </div>
 
-            {/* Row 3 — Recent activity | Data quality alerts (equal halves) */}
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <Panel title="Recent activity">
-                {s && s.recent_activity.length > 0 ? (
-                  <ul className="space-y-3">
-                    {s.recent_activity.map((r) => (
-                      <li key={r.interaction_id} className="flex gap-3 text-sm">
-                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-blue-600" />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-gray-900">
-                            <Link
-                              href={`/alumni/${r.alumni_id}`}
-                              className="font-medium hover:text-brand-blue-600"
-                            >
-                              {r.alumni_name}
-                            </Link>
-                            {r.type ? (
-                              <span className="text-gray-500"> · {r.type}</span>
-                            ) : null}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {fmtDate(r.when)}
-                            {r.by ? ` · ${r.by}` : ""}
-                          </p>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="py-4 text-sm text-gray-400">
-                    No recent interactions logged.
-                  </p>
-                )}
-              </Panel>
-
-              <Panel title="Data quality alerts">
-                {alerts.length > 0 ? (
-                  <ul className="space-y-2">
-                    {alerts.map((a) => (
-                      <li
-                        key={a.label}
-                        className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2.5"
-                      >
-                        <span className="flex items-center gap-2.5 text-sm text-gray-700">
-                          <span className="flex h-5 w-5 items-center justify-center rounded bg-navy-800 text-white">
-                            <span className="h-1.5 w-1.5 rounded-sm bg-white" />
-                          </span>
-                          {a.label}
-                        </span>
-                        <Link
-                          href="/alumni"
-                          className="shrink-0 text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
-                        >
-                          Review
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="py-4 text-sm text-gray-400">
-                    No data-quality issues flagged.
-                  </p>
-                )}
-              </Panel>
-            </div>
-
-            {/* Row 4 — Alumni map (full width) */}
+            {/* Row 3 — Alumni map (full width). Recent activity and data
+                quality moved to their own pages (/activity, /data-quality). */}
             <Panel
               title="Alumni map"
               action={
