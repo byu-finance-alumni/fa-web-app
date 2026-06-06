@@ -48,7 +48,17 @@ type SP = {
   user?: string;
   date_from?: string;
   date_to?: string;
+  offset?: string;
 };
+
+interface AuditPage {
+  items: AuditRow[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+const LIMIT = 50;
 
 function hasChange(r: AuditRow): boolean {
   return Boolean(r.field_name || r.old_value != null || r.new_value != null);
@@ -98,6 +108,8 @@ export default async function AuditPage({
     date_to: sp.date_to ?? "",
   };
 
+  const offset = Math.max(0, Number(sp.offset ?? "0") || 0);
+
   const params = new URLSearchParams();
   if (filters.action_type) params.set("action_type", filters.action_type);
   if (filters.entity_type) params.set("entity_type", filters.entity_type);
@@ -105,21 +117,23 @@ export default async function AuditPage({
   if (filters.date_from) params.set("date_from", filters.date_from);
   if (filters.date_to) params.set("date_to", filters.date_to);
   const qs = params.toString();
+  params.set("limit", String(LIMIT));
+  params.set("offset", String(offset));
 
-  let rows: AuditRow[] | null = null;
+  let data: AuditPage | null = null;
   let error: ApiError | null = null;
   let actionTypes: string[] = [];
   let entityTypes: string[] = [];
-  // Fetch the audit rows and the filter-menu options (distinct action/entity
+  // Fetch the audit page and the filter-menu options (distinct action/entity
   // types) concurrently; the options are non-critical, so a failure there just
   // leaves the dropdowns minimal (only the "Any" defaults plus any deep-linked
   // value).
   const [listResult, optionsResult] = await Promise.allSettled([
-    apiGet<AuditRow[]>(`/audit${qs ? `?${qs}` : ""}`),
+    apiGet<AuditPage>(`/audit?${params.toString()}`),
     apiGet<AuditOptions>("/audit/options"),
   ]);
   if (listResult.status === "fulfilled") {
-    rows = listResult.value;
+    data = listResult.value;
   } else {
     const e = listResult.reason;
     error = e instanceof ApiError ? e : new ApiError(0, "Failed to load audit.");
@@ -128,6 +142,18 @@ export default async function AuditPage({
     actionTypes = optionsResult.value.action_types;
     entityTypes = optionsResult.value.entity_types;
   }
+
+  const rows = data?.items ?? null;
+  const from = data && data.total > 0 ? offset + 1 : 0;
+  const to = data ? Math.min(offset + LIMIT, data.total) : 0;
+  const hasPrev = offset > 0;
+  const hasNext = data ? offset + LIMIT < data.total : false;
+  const pageHref = (newOffset: number) => {
+    const p = new URLSearchParams(qs);
+    if (newOffset > 0) p.set("offset", String(newOffset));
+    const s = p.toString();
+    return s ? `/audit?${s}` : "/audit";
+  };
 
   return (
     <>
@@ -143,10 +169,14 @@ export default async function AuditPage({
           <div className="rounded-xl border border-gray-300 bg-white p-10 text-center">
             <p className="font-medium text-gray-900">
               {error.status === 403
-                ? "Your account isn't provisioned yet"
+                ? "Super admin access required"
                 : "Couldn't load the audit log"}
             </p>
-            <p className="mt-1 text-sm text-gray-500">{error.message}</p>
+            <p className="mt-1 text-sm text-gray-500">
+              {error.status === 403
+                ? "The audit trail can contain sensitive record history, so it's restricted to super admins."
+                : error.message}
+            </p>
           </div>
         ) : rows && rows.length === 0 ? (
           <div className="rounded-xl border border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
@@ -238,9 +268,47 @@ export default async function AuditPage({
                 </tbody>
               </table>
             </div>
+
+            <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
+              <span>
+                Showing {from}–{to} of {data!.total}
+              </span>
+              <div className="flex gap-2">
+                <PageLink
+                  href={pageHref(offset - LIMIT)}
+                  enabled={hasPrev}
+                  label="‹ Prev"
+                />
+                <PageLink
+                  href={pageHref(offset + LIMIT)}
+                  enabled={hasNext}
+                  label="Next ›"
+                />
+              </div>
+            </div>
           </>
         )}
       </main>
     </>
+  );
+}
+
+function PageLink({
+  href,
+  enabled,
+  label,
+}: {
+  href: string;
+  enabled: boolean;
+  label: string;
+}) {
+  const cls =
+    "rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium";
+  return enabled ? (
+    <Link href={href} className={`${cls} bg-white text-gray-700 hover:bg-gray-50`}>
+      {label}
+    </Link>
+  ) : (
+    <span className={`${cls} bg-gray-50 text-gray-300`}>{label}</span>
   );
 }

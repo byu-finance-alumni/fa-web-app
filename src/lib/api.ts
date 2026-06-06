@@ -10,10 +10,15 @@ import { createClient } from "@/utils/supabase/server";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
+/** Per-field validation detail returned by the backend on a 422 response. */
+export type ApiFieldError = { field: string; message: string };
+
 export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /** Populated from `error.fields` on 422 validation responses. */
+    public fields?: ApiFieldError[],
   ) {
     super(message);
     this.name = "ApiError";
@@ -34,13 +39,25 @@ async function authHeaders(): Promise<Record<string, string>> {
 async function handle<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let message = res.statusText;
+    let fields: ApiFieldError[] | undefined;
     try {
       const body = await res.json();
       message = body?.error?.message ?? message;
+      const rawFields = body?.error?.fields;
+      if (Array.isArray(rawFields)) {
+        fields = rawFields
+          .filter(
+            (f): f is ApiFieldError =>
+              !!f &&
+              typeof f.field === "string" &&
+              typeof f.message === "string",
+          )
+          .map((f) => ({ field: f.field, message: f.message }));
+      }
     } catch {
       /* non-JSON error body */
     }
-    throw new ApiError(res.status, message);
+    throw new ApiError(res.status, message, fields);
   }
   return (await res.json()) as T;
 }
