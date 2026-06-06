@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { X } from "lucide-react";
+import { X, ChevronRight, Pencil } from "lucide-react";
 import { clientGet } from "@/lib/api-client";
 
 export interface EventRow {
@@ -55,11 +55,17 @@ export function EventsExplorer({ events }: { events: EventRow[] }) {
           >
             <div className="flex items-start justify-between gap-2">
               <p className="font-medium text-gray-900">{e.event_name}</p>
-              {e.event_type ? (
-                <span className="shrink-0 rounded-md bg-brand-blue-50 px-2 py-0.5 text-xs font-medium text-brand-blue-600">
-                  {e.event_type}
-                </span>
-              ) : null}
+              <div className="flex shrink-0 items-center gap-2">
+                {e.event_type ? (
+                  <span className="rounded-md bg-brand-blue-50 px-2 py-0.5 text-xs font-medium text-brand-blue-600">
+                    {e.event_type}
+                  </span>
+                ) : null}
+                <ChevronRight
+                  className="h-4 w-4 text-gray-400"
+                  aria-hidden="true"
+                />
+              </div>
             </div>
             <p className="mt-1 text-xs text-gray-500">
               {[formatDate(e.event_date), e.event_location]
@@ -81,6 +87,9 @@ export function EventsExplorer({ events }: { events: EventRow[] }) {
               <th className="w-36 px-4 py-3">Date</th>
               <th className="w-44 px-4 py-3">Location</th>
               <th className="w-32 px-4 py-3">Attendance</th>
+              <th className="w-24 px-4 py-3 text-right">
+                <span className="sr-only">View</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -88,7 +97,7 @@ export function EventsExplorer({ events }: { events: EventRow[] }) {
               <tr
                 key={e.event_id}
                 onClick={() => setSelected(e)}
-                className="cursor-pointer border-b border-gray-300 last:border-0 hover:bg-gray-50"
+                className="group cursor-pointer border-b border-gray-300 last:border-0 hover:bg-gray-50"
               >
                 <td className="px-4 py-3 font-medium text-gray-900">
                   {e.event_name}
@@ -110,6 +119,12 @@ export function EventsExplorer({ events }: { events: EventRow[] }) {
                 </td>
                 <td className="px-4 py-3 font-semibold tabular-nums text-gray-900">
                   {e.attendance_count}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-brand-blue-600 group-hover:text-brand-blue-500">
+                    View
+                    <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                  </span>
                 </td>
               </tr>
             ))}
@@ -183,14 +198,23 @@ function EventDrawer({
                 .join(" · ") || "—"}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="rounded-lg border border-gray-300 bg-white p-1.5 text-gray-500 hover:bg-gray-50"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <Link
+              href={`/events/${event.event_id}/edit`}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-brand-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-blue-500"
+            >
+              <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+              Edit
+            </Link>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="rounded-lg border border-gray-300 bg-white p-1.5 text-gray-500 hover:bg-gray-50"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 space-y-4 overflow-auto p-5">

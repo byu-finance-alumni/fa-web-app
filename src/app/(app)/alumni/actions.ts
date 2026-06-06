@@ -4,7 +4,37 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { apiPost, apiPatch, apiDelete, ApiError } from "@/lib/api";
 
-export type FormState = { error?: string } | null;
+/**
+ * Result of a form server action.
+ *
+ * - `error` is the summary / generic message shown at the form level.
+ * - `fieldErrors` maps an input `name` to its validation message, populated
+ *   from a backend 422 (`error.fields`). The form renders these inline at the
+ *   matching input; `error` remains the fallback for non-validation failures.
+ */
+export type FormState = {
+  error?: string;
+  fieldErrors?: Record<string, string>;
+} | null;
+
+/** Translate an ApiError into a FormState, splitting out 422 field details. */
+function toFormState(e: unknown, fallback: string): FormState {
+  if (e instanceof ApiError) {
+    if (e.status === 422 && e.fields?.length) {
+      const fieldErrors: Record<string, string> = {};
+      for (const f of e.fields) {
+        // Keep the first message per field; matches input `name` attributes.
+        if (!(f.field in fieldErrors)) fieldErrors[f.field] = f.message;
+      }
+      return {
+        error: e.message || "Please fix the highlighted fields.",
+        fieldErrors,
+      };
+    }
+    return { error: e.message };
+  }
+  return { error: fallback };
+}
 
 function buildPayload(formData: FormData): Record<string, unknown> {
   const str = (k: string) => {
@@ -44,7 +74,7 @@ export async function createAlumni(
     );
     id = created.alumni_id;
   } catch (e) {
-    return { error: e instanceof ApiError ? e.message : "Failed to create." };
+    return toFormState(e, "Failed to create.");
   }
   revalidatePath("/alumni");
   redirect(`/alumni/${id}`);
@@ -58,7 +88,7 @@ export async function updateAlumni(
   try {
     await apiPatch(`/alumni/${id}`, buildPayload(formData));
   } catch (e) {
-    return { error: e instanceof ApiError ? e.message : "Failed to save." };
+    return toFormState(e, "Failed to save.");
   }
   revalidatePath(`/alumni/${id}`);
   revalidatePath("/alumni");

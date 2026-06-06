@@ -7,8 +7,10 @@ import { Loader2, Search } from "lucide-react";
 import { clientGet } from "@/lib/api-client";
 import type { Alumni, AlumniPage } from "@/types/alumni";
 
-const MIN_CHARS = 2;
-const DEBOUNCE_MS = 250;
+// 3 chars + 400ms keeps a fast typist's request rate well inside the
+// 100 req/60s/IP WAF rate limit (appsec finding).
+const MIN_CHARS = 3;
+const DEBOUNCE_MS = 400;
 const MAX_MATCHES = 8;
 
 function displayName(a: Alumni): string {

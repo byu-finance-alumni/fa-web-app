@@ -2,8 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: light;
+/*
+ * The app is light-only by design (see UX-UI.md). Force the UA to paint every
+ * native widget (select option popups, date pickers, scrollbars, autofill) with
+ * the light theme regardless of the OS / browser dark-mode setting.
+ *
+ * `only light` is the strongest signal: it tells the user agent to NEVER honor a
+ * dark preference for this subtree. We anchor it on `html` (the actual root) and
+ * repeat it on the form controls themselves, because some Chromium builds paint
+ * a native <select>'s open option list using the control's *own* used
+ * color-scheme rather than the inherited :root value — which is what produced
+ * the reported "black box" dropdowns on dark-mode machines.
+ */
+:root,
+html {
+  color-scheme: only light;
+}
+
+select,
+input,
+textarea,
+button,
+optgroup,
+option {
+  color-scheme: only light;
 }
 
 body {

@@ -78,11 +78,21 @@ export function RoleManager({
                 else toast.success(`${labelOf(v)} added.`);
               });
           }}
+          // Explicit light surface + color-scheme so the native option list
+          // renders dark-on-white (Bug fix: an unstyled native select painted a
+          // black/opaque dropdown on dark-mode machines).
+          style={{ colorScheme: "light" }}
           className="rounded-md border border-gray-300 bg-white px-1.5 py-0.5 text-xs text-gray-500 focus:outline-none focus:ring-1 focus:ring-brand-blue-600 disabled:opacity-50"
         >
-          <option value="">+ Add</option>
+          <option value="" className="bg-white text-gray-900">
+            + Add
+          </option>
           {available.map((r) => (
-            <option key={r.value} value={r.value}>
+            <option
+              key={r.value}
+              value={r.value}
+              className="bg-white text-gray-900"
+            >
               {r.label}
             </option>
           ))}

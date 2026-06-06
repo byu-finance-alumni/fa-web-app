@@ -18,7 +18,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" style={{ colorScheme: "only light" }}>
       <body className={inter.variable}>{children}</body>
     </html>
   );

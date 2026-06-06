@@ -154,11 +154,12 @@ export function AddInteractionButton({
                 <select
                   id="interaction_type"
                   name="interaction_type"
-                  className={fieldCls}
+                  className={`${fieldCls} bg-white`}
+                  style={{ colorScheme: "light" }}
                   defaultValue={INTERACTION_TYPES[0]}
                 >
                   {INTERACTION_TYPES.map((t) => (
-                    <option key={t} value={t}>
+                    <option key={t} value={t} className="bg-white text-gray-900">
                       {t}
                     </option>
                   ))}
@@ -249,7 +250,8 @@ export function AddTaskButton({
                   id="due_date"
                   name="due_date"
                   type="date"
-                  className={fieldCls}
+                  className={`${fieldCls} bg-white`}
+                  style={{ colorScheme: "light" }}
                 />
               </div>
               <div>
