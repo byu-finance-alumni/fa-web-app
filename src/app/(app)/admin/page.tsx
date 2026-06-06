@@ -3,6 +3,8 @@ import { Topbar } from "@/components/shell/Topbar";
 import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
 import { TopbarSearch } from "@/components/shared/TopbarSearch";
 import { RoleManager } from "@/components/admin/RoleManager";
+import { UserActiveToggle } from "@/components/admin/UserActiveToggle";
+import type { UserContext } from "@/types/alumni";
 
 interface AdminUser {
   user_id: number;
@@ -13,11 +15,23 @@ interface AdminUser {
   roles: string[];
 }
 
+const displayName = (u: AdminUser) =>
+  [u.first_name, u.last_name].filter(Boolean).join(" ") || u.email;
+
 export default async function AdminPage() {
   let users: AdminUser[] | null = null;
   let error: ApiError | null = null;
+  let currentUserId: number | null = null;
   try {
     users = await apiGet<AdminUser[]>("/admin/users");
+    // Identify the signed-in super_admin so we can hide self-deactivation
+    // (the backend rejects it too). A failure here just leaves the control
+    // visible on every row — the backend still enforces the guard.
+    try {
+      currentUserId = (await apiGet<UserContext>("/auth/context")).user_id;
+    } catch {
+      currentUserId = null;
+    }
   } catch (e) {
     error = e instanceof ApiError ? e : new ApiError(0, "Failed to load users.");
   }
@@ -65,15 +79,12 @@ export default async function AdminPage() {
                     </p>
                     <p className="truncate text-xs text-gray-500">{u.email}</p>
                   </div>
-                  <span
-                    className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium ${
-                      u.active
-                        ? "bg-gray-100 text-gray-700"
-                        : "bg-gray-100 text-gray-400"
-                    }`}
-                  >
-                    {u.active ? "Active" : "Disabled"}
-                  </span>
+                  <UserActiveToggle
+                    userId={u.user_id}
+                    active={u.active}
+                    isSelf={u.user_id === currentUserId}
+                    name={displayName(u)}
+                  />
                 </div>
                 <div className="mt-2">
                   <RoleManager userId={u.user_id} roles={u.roles} />
@@ -90,7 +101,7 @@ export default async function AdminPage() {
                   <th className="px-4 py-3">Name</th>
                   <th className="px-4 py-3">Email</th>
                   <th className="px-4 py-3">Role</th>
-                  <th className="w-32 px-4 py-3">Status</th>
+                  <th className="w-48 px-4 py-3">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -121,15 +132,12 @@ export default async function AdminPage() {
                       <RoleManager userId={u.user_id} roles={u.roles} />
                     </td>
                     <td className="px-4 py-3">
-                      <span
-                        className={`rounded-md px-2 py-0.5 text-xs font-medium ${
-                          u.active
-                            ? "bg-gray-100 text-gray-700"
-                            : "bg-gray-100 text-gray-400"
-                        }`}
-                      >
-                        {u.active ? "Active" : "Disabled"}
-                      </span>
+                      <UserActiveToggle
+                        userId={u.user_id}
+                        active={u.active}
+                        isSelf={u.user_id === currentUserId}
+                        name={displayName(u)}
+                      />
                     </td>
                   </tr>
                 ))}

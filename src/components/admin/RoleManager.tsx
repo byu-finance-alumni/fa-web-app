@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { X } from "lucide-react";
+import { useTransition } from "react";
+import { Loader2, X } from "lucide-react";
 import { assignRole, removeRole } from "@/app/(app)/admin/actions";
+import { useToast } from "@/components/ui/Toast";
 
 const ROLES = [
   { value: "super_admin", label: "Super admin" },
@@ -25,8 +26,8 @@ export function RoleManager({
   userId: number;
   roles: string[];
 }) {
+  const { toast } = useToast();
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
   const available = ROLES.filter((r) => !roles.includes(r.value));
 
   return (
@@ -49,7 +50,8 @@ export function RoleManager({
               onClick={() =>
                 startTransition(async () => {
                   const res = await removeRole(userId, r);
-                  setError(res?.error ?? null);
+                  if (res?.error) toast.error(res.error);
+                  else toast.success(`${labelOf(r)} removed.`);
                 })
               }
               className="text-gray-400 hover:text-danger-600 disabled:opacity-50"
@@ -72,10 +74,11 @@ export function RoleManager({
             if (v)
               startTransition(async () => {
                 const res = await assignRole(userId, v);
-                setError(res?.error ?? null);
+                if (res?.error) toast.error(res.error);
+                else toast.success(`${labelOf(v)} added.`);
               });
           }}
-          className="rounded-md border border-gray-300 bg-white px-1.5 py-0.5 text-xs text-gray-500 focus:outline-none focus:ring-1 focus:ring-brand-blue-600"
+          className="rounded-md border border-gray-300 bg-white px-1.5 py-0.5 text-xs text-gray-500 focus:outline-none focus:ring-1 focus:ring-brand-blue-600 disabled:opacity-50"
         >
           <option value="">+ Add</option>
           {available.map((r) => (
@@ -86,7 +89,12 @@ export function RoleManager({
         </select>
       ) : null}
 
-      {error ? <span className="text-xs text-danger-600">{error}</span> : null}
+      {pending ? (
+        <Loader2
+          className="h-3.5 w-3.5 animate-spin text-gray-400"
+          aria-label="Saving"
+        />
+      ) : null}
     </div>
   );
 }

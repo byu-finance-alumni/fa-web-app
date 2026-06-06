@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/shell/Sidebar";
 import { MobileNav } from "@/components/shell/MobileNav";
 import { apiGet } from "@/lib/api";
 import type { UserContext } from "@/types/alumni";
+import { ToastProvider } from "@/components/ui/Toast";
 
 /**
  * App shell layout: navy sidebar + content area, with auth enforced.
@@ -39,12 +40,14 @@ export default async function AppLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-100">
-      <Sidebar email={user.email ?? ""} role={role} />
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden pb-16 md:pb-0">
-        {children}
+    <ToastProvider>
+      <div className="flex h-screen overflow-hidden bg-gray-100">
+        <Sidebar email={user.email ?? ""} role={role} />
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden pb-16 md:pb-0">
+          {children}
+        </div>
+        <MobileNav />
       </div>
-      <MobileNav />
-    </div>
+    </ToastProvider>
   );
 }

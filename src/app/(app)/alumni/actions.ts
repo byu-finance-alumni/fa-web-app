@@ -147,7 +147,12 @@ export async function setTaskComplete(
   alumniId: number,
   taskId: number,
   completed: boolean,
-): Promise<void> {
-  await apiPatch(`/alumni/${alumniId}/tasks/${taskId}`, { completed });
+): Promise<FormState> {
+  try {
+    await apiPatch(`/alumni/${alumniId}/tasks/${taskId}`, { completed });
+  } catch (e) {
+    return { error: e instanceof ApiError ? e.message : "Failed to update task." };
+  }
   revalidatePath(`/alumni/${alumniId}`);
+  return null;
 }
