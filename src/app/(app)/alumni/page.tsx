@@ -112,7 +112,10 @@ export default async function AlumniListPage({
   // there just leaves the dropdowns with "All".
   const [listResult, optionsResult] = await Promise.allSettled([
     apiGet<AlumniPage>(`/alumni?${params.toString()}`),
-    apiGet<GeoSummary>("/geography/summary"),
+    apiGet<GeoSummary>("/geography/summary", {
+      revalidate: 300,
+      tags: ["geography"],
+    }),
   ]);
   if (listResult.status === "fulfilled") {
     data = listResult.value;

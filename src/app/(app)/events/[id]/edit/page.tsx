@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { Topbar } from "@/components/shell/Topbar";
 import { EventForm } from "@/components/events/EventForm";
+import { AttendeeManager } from "@/components/events/AttendeeManager";
 import { apiGet, ApiError } from "@/lib/api";
 import { updateEvent } from "../../actions";
 
@@ -15,10 +16,13 @@ interface EventDetail {
 
 export default async function EditEventPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ created?: string }>;
 }) {
   const { id } = await params;
+  const { created } = await searchParams;
   let event: EventDetail;
   try {
     event = await apiGet<EventDetail>(`/events/${id}`);
@@ -34,6 +38,11 @@ export default async function EditEventPage({
       <Topbar title="Edit event" />
       <main className="flex-1 overflow-auto p-6">
         <h2 className="mb-4 text-2xl font-semibold text-gray-900">Edit event</h2>
+        {created ? (
+          <p className="mb-4 rounded-lg border border-brand-blue-300 bg-brand-blue-50 px-4 py-3 text-sm text-navy-800">
+            Event created. Add attendees below.
+          </p>
+        ) : null}
         <EventForm
           action={action}
           submitLabel="Save changes"
@@ -46,6 +55,7 @@ export default async function EditEventPage({
             event_notes: event.event_notes,
           }}
         />
+        <AttendeeManager eventId={event.event_id} />
       </main>
     </>
   );

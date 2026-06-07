@@ -16,7 +16,10 @@ export default async function DataQualityPage() {
   let dq: DataQuality | null = null;
   let error: ApiError | null = null;
   try {
-    dq = await apiGet<DataQuality>("/dashboard/data-quality");
+    dq = await apiGet<DataQuality>("/dashboard/data-quality", {
+      revalidate: 60,
+      tags: ["dashboard"],
+    });
   } catch (e) {
     error =
       e instanceof ApiError

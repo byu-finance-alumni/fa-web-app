@@ -130,7 +130,10 @@ export default async function AuditPage({
   // value).
   const [listResult, optionsResult] = await Promise.allSettled([
     apiGet<AuditPage>(`/audit?${params.toString()}`),
-    apiGet<AuditOptions>("/audit/options"),
+    apiGet<AuditOptions>("/audit/options", {
+      revalidate: 300,
+      tags: ["audit"],
+    }),
   ]);
   if (listResult.status === "fulfilled") {
     data = listResult.value;

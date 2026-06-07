@@ -45,7 +45,10 @@ export default async function EventsPage({
   // the dropdown with "All".
   const [listResult, optionsResult] = await Promise.allSettled([
     apiGet<EventRow[]>(qs ? `/events?${qs}` : "/events"),
-    apiGet<EventOptions>("/events/options"),
+    apiGet<EventOptions>("/events/options", {
+      revalidate: 300,
+      tags: ["events"],
+    }),
   ]);
   if (listResult.status === "fulfilled") {
     events = listResult.value;

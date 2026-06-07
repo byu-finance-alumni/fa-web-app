@@ -1,8 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
-import { apiPost, apiPatch, ApiError } from "@/lib/api";
+import { apiPost, apiPatch, apiDelete, ApiError } from "@/lib/api";
 
 /**
  * Result of an event form server action.
@@ -60,13 +60,20 @@ export async function createEvent(
   if (typeof name !== "string" || name.trim() === "") {
     return { error: "Event name is required." };
   }
+  let created: { event_id: number };
   try {
-    await apiPost<{ event_id: number }>("/events", buildPayload(formData));
+    created = await apiPost<{ event_id: number }>(
+      "/events",
+      buildPayload(formData),
+    );
   } catch (e) {
     return toFormState(e, "Failed to create event.");
   }
   revalidatePath("/events");
-  redirect("/events");
+  revalidateTag("events"); // event-type options list
+  // Land on the edit page so the user can immediately add attendees (an event
+  // must exist before attendance can attach). `created=1` flags the hint text.
+  redirect(`/events/${created.event_id}/edit?created=1`);
 }
 
 export async function updateEvent(
@@ -84,5 +91,47 @@ export async function updateEvent(
     return toFormState(e, "Failed to save event.");
   }
   revalidatePath("/events");
+  revalidateTag("events"); // event-type options list
   redirect("/events");
+}
+
+/**
+ * Result of an attendee mutation. `ok` lets the client component update its
+ * local list / fire a toast; `error` is a human-readable message on failure.
+ */
+export type AttendeeActionResult = { ok: true } | { ok: false; error: string };
+
+/** Add an alumni to an event's attendance (full_access). */
+export async function addAttendee(
+  eventId: number,
+  alumniId: number,
+): Promise<AttendeeActionResult> {
+  try {
+    await apiPost(`/events/${eventId}/attendees`, { alumni_id: alumniId });
+  } catch (e) {
+    if (e instanceof ApiError) {
+      if (e.status === 409) {
+        return { ok: false, error: "That alumni is already an attendee." };
+      }
+      return { ok: false, error: e.message };
+    }
+    return { ok: false, error: "Failed to add attendee." };
+  }
+  revalidatePath("/events");
+  return { ok: true };
+}
+
+/** Remove an alumni from an event's attendance (full_access). */
+export async function removeAttendee(
+  eventId: number,
+  alumniId: number,
+): Promise<AttendeeActionResult> {
+  try {
+    await apiDelete(`/events/${eventId}/attendees/${alumniId}`);
+  } catch (e) {
+    if (e instanceof ApiError) return { ok: false, error: e.message };
+    return { ok: false, error: "Failed to remove attendee." };
+  }
+  revalidatePath("/events");
+  return { ok: true };
 }

@@ -120,6 +120,11 @@ function Filter({
       </span>
       <select
         name={name}
+        // Keyed by the URL-derived value so navigation (Apply/Clear) remounts
+        // the select and the visible label always matches the real filter
+        // state (Bug fix: an uncontrolled select kept showing the old choice
+        // after Clear).
+        key={value ?? "all"}
         defaultValue={value ?? ""}
         // Explicit light surface + color-scheme so the native option list
         // renders on a white background (Bug fix: an unstyled native select

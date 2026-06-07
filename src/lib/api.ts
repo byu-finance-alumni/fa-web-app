@@ -62,12 +62,35 @@ async function handle<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
 
-export async function apiGet<T>(path: string): Promise<T> {
+/** Opt-in Next data-cache settings for slow-changing aggregate GETs. */
+export interface ApiCacheOptions {
+  /** Seconds to keep the response in the Next data cache. */
+  revalidate: number;
+  /**
+   * Cache tags so mutations can invalidate instantly via `revalidateTag`
+   * (e.g. "dashboard", "geography", "events", "audit").
+   */
+  tags?: string[];
+}
+
+/**
+ * Server-side GET. Uncached by default (lists/search must be fresh); pass
+ * `cacheOpts` only for slow-changing aggregates (dashboard summary, options
+ * lists, geography rollups). Note: the Authorization header is part of the
+ * fetch cache key, so entries are effectively per-user-session — still a big
+ * win for repeat navigation, and it can never leak data across users.
+ */
+export async function apiGet<T>(
+  path: string,
+  cacheOpts?: ApiCacheOptions,
+): Promise<T> {
   if (!API_URL) throw new ApiError(0, "API URL is not configured.");
   return handle<T>(
     await fetch(`${API_URL}${path}`, {
       headers: await authHeaders(),
-      cache: "no-store",
+      ...(cacheOpts
+        ? { next: { revalidate: cacheOpts.revalidate, tags: cacheOpts.tags } }
+        : { cache: "no-store" as const }),
     }),
   );
 }

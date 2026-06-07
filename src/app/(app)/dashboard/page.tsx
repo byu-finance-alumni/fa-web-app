@@ -97,8 +97,14 @@ export default async function DashboardPage() {
   let notProvisioned = false;
   try {
     [s, geo] = await Promise.all([
-      apiGet<Summary>("/dashboard/summary"),
-      apiGet<StateCount[]>("/geography/states"),
+      apiGet<Summary>("/dashboard/summary", {
+        revalidate: 60,
+        tags: ["dashboard"],
+      }),
+      apiGet<StateCount[]>("/geography/states", {
+        revalidate: 60,
+        tags: ["geography"],
+      }),
     ]);
   } catch (e) {
     if (e instanceof ApiError && e.status === 403) notProvisioned = true;
