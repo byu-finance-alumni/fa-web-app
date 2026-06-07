@@ -45,6 +45,7 @@ export default async function BreakdownPage({
     const sep = qs ? `&${qs}` : "";
     data = await apiGet<Breakdown>(
       `/geography/breakdown?dimension=${dimension}${sep}`,
+      { revalidate: 60, tags: ["geography"] },
     );
   } catch (e) {
     // Render an in-page error state rather than throwing to the route error

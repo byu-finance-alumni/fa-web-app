@@ -28,8 +28,14 @@ export default async function GeographyPage({
   let notProvisioned = false;
   try {
     [summary, states] = await Promise.all([
-      apiGet<GeoSummary>(`/geography/summary?${qs}`),
-      apiGet<StateCount[]>(`/geography/states?${qs}`),
+      apiGet<GeoSummary>(`/geography/summary?${qs}`, {
+        revalidate: 60,
+        tags: ["geography"],
+      }),
+      apiGet<StateCount[]>(`/geography/states?${qs}`, {
+        revalidate: 60,
+        tags: ["geography"],
+      }),
     ]);
   } catch (e) {
     if (e instanceof ApiError && e.status === 403) notProvisioned = true;

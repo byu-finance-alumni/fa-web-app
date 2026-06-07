@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { apiPost, apiPatch, apiDelete, ApiError } from "@/lib/api";
 
@@ -77,6 +77,8 @@ export async function createAlumni(
     return toFormState(e, "Failed to create.");
   }
   revalidatePath("/alumni");
+  revalidateTag("dashboard");
+  revalidateTag("geography");
   redirect(`/alumni/${id}`);
 }
 
@@ -92,6 +94,8 @@ export async function updateAlumni(
   }
   revalidatePath(`/alumni/${id}`);
   revalidatePath("/alumni");
+  revalidateTag("dashboard");
+  revalidateTag("geography");
   redirect(`/alumni/${id}`);
 }
 
@@ -103,6 +107,8 @@ export async function archiveAlumni(id: number): Promise<FormState> {
   }
   revalidatePath("/alumni");
   revalidatePath(`/alumni/${id}`);
+  revalidateTag("dashboard");
+  revalidateTag("geography");
   // Stay on the profile so the now-archived state (and Unarchive) is visible.
   return null;
 }
@@ -115,6 +121,8 @@ export async function restoreAlumni(id: number): Promise<FormState> {
   }
   revalidatePath("/alumni");
   revalidatePath(`/alumni/${id}`);
+  revalidateTag("dashboard");
+  revalidateTag("geography");
   return null;
 }
 
@@ -142,6 +150,7 @@ export async function addInteraction(
     };
   }
   revalidatePath(`/alumni/${alumniId}`);
+  revalidateTag("dashboard"); // contacted / follow-up KPIs
   return null;
 }
 
@@ -170,6 +179,7 @@ export async function addTask(
     return { error: e instanceof ApiError ? e.message : "Failed to add task." };
   }
   revalidatePath(`/alumni/${alumniId}`);
+  revalidateTag("dashboard"); // contacted / follow-up KPIs
   return null;
 }
 
@@ -184,5 +194,6 @@ export async function setTaskComplete(
     return { error: e instanceof ApiError ? e.message : "Failed to update task." };
   }
   revalidatePath(`/alumni/${alumniId}`);
+  revalidateTag("dashboard"); // contacted / follow-up KPIs
   return null;
 }
