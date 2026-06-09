@@ -35,9 +35,14 @@ export default async function EditEventPage({
 
   return (
     <>
-      <Topbar title="Edit event" />
+      <Topbar
+        breadcrumb={[
+          { label: "Events", href: "/events" },
+          { label: event.event_name || "Event" },
+          { label: "Edit" },
+        ]}
+      />
       <main className="flex-1 overflow-auto p-6">
-        <h2 className="mb-4 text-2xl font-semibold text-gray-900">Edit event</h2>
         {created ? (
           <p className="mb-4 rounded-lg border border-brand-blue-300 bg-brand-blue-50 px-4 py-3 text-sm text-navy-800">
             Event created. Add attendees below.

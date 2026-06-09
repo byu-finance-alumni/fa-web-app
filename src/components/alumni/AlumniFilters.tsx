@@ -10,6 +10,7 @@ import {
   Search,
   SlidersHorizontal,
 } from "lucide-react";
+import { INDUSTRY_OPTIONS } from "@/constants/dropdowns";
 
 /** Everything the backend GET /alumni supports, mirrored in the URL. */
 export interface AlumniFilterState {
@@ -29,6 +30,8 @@ export interface AlumniFilterState {
   missingEmail: boolean;
   missingEmployer: boolean;
   duplicate: boolean;
+  /** List sort order. */
+  sort: "name" | "grad_desc" | "grad_asc";
 }
 
 export const EMPTY_FILTERS: AlumniFilterState = {
@@ -46,6 +49,7 @@ export const EMPTY_FILTERS: AlumniFilterState = {
   missingEmail: false,
   missingEmployer: false,
   duplicate: false,
+  sort: "name",
 };
 
 /** Serialize filter state to the canonical /alumni query string. */
@@ -66,6 +70,7 @@ function toQs(f: AlumniFilterState): string {
   if (f.missingEmail) p.set("missing_email", "1");
   if (f.missingEmployer) p.set("missing_employer", "1");
   if (f.duplicate) p.set("duplicate", "1");
+  if (f.sort && f.sort !== "name") p.set("sort", f.sort);
   return p.toString();
 }
 
@@ -81,13 +86,13 @@ function toQs(f: AlumniFilterState): string {
 export function AlumniFilters({
   initial,
   employers,
-  industries,
+  canCreate = false,
 }: {
   initial: AlumniFilterState;
   /** Distinct employer options for the menu (from geography summary). */
   employers: string[];
-  /** Distinct industry / work-area options for the menu. */
-  industries: string[];
+  /** Show the "Add alumni" button (full_access / super_admin only). */
+  canCreate?: boolean;
 }) {
   const router = useRouter();
   const [f, setF] = useState<AlumniFilterState>(initial);
@@ -170,6 +175,7 @@ export function AlumniFilters({
     <label className="flex items-center gap-2 text-sm text-gray-700">
       <input
         type="checkbox"
+        className="h-4 w-4 rounded border-gray-300 accent-brand-blue-600"
         checked={f[key]}
         onChange={(e) => set(key, e.target.checked)}
       />
@@ -180,7 +186,7 @@ export function AlumniFilters({
   const selectRow = (
     key: "employer" | "industry",
     label: string,
-    options: string[],
+    options: readonly string[],
   ) => (
     <div>
       <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -209,12 +215,14 @@ export function AlumniFilters({
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-gray-300 bg-white p-3">
-      <Link
-        href="/alumni/new"
-        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500"
-      >
-        <Plus className="h-4 w-4" /> Add alumni
-      </Link>
+      {canCreate ? (
+        <Link
+          href="/alumni/new"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500"
+        >
+          <Plus className="h-4 w-4" /> Add alumni
+        </Link>
+      ) : null}
 
       <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 focus-within:border-brand-blue-600 focus-within:ring-1 focus-within:ring-brand-blue-600">
         <Search className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
@@ -231,6 +239,26 @@ export function AlumniFilters({
             aria-hidden="true"
           />
         )}
+      </div>
+
+      <div className="relative shrink-0">
+        <select
+          value={f.sort}
+          onChange={(e) =>
+            set("sort", e.target.value as AlumniFilterState["sort"])
+          }
+          aria-label="Sort alumni"
+          className="appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-9 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus:outline-none"
+          style={{ colorScheme: "light" }}
+        >
+          <option value="name">Sort: Name (A–Z)</option>
+          <option value="grad_desc">Sort: Grad year (newest)</option>
+          <option value="grad_asc">Sort: Grad year (oldest)</option>
+        </select>
+        <ChevronDown
+          className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500"
+          aria-hidden="true"
+        />
       </div>
 
       <div ref={menuRef} className="relative shrink-0">
@@ -254,7 +282,7 @@ export function AlumniFilters({
         {menuOpen && (
           <div className="absolute right-0 top-full z-50 mt-1 w-80 rounded-lg border border-gray-300 bg-white p-4 shadow-lg">
             <div className="space-y-4">
-              {selectRow("industry", "Work area", industries)}
+              {selectRow("industry", "Work area", INDUSTRY_OPTIONS)}
               {selectRow("employer", "Employer", employers)}
 
               <div>
@@ -318,17 +346,6 @@ export function AlumniFilters({
                       <option value="only">Only</option>
                     </select>
                   </label>
-                </div>
-              </div>
-
-              <div>
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Data quality
-                </p>
-                <div className="space-y-2">
-                  {checkboxRow("missingEmail", "Missing email")}
-                  {checkboxRow("missingEmployer", "Missing employer")}
-                  {checkboxRow("duplicate", "Duplicate candidates")}
                 </div>
               </div>
 

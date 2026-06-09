@@ -5,7 +5,7 @@ import { Topbar } from "@/components/shell/Topbar";
 export default function Loading() {
   return (
     <>
-      <Topbar title="Map" />
+      <Topbar title="Alumni by State" />
       <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-6 lg:overflow-hidden">
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-4 lg:grid-rows-1">
           <div className="h-96 animate-pulse rounded-xl border border-gray-300 bg-white lg:col-span-3 lg:h-auto" />

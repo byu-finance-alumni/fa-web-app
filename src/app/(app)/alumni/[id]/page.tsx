@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-  ChevronLeft,
   GraduationCap,
   Building2,
   MessageSquare,
@@ -16,16 +15,22 @@ import {
   Flag,
   CircleAlert,
   Check,
+  FileText,
+  Download,
   type LucideIcon,
 } from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
 import type { Profile } from "@/types/profile";
 import type { UserContext } from "@/types/alumni";
-import { SignOutButton } from "@/components/auth/SignOutButton";
+import { Topbar } from "@/components/shell/Topbar";
+import { TopbarSearch } from "@/components/shared/TopbarSearch";
 import {
+  AddEventButton,
   AddInteractionButton,
+  AddRoleButton,
   AddTaskButton,
   ArchiveControls,
+  TagStatusManager,
   TaskCheckbox,
 } from "@/components/alumni/ProfileDialogs";
 import {
@@ -34,6 +39,8 @@ import {
   type ActivityItem,
 } from "@/components/alumni/ProfileActivity";
 import { ExportProfileButton } from "@/components/alumni/ExportProfileButton";
+import { DrawerList } from "@/components/alumni/DrawerList";
+import { DrawerView } from "@/components/alumni/DrawerView";
 import { MetricCard } from "@/components/shared/MetricCard";
 
 /* ----------------------------------------------------------------- helpers */
@@ -88,7 +95,7 @@ function Panel({
       className={`rounded-xl border border-gray-300 bg-white p-5 ${className}`}
     >
       <div className="mb-4 flex items-center justify-between gap-2">
-        <h3 className="text-[15px] font-semibold text-gray-900">{title}</h3>
+        <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
         {action}
       </div>
       {children}
@@ -115,7 +122,7 @@ function ContactField({
         <Icon className="h-4 w-4" aria-hidden="true" />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
           {label}
         </p>
         <p className={`truncate text-sm ${value ? "text-gray-900" : "text-gray-300"}`}>
@@ -272,19 +279,51 @@ export default async function AlumniProfilePage({
 
   const recentActivity = activity.slice(0, 5);
 
+  // Shared chip content for Engagement & tags — rendered in the panel and in
+  // its "View all" right-side drawer.
+  const engagementContent = (
+    <div className="space-y-3">
+      {profile.tags.length ? (
+        <ChipRow label="Tags">
+          {profile.tags.map((t) => (
+            <EngagementChip
+              key={t}
+              tone={t.toLowerCase().includes("engaged") ? "warning" : "tag"}
+            >
+              {t}
+            </EngagementChip>
+          ))}
+        </ChipRow>
+      ) : null}
+      {profile.status_labels.length ? (
+        <ChipRow label="Status">
+          {profile.status_labels.map((s) => (
+            <EngagementChip key={s} tone="neutral">
+              {s}
+            </EngagementChip>
+          ))}
+        </ChipRow>
+      ) : null}
+      {profile.program_engagement ? (
+        <ChipRow label="Program">
+          {programChips(profile.program_engagement).map((label) => (
+            <EngagementChip key={label} tone="success">
+              {label}
+            </EngagementChip>
+          ))}
+        </ChipRow>
+      ) : null}
+    </div>
+  );
+
   return (
     <>
       {/* Top bar (fixed; only the content below scrolls) */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-gray-300 bg-white px-4 md:px-6">
-        <Link
-          href="/alumni"
-          className="flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-brand-blue-600"
-        >
-          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-          Alumni
-        </Link>
-        <SignOutButton />
-      </header>
+      <Topbar
+        breadcrumb={[{ label: "Alumni", href: "/alumni" }, { label: name }]}
+      >
+        <TopbarSearch />
+      </Topbar>
 
       <main className="flex-1 overflow-y-auto bg-gray-100 p-4 md:p-6">
         <div className="mx-auto max-w-6xl space-y-4">
@@ -323,7 +362,7 @@ export default async function AlumniProfilePage({
                     {[
                       a.graduation_year ? `Class of ${a.graduation_year}` : null,
                       a.byu_id ? `BYU ID ${a.byu_id}` : null,
-                      a.net_id ? `Net ID ${a.net_id}` : null,
+                      a.net_id ? `BYU Net ID ${a.net_id}` : null,
                     ]
                       .filter(Boolean)
                       .join(" · ")}
@@ -372,13 +411,13 @@ export default async function AlumniProfilePage({
 
             {(profile.tags.length || profile.status_labels.length) > 0 ? (
               <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-4">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Engagement
                 </span>
                 {profile.tags.map((t) => (
                   <EngagementChip
                     key={t}
-                    tone={t.toLowerCase().includes("engaged") ? "warning" : "tag"}
+                    tone="tag"
                   >
                     {t}
                   </EngagementChip>
@@ -439,10 +478,11 @@ export default async function AlumniProfilePage({
             />
           </div>
 
-          {/* Two-column body */}
+          {/* Paired-row body */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            {/* Left / main column */}
-            <div className="space-y-4 lg:col-span-2">
+            {/* Main column (wider). Flex column with the last panel growing so
+                both columns end at the same point (equal length). */}
+            <div className="flex flex-col gap-4 lg:col-span-2 lg:[&>:last-child]:flex-1">
               {/* Contact information */}
               <Panel title="Contact information" action={<EditLink id={aid} />}>
                 {c ? (
@@ -526,19 +566,18 @@ export default async function AlumniProfilePage({
               {/* Employment history */}
               <Panel
                 title="Employment history"
-                action={
-                  canEdit ? (
-                    <span
-                      title="Coming soon"
-                      className="cursor-not-allowed text-xs font-medium text-gray-300"
-                    >
-                      + Add role
-                    </span>
-                  ) : undefined
-                }
+                action={canEdit ? <AddRoleButton alumniId={aid} /> : undefined}
               >
                 {profile.employment_history.length ? (
-                  <ol className="space-y-1">
+                  <DrawerList
+                    title="Employment history"
+                    ordered
+                    collapsed={3}
+                    listClassName="space-y-1"
+                    action={
+                      canEdit ? <AddRoleButton alumniId={aid} /> : undefined
+                    }
+                  >
                     {profile.employment_history.map((e) => (
                       <li
                         key={e.employment_history_id}
@@ -575,7 +614,7 @@ export default async function AlumniProfilePage({
                         </div>
                       </li>
                     ))}
-                  </ol>
+                  </DrawerList>
                 ) : (
                   <p className="py-6 text-center text-sm text-gray-500">
                     No employment history recorded yet.
@@ -583,55 +622,22 @@ export default async function AlumniProfilePage({
                 )}
               </Panel>
 
-              {/* Engagement & tags */}
-              {profile.tags.length ||
-              profile.status_labels.length ||
-              profile.program_engagement ? (
-                <Panel title="Engagement & tags" action={<EditLink id={aid} label="Manage" />}>
-                  <div className="space-y-3">
-                    {profile.tags.length ? (
-                      <ChipRow label="Tags">
-                        {profile.tags.map((t) => (
-                          <EngagementChip
-                            key={t}
-                            tone={
-                              t.toLowerCase().includes("engaged")
-                                ? "warning"
-                                : "tag"
-                            }
-                          >
-                            {t}
-                          </EngagementChip>
-                        ))}
-                      </ChipRow>
-                    ) : null}
-                    {profile.status_labels.length ? (
-                      <ChipRow label="Status">
-                        {profile.status_labels.map((s) => (
-                          <EngagementChip key={s} tone="neutral">
-                            {s}
-                          </EngagementChip>
-                        ))}
-                      </ChipRow>
-                    ) : null}
-                    {profile.program_engagement ? (
-                      <ChipRow label="Program">
-                        {programChips(profile.program_engagement).map((label) => (
-                          <EngagementChip key={label} tone="success">
-                            {label}
-                          </EngagementChip>
-                        ))}
-                      </ChipRow>
-                    ) : null}
-                  </div>
-                </Panel>
-              ) : null}
-
               {/* Recent events */}
-              {profile.events.length ? (
-                <Panel title="Recent events">
-                  <ul className="space-y-1">
-                    {profile.events.slice(0, 6).map((ev) => {
+              {profile.events.length || canEdit ? (
+                <Panel
+                  title="Recent events"
+                  action={canEdit ? <AddEventButton alumniId={aid} /> : undefined}
+                >
+                  {profile.events.length ? (
+                  <DrawerList
+                    title="Recent events"
+                    collapsed={3}
+                    listClassName="space-y-1"
+                    action={
+                      canEdit ? <AddEventButton alumniId={aid} /> : undefined
+                    }
+                  >
+                    {profile.events.map((ev) => {
                       const md = monthDay(ev.event_date);
                       return (
                         <li
@@ -664,13 +670,123 @@ export default async function AlumniProfilePage({
                         </li>
                       );
                     })}
-                  </ul>
+                  </DrawerList>
+                  ) : (
+                    <p className="py-6 text-center text-sm text-gray-500">
+                      No events attended yet.
+                    </p>
+                  )}
                 </Panel>
               ) : null}
+
             </div>
 
-            {/* Right sidebar column */}
-            <div className="space-y-4">
+            {/* Right sidebar (narrower). Same flex-column treatment so it ends
+                level with the main column. */}
+            <div className="flex flex-col gap-4 lg:[&>:last-child]:flex-1">
+              {/* Documents — resume and other files. File download wires up when
+                  Supabase Storage is enabled (attachments backlog item). */}
+              <Panel title="Documents" className="min-h-[12rem]">
+                {profile.attachments.length ? (
+                  <ul className="space-y-2">
+                    {profile.attachments.map((doc) => (
+                      <li
+                        key={doc.attachment_id}
+                        className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2.5"
+                      >
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <FileText
+                            className="h-4 w-4 shrink-0 text-gray-400"
+                            aria-hidden="true"
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-gray-900">
+                              {doc.file_name}
+                            </p>
+                            {doc.attachment_notes ? (
+                              <p className="truncate text-xs text-gray-500">
+                                {doc.attachment_notes}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                        <span
+                          className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-gray-300"
+                          title="Download available once file storage is connected"
+                        >
+                          <Download className="h-4 w-4" aria-hidden="true" />
+                          Download
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="py-2 text-sm text-gray-400">
+                    No documents uploaded yet.
+                  </p>
+                )}
+              </Panel>
+
+              {/* Open tasks */}
+              <Panel
+                title={`Open tasks (${openTasks.length})`}
+                action={canEdit ? <AddTaskButton alumniId={aid} label="+ New task" /> : undefined}
+              >
+                {openTasks.length ? (
+                  <DrawerList
+                    title="Open tasks"
+                    collapsed={2}
+                    listClassName="space-y-3"
+                    action={
+                      canEdit ? (
+                        <AddTaskButton alumniId={aid} label="+ New task" />
+                      ) : undefined
+                    }
+                  >
+                    {openTasks.map((t) => {
+                      const overdue =
+                        t.due_date && new Date(t.due_date) < new Date();
+                      return (
+                        <li key={t.follow_up_task_id} className="flex gap-3">
+                          <TaskCheckbox
+                            alumniId={aid}
+                            taskId={t.follow_up_task_id}
+                            completed={t.completed}
+                            disabled={!canEdit}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-sm font-medium text-gray-900">
+                                {t.task_title ?? "Untitled task"}
+                              </p>
+                              <span
+                                className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                                  overdue
+                                    ? "bg-warning-50 text-warning-600"
+                                    : "bg-gray-100 text-gray-600"
+                                }`}
+                              >
+                                {overdue ? "Overdue · " : ""}
+                                {t.due_date ? fmtDate(t.due_date) : "No date"}
+                              </span>
+                            </div>
+                            {t.assigned_to ? (
+                              <p className="text-xs text-gray-500">
+                                Assigned to {t.assigned_to}
+                              </p>
+                            ) : null}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </DrawerList>
+                ) : (
+                  <p className="py-4 text-center text-sm text-gray-500">
+                    No open tasks.
+                  </p>
+                )}
+              </Panel>
+
               {/* Profile completeness */}
               <Panel title="Profile completeness">
                 <div className="mb-3 flex items-end justify-between">
@@ -716,56 +832,56 @@ export default async function AlumniProfilePage({
                 ) : null}
               </Panel>
 
-              {/* Open tasks */}
-              <Panel
-                title={`Open tasks (${openTasks.length})`}
-                action={canEdit ? <AddTaskButton alumniId={aid} label="+ New task" /> : undefined}
-              >
-                {openTasks.length ? (
-                  <ul className="space-y-3">
-                    {openTasks.map((t) => {
-                      const overdue =
-                        t.due_date && new Date(t.due_date) < new Date();
-                      return (
-                        <li key={t.follow_up_task_id} className="flex gap-3">
-                          <TaskCheckbox
+              {/* Engagement & tags */}
+              {profile.tags.length ||
+              profile.status_labels.length ||
+              profile.program_engagement ||
+              canEdit ? (
+                <Panel
+                  title="Engagement & tags"
+                  action={
+                    <DrawerView
+                      title="Engagement & tags"
+                      triggerLabel="View all"
+                    >
+                      <div className="space-y-5">
+                        {canEdit ? (
+                          <TagStatusManager
                             alumniId={aid}
-                            taskId={t.follow_up_task_id}
-                            completed={t.completed}
-                            disabled={!canEdit}
+                            tags={profile.tags}
+                            statusLabels={profile.status_labels}
                           />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-start justify-between gap-2">
-                              <p className="text-sm font-medium text-gray-900">
-                                {t.task_title ?? "Untitled task"}
-                              </p>
-                              <span
-                                className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                                  overdue
-                                    ? "bg-warning-50 text-warning-600"
-                                    : "bg-gray-100 text-gray-600"
-                                }`}
-                              >
-                                {overdue ? "Overdue · " : ""}
-                                {t.due_date ? fmtDate(t.due_date) : "No date"}
-                              </span>
-                            </div>
-                            {t.assigned_to ? (
-                              <p className="text-xs text-gray-500">
-                                Assigned to {t.assigned_to}
-                              </p>
-                            ) : null}
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : (
-                  <p className="py-4 text-center text-sm text-gray-500">
-                    No open tasks.
-                  </p>
-                )}
-              </Panel>
+                        ) : null}
+                        {profile.program_engagement ? (
+                          <ChipRow label="Program">
+                            {programChips(profile.program_engagement).map(
+                              (label) => (
+                                <EngagementChip key={label} tone="success">
+                                  {label}
+                                </EngagementChip>
+                              ),
+                            )}
+                          </ChipRow>
+                        ) : null}
+                      </div>
+                    </DrawerView>
+                  }
+                >
+                  {/* Capped so a chip-heavy alumnus can't grow the box — the
+                      overflow lives behind "View all". */}
+                  {profile.tags.length ||
+                  profile.status_labels.length ||
+                  profile.program_engagement ? (
+                    <div className="max-h-40 overflow-hidden">
+                      {engagementContent}
+                    </div>
+                  ) : (
+                    <p className="py-4 text-center text-sm text-gray-500">
+                      No tags or status labels yet. Use “View all” to add some.
+                    </p>
+                  )}
+                </Panel>
+              ) : null}
 
               {/* Recent activity */}
               {recentActivity.length ? (
@@ -788,29 +904,6 @@ export default async function AlumniProfilePage({
                   </ul>
                 </Panel>
               ) : null}
-
-              {/* Missing data alerts */}
-              {missing.length ? (
-                <section className="rounded-xl border border-warning-600/30 bg-warning-50 p-5">
-                  <h3 className="mb-2 flex items-center gap-2 text-[15px] font-semibold text-warning-600">
-                    <CircleAlert className="h-4 w-4" />
-                    Missing data alerts
-                  </h3>
-                  <ul className="space-y-1.5 text-sm text-gray-700">
-                    {missing.slice(0, 4).map((m) => (
-                      <li key={m.label}>{m.label} is missing from this record.</li>
-                    ))}
-                  </ul>
-                  {canEdit ? (
-                    <Link
-                      href={`/alumni/${aid}/edit`}
-                      className="mt-3 inline-block text-sm font-medium text-warning-600 hover:underline"
-                    >
-                      Resolve now →
-                    </Link>
-                  ) : null}
-                </section>
-              ) : null}
             </div>
           </div>
 
@@ -827,7 +920,7 @@ export default async function AlumniProfilePage({
 function Field({ label, value }: { label: string; value: string | null }) {
   return (
     <div>
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
         {label}
       </p>
       <p className={`text-sm ${value ? "text-gray-900" : "text-gray-300"}`}>
@@ -846,7 +939,7 @@ function ChipRow({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <span className="w-16 shrink-0 pt-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+      <span className="w-16 shrink-0 pt-0.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
         {label}
       </span>
       <div className="flex flex-wrap gap-2">{children}</div>

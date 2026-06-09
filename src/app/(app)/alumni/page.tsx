@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { ExternalLink } from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
-import type { Alumni, AlumniPage } from "@/types/alumni";
+import type { Alumni, AlumniPage, UserContext } from "@/types/alumni";
 import type { GeoSummary } from "@/types/geography";
 import { Topbar } from "@/components/shell/Topbar";
 import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
 import { AlumniFilters } from "@/components/alumni/AlumniFilters";
+import { AlumniTable } from "@/components/alumni/AlumniTable";
 
 const LIMIT = 25;
 
@@ -20,14 +20,6 @@ function avatarName(a: Alumni): string {
     [a.preferred_first_name ?? a.first_name, a.last_name]
       .filter(Boolean)
       .join(" ") || "?"
-  );
-}
-
-function Chip({ label }: { label: string }) {
-  return (
-    <span className="rounded-md border border-gray-300 bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-      {label}
-    </span>
   );
 }
 
@@ -48,6 +40,7 @@ type SP = {
   missing_email?: string;
   missing_employer?: string;
   duplicate?: string;
+  sort?: string;
   offset?: string;
   /** Legacy deep-link params (pre-filter-menu), still honored. */
   year?: string;
@@ -82,6 +75,9 @@ export default async function AlumniListPage({
     missingEmail: sp.missing_email === "1" || sp.missing === "email",
     missingEmployer: sp.missing_employer === "1" || sp.missing === "employer",
     duplicate: sp.duplicate === "1",
+    sort: (sp.sort === "grad_desc" || sp.sort === "grad_asc"
+      ? sp.sort
+      : "name") as "name" | "grad_desc" | "grad_asc",
   };
 
   const params = new URLSearchParams({
@@ -103,6 +99,7 @@ export default async function AlumniListPage({
   if (filters.missingEmail) params.set("missing_email", "true");
   if (filters.missingEmployer) params.set("missing_employer", "true");
   if (filters.duplicate) params.set("duplicate", "true");
+  if (filters.sort !== "name") params.set("sort", filters.sort);
 
   let data: AlumniPage | null = null;
   let error: ApiError | null = null;
@@ -110,12 +107,13 @@ export default async function AlumniListPage({
   // Fetch the list and the filter-menu options (distinct employers /
   // industries) concurrently; the options are non-critical, so a failure
   // there just leaves the dropdowns with "All".
-  const [listResult, optionsResult] = await Promise.allSettled([
+  const [listResult, optionsResult, ctxResult] = await Promise.allSettled([
     apiGet<AlumniPage>(`/alumni?${params.toString()}`),
     apiGet<GeoSummary>("/geography/summary", {
       revalidate: 300,
       tags: ["geography"],
     }),
+    apiGet<UserContext>("/auth/context"),
   ]);
   if (listResult.status === "fulfilled") {
     data = listResult.value;
@@ -127,6 +125,13 @@ export default async function AlumniListPage({
   if (optionsResult.status === "fulfilled") {
     options = optionsResult.value.options;
   }
+  // Add alumni is full_access / super_admin only (backend enforces it too).
+  const canCreate =
+    ctxResult.status === "fulfilled" &&
+    (ctxResult.value.roles?.some(
+      (r) => r === "full_access" || r === "super_admin",
+    ) ??
+      false);
 
   const from = data && data.total > 0 ? offset + 1 : 0;
   const to = data ? Math.min(offset + LIMIT, data.total) : 0;
@@ -149,6 +154,7 @@ export default async function AlumniListPage({
     if (filters.missingEmail) p.set("missing_email", "1");
     if (filters.missingEmployer) p.set("missing_employer", "1");
     if (filters.duplicate) p.set("duplicate", "1");
+    if (filters.sort !== "name") p.set("sort", filters.sort);
     if (newOffset > 0) p.set("offset", String(newOffset));
     const qs = p.toString();
     return qs ? `/alumni?${qs}` : "/alumni";
@@ -156,12 +162,12 @@ export default async function AlumniListPage({
 
   return (
     <>
-      <Topbar title="Alumni" />
+      <Topbar title="All Alumni" />
       <main className="flex-1 overflow-auto p-6">
         <AlumniFilters
           initial={filters}
           employers={options?.employers ?? []}
-          industries={options?.industries ?? []}
+          canCreate={canCreate}
         />
 
         {error ? (
@@ -198,87 +204,21 @@ export default async function AlumniListPage({
                     <p className="truncate font-medium text-gray-900">
                       {fullName(a)}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="truncate text-xs text-gray-500">
                       {[
                         a.graduation_year ? `Class of ${a.graduation_year}` : null,
-                        a.byu_id,
+                        a.current_employer,
                       ]
                         .filter(Boolean)
                         .join(" · ") || "—"}
                     </p>
                   </div>
-                  {a.archived ? (
-                    <Chip label="Archived" />
-                  ) : a.deceased ? (
-                    <Chip label="Deceased" />
-                  ) : null}
                 </Link>
               ))}
             </div>
 
-            {/* Desktop: dense table */}
-            <div className="hidden overflow-hidden rounded-xl border border-gray-300 bg-white md:block">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-300 bg-gray-50 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                    <th className="px-4 py-3">Name</th>
-                    <th className="w-24 px-4 py-3">Grad</th>
-                    <th className="w-40 px-4 py-3">BYU ID</th>
-                    <th className="w-36 px-4 py-3">Status</th>
-                    <th className="w-24 px-4 py-3">LinkedIn</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data!.items.map((a) => (
-                    <tr
-                      key={a.alumni_id}
-                      className="border-b border-gray-300 last:border-0 hover:bg-brand-blue-50/40"
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <InitialsAvatar name={avatarName(a)} size="sm" />
-                          <Link
-                            href={`/alumni/${a.alumni_id}`}
-                            className="font-medium text-gray-900 hover:text-brand-blue-600"
-                          >
-                            {fullName(a)}
-                          </Link>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 tabular-nums text-gray-700">
-                        {a.graduation_year ?? "—"}
-                      </td>
-                      <td className="px-4 py-3 text-gray-700">
-                        {a.byu_id ?? "—"}
-                      </td>
-                      <td className="px-4 py-3">
-                        {a.archived ? (
-                          <Chip label="Archived" />
-                        ) : a.deceased ? (
-                          <Chip label="Deceased" />
-                        ) : (
-                          <span className="text-gray-300">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {a.linkedin_url ? (
-                          <a
-                            href={a.linkedin_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 font-medium text-brand-blue-600 hover:underline"
-                          >
-                            View <ExternalLink className="h-3.5 w-3.5" />
-                          </a>
-                        ) : (
-                          <span className="text-gray-300">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {/* Desktop: dense table (whole row navigates to the profile) */}
+            <AlumniTable items={data!.items} />
 
             <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
               <span>

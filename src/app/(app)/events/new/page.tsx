@@ -5,9 +5,13 @@ import { createEvent } from "../actions";
 export default function NewEventPage() {
   return (
     <>
-      <Topbar title="Add event" />
+      <Topbar
+        breadcrumb={[
+          { label: "Events", href: "/events" },
+          { label: "Add event" },
+        ]}
+      />
       <main className="flex-1 overflow-auto p-6">
-        <h2 className="mb-4 text-2xl font-semibold text-gray-900">Add event</h2>
         <EventForm
           action={createEvent}
           submitLabel="Create event"

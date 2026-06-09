@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { CheckSquare, MessageSquare, X } from "lucide-react";
+import { X } from "lucide-react";
 import { clientGet } from "@/lib/api-client";
 import { MetricCard } from "@/components/shared/MetricCard";
 
@@ -62,20 +62,15 @@ export function KpiDrawers({
     <>
       <MetricCard
         size="lg"
-        icon={MessageSquare}
         label="Contacted this month"
         value={contacted}
-        sub="Interactions"
-        subTone="success"
         onClick={() => setOpen("contacted")}
         linkLabel="View alumni contacted this month"
       />
       <MetricCard
         size="lg"
-        icon={CheckSquare}
         label="Upcoming follow-ups"
         value={followUps}
-        sub="Tasks due"
         onClick={() => setOpen("followups")}
         linkLabel="View upcoming follow-up tasks"
       />
@@ -102,10 +97,6 @@ function KpiDrawer({
 
   const title =
     kind === "contacted" ? "Contacted this month" : "Upcoming follow-ups";
-  const subtitle =
-    kind === "contacted"
-      ? "Alumni with an interaction in the last 30 days"
-      : "Open tasks due today or later, soonest first";
 
   useEffect(() => {
     let cancelled = false;
@@ -151,7 +142,6 @@ function KpiDrawer({
             <h3 className="truncate text-xl font-semibold text-gray-900">
               {title}
             </h3>
-            <p className="text-sm text-gray-500">{subtitle}</p>
           </div>
           <button
             type="button"

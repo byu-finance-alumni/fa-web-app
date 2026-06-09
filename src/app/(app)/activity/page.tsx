@@ -42,6 +42,7 @@ export default async function ActivityPage({
     type?: string;
     from?: string;
     to?: string;
+    sort?: string;
     offset?: string;
   }>;
 }) {
@@ -53,6 +54,7 @@ export default async function ActivityPage({
     type: sp.type ?? "",
     from: sp.from ?? "",
     to: sp.to ?? "",
+    sort: sp.sort === "oldest" ? "oldest" : "recent",
   };
 
   // Forward the active filters to the API (its param names differ slightly).
@@ -63,6 +65,7 @@ export default async function ActivityPage({
   if (filters.type) apiParams.set("type", filters.type);
   if (filters.from) apiParams.set("date_from", filters.from);
   if (filters.to) apiParams.set("date_to", filters.to);
+  if (filters.sort !== "recent") apiParams.set("sort", filters.sort);
 
   let data: ActivityPage | null = null;
   let error: ApiError | null = null;
@@ -86,6 +89,7 @@ export default async function ActivityPage({
     if (filters.type) p.set("type", filters.type);
     if (filters.from) p.set("from", filters.from);
     if (filters.to) p.set("to", filters.to);
+    if (filters.sort !== "recent") p.set("sort", filters.sort);
     if (newOffset > 0) p.set("offset", String(newOffset));
     const qs = p.toString();
     return qs ? `/activity?${qs}` : "/activity";

@@ -39,8 +39,25 @@ function formatDate(d: string | null): string {
  * (mirrors the geography state drawer) with the event's details and attendee
  * list. Detail + attendees are fetched client-side on open.
  */
-export function EventsExplorer({ events }: { events: EventRow[] }) {
+export function EventsExplorer({
+  events,
+  initialOpenId,
+}: {
+  events: EventRow[];
+  /** Event id to auto-open on mount — set from the `?event=<id>` deep-link
+   *  (e.g. the dashboard's Event-participation panel links here). */
+  initialOpenId?: number;
+}) {
   const [selected, setSelected] = useState<EventRow | null>(null);
+
+  // Deep-link support: when arriving via /events?event=<id>, auto-open that
+  // event's drawer once the list is available. If the id isn't in the loaded
+  // list (e.g. filtered out by active search), we just stay on the list.
+  useEffect(() => {
+    if (initialOpenId == null) return;
+    const match = events.find((e) => e.event_id === initialOpenId);
+    if (match) setSelected(match);
+  }, [initialOpenId, events]);
 
   return (
     <>
@@ -57,7 +74,7 @@ export function EventsExplorer({ events }: { events: EventRow[] }) {
               <p className="font-medium text-gray-900">{e.event_name}</p>
               <div className="flex shrink-0 items-center gap-2">
                 {e.event_type ? (
-                  <span className="rounded-md bg-brand-blue-50 px-2 py-0.5 text-xs font-medium text-brand-blue-600">
+                  <span className="rounded-md bg-brand-blue-50 px-2 py-0.5 text-xs font-medium text-navy-800">
                     {e.event_type}
                   </span>
                 ) : null}
@@ -81,7 +98,7 @@ export function EventsExplorer({ events }: { events: EventRow[] }) {
       <div className="hidden overflow-hidden rounded-xl border border-gray-300 bg-white md:block">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-300 bg-gray-50 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+            <tr className="border-b border-gray-300 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
               <th className="px-4 py-3">Event</th>
               <th className="w-44 px-4 py-3">Type</th>
               <th className="w-36 px-4 py-3">Date</th>
@@ -104,7 +121,7 @@ export function EventsExplorer({ events }: { events: EventRow[] }) {
                 </td>
                 <td className="px-4 py-3">
                   {e.event_type ? (
-                    <span className="rounded-md bg-brand-blue-50 px-2 py-0.5 text-xs font-medium text-brand-blue-600">
+                    <span className="rounded-md bg-brand-blue-50 px-2 py-0.5 text-xs font-medium text-navy-800">
                       {e.event_type}
                     </span>
                   ) : (
