@@ -17,6 +17,10 @@ export interface Alumni {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  /** Present on alumni-list rows (joined from current_employment); absent on
+   * single-record reads. */
+  current_employer?: string | null;
+  current_industry?: string | null;
 }
 
 export interface AlumniPage {

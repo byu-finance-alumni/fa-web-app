@@ -52,7 +52,9 @@ export function UserActiveToggle({
     <div className="flex items-center gap-2">
       <span
         className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium ${
-          active ? "bg-gray-100 text-gray-700" : "bg-gray-100 text-gray-400"
+          active
+            ? "bg-success-50 text-success-600"
+            : "bg-gray-100 text-gray-400"
         }`}
       >
         {active ? "Active" : "Disabled"}

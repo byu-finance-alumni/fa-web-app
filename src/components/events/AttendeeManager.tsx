@@ -259,7 +259,7 @@ export function AttendeeManager({ eventId }: { eventId: number }) {
           No attendees yet. Search above to add the first one.
         </p>
       ) : (
-        <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200">
+        <ul className="divide-y divide-gray-100 rounded-lg border border-gray-300">
           {attendees.map((a) => (
             <li
               key={a.alumni_id}

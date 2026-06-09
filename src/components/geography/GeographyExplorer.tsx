@@ -126,12 +126,7 @@ export function GeographyExplorer({
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-4 lg:grid-rows-1">
         {/* Map (left, dominant) — filters live in this card */}
         <div className="flex min-h-0 flex-col rounded-xl border border-gray-300 bg-white p-4 lg:col-span-3">
-          <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
-            <h3 className="text-[15px] font-semibold text-gray-900">
-              Alumni by state
-            </h3>
-            {filters}
-          </div>
+          <div className="mb-2 flex flex-wrap items-end gap-2">{filters}</div>
           <div className="min-h-0 flex-1">
             <UsStateMap
               fit
@@ -252,7 +247,7 @@ function RankBox({
     <section
       className={`flex flex-col rounded-xl border border-gray-300 bg-white p-5 ${grow ? "min-h-0 flex-1" : ""}`}
     >
-      <h3 className="mb-3 text-[15px] font-semibold text-gray-900">{title}</h3>
+      <h3 className="mb-3 text-lg font-semibold text-gray-900">{title}</h3>
       {rows.length === 0 ? (
         <p className="py-3 text-sm text-gray-400">No data yet.</p>
       ) : (

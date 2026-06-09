@@ -28,6 +28,13 @@ export class ApiError extends Error {
 async function authHeaders(): Promise<Record<string, string>> {
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
+  // Read the token only — never refresh here. Token refresh + cookie rotation
+  // happens once per request in the middleware (the one place that can persist
+  // the rotated cookies). Calling getUser() here would re-refresh on every
+  // server fetch in a Server Component, where the rotated cookie can't be
+  // written back; with multiple fetches per request that races the refresh
+  // token to a 401. The middleware forwards the refreshed cookies onto the
+  // request, so getSession() reads a valid token.
   const {
     data: { session },
   } = await supabase.auth.getSession();

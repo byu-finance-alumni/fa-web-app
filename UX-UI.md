@@ -115,6 +115,10 @@ JSX**.
   so columns align.
 - **Scale:** page title 24–30px/600 · section heading 18–20px/600 · body 14px/400 · table & meta
   13px/400 · label/caption 12px/500 uppercase tracking-wide.
+- **Known gap (2026-06-08):** the compact 64px top bar renders its page title at 16px/600, below the
+  24–30px page-title spec, because the bar also hosts centered search + sign-out and can't fit a
+  24–30px heading without a redesign. Left at 16px intentionally for now; revisit when the top bar is
+  reworked (e.g. promote to 20px or move the page title into the content area).
 
 ---
 

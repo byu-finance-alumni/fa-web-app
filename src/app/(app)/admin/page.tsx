@@ -97,7 +97,7 @@ export default async function AdminPage() {
           <div className="hidden overflow-hidden rounded-xl border border-gray-300 bg-white md:block">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-300 bg-gray-50 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                <tr className="border-b border-gray-300 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                   <th className="px-4 py-3">Name</th>
                   <th className="px-4 py-3">Email</th>
                   <th className="px-4 py-3">Role</th>

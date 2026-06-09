@@ -4,6 +4,7 @@ import { useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
+import { INDUSTRY_OPTIONS } from "@/constants/dropdowns";
 
 const FILTER_KEYS = ["employer", "industry", "year", "region", "tag"] as const;
 
@@ -67,7 +68,7 @@ export function MapFilters({
         name="industry"
         label="Industry"
         value={values.industry}
-        options={options.industries}
+        options={INDUSTRY_OPTIONS}
       />
       <Filter
         name="year"
@@ -111,11 +112,11 @@ function Filter({
   name: string;
   label: string;
   value?: string;
-  options: string[];
+  options: readonly string[];
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+      <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
         {label}
       </span>
       <select

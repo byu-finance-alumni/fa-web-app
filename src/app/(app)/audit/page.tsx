@@ -160,7 +160,12 @@ export default async function AuditPage({
 
   return (
     <>
-      <Topbar title="Audit log" />
+      <Topbar
+        breadcrumb={[
+          { label: "Admin", href: "/admin" },
+          { label: "Audit" },
+        ]}
+      />
       <main className="flex-1 overflow-auto p-6">
         <AuditToolbar
           initial={filters}
@@ -226,7 +231,7 @@ export default async function AuditPage({
             <div className="hidden overflow-hidden rounded-xl border border-gray-300 bg-white md:block">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-300 bg-gray-50 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                  <tr className="border-b border-gray-300 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                     <th className="w-48 px-4 py-3">Date / time</th>
                     <th className="w-44 px-4 py-3">User</th>
                     <th className="w-40 px-4 py-3">Action</th>

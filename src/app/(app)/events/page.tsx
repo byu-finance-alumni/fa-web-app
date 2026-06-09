@@ -10,6 +10,10 @@ type SP = {
   /** Event-date range (inclusive). */
   from?: string;
   to?: string;
+  /** Sort order: date | upcoming | type. */
+  sort?: string;
+  /** Deep-link: auto-open this event's detail drawer on load. */
+  event?: string;
 };
 
 interface EventOptions {
@@ -23,11 +27,18 @@ export default async function EventsPage({
 }) {
   const sp = await searchParams;
 
+  // Deep-link target (?event=<id>) — open this event's drawer once the list
+  // renders. Ignored if absent or non-numeric.
+  const openId = sp.event && /^\d+$/.test(sp.event) ? Number(sp.event) : undefined;
+
   const filters = {
     q: sp.q ?? "",
     type: sp.type ?? "",
     from: sp.from ?? "",
     to: sp.to ?? "",
+    sort: (sp.sort === "upcoming" || sp.sort === "type"
+      ? sp.sort
+      : "date") as "date" | "upcoming" | "type",
   };
 
   const params = new URLSearchParams();
@@ -35,6 +46,7 @@ export default async function EventsPage({
   if (filters.type) params.set("event_type", filters.type);
   if (filters.from) params.set("date_from", filters.from);
   if (filters.to) params.set("date_to", filters.to);
+  if (filters.sort !== "date") params.set("sort", filters.sort);
   const qs = params.toString();
 
   let events: EventRow[] | null = null;
@@ -80,7 +92,7 @@ export default async function EventsPage({
             No events match your search.
           </div>
         ) : (
-          <EventsExplorer events={events!} />
+          <EventsExplorer events={events!} initialOpenId={openId} />
         )}
       </main>
     </>

@@ -7,9 +7,10 @@ import { Loader2, Search } from "lucide-react";
 import { clientGet } from "@/lib/api-client";
 import type { Alumni, AlumniPage } from "@/types/alumni";
 
-// 3 chars + 400ms keeps a fast typist's request rate well inside the
-// 100 req/60s/IP WAF rate limit (appsec finding).
-const MIN_CHARS = 3;
+// Search from the first character. The 400ms debounce (fires only after the
+// user pauses typing) is what keeps the request rate well inside the
+// 100 req/60s/IP WAF rate limit, so a 1-char minimum is still safe.
+const MIN_CHARS = 1;
 const DEBOUNCE_MS = 400;
 const MAX_MATCHES = 8;
 
@@ -216,7 +217,7 @@ export function TopbarSearch({
                 </li>
               ))}
               {total > matches.length && (
-                <li className="border-t border-gray-200">
+                <li className="border-t border-gray-100">
                   <button
                     type="button"
                     onClick={goToFullResults}

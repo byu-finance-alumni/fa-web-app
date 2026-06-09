@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Mail, Briefcase, Copy, Users } from "lucide-react";
+import { Mail, Briefcase, Copy, CheckCircle2 } from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
 import { TopbarSearch } from "@/components/shared/TopbarSearch";
@@ -87,10 +87,8 @@ export default async function DataQualityPage() {
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               <MetricCard
                 size="lg"
-                icon={Users}
                 label="Active alumni"
                 value={dq?.total_alumni ?? "—"}
-                sub="Records checked"
                 href="/alumni"
                 linkLabel="View all alumni"
               />
@@ -98,11 +96,8 @@ export default async function DataQualityPage() {
                 <MetricCard
                   key={a.label}
                   size="lg"
-                  icon={a.icon}
                   label={a.label}
                   value={a.count}
-                  sub={a.count > 0 ? "Needs review" : "All clear"}
-                  subTone={a.count > 0 ? "warning" : "success"}
                   href={a.href}
                   linkLabel={a.linkLabel}
                 />
@@ -110,12 +105,18 @@ export default async function DataQualityPage() {
             </div>
 
             {issueTotal === 0 ? (
-              <div className="rounded-xl border border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
-                No data-quality issues flagged. 🎉
+              <div className="rounded-xl border border-gray-300 bg-white p-10 text-center">
+                <CheckCircle2
+                  className="mx-auto h-8 w-8 text-success-600"
+                  aria-hidden="true"
+                />
+                <p className="mt-2 text-sm text-gray-500">
+                  No data-quality issues flagged.
+                </p>
               </div>
             ) : (
               <div className="rounded-xl border border-gray-300 bg-white p-5">
-                <h3 className="mb-4 text-[15px] font-semibold text-gray-900">
+                <h3 className="mb-4 text-lg font-semibold text-gray-900">
                   Open alerts
                 </h3>
                 <ul className="space-y-2">

@@ -46,7 +46,7 @@ export default async function GeographyPage({
 
   return (
     <>
-      <Topbar title="Map">
+      <Topbar title="Alumni by State">
         <TopbarSearch />
       </Topbar>
       <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-6 lg:overflow-hidden">

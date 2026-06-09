@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
 import type { Breakdown } from "@/types/geography";
@@ -60,21 +60,13 @@ export default async function BreakdownPage({
 
   return (
     <>
-      <Topbar title="Map" />
+      <Topbar
+        breadcrumb={[
+          { label: "Map", href: `/map${qs ? `?${qs}` : ""}` },
+          { label: `All ${data?.title ?? dimension}` },
+        ]}
+      />
       <main className="flex-1 overflow-auto p-6">
-        <nav className="mb-4 flex items-center gap-2 text-sm">
-          <Link
-            href={`/map${qs ? `?${qs}` : ""}`}
-            className="flex items-center gap-1 text-gray-500 hover:text-brand-blue-600"
-          >
-            <ChevronLeft className="h-4 w-4" /> Map
-          </Link>
-          <span className="text-gray-300">/</span>
-          <span className="font-medium text-gray-900">
-            All {data?.title ?? dimension}
-          </span>
-        </nav>
-
         {notProvisioned ? (
           <div className="rounded-xl border border-gray-300 bg-white p-4 text-sm text-gray-700">
             Your account is authenticated but not yet provisioned.
@@ -111,7 +103,7 @@ export default async function BreakdownPage({
               <div className="overflow-hidden rounded-xl border border-gray-300 bg-white">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-gray-300 bg-gray-50 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                    <tr className="border-b border-gray-300 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                       <th className="w-12 px-4 py-3">#</th>
                       <th className="px-4 py-3">{data?.title?.slice(0, -1)}</th>
                       <th className="w-40 px-4 py-3">Share</th>
