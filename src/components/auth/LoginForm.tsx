@@ -65,6 +65,14 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-5" noValidate>
+      {searchParams.get("reason") === "timeout" && !formError && (
+        <div
+          role="status"
+          className="rounded-md border border-warning-600/30 bg-warning-50 px-3 py-2 text-sm text-warning-600"
+        >
+          You were signed out due to inactivity. Please sign in again.
+        </div>
+      )}
       {formError && (
         <div
           role="alert"
