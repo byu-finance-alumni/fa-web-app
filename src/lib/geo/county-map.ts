@@ -10,7 +10,7 @@ import { feature } from "topojson-client";
 import type { Feature, FeatureCollection, Geometry } from "geojson";
 import type { Topology } from "topojson-specification";
 import countiesTopo from "us-atlas/counties-10m.json";
-import { STATE_FIPS, CITY_GEO } from "./counties-data";
+import { STATE_FIPS, lookupCityGeo } from "./counties-data";
 
 /** Fixed SVG canvas the projection is fitted into (matches CountyMap's viewBox). */
 const WIDTH = 800;
@@ -62,14 +62,15 @@ export function buildCountyMap(
   );
   if (stateFeatures.length === 0) return null;
 
-  // Sum alumni per county via the city → county crosswalk. Cities without a
-  // CITY_GEO entry contribute no fill (they still appear in the right rail).
-  // NOTE: only the seeded mock cities resolve today, so only their counties get
-  // a non-zero count — every other county renders in the lightest (0) bucket.
+  // Sum alumni per county via the city → county crosswalk. Cities that don't
+  // resolve contribute no fill (they still appear in the right rail). The
+  // crosswalk now covers every US Census place, so essentially any real alumni
+  // city resolves to a county; unresolved cities fall back to the lightest (0)
+  // bucket exactly as before.
   const st = stateAbbr.toUpperCase();
   const countyCount: Record<string, number> = {};
   for (const { city, count } of cities) {
-    const geo = CITY_GEO[`${city}|${st}`];
+    const geo = lookupCityGeo(city, st);
     if (!geo) continue;
     countyCount[geo.countyFips] = (countyCount[geo.countyFips] ?? 0) + count;
   }
@@ -104,11 +105,11 @@ export function buildCountyMap(
     });
   }
 
-  // Project each city with a CITY_GEO coordinate using the SAME projection so
-  // pins land on top of the right county. Cities without coordinates are skipped.
+  // Project each resolved city's coordinate using the SAME projection so pins
+  // land on top of the right county. Cities that don't resolve are skipped.
   const markers: CityMarker[] = [];
   for (const { city, count } of cities) {
-    const geo = CITY_GEO[`${city}|${st}`];
+    const geo = lookupCityGeo(city, st);
     if (!geo) continue;
     const pt = projection([geo.lng, geo.lat]);
     if (!pt) continue;

@@ -4,16 +4,30 @@
  * `STATE_FIPS` maps a 2-letter USPS abbreviation to its 2-digit state FIPS code
  * (matching the first two digits of every county id in `us-atlas`).
  *
- * `CITY_GEO` maps "<City>|<ST>" → coordinates + the 5-digit county FIPS the city
- * sits in. It is used to (a) plot a labeled marker for the city and (b) attribute
- * the city's alumni count to its county for the choropleth fill.
+ * The city -> county+coordinates crosswalk maps a city to the coordinates used
+ * to plot its labeled marker plus the 5-digit county FIPS the city sits in
+ * (used to attribute the city's alumni count to its county for the choropleth
+ * fill).
  *
- * NOTE: `CITY_GEO` currently covers ONLY the cities present in the mock data, so
- * for now only those counties get colored + pinned. This hand-seeded crosswalk
- * should later be replaced by a full city → county + coordinates dataset (e.g. the
- * US Census Gazetteer place file or SimpleMaps US Cities) so every alumni city
- * resolves automatically.
+ * ---------------------------------------------------------------------------
+ * SERVER-SIDE ONLY
+ * ---------------------------------------------------------------------------
+ * The comprehensive crosswalk lives in `./city-crosswalk.json` (~1.3 MB, every
+ * US Census place). This module imports that JSON, so this module — and the
+ * JSON — must ONLY ever be imported by server code (the projection helper
+ * `county-map.ts`, which is itself server-only). It must NEVER be imported by a
+ * client component, or the dataset would be shipped to the browser bundle.
+ * `CountyMap.tsx` (the client component) imports only the `CountyMapData` *type*
+ * from `county-map.ts`, never this module — keep it that way.
+ *
+ * The crosswalk JSON is generated reproducibly by
+ * `scripts/build-city-crosswalk.mjs` from the US Census 2023 Gazetteer "Places"
+ * file (place name + USPS state + interior lat/lng), with county FIPS derived by
+ * a point-in-polygon spatial join against the `us-atlas` county polygons we
+ * already ship. Regenerate with: `node scripts/build-city-crosswalk.mjs`.
  */
+
+import cityCrosswalk from "./city-crosswalk.json";
 
 /** USPS abbreviation → 2-digit state FIPS code (all 50 states + DC). */
 export const STATE_FIPS: Record<string, string> = {
@@ -78,20 +92,54 @@ export interface CityGeo {
 }
 
 /**
- * "<City>|<ST>" → coordinates + county FIPS.
- *
- * Seeded with the cities present in the mock data so the demo renders real
- * markers and colored counties. Replace with a full city dataset later.
+ * Compact generated crosswalk: "<cityLowercased>|<ST>" → [countyFips, lat, lng].
+ * Server-only (see file header). Typed loosely because it comes from JSON.
  */
-export const CITY_GEO: Record<string, CityGeo> = {
-  "New York|NY": { lng: -73.9857, lat: 40.7484, countyFips: "36061" }, // New York County
-  "San Francisco|CA": { lng: -122.4194, lat: 37.7749, countyFips: "06075" }, // San Francisco County
-  "San Jose|CA": { lng: -121.8863, lat: 37.3382, countyFips: "06085" }, // Santa Clara County
-  "Chicago|IL": { lng: -87.6298, lat: 41.8781, countyFips: "17031" }, // Cook County
-  "Dallas|TX": { lng: -96.797, lat: 32.7767, countyFips: "48113" }, // Dallas County
-  "Austin|TX": { lng: -97.7431, lat: 30.2672, countyFips: "48453" }, // Travis County
-  "Boston|MA": { lng: -71.0589, lat: 42.3601, countyFips: "25025" }, // Suffolk County
-  "Provo|UT": { lng: -111.6585, lat: 40.2338, countyFips: "49049" }, // Utah County
-  "Salt Lake City|UT": { lng: -111.891, lat: 40.7608, countyFips: "49035" }, // Salt Lake County
-  "Lehi|UT": { lng: -111.8508, lat: 40.3916, countyFips: "49049" }, // Utah County
+const CROSSWALK = cityCrosswalk as unknown as Record<
+  string,
+  [string, number, number] | undefined
+>;
+
+/**
+ * Hand-curated overrides that take precedence over the generated data. These
+ * preserve the exact county + coordinates the original mock-seeded crosswalk
+ * used, for cities where the Census single interior point diverges from intent:
+ *   - New York City spans 5 counties; the mock attributes it to Manhattan
+ *     (New York County, 36061) rather than the city's overall interior point,
+ *     which falls in Brooklyn.
+ *   - San Francisco's Census interior point sits offshore (Farallon Islands);
+ *     pin it at the city proper in San Francisco County (06075).
+ * Keyed identically to the generated data ("<cityLowercased>|<ST>").
+ */
+const OVERRIDES: Record<string, CityGeo> = {
+  "new york|NY": { lng: -73.9857, lat: 40.7484, countyFips: "36061" },
+  "san francisco|CA": { lng: -122.4194, lat: 37.7749, countyFips: "06075" },
+  "san jose|CA": { lng: -121.8863, lat: 37.3382, countyFips: "06085" },
+  "chicago|IL": { lng: -87.6298, lat: 41.8781, countyFips: "17031" },
+  "dallas|TX": { lng: -96.797, lat: 32.7767, countyFips: "48113" },
+  "austin|TX": { lng: -97.7431, lat: 30.2672, countyFips: "48453" },
+  "boston|MA": { lng: -71.0589, lat: 42.3601, countyFips: "25025" },
+  "provo|UT": { lng: -111.6585, lat: 40.2338, countyFips: "49049" },
+  "salt lake city|UT": { lng: -111.891, lat: 40.7608, countyFips: "49035" },
+  "lehi|UT": { lng: -111.8508, lat: 40.3916, countyFips: "49049" },
 };
+
+/**
+ * Resolve a city + 2-letter state to its county FIPS + marker coordinates, or
+ * `undefined` if the city is unknown (callers must treat that exactly like the
+ * old behavior for an unseeded city: no fill contribution, no pin — never crash).
+ *
+ * SERVER-ONLY: importing this pulls in the full crosswalk JSON. Do not call it
+ * from client components.
+ */
+export function lookupCityGeo(
+  city: string,
+  state: string,
+): CityGeo | undefined {
+  const key = `${city.toLowerCase()}|${state.toUpperCase()}`;
+  const override = OVERRIDES[key];
+  if (override) return override;
+  const row = CROSSWALK[key];
+  if (!row) return undefined;
+  return { countyFips: row[0], lat: row[1], lng: row[2] };
+}
