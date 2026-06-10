@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { apiGet, ApiError } from "@/lib/api";
+import { humanize } from "@/lib/format";
 import { Topbar } from "@/components/shell/Topbar";
 import {
   AuditToolbar,
@@ -190,7 +191,7 @@ export default async function AuditPage({
           <div className="rounded-xl border border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
             {qs
               ? "No audit events match your filters."
-              : "No audit events recorded yet. Record edits, imports, role changes, and logins will appear here once audit writes are wired in."}
+              : "No audit events recorded yet. Record edits, imports, and role changes will appear here. (Sign-in and auth events are kept in the security logs, not the audit trail.)"}
           </div>
         ) : (
           <>
@@ -203,7 +204,7 @@ export default async function AuditPage({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-                      {r.action_type}
+                      {humanize(r.action_type)}
                     </span>
                     <span className="text-xs">
                       <EntityRef r={r} />
@@ -251,7 +252,7 @@ export default async function AuditPage({
                       <td className="px-4 py-3 text-gray-700">{r.user ?? "—"}</td>
                       <td className="px-4 py-3">
                         <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-                          {r.action_type}
+                          {humanize(r.action_type)}
                         </span>
                       </td>
                       <td className="px-4 py-3">

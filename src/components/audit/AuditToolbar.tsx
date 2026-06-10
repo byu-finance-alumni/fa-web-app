@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { ChevronDown, Loader2, Search, SlidersHorizontal } from "lucide-react";
+import { humanize } from "@/lib/format";
 
 /** Everything the audit list route supports, mirrored in the URL. The param
  *  names match what the page has always sent so existing deep links keep
@@ -135,12 +136,12 @@ export function AuditToolbar({
         <option value="">{anyLabel}</option>
         {options.map((o) => (
           <option key={o} value={o}>
-            {o}
+            {humanize(o)}
           </option>
         ))}
         {/* Keep a deep-linked value selectable even if it isn't in options. */}
         {f[key] && !options.includes(f[key]) && (
-          <option value={f[key]}>{f[key]}</option>
+          <option value={f[key]}>{humanize(f[key])}</option>
         )}
       </select>
     </div>
