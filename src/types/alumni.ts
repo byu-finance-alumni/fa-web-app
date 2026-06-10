@@ -8,9 +8,17 @@ export interface Alumni {
   last_name: string | null;
   preferred_first_name: string | null;
   gender: string | null;
+  /** Full date of birth, ISO "YYYY-MM-DD". `birth_year` is kept separately. */
+  birth_date: string | null;
   graduation_year: number | null;
   finance_program_year: number | null;
   graduate_degree: string | null;
+  spouse_first_name: string | null;
+  spouse_last_name: string | null;
+  /** Spouse's date of birth, ISO "YYYY-MM-DD". */
+  spouse_birth_date: string | null;
+  /** Set when the spouse is also an alumnus — links to that record. */
+  spouse_alumni_id: number | null;
   deceased: boolean;
   archived: boolean;
   linkedin_url: string | null;

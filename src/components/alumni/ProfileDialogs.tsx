@@ -2,20 +2,37 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useActionState } from "react";
-import { Archive, ArchiveRestore, Check, Plus, X } from "lucide-react";
 import {
+  Archive,
+  ArchiveRestore,
+  Check,
+  Pencil,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
+import {
+  addEducation,
   addEmploymentRole,
   addEventAttendance,
   addInteraction,
+  addLeadership,
   addStatusLabel,
   addTag,
   addTask,
   archiveAlumni,
+  deleteEducation,
+  deleteEmploymentRole,
+  deleteLeadership,
   removeStatusLabel,
   removeTag,
   restoreAlumni,
   setTaskComplete,
+  updateEducation,
+  updateEmploymentRole,
+  updateLeadership,
 } from "@/app/(app)/alumni/actions";
+import type { Education, EmploymentHistory, Leadership } from "@/types/profile";
 import {
   ATTENDANCE_STATUS_OPTIONS,
   INDUSTRY_OPTIONS,
@@ -468,108 +485,10 @@ export function AddRoleButton({
       {open ? (
         <Modal title="Add role" onClose={() => setOpen(false)}>
           <form action={formAction}>
-            <div className="space-y-3">
-              <div>
-                <label className={labelCls} htmlFor="employer_name">
-                  Employer
-                </label>
-                <input
-                  id="employer_name"
-                  name="employer_name"
-                  className={fieldCls}
-                  placeholder="e.g. Goldman Sachs"
-                />
-              </div>
-              <div>
-                <label className={labelCls} htmlFor="employment_title">
-                  Title
-                </label>
-                <input
-                  id="employment_title"
-                  name="employment_title"
-                  className={fieldCls}
-                  placeholder="e.g. Analyst"
-                />
-              </div>
-              <div>
-                <label className={labelCls} htmlFor="employment_industry">
-                  Industry
-                </label>
-                <select
-                  id="employment_industry"
-                  name="employment_industry"
-                  className={`${fieldCls} bg-white`}
-                  style={{ colorScheme: "light" }}
-                  defaultValue=""
-                >
-                  <option value="" className="bg-white text-gray-900">
-                    —
-                  </option>
-                  {INDUSTRY_OPTIONS.map((opt) => (
-                    <option
-                      key={opt}
-                      value={opt}
-                      className="bg-white text-gray-900"
-                    >
-                      {opt}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelCls} htmlFor="city">
-                    City
-                  </label>
-                  <input id="city" name="city" className={fieldCls} />
-                </div>
-                <div>
-                  <label className={labelCls} htmlFor="state">
-                    State
-                  </label>
-                  <input id="state" name="state" className={fieldCls} />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelCls} htmlFor="start_year">
-                    Start year
-                  </label>
-                  <input
-                    id="start_year"
-                    name="start_year"
-                    type="number"
-                    min={1900}
-                    max={2100}
-                    className={fieldCls}
-                  />
-                </div>
-                <div>
-                  <label className={labelCls} htmlFor="end_year">
-                    End year
-                  </label>
-                  <input
-                    id="end_year"
-                    name="end_year"
-                    type="number"
-                    min={1900}
-                    max={2100}
-                    className={fieldCls}
-                  />
-                </div>
-              </div>
-              <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  name="is_current"
-                  className="h-4 w-4 rounded border-gray-300 text-brand-blue-600 focus:ring-brand-blue-600"
-                />
-                Current role
-              </label>
-              {state?.error ? (
-                <p className="text-sm text-danger-600">{state.error}</p>
-              ) : null}
-            </div>
+            <EmploymentFields />
+            {state?.error ? (
+              <p className="mt-3 text-sm text-danger-600">{state.error}</p>
+            ) : null}
             <FormButtons
               pending={pending}
               onCancel={() => setOpen(false)}
@@ -579,6 +498,682 @@ export function AddRoleButton({
         </Modal>
       ) : null}
     </>
+  );
+}
+
+/* ------------------------------------------------- employment fields -------- */
+
+/** The shared field set for the add/edit employment forms. */
+function EmploymentFields({ row }: { row?: EmploymentHistory }) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className={labelCls} htmlFor="employer_name">
+          Employer
+        </label>
+        <input
+          id="employer_name"
+          name="employer_name"
+          className={fieldCls}
+          placeholder="e.g. Goldman Sachs"
+          defaultValue={row?.employer_name ?? ""}
+        />
+      </div>
+      <div>
+        <label className={labelCls} htmlFor="employment_title">
+          Title
+        </label>
+        <input
+          id="employment_title"
+          name="employment_title"
+          className={fieldCls}
+          placeholder="e.g. Analyst"
+          defaultValue={row?.employment_title ?? ""}
+        />
+      </div>
+      <div>
+        <label className={labelCls} htmlFor="employment_industry">
+          Industry
+        </label>
+        <select
+          id="employment_industry"
+          name="employment_industry"
+          className={`${fieldCls} bg-white`}
+          style={{ colorScheme: "light" }}
+          defaultValue={row?.employment_industry ?? ""}
+        >
+          <option value="" className="bg-white text-gray-900">
+            —
+          </option>
+          {INDUSTRY_OPTIONS.map((opt) => (
+            <option key={opt} value={opt} className="bg-white text-gray-900">
+              {opt}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelCls} htmlFor="city">
+            City
+          </label>
+          <input
+            id="city"
+            name="city"
+            className={fieldCls}
+            defaultValue={row?.city ?? ""}
+          />
+        </div>
+        <div>
+          <label className={labelCls} htmlFor="state">
+            State
+          </label>
+          <input
+            id="state"
+            name="state"
+            className={fieldCls}
+            defaultValue={row?.state ?? ""}
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelCls} htmlFor="start_year">
+            Start year
+          </label>
+          <input
+            id="start_year"
+            name="start_year"
+            type="number"
+            min={1900}
+            max={2100}
+            className={fieldCls}
+            defaultValue={row?.start_year ?? ""}
+          />
+        </div>
+        <div>
+          <label className={labelCls} htmlFor="end_year">
+            End year
+          </label>
+          <input
+            id="end_year"
+            name="end_year"
+            type="number"
+            min={1900}
+            max={2100}
+            className={fieldCls}
+            defaultValue={row?.end_year ?? ""}
+          />
+        </div>
+      </div>
+      <label className="flex items-center gap-2 text-sm text-gray-700">
+        <input
+          type="checkbox"
+          name="is_current"
+          defaultChecked={row?.is_current ?? false}
+          className="h-4 w-4 rounded border-gray-300 text-brand-blue-600 focus:ring-brand-blue-600"
+        />
+        Current role
+      </label>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------- edit employment ---- */
+
+/** Small inline "Edit" control + dialog for one employment-history row. */
+export function EditRoleButton({
+  alumniId,
+  row,
+}: {
+  alumniId: number;
+  row: EmploymentHistory;
+}) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [state, formAction, pending] = useActionState(
+    updateEmploymentRole.bind(null, alumniId, row.employment_history_id),
+    null,
+  );
+  useOnSubmitSettled(
+    pending,
+    state?.error,
+    () => {
+      setOpen(false);
+      toast.success("Role updated.");
+    },
+    () => toast.error(state?.error ?? "Failed to save role."),
+  );
+
+  return (
+    <>
+      <RowIconButton
+        label="Edit role"
+        icon={Pencil}
+        onClick={() => setOpen(true)}
+      />
+      {open ? (
+        <Modal title="Edit role" onClose={() => setOpen(false)}>
+          <form action={formAction}>
+            <EmploymentFields row={row} />
+            {state?.error ? (
+              <p className="mt-3 text-sm text-danger-600">{state.error}</p>
+            ) : null}
+            <FormButtons
+              pending={pending}
+              onCancel={() => setOpen(false)}
+              submitLabel="Save role"
+            />
+          </form>
+        </Modal>
+      ) : null}
+    </>
+  );
+}
+
+/* ---------------------------------------------------- delete (reusable) ----- */
+
+/** A small trash-icon button that confirms before running a delete action. */
+export function DeleteRowButton({
+  label,
+  confirmTitle,
+  confirmBody,
+  onDelete,
+  successMessage,
+}: {
+  label: string;
+  confirmTitle: string;
+  confirmBody: string;
+  onDelete: () => Promise<{ error?: string } | null>;
+  successMessage: string;
+}) {
+  const { toast } = useToast();
+  const [confirming, setConfirming] = useState(false);
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <>
+      <RowIconButton
+        label={label}
+        icon={Trash2}
+        onClick={() => setConfirming(true)}
+        tone="danger"
+      />
+      {confirming ? (
+        <Modal title={confirmTitle} onClose={() => setConfirming(false)}>
+          <p className="text-sm leading-relaxed text-gray-600">{confirmBody}</p>
+          <div className="mt-5 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirming(false)}
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() =>
+                startTransition(async () => {
+                  const res = await onDelete();
+                  if (res?.error) {
+                    toast.error(res.error);
+                  } else {
+                    setConfirming(false);
+                    toast.success(successMessage);
+                  }
+                })
+              }
+              className="inline-flex items-center gap-2 rounded-lg bg-danger-600 px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
+            >
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+              {pending ? "Deleting…" : "Delete"}
+            </button>
+          </div>
+        </Modal>
+      ) : null}
+    </>
+  );
+}
+
+/** Small square icon button used for per-row edit/delete affordances. */
+function RowIconButton({
+  label,
+  icon: Icon,
+  onClick,
+  tone = "neutral",
+}: {
+  label: string;
+  icon: typeof Pencil;
+  onClick: () => void;
+  tone?: "neutral" | "danger";
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white transition hover:bg-gray-50 ${
+        tone === "danger"
+          ? "text-danger-600 hover:border-danger-600"
+          : "text-gray-500 hover:border-brand-blue-600 hover:text-brand-blue-600"
+      }`}
+    >
+      <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+    </button>
+  );
+}
+
+/** Per-row edit + delete controls for one employment-history row. */
+export function EmploymentRowActions({
+  alumniId,
+  row,
+}: {
+  alumniId: number;
+  row: EmploymentHistory;
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      <EditRoleButton alumniId={alumniId} row={row} />
+      <DeleteRowButton
+        label="Delete role"
+        confirmTitle="Delete role"
+        confirmBody={`Delete the ${row.employer_name ?? "this"} role from the employment history? This can't be undone.`}
+        successMessage="Role deleted."
+        onDelete={() =>
+          deleteEmploymentRole(alumniId, row.employment_history_id)
+        }
+      />
+    </div>
+  );
+}
+
+/* ----------------------------------------------------- education fields ----- */
+
+function EducationFields({ row }: { row?: Education }) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className={labelCls} htmlFor="university">
+          University
+        </label>
+        <input
+          id="university"
+          name="university"
+          className={fieldCls}
+          placeholder="e.g. Brigham Young University"
+          defaultValue={row?.university ?? ""}
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelCls} htmlFor="college">
+            College
+          </label>
+          <input
+            id="college"
+            name="college"
+            className={fieldCls}
+            defaultValue={row?.college ?? ""}
+          />
+        </div>
+        <div>
+          <label className={labelCls} htmlFor="department">
+            Department
+          </label>
+          <input
+            id="department"
+            name="department"
+            className={fieldCls}
+            defaultValue={row?.department ?? ""}
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelCls} htmlFor="degree">
+            Degree
+          </label>
+          <input
+            id="degree"
+            name="degree"
+            className={fieldCls}
+            placeholder="e.g. BS"
+            defaultValue={row?.degree ?? ""}
+          />
+        </div>
+        <div>
+          <label className={labelCls} htmlFor="major">
+            Major
+          </label>
+          <input
+            id="major"
+            name="major"
+            className={fieldCls}
+            placeholder="e.g. Finance"
+            defaultValue={row?.major ?? ""}
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelCls} htmlFor="degree_status">
+            Degree status
+          </label>
+          <input
+            id="degree_status"
+            name="degree_status"
+            className={fieldCls}
+            placeholder="e.g. Completed"
+            defaultValue={row?.degree_status ?? ""}
+          />
+        </div>
+        <div>
+          <label className={labelCls} htmlFor="degree_year">
+            Degree year
+          </label>
+          <input
+            id="degree_year"
+            name="degree_year"
+            type="number"
+            min={1900}
+            max={2100}
+            className={fieldCls}
+            defaultValue={row?.degree_year ?? ""}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------- add education ------ */
+
+export function AddEducationButton({
+  alumniId,
+  label = "+ Add education",
+}: {
+  alumniId: number;
+  label?: string;
+}) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [state, formAction, pending] = useActionState(
+    addEducation.bind(null, alumniId),
+    null,
+  );
+  useOnSubmitSettled(
+    pending,
+    state?.error,
+    () => {
+      setOpen(false);
+      toast.success("Education added.");
+    },
+    () => toast.error(state?.error ?? "Failed to add education."),
+  );
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-xs font-medium text-brand-blue-600 hover:text-brand-blue-500"
+      >
+        {label}
+      </button>
+      {open ? (
+        <Modal title="Add education" onClose={() => setOpen(false)}>
+          <form action={formAction}>
+            <EducationFields />
+            {state?.error ? (
+              <p className="mt-3 text-sm text-danger-600">{state.error}</p>
+            ) : null}
+            <FormButtons
+              pending={pending}
+              onCancel={() => setOpen(false)}
+              submitLabel="Add education"
+            />
+          </form>
+        </Modal>
+      ) : null}
+    </>
+  );
+}
+
+/* ------------------------------------------------------- edit education ----- */
+
+export function EditEducationButton({
+  alumniId,
+  row,
+}: {
+  alumniId: number;
+  row: Education;
+}) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [state, formAction, pending] = useActionState(
+    updateEducation.bind(null, alumniId, row.education_id),
+    null,
+  );
+  useOnSubmitSettled(
+    pending,
+    state?.error,
+    () => {
+      setOpen(false);
+      toast.success("Education updated.");
+    },
+    () => toast.error(state?.error ?? "Failed to save education."),
+  );
+
+  return (
+    <>
+      <RowIconButton
+        label="Edit education"
+        icon={Pencil}
+        onClick={() => setOpen(true)}
+      />
+      {open ? (
+        <Modal title="Edit education" onClose={() => setOpen(false)}>
+          <form action={formAction}>
+            <EducationFields row={row} />
+            {state?.error ? (
+              <p className="mt-3 text-sm text-danger-600">{state.error}</p>
+            ) : null}
+            <FormButtons
+              pending={pending}
+              onCancel={() => setOpen(false)}
+              submitLabel="Save education"
+            />
+          </form>
+        </Modal>
+      ) : null}
+    </>
+  );
+}
+
+/** Per-row edit + delete controls for one education entry. */
+export function EducationRowActions({
+  alumniId,
+  row,
+}: {
+  alumniId: number;
+  row: Education;
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      <EditEducationButton alumniId={alumniId} row={row} />
+      <DeleteRowButton
+        label="Delete education"
+        confirmTitle="Delete education"
+        confirmBody="Delete this education entry? This can't be undone."
+        successMessage="Education deleted."
+        onDelete={() => deleteEducation(alumniId, row.education_id)}
+      />
+    </div>
+  );
+}
+
+/* ----------------------------------------------------- leadership fields ---- */
+
+function LeadershipFields({ row }: { row?: Leadership }) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className={labelCls} htmlFor="leadership_role">
+          Role
+        </label>
+        <input
+          id="leadership_role"
+          name="leadership_role"
+          className={fieldCls}
+          placeholder="e.g. President"
+          defaultValue={row?.leadership_role ?? ""}
+        />
+      </div>
+      <div>
+        <label className={labelCls} htmlFor="role_year">
+          Year
+        </label>
+        <input
+          id="role_year"
+          name="role_year"
+          type="number"
+          min={1900}
+          max={2100}
+          className={fieldCls}
+          defaultValue={row?.role_year ?? ""}
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------- add leadership ----- */
+
+export function AddLeadershipButton({
+  alumniId,
+  label = "+ Add leadership",
+}: {
+  alumniId: number;
+  label?: string;
+}) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [state, formAction, pending] = useActionState(
+    addLeadership.bind(null, alumniId),
+    null,
+  );
+  useOnSubmitSettled(
+    pending,
+    state?.error,
+    () => {
+      setOpen(false);
+      toast.success("Leadership entry added.");
+    },
+    () => toast.error(state?.error ?? "Failed to add leadership entry."),
+  );
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-xs font-medium text-brand-blue-600 hover:text-brand-blue-500"
+      >
+        {label}
+      </button>
+      {open ? (
+        <Modal title="Add leadership" onClose={() => setOpen(false)}>
+          <form action={formAction}>
+            <LeadershipFields />
+            {state?.error ? (
+              <p className="mt-3 text-sm text-danger-600">{state.error}</p>
+            ) : null}
+            <FormButtons
+              pending={pending}
+              onCancel={() => setOpen(false)}
+              submitLabel="Add leadership"
+            />
+          </form>
+        </Modal>
+      ) : null}
+    </>
+  );
+}
+
+/* ------------------------------------------------------- edit leadership ---- */
+
+export function EditLeadershipButton({
+  alumniId,
+  row,
+}: {
+  alumniId: number;
+  row: Leadership;
+}) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [state, formAction, pending] = useActionState(
+    updateLeadership.bind(null, alumniId, row.finance_society_leadership_id),
+    null,
+  );
+  useOnSubmitSettled(
+    pending,
+    state?.error,
+    () => {
+      setOpen(false);
+      toast.success("Leadership entry updated.");
+    },
+    () => toast.error(state?.error ?? "Failed to save leadership entry."),
+  );
+
+  return (
+    <>
+      <RowIconButton
+        label="Edit leadership"
+        icon={Pencil}
+        onClick={() => setOpen(true)}
+      />
+      {open ? (
+        <Modal title="Edit leadership" onClose={() => setOpen(false)}>
+          <form action={formAction}>
+            <LeadershipFields row={row} />
+            {state?.error ? (
+              <p className="mt-3 text-sm text-danger-600">{state.error}</p>
+            ) : null}
+            <FormButtons
+              pending={pending}
+              onCancel={() => setOpen(false)}
+              submitLabel="Save leadership"
+            />
+          </form>
+        </Modal>
+      ) : null}
+    </>
+  );
+}
+
+/** Per-row edit + delete controls for one leadership entry. */
+export function LeadershipRowActions({
+  alumniId,
+  row,
+}: {
+  alumniId: number;
+  row: Leadership;
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      <EditLeadershipButton alumniId={alumniId} row={row} />
+      <DeleteRowButton
+        label="Delete leadership"
+        confirmTitle="Delete leadership"
+        confirmBody="Delete this leadership entry? This can't be undone."
+        successMessage="Leadership entry deleted."
+        onDelete={() =>
+          deleteLeadership(alumniId, row.finance_society_leadership_id)
+        }
+      />
+    </div>
   );
 }
 

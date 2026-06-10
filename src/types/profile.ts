@@ -71,7 +71,6 @@ export interface ProgramEngagement {
   hired_finance_intern: boolean;
   hired_finance_full_time: boolean;
   piff_donor: boolean;
-  piff_donor_amount: string | null;
   cfp_designation: boolean;
   cfa_designation: boolean;
   engagement_notes: string | null;
@@ -143,6 +142,8 @@ export interface AuditEntry {
 
 export interface Profile {
   alumni: Alumni;
+  /** Linked spouse's current display name when alumni.spouse_alumni_id is set. */
+  spouse_alumni_name: string | null;
   contact: Contact | null;
   current_career: CurrentCareer | null;
   employment_history: EmploymentHistory[];

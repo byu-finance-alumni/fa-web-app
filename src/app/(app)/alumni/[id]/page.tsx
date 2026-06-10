@@ -15,8 +15,6 @@ import {
   Flag,
   CircleAlert,
   Check,
-  FileText,
-  Download,
   type LucideIcon,
 } from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
@@ -25,11 +23,16 @@ import type { UserContext } from "@/types/alumni";
 import { Topbar } from "@/components/shell/Topbar";
 import { TopbarSearch } from "@/components/shared/TopbarSearch";
 import {
+  AddEducationButton,
   AddEventButton,
   AddInteractionButton,
+  AddLeadershipButton,
   AddRoleButton,
   AddTaskButton,
   ArchiveControls,
+  EducationRowActions,
+  EmploymentRowActions,
+  LeadershipRowActions,
   TagStatusManager,
   TaskCheckbox,
 } from "@/components/alumni/ProfileDialogs";
@@ -42,6 +45,7 @@ import { ExportProfileButton } from "@/components/alumni/ExportProfileButton";
 import { DrawerList } from "@/components/alumni/DrawerList";
 import { DrawerView } from "@/components/alumni/DrawerView";
 import { MetricCard } from "@/components/shared/MetricCard";
+import { Avatar } from "@/components/shared/Avatar";
 
 /* ----------------------------------------------------------------- helpers */
 
@@ -217,6 +221,14 @@ export default async function AlumniProfilePage({
   const c = profile.contact;
   const career = profile.current_career;
   const aid = a.alumni_id;
+  // Spouse display: the typed name, plus a deep-link label when linked to
+  // another alumni record (prefer that alumnus's current name).
+  const spouseName =
+    [a.spouse_first_name, a.spouse_last_name].filter(Boolean).join(" ") || null;
+  const spouseLinkLabel =
+    profile.spouse_alumni_name ||
+    spouseName ||
+    (a.spouse_alumni_id ? `Alumnus #${a.spouse_alumni_id}` : null);
   const name =
     [a.preferred_first_name ?? a.first_name, a.last_name]
       .filter(Boolean)
@@ -331,11 +343,13 @@ export default async function AlumniProfilePage({
           <div className="rounded-xl border border-gray-300 bg-white p-5">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div className="flex items-center gap-4">
-                <span
-                  className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-lg font-semibold text-white ${avatarColor(initials)}`}
-                >
-                  {initials.toUpperCase()}
-                </span>
+                <Avatar
+                  netId={a.net_id}
+                  initials={initials}
+                  name={name}
+                  size="h-16 w-16 text-lg"
+                  colorClass={avatarColor(initials)}
+                />
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-2xl font-semibold text-gray-900">{name}</h2>
@@ -462,13 +476,16 @@ export default async function AlumniProfilePage({
               value={profile.events.length}
               sub={lastEvent ? `Last: ${lastEvent.event_name}` : null}
             />
-            <MetricCard
-              icon={CheckSquare}
-              label="Open tasks"
-              value={openTasks.length}
-              sub={overdueTasks.length ? `${overdueTasks.length} overdue` : null}
-              subTone={overdueTasks.length ? "warning" : "muted"}
-            />
+            {/* Tasks are visible to admins (full_access / super_admin) only. */}
+            {canEdit ? (
+              <MetricCard
+                icon={CheckSquare}
+                label="Open tasks"
+                value={openTasks.length}
+                sub={overdueTasks.length ? `${overdueTasks.length} overdue` : null}
+                subTone={overdueTasks.length ? "warning" : "muted"}
+              />
+            ) : null}
             <MetricCard
               icon={PieChart}
               label="Completeness"
@@ -598,10 +615,15 @@ export default async function AlumniProfilePage({
                                 </span>
                               ) : null}
                             </p>
-                            <span className="shrink-0 text-xs tabular-nums text-gray-500">
-                              {e.start_year ?? "—"} –{" "}
-                              {e.is_current ? "Present" : (e.end_year ?? "—")}
-                            </span>
+                            <div className="flex shrink-0 items-center gap-2">
+                              <span className="text-xs tabular-nums text-gray-500">
+                                {e.start_year ?? "—"} –{" "}
+                                {e.is_current ? "Present" : (e.end_year ?? "—")}
+                              </span>
+                              {canEdit ? (
+                                <EmploymentRowActions alumniId={aid} row={e} />
+                              ) : null}
+                            </div>
                           </div>
                           <p className="text-sm text-gray-600">
                             {e.employment_title ?? "—"}
@@ -621,6 +643,120 @@ export default async function AlumniProfilePage({
                   </p>
                 )}
               </Panel>
+
+              {/* Education */}
+              {profile.education.length || canEdit ? (
+                <Panel
+                  title="Education"
+                  action={
+                    canEdit ? <AddEducationButton alumniId={aid} /> : undefined
+                  }
+                >
+                  {profile.education.length ? (
+                    <DrawerList
+                      title="Education"
+                      collapsed={3}
+                      listClassName="space-y-1"
+                      action={
+                        canEdit ? (
+                          <AddEducationButton alumniId={aid} />
+                        ) : undefined
+                      }
+                    >
+                      {profile.education.map((ed) => (
+                        <li
+                          key={ed.education_id}
+                          className="flex gap-3 border-b border-gray-100 py-3 last:border-0"
+                        >
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500">
+                            <GraduationCap className="h-4 w-4" aria-hidden="true" />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-sm font-semibold text-gray-900">
+                                {ed.university ?? "—"}
+                              </p>
+                              <div className="flex shrink-0 items-center gap-2">
+                                <span className="text-xs tabular-nums text-gray-500">
+                                  {ed.degree_year ?? "—"}
+                                </span>
+                                {canEdit ? (
+                                  <EducationRowActions
+                                    alumniId={aid}
+                                    row={ed}
+                                  />
+                                ) : null}
+                              </div>
+                            </div>
+                            <p className="text-sm text-gray-600">
+                              {[ed.degree, ed.major]
+                                .filter(Boolean)
+                                .join(" · ") || "—"}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {[ed.college, ed.department, ed.degree_status]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </p>
+                          </div>
+                        </li>
+                      ))}
+                    </DrawerList>
+                  ) : (
+                    <p className="py-6 text-center text-sm text-gray-500">
+                      No education on file yet.
+                    </p>
+                  )}
+                </Panel>
+              ) : null}
+
+              {/* Finance Society leadership */}
+              {profile.leadership.length || canEdit ? (
+                <Panel
+                  title="Finance Society leadership"
+                  action={
+                    canEdit ? <AddLeadershipButton alumniId={aid} /> : undefined
+                  }
+                >
+                  {profile.leadership.length ? (
+                    <DrawerList
+                      title="Finance Society leadership"
+                      collapsed={3}
+                      listClassName="space-y-1"
+                      action={
+                        canEdit ? (
+                          <AddLeadershipButton alumniId={aid} />
+                        ) : undefined
+                      }
+                    >
+                      {profile.leadership.map((le) => (
+                        <li
+                          key={le.finance_society_leadership_id}
+                          className="flex items-center gap-3 border-b border-gray-100 py-2.5 last:border-0"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-gray-900">
+                              {le.leadership_role}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <span className="text-xs tabular-nums text-gray-500">
+                              {le.role_year ?? "—"}
+                            </span>
+                            {canEdit ? (
+                              <LeadershipRowActions alumniId={aid} row={le} />
+                            ) : null}
+                          </div>
+                        </li>
+                      ))}
+                    </DrawerList>
+                  ) : (
+                    <p className="py-6 text-center text-sm text-gray-500">
+                      No leadership roles recorded yet.
+                    </p>
+                  )}
+                </Panel>
+              ) : null}
 
               {/* Recent events */}
               {profile.events.length || canEdit ? (
@@ -684,50 +820,38 @@ export default async function AlumniProfilePage({
             {/* Right sidebar (narrower). Same flex-column treatment so it ends
                 level with the main column. */}
             <div className="flex flex-col gap-4 lg:[&>:last-child]:flex-1">
-              {/* Documents — resume and other files. File download wires up when
-                  Supabase Storage is enabled (attachments backlog item). */}
-              <Panel title="Documents" className="min-h-[12rem]">
-                {profile.attachments.length ? (
-                  <ul className="space-y-2">
-                    {profile.attachments.map((doc) => (
-                      <li
-                        key={doc.attachment_id}
-                        className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2.5"
-                      >
-                        <div className="flex min-w-0 items-center gap-2.5">
-                          <FileText
-                            className="h-4 w-4 shrink-0 text-gray-400"
-                            aria-hidden="true"
-                          />
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium text-gray-900">
-                              {doc.file_name}
-                            </p>
-                            {doc.attachment_notes ? (
-                              <p className="truncate text-xs text-gray-500">
-                                {doc.attachment_notes}
-                              </p>
-                            ) : null}
-                          </div>
-                        </div>
-                        <span
-                          className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-gray-300"
-                          title="Download available once file storage is connected"
+              {/* Personal & family */}
+              <Panel title="Personal & family" action={<EditLink id={aid} />}>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field label="Birthday" value={fmtDate(a.birth_date)} />
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Spouse
+                    </p>
+                    {spouseLinkLabel ? (
+                      a.spouse_alumni_id ? (
+                        <Link
+                          href={`/alumni/${a.spouse_alumni_id}`}
+                          className="text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
                         >
-                          <Download className="h-4 w-4" aria-hidden="true" />
-                          Download
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="py-2 text-sm text-gray-400">
-                    No documents uploaded yet.
-                  </p>
-                )}
+                          {spouseLinkLabel} ↗
+                        </Link>
+                      ) : (
+                        <p className="text-sm text-gray-900">{spouseLinkLabel}</p>
+                      )
+                    ) : (
+                      <p className="text-sm text-gray-300">—</p>
+                    )}
+                  </div>
+                  <Field
+                    label="Spouse birthday"
+                    value={fmtDate(a.spouse_birth_date)}
+                  />
+                </div>
               </Panel>
 
-              {/* Open tasks */}
+              {/* Open tasks — visible to admins (full_access / super_admin) only. */}
+              {canEdit ? (
               <Panel
                 title={`Open tasks (${openTasks.length})`}
                 action={canEdit ? <AddTaskButton alumniId={aid} label="+ New task" /> : undefined}
@@ -786,6 +910,7 @@ export default async function AlumniProfilePage({
                   </p>
                 )}
               </Panel>
+              ) : null}
 
               {/* Profile completeness */}
               <Panel title="Profile completeness">

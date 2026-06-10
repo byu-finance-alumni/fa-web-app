@@ -13,6 +13,7 @@ import {
   History,
   Shield,
   UserCog,
+  ListChecks,
   ChevronDown,
   type LucideIcon,
 } from "lucide-react";
@@ -25,6 +26,8 @@ type NavLeaf = {
 
 type NavItem = NavLeaf & {
   superAdminOnly?: boolean;
+  /** Visible to full_access and super_admin only (admin tooling). */
+  fullAccessOnly?: boolean;
   children?: NavLeaf[];
 };
 
@@ -34,6 +37,12 @@ const NAV: NavItem[] = [
   { href: "/map", label: "Map", icon: Map },
   { href: "/events", label: "Events", icon: Calendar },
   { href: "/activity", label: "Activity", icon: Activity },
+  {
+    href: "/tasks",
+    label: "Tasks",
+    icon: ListChecks,
+    fullAccessOnly: true,
+  },
   { href: "/data-quality", label: "Data quality", icon: AlertTriangle },
   {
     href: "/admin",
@@ -59,6 +68,8 @@ const isActivePath = (pathname: string, href: string) =>
 export function Sidebar({ email, role }: { email: string; role: string }) {
   const pathname = usePathname();
   const isSuperAdmin = role === "super_admin";
+  // full_access tooling (e.g. Tasks) is visible to full_access and super_admin.
+  const hasFullAccess = role === "super_admin" || role === "full_access";
   // Track explicit open/close toggles per group; a group with an active child
   // defaults to open.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
@@ -82,7 +93,11 @@ export function Sidebar({ email, role }: { email: string; role: string }) {
       </div>
 
       <nav className="flex flex-col gap-1">
-        {NAV.filter((n) => !n.superAdminOnly || isSuperAdmin).map((item) => {
+        {NAV.filter(
+          (n) =>
+            (!n.superAdminOnly || isSuperAdmin) &&
+            (!n.fullAccessOnly || hasFullAccess),
+        ).map((item) => {
           const { href, label, icon: Icon, children } = item;
 
           if (!children) {

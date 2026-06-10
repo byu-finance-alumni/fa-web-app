@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { FormState } from "@/app/(app)/alumni/actions";
 import type { Alumni } from "@/types/alumni";
 import { INDUSTRY_OPTIONS } from "@/constants/dropdowns";
+import { SpousePicker } from "@/components/alumni/SpousePicker";
 
 type Action = (prev: FormState, formData: FormData) => Promise<FormState>;
 
@@ -19,6 +20,9 @@ type Action = (prev: FormState, formData: FormData) => Promise<FormState>;
  * booleans for `defaultChecked`.
  */
 export type AlumniFormDefaults = Partial<Alumni> & {
+  /** Linked spouse's current display name (from the profile aggregate), used to
+   * label the "Linked" chip when editing. */
+  spouseAlumniName?: string | null;
   contact?: Record<string, string>;
   career?: Record<string, string>;
   education?: Record<string, string>;
@@ -474,6 +478,13 @@ export function AlumniForm({
           />
         </div>
         <Field
+          label="Birthday"
+          name="birth_date"
+          type="date"
+          defaultValue={defaults?.birth_date ?? ""}
+          error={errors.birth_date}
+        />
+        <Field
           label="LinkedIn URL"
           name="linkedin_url"
           defaultValue={defaults?.linkedin_url ?? ""}
@@ -498,6 +509,17 @@ export function AlumniForm({
             </p>
           ) : null}
         </div>
+        <SpousePicker
+          selfId={defaults?.alumni_id}
+          errors={errors}
+          defaults={{
+            spouse_first_name: defaults?.spouse_first_name,
+            spouse_last_name: defaults?.spouse_last_name,
+            spouse_birth_date: defaults?.spouse_birth_date,
+            spouse_alumni_id: defaults?.spouse_alumni_id,
+            spouse_alumni_name: defaults?.spouseAlumniName,
+          }}
+        />
       </div>
     </Section>
   );

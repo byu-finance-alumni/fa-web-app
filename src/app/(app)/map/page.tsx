@@ -63,7 +63,6 @@ export default async function GeographyPage({
             topEmployers={summary?.top_employers ?? []}
             topIndustries={summary?.top_industries ?? []}
             filterQuery={qs}
-            initialState={sp.state ?? null}
             filters={
               <MapFilters
                 hasFilters={!!qs}

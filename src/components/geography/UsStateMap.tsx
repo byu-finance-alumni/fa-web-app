@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import usa from "@svg-maps/usa";
 
 /**
@@ -33,6 +33,7 @@ export function UsStateMap({
   filterQuery = "",
   onSelect,
   fit = false,
+  focusState,
 }: {
   counts: Record<string, number>;
   selected: string | null;
@@ -44,15 +45,68 @@ export function UsStateMap({
   /** Scale the map to fill its container's HEIGHT (so the whole map is visible
    * without scrolling) instead of sizing by width. */
   fit?: boolean;
+  /** When set, the SVG viewBox is recomputed from this state's path bounding
+   * box (padded) so the state is centered + enlarged while its neighbours stay
+   * visible around the edges. When unset, the full-country viewBox is used. */
+  focusState?: string;
 }) {
   const router = useRouter();
   const ref = useRef<HTMLDivElement>(null);
+  const focusRef = useRef<SVGPathElement>(null);
   const [hover, setHover] = useState<{
     name: string;
     count: number;
     x: number;
     y: number;
   } | null>(null);
+  // viewBox driving the SVG. Defaults to the full country; a focused state
+  // swaps in a padded bounding box (computed after layout from getBBox()).
+  const [viewBox, setViewBox] = useState<string>(usa.viewBox);
+
+  const focusCode = focusState?.toUpperCase();
+
+  // Borders are drawn in SVG user units, so when the viewBox zooms into one
+  // state they'd render proportionally THICKER than on the full-country map and
+  // the state would look different. Scale stroke widths by the zoom factor
+  // (focused viewBox width ÷ full-country width) so every state's borders have
+  // the SAME on-screen thickness they do on the whole-50-states map. Unfocused
+  // (viewBox == country) → scale 1 → unchanged.
+  const COUNTRY_WIDTH = Number(usa.viewBox.split(/\s+/)[2]) || 1028;
+  const strokeScale =
+    (Number(viewBox.split(/\s+/)[2]) || COUNTRY_WIDTH) / COUNTRY_WIDTH;
+
+  // After the focused path renders, read its bounding box and pad it ~20% on
+  // each side so the state is centered + enlarged with neighbours still in
+  // frame. Falls back to the full-country viewBox when nothing is focused.
+  useLayoutEffect(() => {
+    if (!focusCode) {
+      setViewBox(usa.viewBox);
+      return;
+    }
+    const el = focusRef.current;
+    if (!el) return;
+    const b = el.getBBox();
+    const padX = b.width * 0.2;
+    const padY = b.height * 0.2;
+    // Pad evenly, then expand the shorter axis so the box keeps the country's
+    // ~1.38 aspect ratio — otherwise tall/narrow states get distorted by the
+    // SVG's preserveAspectRatio "meet" fit and the centering drifts.
+    let x = b.x - padX;
+    let y = b.y - padY;
+    let w = b.width + padX * 2;
+    let h = b.height + padY * 2;
+    const targetRatio = 1028 / 746;
+    if (w / h < targetRatio) {
+      const neededW = h * targetRatio;
+      x -= (neededW - w) / 2;
+      w = neededW;
+    } else {
+      const neededH = w / targetRatio;
+      y -= (neededH - h) / 2;
+      h = neededH;
+    }
+    setViewBox(`${x} ${y} ${w} ${h}`);
+  }, [focusCode]);
 
   function go(id: string) {
     const code = id.toUpperCase();
@@ -61,7 +115,7 @@ export function UsStateMap({
       return;
     }
     const qs = filterQuery ? `${filterQuery}&` : "";
-    router.push(`/map?${qs}state=${code}`);
+    router.push(`/map/state/${code}?${qs}`.replace(/\?$/, ""));
   }
 
   function move(e: React.MouseEvent, name: string, count: number) {
@@ -76,7 +130,7 @@ export function UsStateMap({
 
   const svg = (
     <svg
-      viewBox={usa.viewBox}
+      viewBox={viewBox}
       preserveAspectRatio="xMidYMid meet"
       className={fit ? "absolute inset-0 h-full w-full" : "h-auto w-full"}
       role="img"
@@ -89,10 +143,11 @@ export function UsStateMap({
         return (
           <path
             key={loc.id}
+            ref={code === focusCode ? focusRef : undefined}
             d={loc.path}
             fill={fillFor(count)}
             stroke={isSel ? "#2E4A86" : "#FFFFFF"}
-            strokeWidth={isSel ? 2.5 : 0.75}
+            strokeWidth={(isSel ? 2.5 : 0.75) * strokeScale}
             className="cursor-pointer outline-none transition-[fill,stroke] hover:opacity-80"
             tabIndex={0}
             role="button"
