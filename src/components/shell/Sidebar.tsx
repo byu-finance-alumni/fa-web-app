@@ -9,7 +9,6 @@ import {
   Map,
   Calendar,
   Activity,
-  AlertTriangle,
   History,
   Shield,
   UserCog,
@@ -43,7 +42,6 @@ const NAV: NavItem[] = [
     icon: ListChecks,
     fullAccessOnly: true,
   },
-  { href: "/data-quality", label: "Data quality", icon: AlertTriangle },
   {
     href: "/admin",
     label: "Admin",
