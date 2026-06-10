@@ -37,6 +37,8 @@ export default async function DataQualityPage() {
             "Active alumni with no personal or work email on file — can't be reached for outreach.",
           href: "/alumni?missing_email=1",
           linkLabel: "Review alumni missing an email",
+          /** UX-UI.md: missing-data = warning-600 */
+          iconBg: "bg-warning-600",
         },
         {
           icon: Briefcase,
@@ -46,6 +48,8 @@ export default async function DataQualityPage() {
             "Active alumni with no current employer recorded — career data needs enrichment.",
           href: "/alumni?missing_employer=1",
           linkLabel: "Review alumni missing an employer",
+          /** UX-UI.md: missing-data = warning-600 */
+          iconBg: "bg-warning-600",
         },
         {
           icon: Copy,
@@ -55,6 +59,8 @@ export default async function DataQualityPage() {
             "Alumni flagged as potential duplicates — review and merge candidates manually.",
           href: "/alumni?duplicate=1",
           linkLabel: "Review potential duplicate records",
+          /** UX-UI.md: duplicate = danger-600 */
+          iconBg: "bg-danger-600",
         },
       ]
     : [];
@@ -128,7 +134,7 @@ export default async function DataQualityPage() {
                         className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2.5"
                       >
                         <div className="flex min-w-0 items-center gap-2.5">
-                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-navy-800 text-white">
+                          <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded ${a.iconBg} text-white`}>
                             <a.icon className="h-3 w-3" aria-hidden="true" />
                           </span>
                           <div className="min-w-0">

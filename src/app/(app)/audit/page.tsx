@@ -215,7 +215,7 @@ export default async function AuditPage({
                   </p>
                   {hasChange(r) ? (
                     <details className="mt-2">
-                      <summary className="cursor-pointer text-xs font-medium text-brand-blue-600">
+                      <summary className="cursor-pointer rounded text-xs font-medium text-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500">
                         Details
                       </summary>
                       <div className="mt-2 rounded-lg bg-gray-50 p-2">
@@ -260,7 +260,7 @@ export default async function AuditPage({
                       <td className="px-4 py-3">
                         {hasChange(r) ? (
                           <details>
-                            <summary className="cursor-pointer text-xs font-medium text-brand-blue-600">
+                            <summary className="cursor-pointer rounded text-xs font-medium text-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500">
                               View
                             </summary>
                             <div className="mt-2 rounded-lg bg-gray-50 p-2">

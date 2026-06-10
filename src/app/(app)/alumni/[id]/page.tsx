@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import {
   GraduationCap,
   Building2,
+  Briefcase,
+  Cake,
   MessageSquare,
   CalendarDays,
   CheckSquare,
@@ -445,7 +447,9 @@ export default async function AlumniProfilePage({
             ) : null}
           </div>
 
-          {/* KPI strip */}
+          {/* KPI strip — always 6 slots. For view_only the admin-only Open
+              tasks + Completeness tiles become blank placeholders so the 4 real
+              tiles stay aligned with the admin layout. */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <MetricCard
               icon={GraduationCap}
@@ -485,14 +489,31 @@ export default async function AlumniProfilePage({
                 sub={overdueTasks.length ? `${overdueTasks.length} overdue` : null}
                 subTone={overdueTasks.length ? "warning" : "muted"}
               />
-            ) : null}
-            <MetricCard
-              icon={PieChart}
-              label="Completeness"
-              value={`${completeness}%`}
-              sub={missing.length ? `${missing.length} fields missing` : "Complete"}
-              subTone={missing.length ? "warning" : "success"}
-            />
+            ) : (
+              <MetricCard
+                icon={Briefcase}
+                label="Past roles"
+                value={profile.employment_history.length}
+                sub={profile.employment_history[0]?.employer_name ?? null}
+              />
+            )}
+            {/* Completeness for admins; Birthday fills the slot for view_only. */}
+            {canEdit ? (
+              <MetricCard
+                icon={PieChart}
+                label="Completeness"
+                value={`${completeness}%`}
+                sub={missing.length ? `${missing.length} fields missing` : "Complete"}
+                subTone={missing.length ? "warning" : "success"}
+              />
+            ) : (
+              <MetricCard
+                icon={Cake}
+                label="Birthday"
+                value={fmtDate(a.birth_date) ?? "—"}
+                sub={null}
+              />
+            )}
           </div>
 
           {/* Paired-row body */}
@@ -710,54 +731,6 @@ export default async function AlumniProfilePage({
                 </Panel>
               ) : null}
 
-              {/* Finance Society leadership */}
-              {profile.leadership.length || canEdit ? (
-                <Panel
-                  title="Finance Society leadership"
-                  action={
-                    canEdit ? <AddLeadershipButton alumniId={aid} /> : undefined
-                  }
-                >
-                  {profile.leadership.length ? (
-                    <DrawerList
-                      title="Finance Society leadership"
-                      collapsed={3}
-                      listClassName="space-y-1"
-                      action={
-                        canEdit ? (
-                          <AddLeadershipButton alumniId={aid} />
-                        ) : undefined
-                      }
-                    >
-                      {profile.leadership.map((le) => (
-                        <li
-                          key={le.finance_society_leadership_id}
-                          className="flex items-center gap-3 border-b border-gray-100 py-2.5 last:border-0"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-gray-900">
-                              {le.leadership_role}
-                            </p>
-                          </div>
-                          <div className="flex shrink-0 items-center gap-2">
-                            <span className="text-xs tabular-nums text-gray-500">
-                              {le.role_year ?? "—"}
-                            </span>
-                            {canEdit ? (
-                              <LeadershipRowActions alumniId={aid} row={le} />
-                            ) : null}
-                          </div>
-                        </li>
-                      ))}
-                    </DrawerList>
-                  ) : (
-                    <p className="py-6 text-center text-sm text-gray-500">
-                      No leadership roles recorded yet.
-                    </p>
-                  )}
-                </Panel>
-              ) : null}
-
               {/* Recent events */}
               {profile.events.length || canEdit ? (
                 <Panel
@@ -850,6 +823,54 @@ export default async function AlumniProfilePage({
                 </div>
               </Panel>
 
+              {/* Finance Society leadership */}
+              {profile.leadership.length || canEdit ? (
+                <Panel
+                  title="Finance Society leadership"
+                  action={
+                    canEdit ? <AddLeadershipButton alumniId={aid} /> : undefined
+                  }
+                >
+                  {profile.leadership.length ? (
+                    <DrawerList
+                      title="Finance Society leadership"
+                      collapsed={3}
+                      listClassName="space-y-1"
+                      action={
+                        canEdit ? (
+                          <AddLeadershipButton alumniId={aid} />
+                        ) : undefined
+                      }
+                    >
+                      {profile.leadership.map((le) => (
+                        <li
+                          key={le.finance_society_leadership_id}
+                          className="flex items-center gap-3 border-b border-gray-100 py-2.5 last:border-0"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-gray-900">
+                              {le.leadership_role}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <span className="text-xs tabular-nums text-gray-500">
+                              {le.role_year ?? "—"}
+                            </span>
+                            {canEdit ? (
+                              <LeadershipRowActions alumniId={aid} row={le} />
+                            ) : null}
+                          </div>
+                        </li>
+                      ))}
+                    </DrawerList>
+                  ) : (
+                    <p className="py-6 text-center text-sm text-gray-500">
+                      No leadership roles recorded yet.
+                    </p>
+                  )}
+                </Panel>
+              ) : null}
+
               {/* Open tasks — visible to admins (full_access / super_admin) only. */}
               {canEdit ? (
               <Panel
@@ -912,7 +933,8 @@ export default async function AlumniProfilePage({
               </Panel>
               ) : null}
 
-              {/* Profile completeness */}
+              {/* Profile completeness — admin tool, hidden for view_only. */}
+              {canEdit ? (
               <Panel title="Profile completeness">
                 <div className="mb-3 flex items-end justify-between">
                   <span className="text-3xl font-semibold tabular-nums text-gray-900">
@@ -956,6 +978,7 @@ export default async function AlumniProfilePage({
                   </Link>
                 ) : null}
               </Panel>
+              ) : null}
 
               {/* Engagement & tags */}
               {profile.tags.length ||
@@ -1008,8 +1031,8 @@ export default async function AlumniProfilePage({
                 </Panel>
               ) : null}
 
-              {/* Recent activity */}
-              {recentActivity.length ? (
+              {/* Recent activity — admin-only (hidden for view_only). */}
+              {canEdit && recentActivity.length ? (
                 <Panel title="Recent activity">
                   <ul className="space-y-2.5">
                     {recentActivity.map((i) => (
