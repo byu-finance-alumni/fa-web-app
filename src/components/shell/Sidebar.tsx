@@ -43,7 +43,12 @@ const NAV: NavItem[] = [
     icon: ListChecks,
     fullAccessOnly: true,
   },
-  { href: "/data-quality", label: "Data quality", icon: AlertTriangle },
+  {
+    href: "/data-quality",
+    label: "Data quality",
+    icon: AlertTriangle,
+    fullAccessOnly: true,
+  },
   {
     href: "/admin",
     label: "Admin",
