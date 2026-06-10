@@ -57,14 +57,29 @@ function buildPayload(formData: FormData): Record<string, unknown> {
     const v = str(k);
     return v !== undefined ? Number(v) : undefined;
   };
+  // Spouse link: always sent (number when linked, else null) rather than
+  // omitted, so unlinking on edit actually clears it. Every other blank field
+  // is omitted (PATCH can't currently clear them) — consistent with the rest of
+  // the form.
+  const spouseIdRaw = formData.get("spouse_alumni_id");
+  const spouse_alumni_id =
+    typeof spouseIdRaw === "string" && spouseIdRaw.trim() !== ""
+      ? Number(spouseIdRaw)
+      : null;
+
   return compact({
     first_name: str("first_name"),
     last_name: str("last_name"),
     preferred_first_name: str("preferred_first_name"),
     byu_id: str("byu_id"),
     net_id: str("net_id"),
+    birth_date: str("birth_date"),
     graduation_year: num("graduation_year"),
     gender: str("gender"),
+    spouse_first_name: str("spouse_first_name"),
+    spouse_last_name: str("spouse_last_name"),
+    spouse_birth_date: str("spouse_birth_date"),
+    spouse_alumni_id,
     linkedin_url: str("linkedin_url"),
     notes: str("notes"),
   });
@@ -330,6 +345,189 @@ export async function addEmploymentRole(
   }
   revalidatePath(`/alumni/${alumniId}`);
   revalidateTag("dashboard");
+  return null;
+}
+
+export async function updateEmploymentRole(
+  alumniId: number,
+  employmentHistoryId: number,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const employer = formData.get("employer_name");
+  if (typeof employer !== "string" || employer.trim() === "") {
+    return { error: "Employer is required." };
+  }
+  const num = (k: string) => {
+    const v = getStr(formData, k);
+    return v !== undefined ? Number(v) : undefined;
+  };
+  try {
+    await apiPatch(
+      `/alumni/${alumniId}/employment/${employmentHistoryId}`,
+      compact({
+        employer_name: employer.trim(),
+        employment_title: getStr(formData, "employment_title"),
+        employment_industry: getStr(formData, "employment_industry"),
+        city: getStr(formData, "city"),
+        state: getStr(formData, "state"),
+        start_year: num("start_year"),
+        end_year: num("end_year"),
+        is_current: formData.get("is_current") !== null,
+      }),
+    );
+  } catch (e) {
+    return toFormState(e, "Failed to save role.");
+  }
+  revalidatePath(`/alumni/${alumniId}`);
+  revalidateTag("dashboard");
+  revalidateTag("geography");
+  return null;
+}
+
+export async function deleteEmploymentRole(
+  alumniId: number,
+  employmentHistoryId: number,
+): Promise<FormState> {
+  try {
+    await apiDelete(`/alumni/${alumniId}/employment/${employmentHistoryId}`);
+  } catch (e) {
+    return { error: e instanceof ApiError ? e.message : "Failed to delete role." };
+  }
+  revalidatePath(`/alumni/${alumniId}`);
+  revalidateTag("dashboard");
+  revalidateTag("geography");
+  return null;
+}
+
+/** Build the education payload shared by add + update. */
+function buildEducationPayload(formData: FormData): Record<string, unknown> {
+  const num = (k: string) => {
+    const v = getStr(formData, k);
+    return v !== undefined ? Number(v) : undefined;
+  };
+  return compact({
+    university: getStr(formData, "university"),
+    college: getStr(formData, "college"),
+    department: getStr(formData, "department"),
+    degree: getStr(formData, "degree"),
+    major: getStr(formData, "major"),
+    degree_status: getStr(formData, "degree_status"),
+    degree_year: num("degree_year"),
+  });
+}
+
+export async function addEducation(
+  alumniId: number,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  try {
+    await apiPost(`/alumni/${alumniId}/education`, buildEducationPayload(formData));
+  } catch (e) {
+    return toFormState(e, "Failed to add education.");
+  }
+  revalidatePath(`/alumni/${alumniId}`);
+  return null;
+}
+
+export async function updateEducation(
+  alumniId: number,
+  educationId: number,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  try {
+    await apiPatch(
+      `/alumni/${alumniId}/education/${educationId}`,
+      buildEducationPayload(formData),
+    );
+  } catch (e) {
+    return toFormState(e, "Failed to save education.");
+  }
+  revalidatePath(`/alumni/${alumniId}`);
+  return null;
+}
+
+export async function deleteEducation(
+  alumniId: number,
+  educationId: number,
+): Promise<FormState> {
+  try {
+    await apiDelete(`/alumni/${alumniId}/education/${educationId}`);
+  } catch (e) {
+    return {
+      error: e instanceof ApiError ? e.message : "Failed to delete education.",
+    };
+  }
+  revalidatePath(`/alumni/${alumniId}`);
+  return null;
+}
+
+/** Build the leadership payload shared by add + update. */
+function buildLeadershipPayload(formData: FormData): Record<string, unknown> {
+  const yearRaw = getStr(formData, "role_year");
+  return compact({
+    leadership_role: getStr(formData, "leadership_role"),
+    role_year: yearRaw !== undefined ? Number(yearRaw) : undefined,
+  });
+}
+
+export async function addLeadership(
+  alumniId: number,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const role = formData.get("leadership_role");
+  if (typeof role !== "string" || role.trim() === "") {
+    return { error: "Leadership role is required." };
+  }
+  try {
+    await apiPost(
+      `/alumni/${alumniId}/leadership`,
+      buildLeadershipPayload(formData),
+    );
+  } catch (e) {
+    return toFormState(e, "Failed to add leadership entry.");
+  }
+  revalidatePath(`/alumni/${alumniId}`);
+  return null;
+}
+
+export async function updateLeadership(
+  alumniId: number,
+  leadershipId: number,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const role = formData.get("leadership_role");
+  if (typeof role !== "string" || role.trim() === "") {
+    return { error: "Leadership role is required." };
+  }
+  try {
+    await apiPatch(
+      `/alumni/${alumniId}/leadership/${leadershipId}`,
+      buildLeadershipPayload(formData),
+    );
+  } catch (e) {
+    return toFormState(e, "Failed to save leadership entry.");
+  }
+  revalidatePath(`/alumni/${alumniId}`);
+  return null;
+}
+
+export async function deleteLeadership(
+  alumniId: number,
+  leadershipId: number,
+): Promise<FormState> {
+  try {
+    await apiDelete(`/alumni/${alumniId}/leadership/${leadershipId}`);
+  } catch (e) {
+    return {
+      error: e instanceof ApiError ? e.message : "Failed to delete leadership entry.",
+    };
+  }
+  revalidatePath(`/alumni/${alumniId}`);
   return null;
 }
 

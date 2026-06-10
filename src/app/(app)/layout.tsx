@@ -19,10 +19,18 @@ export default async function AppLayout({
 }) {
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
+  // Read-only session read — do NOT call getUser() here. The middleware already
+  // verified the session and persisted any rotated cookies for this request.
+  // getUser() in a Server Component (which cannot write cookies) would trigger
+  // another token refresh whose rotated refresh token is dropped, leaving the
+  // browser holding an already-used token — and logging the user out on the
+  // next navigation (notably the Back button after idle). Mirrors the same
+  // fix already applied in lib/api.ts (authHeaders).
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) redirect("/login");
+  const user = session.user;
 
   let role = "";
   try {

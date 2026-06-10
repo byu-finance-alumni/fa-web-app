@@ -34,10 +34,14 @@ export function MapFilters({
   options,
   values,
   hasFilters,
+  basePath = "/map",
 }: {
   options: FilterOptions;
   values: FilterValues;
   hasFilters: boolean;
+  /** Route the filters navigate to. Defaults to the 50-state map; the per-state
+   * page passes `/map/state/{CODE}` so applying a filter stays on that state. */
+  basePath?: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -52,7 +56,7 @@ export function MapFilters({
     }
     const qs = params.toString();
     startTransition(() => {
-      router.push(qs ? `/map?${qs}` : "/map");
+      router.push(qs ? `${basePath}?${qs}` : basePath);
     });
   }
 
@@ -93,7 +97,7 @@ export function MapFilters({
       </button>
       {hasFilters ? (
         <Link
-          href="/map"
+          href={basePath}
           className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
           Clear

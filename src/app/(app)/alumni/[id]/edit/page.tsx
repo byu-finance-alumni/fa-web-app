@@ -38,6 +38,7 @@ export default async function EditAlumniPage({
 
   const defaults: AlumniFormDefaults = {
     ...a,
+    spouseAlumniName: p.spouse_alumni_name,
     contact: c
       ? {
           personal_email: s(c.personal_email),
