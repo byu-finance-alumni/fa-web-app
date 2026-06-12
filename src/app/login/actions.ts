@@ -35,14 +35,13 @@ export async function signIn(
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
-    // Supabase returns "Invalid login credentials" for both bad email and bad
-    // password — keep it generic so we don't leak which accounts exist.
-    return {
-      error:
-        error.message === "Invalid login credentials"
-          ? "Incorrect email or password."
-          : error.message,
-    };
+    // Return ONE generic message for every auth failure so the response can't
+    // be used to enumerate accounts or confirm email state. Supabase emits
+    // distinct strings ("Invalid login credentials", "Email not confirmed",
+    // "User is banned", rate-limit messages, …); surfacing any of them verbatim
+    // is an account-enumeration oracle. Log the real reason server-side only.
+    console.error("[login] auth error:", error.code ?? error.message);
+    return { error: "Incorrect email or password." };
   }
 
   // Invalidate the router/data cache for everything under the root layout so
