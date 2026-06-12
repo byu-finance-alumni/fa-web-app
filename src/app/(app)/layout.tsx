@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { MobileNav } from "@/components/shell/MobileNav";
+import { SessionTimeout } from "@/components/auth/SessionTimeout";
 import { apiGet } from "@/lib/api";
 import type { UserContext } from "@/types/alumni";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -49,6 +50,7 @@ export default async function AppLayout({
 
   return (
     <ToastProvider>
+      <SessionTimeout />
       <div className="flex h-screen overflow-hidden bg-gray-100">
         <Sidebar email={user.email ?? ""} role={role} />
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden pb-16 md:pb-0">

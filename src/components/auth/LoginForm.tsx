@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import { createClient } from "@/utils/supabase/client";
+import { signIn } from "@/app/login/actions";
 
 const loginSchema = z.object({
   email: z.string().min(1, "Email is required").email("Enter a valid email"),
@@ -15,15 +15,7 @@ const loginSchema = z.object({
 
 type LoginValues = z.infer<typeof loginSchema>;
 
-// Only allow same-origin relative paths as the post-login redirect, so a
-// crafted `?next=` can't bounce the user to an external site.
-function safeNext(next: string | null): string {
-  if (next && next.startsWith("/") && !next.startsWith("//")) return next;
-  return "/dashboard";
-}
-
 export function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [formError, setFormError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -40,31 +32,28 @@ export function LoginForm() {
 
   async function onSubmit(values: LoginValues) {
     setFormError(null);
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
-      email: values.email,
-      password: values.password,
-    });
-
-    if (error) {
-      // Supabase returns "Invalid login credentials" for both bad email and
-      // bad password — keep it generic so we don't leak which accounts exist.
-      setFormError(
-        error.message === "Invalid login credentials"
-          ? "Incorrect email or password."
-          : error.message,
-      );
-      return;
-    }
-
-    // Refresh so the server (middleware) sees the new session cookie before we
-    // navigate to the protected destination.
-    router.replace(safeNext(searchParams.get("next")));
-    router.refresh();
+    // Sign in via a Server Action so the auth cookie is set on the response and
+    // the destination renders with a session on the first load (no empty-page-
+    // until-refresh race). On success the action redirects and control never
+    // returns here; only the error path resolves with a value.
+    const result = await signIn(
+      values.email,
+      values.password,
+      searchParams.get("next") ?? undefined,
+    );
+    if (result?.error) setFormError(result.error);
   }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-5" noValidate>
+      {searchParams.get("reason") === "timeout" && !formError && (
+        <div
+          role="status"
+          className="rounded-md border border-warning-600/30 bg-warning-50 px-3 py-2 text-sm text-warning-600"
+        >
+          You were signed out due to inactivity. Please sign in again.
+        </div>
+      )}
       {formError && (
         <div
           role="alert"
