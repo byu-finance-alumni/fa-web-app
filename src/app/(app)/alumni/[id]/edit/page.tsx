@@ -6,7 +6,7 @@ import {
 } from "@/components/alumni/AlumniForm";
 import { apiGet, ApiError } from "@/lib/api";
 import type { Profile } from "@/types/profile";
-import { updateAlumni } from "../../actions";
+import { updateAlumni, previewAlumniUpdate } from "../../actions";
 
 /** Stringify a nullable scalar for a text/number input default ("" when null). */
 function s(v: string | number | null | undefined): string {
@@ -101,6 +101,7 @@ export default async function EditAlumniPage({
   };
 
   const action = updateAlumni.bind(null, a.alumni_id);
+  const previewAction = previewAlumniUpdate.bind(null, a.alumni_id);
   const name =
     [a.first_name, a.last_name].filter(Boolean).join(" ") || "Alumnus";
 
@@ -117,6 +118,7 @@ export default async function EditAlumniPage({
         <AlumniForm
           extended
           action={action}
+          previewAction={previewAction}
           defaults={defaults}
           submitLabel="Save changes"
           cancelHref={`/alumni/${a.alumni_id}`}

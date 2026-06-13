@@ -3,7 +3,7 @@ import { Topbar } from "@/components/shell/Topbar";
 import { AlumniForm } from "@/components/alumni/AlumniForm";
 import { apiGet } from "@/lib/api";
 import type { UserContext } from "@/types/alumni";
-import { createAlumni } from "../actions";
+import { createAlumni, previewAlumni } from "../actions";
 
 export default async function NewAlumniPage() {
   // Create is full_access / super_admin only. The backend enforces this too
@@ -30,6 +30,7 @@ export default async function NewAlumniPage() {
       <main className="flex-1 overflow-auto p-6">
         <AlumniForm
           action={createAlumni}
+          previewAction={previewAlumni}
           submitLabel="Create alumni"
           cancelHref="/alumni"
           extended

@@ -3,6 +3,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { apiPost, apiPatch, apiDelete, ApiError } from "@/lib/api";
+import type { HygienePreview } from "@/types/alumni";
 
 /**
  * Result of a form server action.
@@ -212,6 +213,48 @@ export async function updateAlumni(
   revalidateTag("dashboard");
   revalidateTag("geography");
   redirect(`/alumni/${id}`);
+}
+
+/**
+ * Result of a hygiene-preview call. Either the server-side preview
+ * (clean + duplicate/warning checks) or an error message to surface with a
+ * retry. We reuse `toFormState` for error mapping but expose only the summary
+ * message here — the Review step surfaces field-level findings via the
+ * structured `blockers`/`warnings`, not the 422 `fieldErrors` map.
+ */
+export type PreviewState =
+  | { ok: true; preview: HygienePreview }
+  | { ok: false; error: string };
+
+/** Preview the data-hygiene result for a NEW alumnus before creating. */
+export async function previewAlumni(formData: FormData): Promise<PreviewState> {
+  try {
+    const preview = await apiPost<HygienePreview>(
+      "/alumni/preview",
+      buildCreatePayload(formData),
+    );
+    return { ok: true, preview };
+  } catch (e) {
+    const fs = toFormState(e, "Couldn't run the check — try again.");
+    return { ok: false, error: fs?.error ?? "Couldn't run the check — try again." };
+  }
+}
+
+/** Preview the data-hygiene result for an EDIT before saving changes. */
+export async function previewAlumniUpdate(
+  id: number,
+  formData: FormData,
+): Promise<PreviewState> {
+  try {
+    const preview = await apiPost<HygienePreview>(
+      `/alumni/${id}/preview`,
+      buildCreatePayload(formData),
+    );
+    return { ok: true, preview };
+  } catch (e) {
+    const fs = toFormState(e, "Couldn't run the check — try again.");
+    return { ok: false, error: fs?.error ?? "Couldn't run the check — try again." };
+  }
 }
 
 export async function archiveAlumni(id: number): Promise<FormState> {
