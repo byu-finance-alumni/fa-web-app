@@ -127,7 +127,12 @@ export function ImportWizard() {
 
   const onDownloadRejects = () => {
     if (!result || result.rejects.length === 0) return;
-    const esc = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
+    // Strip leading formula characters (= + - @ tab CR) before quoting so a
+    // crafted name/reason can't execute as a formula when the rejects file is
+    // opened in Excel/Sheets (CSV injection). Sanitize on OUTPUT only — stored
+    // data keeps its real value (e.g. a "+1 555…" phone in a reason string).
+    const esc = (v: string) =>
+      `"${String(v).replace(/^[=+\-@\t\r]+/, "").replace(/"/g, '""')}"`;
     const lines = [
       "row,name,reason",
       ...result.rejects.map((r) =>
