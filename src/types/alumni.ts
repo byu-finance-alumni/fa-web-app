@@ -104,3 +104,76 @@ export interface HygienePreview {
   warnings: HygieneWarning[];
   blockers: HygieneBlocker[];
 }
+
+/* -------------------------------------------------------- CSV bulk import ----- */
+
+/** Headline counts for a preview report (POST /alumni/import/preview). */
+export interface ImportSummary {
+  total: number;
+  importable: number;
+  rejected: number;
+  with_warnings: number;
+  cleaned: number;
+}
+
+/** One auto-clean diff on an import row (before → after for a single field). */
+export interface ImportChange {
+  section: string;
+  field: string;
+  label: string;
+  before: unknown;
+  after: unknown;
+}
+
+/** A non-fatal advisory on an import row (e.g. a possible duplicate). */
+export interface ImportWarning {
+  code: string;
+  message: string;
+  alumni_id: number | null;
+}
+
+/** A fatal issue on an import row — blocks that row from being imported. */
+export interface ImportBlocker {
+  code: string;
+  field: string | null;
+  message: string;
+  alumni_id: number | null;
+}
+
+/** One row of the import preview: its status plus changes/warnings/blockers. */
+export interface ImportRow {
+  row: number;
+  name: string;
+  status: "importable" | "rejected";
+  changes: ImportChange[];
+  warnings: ImportWarning[];
+  blockers: ImportBlocker[];
+  error: string | null;
+}
+
+/**
+ * Dry-run report for an uploaded CSV (POST /alumni/import/preview, multipart
+ * `file`). `columns_ok` gates the whole import: when false, `header_errors`
+ * explains why and no rows may be imported.
+ */
+export interface ImportPreview {
+  columns_ok: boolean;
+  header_errors: string[];
+  summary: ImportSummary;
+  rows: ImportRow[];
+}
+
+/** A row the backend skipped during the real import, with the reason. */
+export interface ImportReject {
+  row: number;
+  name: string;
+  reason: string;
+}
+
+/** Outcome of the committed import (POST /alumni/import, multipart `file`). */
+export interface ImportResult {
+  imported: number;
+  skipped: number;
+  created_ids: number[];
+  rejects: ImportReject[];
+}

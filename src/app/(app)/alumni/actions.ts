@@ -2,8 +2,19 @@
 
 import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
-import { apiPost, apiPatch, apiDelete, ApiError } from "@/lib/api";
-import type { HygienePreview } from "@/types/alumni";
+import {
+  apiPost,
+  apiPatch,
+  apiDelete,
+  apiPostForm,
+  apiGetText,
+  ApiError,
+} from "@/lib/api";
+import type {
+  HygienePreview,
+  ImportPreview,
+  ImportResult,
+} from "@/types/alumni";
 
 /**
  * Result of a form server action.
@@ -654,4 +665,90 @@ export async function addEventAttendance(
   revalidateTag("dashboard");
   revalidateTag("events");
   return null;
+}
+
+/* ------------------------------------------------------- CSV bulk import ----- */
+
+/** Discriminated result for the two import steps — `{ok}` / `{ok:false}`. */
+export type ImportPreviewState =
+  | { ok: true; data: ImportPreview }
+  | { ok: false; error: string };
+
+export type ImportResultState =
+  | { ok: true; data: ImportResult }
+  | { ok: false; error: string };
+
+/** Pull the single `file` out of the submitted FormData (re-named to `file`). */
+function importFormData(formData: FormData): FormData | null {
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return null;
+  const fd = new FormData();
+  fd.append("file", file, file.name);
+  return fd;
+}
+
+/**
+ * Dry-run an uploaded CSV against POST /alumni/import/preview (multipart
+ * `file`). Returns the structured report verbatim, or a mapped error message
+ * with a retry. The same File is re-uploaded to `commitImport` on confirm.
+ */
+export async function previewImport(
+  formData: FormData,
+): Promise<ImportPreviewState> {
+  const fd = importFormData(formData);
+  if (!fd) return { ok: false, error: "Choose a .csv file to check." };
+  try {
+    const data = await apiPostForm<ImportPreview>(
+      "/alumni/import/preview",
+      fd,
+    );
+    return { ok: true, data };
+  } catch (e) {
+    const fs = toFormState(e, "Couldn't read the file — try again.");
+    return {
+      ok: false,
+      error: fs?.error ?? "Couldn't read the file — try again.",
+    };
+  }
+}
+
+/**
+ * Commit the import via POST /alumni/import (multipart `file`) — the SAME file
+ * the preview validated. Returns the per-row outcome, or a mapped error.
+ */
+export async function commitImport(
+  formData: FormData,
+): Promise<ImportResultState> {
+  const fd = importFormData(formData);
+  if (!fd) return { ok: false, error: "Choose a .csv file to import." };
+  try {
+    const data = await apiPostForm<ImportResult>("/alumni/import", fd);
+    revalidatePath("/alumni");
+    revalidateTag("dashboard");
+    revalidateTag("geography");
+    return { ok: true, data };
+  } catch (e) {
+    const fs = toFormState(e, "Import failed — try again.");
+    return { ok: false, error: fs?.error ?? "Import failed — try again." };
+  }
+}
+
+/**
+ * Fetch the CSV import template (GET /alumni/import/template) as text so the
+ * client can trigger a Blob download — the GET needs the user's Bearer token,
+ * which only the server client attaches.
+ */
+export async function downloadImportTemplate(): Promise<
+  { ok: true; csv: string } | { ok: false; error: string }
+> {
+  try {
+    const csv = await apiGetText("/alumni/import/template");
+    return { ok: true, csv };
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof ApiError ? e.message : "Couldn't download the template.",
+    };
+  }
 }
