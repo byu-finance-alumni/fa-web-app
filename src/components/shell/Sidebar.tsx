@@ -14,6 +14,7 @@ import {
   Shield,
   UserCog,
   ListChecks,
+  Upload,
   ChevronDown,
   type LucideIcon,
 } from "lucide-react";
@@ -22,12 +23,12 @@ type NavLeaf = {
   href: string;
   label: string;
   icon: LucideIcon;
-};
-
-type NavItem = NavLeaf & {
   superAdminOnly?: boolean;
   /** Visible to full_access and super_admin only (admin tooling). */
   fullAccessOnly?: boolean;
+};
+
+type NavItem = NavLeaf & {
   children?: NavLeaf[];
 };
 
@@ -53,10 +54,15 @@ const NAV: NavItem[] = [
     href: "/admin",
     label: "Admin",
     icon: Shield,
-    superAdminOnly: true,
     children: [
-      { href: "/admin", label: "Users", icon: UserCog },
-      { href: "/audit", label: "Audit", icon: History },
+      { href: "/admin", label: "Users", icon: UserCog, superAdminOnly: true },
+      { href: "/audit", label: "Audit", icon: History, superAdminOnly: true },
+      {
+        href: "/admin/import",
+        label: "Import CSV",
+        icon: Upload,
+        fullAccessOnly: true,
+      },
     ],
   },
 ];
@@ -79,6 +85,23 @@ export function Sidebar({ email, role }: { email: string; role: string }) {
   // defaults to open.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
+  const canSee = (n: {
+    superAdminOnly?: boolean;
+    fullAccessOnly?: boolean;
+  }) =>
+    (!n.superAdminOnly || isSuperAdmin) && (!n.fullAccessOnly || hasFullAccess);
+
+  // Role-filtered nav. A group (e.g. Admin) keeps only the children the user may
+  // see and is dropped entirely if none remain — so full_access staff still see
+  // the Admin group for "Import CSV" even though Users/Audit are super-admin only.
+  const visibleNav = NAV.flatMap((item) => {
+    if (item.children) {
+      const children = item.children.filter(canSee);
+      return children.length ? [{ ...item, children }] : [];
+    }
+    return canSee(item) ? [item] : [];
+  });
+
   const linkCls = (active: boolean, indent = false) =>
     `flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition-colors ${
       indent ? "ml-4" : ""
@@ -98,11 +121,7 @@ export function Sidebar({ email, role }: { email: string; role: string }) {
       </div>
 
       <nav className="flex flex-col gap-1">
-        {NAV.filter(
-          (n) =>
-            (!n.superAdminOnly || isSuperAdmin) &&
-            (!n.fullAccessOnly || hasFullAccess),
-        ).map((item) => {
+        {visibleNav.map((item) => {
           const { href, label, icon: Icon, children } = item;
 
           if (!children) {

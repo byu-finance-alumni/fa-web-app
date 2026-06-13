@@ -9,7 +9,6 @@ import {
   Plus,
   Search,
   SlidersHorizontal,
-  Upload,
 } from "lucide-react";
 import { INDUSTRY_OPTIONS } from "@/constants/dropdowns";
 
@@ -233,20 +232,12 @@ export function AlumniFilters({
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-gray-300 bg-white p-3">
       {canCreate ? (
-        <>
-          <Link
-            href="/alumni/new"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500"
-          >
-            <Plus className="h-4 w-4" /> Add alumni
-          </Link>
-          <Link
-            href="/alumni/import"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            <Upload className="h-4 w-4" /> Import CSV
-          </Link>
-        </>
+        <Link
+          href="/alumni/new"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500"
+        >
+          <Plus className="h-4 w-4" /> Add alumni
+        </Link>
       ) : null}
 
       <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 focus-within:border-brand-blue-600 focus-within:ring-1 focus-within:ring-brand-blue-600">
