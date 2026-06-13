@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
-import { KpiDrawers } from "@/components/dashboard/KpiDrawers";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { TopbarSearch } from "@/components/shared/TopbarSearch";
+import { DashboardSearchBar } from "@/components/dashboard/DashboardSearchBar";
+import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
 import { UsStateMap } from "@/components/geography/UsStateMap";
 import { DATA_VIZ_PALETTE } from "@/constants/chart";
 import type { StateCount, GeoSummary } from "@/types/geography";
@@ -20,26 +21,33 @@ interface Summary {
   attended_event_this_month: number;
   upcoming_events: number;
   willing_mentors: number;
+  /** NEW (parallel backend task) — events held in the current month. */
+  events_this_month: number;
+  /** NEW (parallel backend task) — alumni who guest-spoke this month. */
+  guest_speakers_this_month: number;
   by_graduation_year: { year: number; count: number }[];
   top_employers: { employer: string; count: number }[];
   by_state: { state: string; count: number }[];
 }
 
-interface EventParticipationRow {
-  event_id: number;
-  event_name: string;
-  event_type: string | null;
-  /** ISO date "YYYY-MM-DD" or null. */
-  event_date: string | null;
-  participant_count: number;
+/** A birthday row from GET /dashboard/birthdays (ordered by day asc). */
+interface Birthday {
+  id: number;
+  first_name: string;
+  last_name: string;
+  current_employer: string | null;
+  graduation_year: number | null;
+  /** ISO date "YYYY-MM-DD". */
+  birth_date: string;
 }
 
-/** Compact event date, e.g. "May 29, 2026". Returns "" when unknown so the
- *  row simply omits a date rather than showing a dash. */
-function formatEventDate(d: string | null): string {
-  if (!d) return "";
-  return new Date(`${d}T00:00:00`).toLocaleDateString("en-US", {
-    year: "numeric",
+/** Compact month + day for a birthday, e.g. "Jun 14". The year is ignored —
+ *  birthdays recur — so we parse only the month/day to avoid TZ drift. */
+function formatBirthday(d: string): string {
+  const [, m, day] = d.split("-").map(Number);
+  if (!m || !day) return "";
+  // Use a fixed year; only the month/day are rendered.
+  return new Date(2000, m - 1, day).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
   });
@@ -232,59 +240,49 @@ function DonutChart({
   );
 }
 
-/** Hand-built, clickable horizontal bar list of per-event participation over
- *  the ~last 12 months. Each row shows the event name + date and a
- *  proportional bar + attendee count, and links to that event in the Events
- *  section, which auto-opens its detail drawer (`/events?event=<id>`). Fills
- *  the panel height and scrolls internally when there are many events. */
-function EventParticipationChart({
-  rows,
-}: {
-  rows: EventParticipationRow[];
-}) {
+/** "Birthdays this month" list. Each row: an initials avatar, the alumnus's
+ *  name (links to their profile), an "<employer> · Class of <year>" subtitle,
+ *  and a right-aligned "Jun 14" date. Rows arrive ordered by day ascending.
+ *  Fills the panel height and scrolls internally when there are many. */
+function BirthdayList({ rows }: { rows: Birthday[] }) {
   if (rows.length === 0)
     return (
       <div className="flex flex-1 items-center justify-center">
-        <p className="text-sm text-gray-400">No event participation yet.</p>
+        <p className="text-sm text-gray-400">No birthdays this month.</p>
       </div>
     );
 
-  const max = Math.max(1, ...rows.map((r) => r.participant_count));
   return (
-    <ul className="-mx-2 flex min-h-0 flex-1 flex-col gap-1 overflow-auto px-2">
-      {rows.map((r) => {
-        const date = formatEventDate(r.event_date);
-        const count = r.participant_count;
+    <ul className="-mx-2 flex min-h-0 flex-1 flex-col gap-0.5 overflow-auto px-2">
+      {rows.map((b) => {
+        const name =
+          [b.first_name, b.last_name].filter(Boolean).join(" ") || "—";
+        const subtitle =
+          [
+            b.current_employer,
+            b.graduation_year ? `Class of ${b.graduation_year}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ") || "—";
         return (
-          <li key={r.event_id}>
+          <li key={b.id}>
             <Link
-              href={`/events?event=${r.event_id}`}
-              aria-label={`Open ${r.event_name} in events: ${count} ${
-                count === 1 ? "participant" : "participants"
-              }`}
-              className="group -mx-2 block rounded-lg px-2 py-1.5 transition hover:bg-brand-blue-50/40"
+              href={`/alumni/${b.id}`}
+              aria-label={`View ${name}'s profile — birthday ${formatBirthday(
+                b.birth_date,
+              )}`}
+              className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-1.5 transition hover:bg-brand-blue-50/40"
             >
-              <div className="flex items-baseline justify-between gap-3">
-                <span className="min-w-0 truncate text-sm font-medium text-gray-900">
-                  {r.event_name}
-                </span>
-                <span className="shrink-0 text-xs tabular-nums text-gray-500">
-                  {date}
-                </span>
+              <InitialsAvatar name={name} size="md" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-gray-900">
+                  {name}
+                </p>
+                <p className="truncate text-xs text-gray-500">{subtitle}</p>
               </div>
-              <div className="mt-1 flex items-center gap-3">
-                <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
-                  <div
-                    className="h-full rounded-full bg-navy-800 transition-colors group-hover:bg-brand-blue-600"
-                    style={{
-                      width: `${Math.max(count > 0 ? 4 : 0, (count / max) * 100)}%`,
-                    }}
-                  />
-                </div>
-                <span className="w-8 shrink-0 text-right text-sm font-semibold tabular-nums text-gray-900">
-                  {count}
-                </span>
-              </div>
+              <span className="shrink-0 text-sm font-medium tabular-nums text-gray-700">
+                {formatBirthday(b.birth_date)}
+              </span>
             </Link>
           </li>
         );
@@ -297,10 +295,10 @@ export default async function DashboardPage() {
   let s: Summary | null = null;
   let geo: StateCount[] = [];
   let geoSum: GeoSummary | null = null;
-  let participation: EventParticipationRow[] = [];
+  let birthdays: Birthday[] = [];
   let notProvisioned = false;
   try {
-    [s, geo, geoSum, participation] = await Promise.all([
+    [s, geo, geoSum, birthdays] = await Promise.all([
       apiGet<Summary>("/dashboard/summary", {
         revalidate: 60,
         tags: ["dashboard"],
@@ -313,9 +311,16 @@ export default async function DashboardPage() {
         revalidate: 60,
         tags: ["geography"],
       }),
-      apiGet<EventParticipationRow[]>("/dashboard/event-participation", {
+      // Birthdays is a brand-new endpoint shipping in parallel; until it lands
+      // a 404 (or any error) must not break the page, so swallow it to [].
+      apiGet<Birthday[]>("/dashboard/birthdays", {
         revalidate: 60,
-        tags: ["dashboard", "events"],
+        tags: ["dashboard"],
+      }).catch((e) => {
+        // A 403 still means "not provisioned" — re-throw so the outer catch
+        // shows the provisioning notice instead of a half-empty dashboard.
+        if (e instanceof ApiError && e.status === 403) throw e;
+        return [] as Birthday[];
       }),
     ]);
   } catch (e) {
@@ -323,6 +328,12 @@ export default async function DashboardPage() {
   }
   const geoCounts: Record<string, number> = {};
   for (const st of geo) geoCounts[st.state] = st.alumni_count;
+
+  const cityOptions = (geoSum?.top_cities ?? []).map((c) => ({
+    label: `${c.city}, ${c.state}`,
+    city: c.city,
+    state: c.state,
+  }));
 
   return (
     <>
@@ -337,7 +348,14 @@ export default async function DashboardPage() {
           </div>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col gap-4 lg:overflow-hidden">
-            {/* Row 1 — KPI strip (6 across) */}
+            {/* Search / filter bar — find alumni fast */}
+            <DashboardSearchBar
+              employers={geoSum?.options.employers ?? []}
+              gradYears={geoSum?.options.graduation_years ?? []}
+              cities={cityOptions}
+            />
+
+            {/* KPI strip (6 across) */}
             <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
               <MetricCard
                 size="lg"
@@ -348,17 +366,10 @@ export default async function DashboardPage() {
               />
               <MetricCard
                 size="lg"
-                label="Attended an event this month"
-                value={s?.attended_event_this_month ?? "—"}
-                href="/events"
-                linkLabel="View events"
-              />
-              <MetricCard
-                size="lg"
-                label="Upcoming events"
-                value={s?.upcoming_events ?? "—"}
-                href="/events"
-                linkLabel="View upcoming events"
+                label="Guest speakers this month"
+                value={s?.guest_speakers_this_month ?? "—"}
+                href="/alumni?speaker=1"
+                linkLabel="View alumni willing to guest speak"
               />
               <MetricCard
                 size="lg"
@@ -367,15 +378,39 @@ export default async function DashboardPage() {
                 href="/alumni?mentor=1"
                 linkLabel="View alumni willing to mentor"
               />
-              <KpiDrawers
-                contacted={s?.contacted_this_month ?? "—"}
-                followUps={s?.upcoming_follow_ups ?? "—"}
+              <MetricCard
+                size="lg"
+                label="Events this month"
+                value={s?.events_this_month ?? "—"}
+                href="/events"
+                linkLabel="View events"
+              />
+              <MetricCard
+                size="lg"
+                label="Attended this month"
+                value={s?.attended_event_this_month ?? "—"}
+                href="/events"
+                linkLabel="View events"
+              />
+              <MetricCard
+                size="lg"
+                label="Contacted this month"
+                value={s?.contacted_this_month ?? "—"}
+                href="/alumni"
+                linkLabel="View alumni"
               />
             </div>
 
-            {/* Row 2 — Top employers | Cohort chart (equal halves) */}
+            {/* Row A — Top employers | Top industries (equal halves) */}
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <Panel title="Top employers">
+              <Panel
+                title="Top employers"
+                action={
+                  <span className="text-xs font-medium text-gray-500">
+                    Click to filter →
+                  </span>
+                }
+              >
                 <BarList
                   rows={(s?.top_employers ?? []).slice(0, 5).map((e) => ({
                     label: e.employer,
@@ -386,7 +421,14 @@ export default async function DashboardPage() {
                 />
               </Panel>
 
-              <Panel title="Top industries">
+              <Panel
+                title="Top industries"
+                action={
+                  <span className="text-xs font-medium text-gray-500">
+                    Click to filter →
+                  </span>
+                }
+              >
                 <DonutChart
                   rows={(geoSum?.top_industries ?? []).slice(0, 5).map((i) => ({
                     label: i.industry,
@@ -398,14 +440,13 @@ export default async function DashboardPage() {
               </Panel>
             </div>
 
-            {/* Row 3 — Alumni map (left) | Event participation (right), equal
-                halves. Grows to fill the remaining viewport height on lg+;
-                stacks at natural height below lg. Recent activity and data
-                quality live on their own pages (/activity, /data-quality). */}
+            {/* Row B — Map quick view (left) | Birthdays this month (right),
+                equal halves. Grows to fill the remaining viewport height on
+                lg+; stacks at natural height below lg. */}
             <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-2">
               <Panel
                 className="flex h-full flex-col"
-                title="Alumni map"
+                title="Map quick view"
                 action={
                   <Link
                     href="/map"
@@ -425,8 +466,19 @@ export default async function DashboardPage() {
                 </div>
               </Panel>
 
-              <Panel className="flex h-full flex-col" title="Event participation">
-                <EventParticipationChart rows={participation} />
+              <Panel
+                className="flex h-full flex-col"
+                title="Birthdays this month"
+                action={
+                  <Link
+                    href="/alumni"
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
+                  >
+                    View all
+                  </Link>
+                }
+              >
+                <BirthdayList rows={birthdays} />
               </Panel>
             </div>
           </div>
