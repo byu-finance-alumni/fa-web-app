@@ -329,12 +329,6 @@ export default async function DashboardPage() {
   const geoCounts: Record<string, number> = {};
   for (const st of geo) geoCounts[st.state] = st.alumni_count;
 
-  const cityOptions = (geoSum?.top_cities ?? []).map((c) => ({
-    label: `${c.city}, ${c.state}`,
-    city: c.city,
-    state: c.state,
-  }));
-
   return (
     <>
       <Topbar title="Dashboard">
@@ -352,7 +346,8 @@ export default async function DashboardPage() {
             <DashboardSearchBar
               employers={geoSum?.options.employers ?? []}
               gradYears={geoSum?.options.graduation_years ?? []}
-              cities={cityOptions}
+              cities={geoSum?.options.cities ?? []}
+              tags={geoSum?.options.tags ?? []}
             />
 
             {/* KPI strip (6 across) */}

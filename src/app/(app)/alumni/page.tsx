@@ -30,6 +30,8 @@ type SP = {
   ymax?: string;
   employer?: string;
   industry?: string;
+  city?: string;
+  tag?: string;
   attended?: string;
   donor?: string;
   mentor?: string;
@@ -62,6 +64,8 @@ export default async function AlumniListPage({
     ymax: sp.ymax ?? sp.year ?? "",
     employer: sp.employer ?? "",
     industry: sp.industry ?? "",
+    city: sp.city ?? "",
+    tag: sp.tag ?? "",
     attended: sp.attended === "1",
     donor: sp.donor === "1",
     mentor: sp.mentor === "1",
@@ -89,6 +93,8 @@ export default async function AlumniListPage({
   if (filters.ymax) params.set("grad_year_max", filters.ymax);
   if (filters.employer) params.set("employer", filters.employer);
   if (filters.industry) params.set("industry", filters.industry);
+  if (filters.city) params.set("city", filters.city);
+  if (filters.tag) params.set("tag", filters.tag);
   if (filters.attended) params.set("attended_event", "true");
   if (filters.donor) params.set("donor", "true");
   if (filters.mentor) params.set("mentor_willing", "true");
@@ -144,6 +150,8 @@ export default async function AlumniListPage({
     if (filters.ymax) p.set("ymax", filters.ymax);
     if (filters.employer) p.set("employer", filters.employer);
     if (filters.industry) p.set("industry", filters.industry);
+    if (filters.city) p.set("city", filters.city);
+    if (filters.tag) p.set("tag", filters.tag);
     if (filters.attended) p.set("attended", "1");
     if (filters.donor) p.set("donor", "1");
     if (filters.mentor) p.set("mentor", "1");
@@ -167,6 +175,8 @@ export default async function AlumniListPage({
         <AlumniFilters
           initial={filters}
           employers={options?.employers ?? []}
+          cities={options?.cities ?? []}
+          tags={options?.tags ?? []}
           canCreate={canCreate}
         />
 

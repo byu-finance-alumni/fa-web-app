@@ -17,6 +17,7 @@ export interface GeoSummary {
   largest_hub: { city: string; state: string; count: number } | null;
   options: {
     employers: string[];
+    cities: string[];
     industries: string[];
     graduation_years: number[];
     regions: string[];

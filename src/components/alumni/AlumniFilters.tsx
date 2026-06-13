@@ -21,6 +21,10 @@ export interface AlumniFilterState {
   employer: string;
   /** Work area — current industry, primary or secondary. */
   industry: string;
+  /** Current city (case-insensitive exact match). */
+  city: string;
+  /** Engagement tag label (case-insensitive exact match). */
+  tag: string;
   attended: boolean;
   donor: boolean;
   mentor: boolean;
@@ -40,6 +44,8 @@ export const EMPTY_FILTERS: AlumniFilterState = {
   ymax: "",
   employer: "",
   industry: "",
+  city: "",
+  tag: "",
   attended: false,
   donor: false,
   mentor: false,
@@ -60,6 +66,8 @@ function toQs(f: AlumniFilterState): string {
   if (f.ymax.trim()) p.set("ymax", f.ymax.trim());
   if (f.employer) p.set("employer", f.employer);
   if (f.industry) p.set("industry", f.industry);
+  if (f.city) p.set("city", f.city);
+  if (f.tag) p.set("tag", f.tag);
   if (f.attended) p.set("attended", "1");
   if (f.donor) p.set("donor", "1");
   if (f.mentor) p.set("mentor", "1");
@@ -86,11 +94,17 @@ function toQs(f: AlumniFilterState): string {
 export function AlumniFilters({
   initial,
   employers,
+  cities = [],
+  tags = [],
   canCreate = false,
 }: {
   initial: AlumniFilterState;
   /** Distinct employer options for the menu (from geography summary). */
   employers: string[];
+  /** Distinct city options for the menu (from geography summary options.cities). */
+  cities?: string[];
+  /** Distinct engagement tag options (from geography summary options.tags). */
+  tags?: string[];
   /** Show the "Add alumni" button (full_access / super_admin only). */
   canCreate?: boolean;
 }) {
@@ -148,6 +162,8 @@ export function AlumniFilters({
     (f.ymin.trim() || f.ymax.trim() ? 1 : 0) +
     (f.employer ? 1 : 0) +
     (f.industry ? 1 : 0) +
+    (f.city ? 1 : 0) +
+    (f.tag ? 1 : 0) +
     (f.attended ? 1 : 0) +
     (f.donor ? 1 : 0) +
     (f.mentor ? 1 : 0) +
@@ -184,7 +200,7 @@ export function AlumniFilters({
   );
 
   const selectRow = (
-    key: "employer" | "industry",
+    key: "employer" | "industry" | "city" | "tag",
     label: string,
     options: readonly string[],
   ) => (
@@ -284,6 +300,8 @@ export function AlumniFilters({
             <div className="space-y-4">
               {selectRow("industry", "Work area", INDUSTRY_OPTIONS)}
               {selectRow("employer", "Employer", employers)}
+              {selectRow("city", "City", cities)}
+              {selectRow("tag", "Tag", tags)}
 
               <div>
                 <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
