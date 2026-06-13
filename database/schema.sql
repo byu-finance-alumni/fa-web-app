@@ -94,7 +94,12 @@ CREATE TABLE alumni (
     birth_name           varchar(100),
     gender               varchar(30),
     birth_year           int,
+    birth_date           date,
     graduation_year      int,
+    spouse_first_name    varchar(100),
+    spouse_last_name     varchar(100),
+    spouse_birth_date    date,
+    spouse_alumni_id     bigint,
     deceased             boolean NOT NULL DEFAULT false,
     linkedin_url         varchar(500),
     notes                text,
@@ -103,7 +108,8 @@ CREATE TABLE alumni (
     last_imported_at     timestamptz,
     created_at           timestamptz NOT NULL DEFAULT now(),
     updated_at           timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT fk_alumni_source_id FOREIGN KEY (source_id) REFERENCES data_sources (source_id) ON DELETE SET NULL
+    CONSTRAINT fk_alumni_source_id FOREIGN KEY (source_id) REFERENCES data_sources (source_id) ON DELETE SET NULL,
+    CONSTRAINT fk_alumni_spouse_alumni_id FOREIGN KEY (spouse_alumni_id) REFERENCES alumni (alumni_id) ON DELETE SET NULL
 );
 
 CREATE TABLE alumni_contact_info (

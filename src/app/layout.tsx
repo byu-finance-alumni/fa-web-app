@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 
@@ -10,11 +10,15 @@ export const metadata: Metadata = {
     "Internal CRM and relationship management system for the BYU Finance program.",
 };
 
+export const viewport: Viewport = {
+  themeColor: "#1C2E54",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" style={{ colorScheme: "only light" }}>
       <body className={inter.variable}>{children}</body>
     </html>
   );
