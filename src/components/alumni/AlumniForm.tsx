@@ -1,13 +1,18 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import type { FormState } from "@/app/(app)/alumni/actions";
-import type { Alumni } from "@/types/alumni";
+import type { FormState, PreviewState } from "@/app/(app)/alumni/actions";
+import type { Alumni, HygienePreview } from "@/types/alumni";
 import { INDUSTRY_OPTIONS } from "@/constants/dropdowns";
 import { SpousePicker } from "@/components/alumni/SpousePicker";
 
 type Action = (prev: FormState, formData: FormData) => Promise<FormState>;
+
+/** Runs the server-side hygiene preview for the current form's FormData. The
+ * Add page binds {@link previewAlumni}; the Edit page binds
+ * {@link previewAlumniUpdate} with the alumni id already applied. */
+type PreviewAction = (formData: FormData) => Promise<PreviewState>;
 
 /**
  * Default values for the form. Core fields come from {@link Alumni}; the
@@ -320,24 +325,50 @@ function Section({
   );
 }
 
+/* -------------------------------------------------------- review helpers --- */
+
+/** Render a hygiene before/after value for display, showing "(empty)" for
+ * null/blank and stringifying scalars/booleans plainly. */
+function displayValue(v: unknown): string {
+  if (v === null || v === undefined) return "(empty)";
+  if (typeof v === "string") return v.trim() === "" ? "(empty)" : v;
+  if (typeof v === "boolean") return v ? "Yes" : "No";
+  return String(v);
+}
+
 /* ---------------------------------------------------------------- form ----- */
 
-const STEPS = ["Core", "Contact", "Current career", "Education", "Engagement"];
+const STEPS = [
+  "Core",
+  "Contact",
+  "Current career",
+  "Education",
+  "Engagement",
+  "Review",
+];
+/** Index of the final Review step (data-hygiene preview). */
+const REVIEW_STEP = STEPS.length - 1;
+/** Index of the last data-entry step before Review. */
+const LAST_DATA_STEP = REVIEW_STEP - 1;
 
 export function AlumniForm({
   action,
+  previewAction,
   defaults,
   submitLabel,
   cancelHref,
   extended = false,
 }: {
   action: Action;
+  /** Server action that runs the data-hygiene preview for the Review step.
+   * Required when `extended` (the wizard); ignored otherwise. */
+  previewAction?: PreviewAction;
   defaults?: AlumniFormDefaults;
   submitLabel: string;
   cancelHref: string;
-  /** When true (Add page only), render the optional extended sections as a
-   * centered multi-step wizard. The edit page leaves this false so it stays a
-   * single core-only form. */
+  /** When true, render the optional extended sections as a centered multi-step
+   * wizard ending in a data-hygiene Review step. When false, render a single
+   * core-only form (no wizard, no Review). */
   extended?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(
@@ -349,11 +380,17 @@ export function AlumniForm({
   // via the `state.fieldErrors` map below.
   const [clientErrors, setClientErrors] = useState<Record<string, string>>({});
 
-  // Wizard state (extended/Add only). Every step stays mounted (hidden when not
+  // Wizard state (extended only). Every step stays mounted (hidden when not
   // current) so uncontrolled inputs keep their values for the final submit.
   const [step, setStep] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
-  const lastStep = STEPS.length - 1;
+
+  // Review-step (data-hygiene preview) state. `preview` holds the last
+  // successful server result; `previewError` is a message to retry on; the
+  // transition tracks the in-flight preview call.
+  const [preview, setPreview] = useState<HygienePreview | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewPending, startPreview] = useTransition();
 
   // Merge: client-side errors take precedence (freshest input), then any
   // server-returned field errors for fields the client hasn't re-touched.
@@ -389,7 +426,27 @@ export function AlumniForm({
     }
   };
 
-  // Advance the wizard, gating the required Core step before leaving it.
+  // Run the server-side hygiene preview against the current form's FormData.
+  // Used when entering the Review step (and on retry). Captures the snapshot at
+  // call time so the preview reflects exactly what's in the form now.
+  const runPreview = () => {
+    if (!previewAction || !formRef.current) return;
+    const formData = new FormData(formRef.current);
+    setPreviewError(null);
+    startPreview(async () => {
+      const result = await previewAction(formData);
+      if (result.ok) {
+        setPreview(result.preview);
+        setPreviewError(null);
+      } else {
+        setPreview(null);
+        setPreviewError(result.error);
+      }
+    });
+  };
+
+  // Advance the wizard, gating the required Core step before leaving it. When
+  // advancing onto the Review step, kick off the hygiene preview.
   const goNext = () => {
     if (step === 0 && formRef.current) {
       const found = validateAll(new FormData(formRef.current));
@@ -401,11 +458,17 @@ export function AlumniForm({
         return;
       }
     }
-    setStep((s) => Math.min(s + 1, lastStep));
+    const next = Math.min(step + 1, REVIEW_STEP);
+    if (next === REVIEW_STEP) runPreview();
+    setStep(next);
   };
   const goBack = () => setStep((s) => Math.max(s - 1, 0));
 
   const hasErrors = Object.keys(errors).length > 0;
+  // Save is gated while the preview reports any blocker (exact duplicate
+  // byu_id/net_id). Until a successful preview exists, Save is also disabled.
+  const blockers = preview?.blockers ?? [];
+  const saveBlocked = !preview || blockers.length > 0 || previewPending;
 
   // Prefill accessors for the extended sections. Each returns "" / false when
   // the section (or field) is absent, so the Add page renders blank inputs.
@@ -810,6 +873,153 @@ export function AlumniForm({
     </Section>
   );
 
+  // A submit only fires from the Review step, so any post-submit `state.error`
+  // (e.g. a 409 race where a duplicate appeared between preview and save) is a
+  // save failure surfaced here as a blocker-style alert.
+  const saveError = state?.error ?? null;
+
+  const reviewSection = (
+    <Section title="Review">
+      <div className="space-y-5">
+        <p className="text-sm text-gray-700">
+          We ran a quick check on this record before saving. Review the findings
+          below, then save.
+        </p>
+
+        {/* Loading */}
+        {previewPending ? (
+          <p
+            className="text-sm text-gray-500"
+            role="status"
+            aria-live="polite"
+          >
+            Running the check…
+          </p>
+        ) : null}
+
+        {/* Preview call failed — offer a retry. */}
+        {!previewPending && previewError ? (
+          <div
+            className="rounded-lg border border-danger-600 bg-danger-50 p-4"
+            role="alert"
+          >
+            <p className="text-sm font-medium text-danger-600">
+              {previewError}
+            </p>
+            <button
+              type="button"
+              onClick={runPreview}
+              className="mt-2 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              Try again
+            </button>
+          </div>
+        ) : null}
+
+        {/* Save failure (e.g. 409 race) — blocker-style. */}
+        {saveError ? (
+          <div
+            className="rounded-lg border border-danger-600 bg-danger-50 p-4"
+            role="alert"
+          >
+            <p className="text-sm font-medium text-danger-600">{saveError}</p>
+          </div>
+        ) : null}
+
+        {/* Findings (only once a preview succeeded). */}
+        {!previewPending && preview ? (
+          <div className="space-y-5">
+            {/* Blockers — must fix; disable Save. */}
+            {blockers.length > 0 ? (
+              <div className="rounded-lg border border-danger-600 bg-danger-50 p-4">
+                <h3 className="text-sm font-semibold text-danger-600">
+                  Must fix before saving
+                </h3>
+                <ul className="mt-2 space-y-2">
+                  {blockers.map((b, i) => (
+                    <li key={`${b.code}-${i}`} className="text-sm text-gray-900">
+                      {b.message}
+                      {b.alumni_id != null ? (
+                        <>
+                          {" "}
+                          <Link
+                            href={`/alumni/${b.alumni_id}`}
+                            className="font-medium text-brand-blue-600 hover:underline"
+                          >
+                            View existing record
+                          </Link>
+                        </>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {/* Auto-clean diff. */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900">
+                We tidied these
+              </h3>
+              {preview.changes.length > 0 ? (
+                <ul className="mt-2 space-y-1.5">
+                  {preview.changes.map((c, i) => (
+                    <li
+                      key={`${c.section}-${c.field}-${i}`}
+                      className="text-sm text-gray-700"
+                    >
+                      <span className="font-medium text-gray-900">
+                        {c.label}:
+                      </span>{" "}
+                      <span className="text-gray-500 line-through">
+                        {displayValue(c.before)}
+                      </span>{" "}
+                      <span aria-hidden="true">→</span>{" "}
+                      <span className="text-gray-900">
+                        {displayValue(c.after)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-1 text-sm text-gray-500">
+                  Nothing needed cleaning.
+                </p>
+              )}
+            </div>
+
+            {/* Warnings — advisory; do not disable Save. */}
+            {preview.warnings.length > 0 ? (
+              <div className="rounded-lg border border-warning-600 bg-warning-50 p-4">
+                <h3 className="text-sm font-semibold text-warning-600">
+                  Worth a look
+                </h3>
+                <ul className="mt-2 space-y-2">
+                  {preview.warnings.map((w, i) => (
+                    <li key={`${w.code}-${i}`} className="text-sm text-gray-900">
+                      {w.message}
+                      {w.alumni_id != null ? (
+                        <>
+                          {" "}
+                          <Link
+                            href={`/alumni/${w.alumni_id}`}
+                            className="font-medium text-brand-blue-600 hover:underline"
+                          >
+                            View possible duplicate
+                          </Link>
+                        </>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </Section>
+  );
+
   const errorBanner =
     state?.error || hasErrors ? (
       <p className="text-sm text-danger-600" role="alert">
@@ -847,14 +1057,16 @@ export function AlumniForm({
     );
   }
 
-  /* --- Extended layout (Add page): centered step-by-step wizard ---------- */
+  /* --- Extended layout: centered step-by-step wizard + Review ------------ */
   const stepSections = [
     coreSection,
     contactSection,
     careerSection,
     educationSection,
     engagementSection,
+    reviewSection,
   ];
+  const onReview = step === REVIEW_STEP;
 
   return (
     <form
@@ -884,7 +1096,11 @@ export function AlumniForm({
         </div>
       ))}
 
-      {errorBanner ? <div className="mt-4">{errorBanner}</div> : null}
+      {/* Field-error banner shows on data steps; the Review step surfaces its
+          own preview/save findings, so suppress the generic banner there. */}
+      {!onReview && errorBanner ? (
+        <div className="mt-4">{errorBanner}</div>
+      ) : null}
 
       {/* Navigation */}
       <div className="mt-6 flex items-center justify-between gap-3">
@@ -904,21 +1120,36 @@ export function AlumniForm({
             Cancel
           </Link>
         )}
-        {step < lastStep ? (
+        {onReview ? (
+          // Final step: run the EXISTING create/update submit. Disabled while a
+          // blocker exists (or the preview is still running/absent).
+          <button
+            type="submit"
+            disabled={pending || saveBlocked}
+            title={
+              blockers.length > 0
+                ? "Resolve the blocking issue above before saving."
+                : undefined
+            }
+            className="rounded-lg bg-brand-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-blue-500 disabled:opacity-60"
+          >
+            {pending ? "Saving…" : submitLabel}
+          </button>
+        ) : step === LAST_DATA_STEP ? (
+          <button
+            type="button"
+            onClick={goNext}
+            className="rounded-lg bg-brand-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-blue-500"
+          >
+            Review &amp; save
+          </button>
+        ) : (
           <button
             type="button"
             onClick={goNext}
             className="rounded-lg bg-brand-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-blue-500"
           >
             Next
-          </button>
-        ) : (
-          <button
-            type="submit"
-            disabled={pending}
-            className="rounded-lg bg-brand-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-blue-500 disabled:opacity-60"
-          >
-            {pending ? "Saving…" : submitLabel}
           </button>
         )}
       </div>

@@ -126,3 +126,49 @@ export const apiPost = <T>(path: string, body: unknown) =>
 export const apiPatch = <T>(path: string, body: unknown) =>
   apiSend<T>("PATCH", path, body);
 export const apiDelete = <T>(path: string) => apiSend<T>("DELETE", path);
+
+/**
+ * Server-side multipart POST. Sends the given `FormData` (e.g. a file upload)
+ * with the user's Bearer token. We deliberately DON'T set `Content-Type` here —
+ * fetch derives the correct `multipart/form-data; boundary=…` header from the
+ * FormData body, so forcing it would break the boundary. Used by the CSV import
+ * preview/commit endpoints.
+ */
+export async function apiPostForm<T>(
+  path: string,
+  formData: FormData,
+): Promise<T> {
+  if (!API_URL) throw new ApiError(0, "API URL is not configured.");
+  return handle<T>(
+    await fetch(`${API_URL}${path}`, {
+      method: "POST",
+      headers: await authHeaders(),
+      body: formData,
+      cache: "no-store",
+    }),
+  );
+}
+
+/**
+ * Server-side GET that returns the raw response body as text (not JSON) — used
+ * for file downloads such as the CSV import template, which the client then
+ * turns into a Blob download. Auth header is attached like every other call.
+ */
+export async function apiGetText(path: string): Promise<string> {
+  if (!API_URL) throw new ApiError(0, "API URL is not configured.");
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: await authHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    let message = res.statusText;
+    try {
+      const body = await res.json();
+      message = body?.error?.message ?? message;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new ApiError(res.status, message);
+  }
+  return res.text();
+}
