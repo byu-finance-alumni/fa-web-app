@@ -80,3 +80,18 @@ Vercel is split into **two projects (one per branch)**, both linked to this repo
 
 - `dev-fa-web-app` → `[ "$VERCEL_GIT_COMMIT_REF" = "prod" ]` (build everything except `prod`)
 - `finance-alumni-database` → `[ "$VERCEL_GIT_COMMIT_REF" != "prod" ]` (build `prod` only)
+
+### Supabase projects — one per environment
+
+`dev` and `prod` now use **separate Supabase projects** — the backend's dev and
+prod databases (and their Auth users) are no longer shared. Each environment's
+Vercel project carries that project's `NEXT_PUBLIC_SUPABASE_URL` and
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`:
+
+| Environment (Vercel)        | Supabase project           | Data                |
+|-----------------------------|----------------------------|---------------------|
+| `dev` (`dev-fa-web-app`)    | the original project       | mock data           |
+| `prod` (`finance-alumni-database`) | a new, dedicated project | clean; real data later |
+
+> ⏳ The dedicated prod project is provisioned during the database split. Until
+> then prod still uses the original project's keys.
