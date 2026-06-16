@@ -15,17 +15,28 @@ const TOP_ROLES = new Set<string>([ROLE.ENGINEER, ROLE.SUPER_ADMIN]);
  * add-role dropdown. The whole Admin screen is already super_admin-gated, and
  * the backend re-enforces it. Creating brand-new users (temp password) is a
  * separate flow — see docs/PRE-LAUNCH.md.
+ *
+ * `canAssignEngineer` reflects whether the SIGNED-IN admin is an engineer. Only
+ * an engineer may grant or remove the engineer role (the backend enforces this
+ * ceiling), so for everyone else we hide engineer from the add-dropdown and hide
+ * the remove "×" on an engineer chip — no point offering an action the API 403s.
  */
 export function RoleManager({
   userId,
   roles,
+  canAssignEngineer = false,
 }: {
   userId: number;
   roles: string[];
+  canAssignEngineer?: boolean;
 }) {
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
-  const available = ASSIGNABLE_ROLES.filter((r) => !roles.includes(r.value));
+  const available = ASSIGNABLE_ROLES.filter(
+    (r) =>
+      !roles.includes(r.value) &&
+      (r.value !== ROLE.ENGINEER || canAssignEngineer),
+  );
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -40,21 +51,23 @@ export function RoleManager({
             }`}
           >
             {labelOf(r)}
-            <button
-              type="button"
-              disabled={pending}
-              title={`Remove ${labelOf(r)}`}
-              onClick={() =>
-                startTransition(async () => {
-                  const res = await removeRole(userId, r);
-                  if (res?.error) toast.error(res.error);
-                  else toast.success(`${labelOf(r)} removed.`);
-                })
-              }
-              className="text-gray-400 hover:text-danger-600 disabled:opacity-50"
-            >
-              <X className="h-3 w-3" aria-hidden="true" />
-            </button>
+            {r === ROLE.ENGINEER && !canAssignEngineer ? null : (
+              <button
+                type="button"
+                disabled={pending}
+                title={`Remove ${labelOf(r)}`}
+                onClick={() =>
+                  startTransition(async () => {
+                    const res = await removeRole(userId, r);
+                    if (res?.error) toast.error(res.error);
+                    else toast.success(`${labelOf(r)} removed.`);
+                  })
+                }
+                className="text-gray-400 hover:text-danger-600 disabled:opacity-50"
+              >
+                <X className="h-3 w-3" aria-hidden="true" />
+              </button>
+            )}
           </span>
         ))
       ) : (
