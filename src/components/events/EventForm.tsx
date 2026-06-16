@@ -80,10 +80,11 @@ export function EventForm({
   // Preserve a legacy/unlisted type on the record so editing never silently
   // drops it: surface it as an extra option even if it's no longer in the set.
   const current = v?.event_type ?? "";
+  const hasCurrent = eventTypeOptions.some(
+    (o) => o.toLowerCase() === current.toLowerCase(),
+  );
   const typeOptions =
-    current && !eventTypeOptions.includes(current)
-      ? [current, ...eventTypeOptions]
-      : eventTypeOptions;
+    current && !hasCurrent ? [current, ...eventTypeOptions] : eventTypeOptions;
 
   return (
     <form
