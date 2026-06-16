@@ -45,3 +45,11 @@ next-env.d.ts
 
 # Claude Code — agents and local settings stay out of git
 .claude/
+
+# Throwaway test / scratch artifacts — never commit (dev promotes to prod with real data)
+TEST_*
+SCRATCH*
+DRAFT_*
+*.scratch
+.board-seed*
+*DO_NOT_MERGE*
