@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Topbar } from "@/components/shell/Topbar";
 import {
   AlumniForm,
@@ -6,6 +6,8 @@ import {
 } from "@/components/alumni/AlumniForm";
 import { apiGet, ApiError } from "@/lib/api";
 import type { Profile } from "@/types/profile";
+import type { UserContext } from "@/types/alumni";
+import { canEditAlumni } from "@/constants/roles";
 import { updateAlumni, previewAlumniUpdate } from "../../actions";
 
 /** Stringify a nullable scalar for a text/number input default ("" when null). */
@@ -19,6 +21,23 @@ export default async function EditAlumniPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+
+  // Editing requires edit access (engineer / super_admin / full_access /
+  // student). view_only ("Professor") users are sent to the read-only profile
+  // rather than shown a form the backend (PATCH /alumni/{id} →
+  // RequireAlumniEdit) would 403 on submit. Resolve the flag inside the
+  // try/catch, then redirect OUTSIDE it — redirect() works by throwing a
+  // control-flow signal that a catch would otherwise swallow (same pattern as
+  // the app layout). The backend stays the source of truth; this is UX only.
+  let canEdit = false;
+  try {
+    const ctx = await apiGet<UserContext>("/auth/context");
+    canEdit = canEditAlumni(ctx.roles);
+  } catch {
+    /* not provisioned / context error → treat as no edit access */
+  }
+  if (!canEdit) redirect(`/alumni/${id}`);
+
   let p: Profile;
   try {
     p = await apiGet<Profile>(`/alumni/${id}/profile`);
