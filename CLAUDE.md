@@ -494,10 +494,16 @@ App runs at http://localhost:3000.
 **The middleware builds a Supabase client on every request**, so if
 `NEXT_PUBLIC_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` is missing,
 **every route returns 500**. These two (plus `NEXT_PUBLIC_API_URL`) are the only
-vars the app reads. Pull them from the Vercel project (`finance-alumni-database`,
-scope `gunnjakes-projects`) with `vercel env pull .env --environment=production`
-— they are browser-safe (publishable) keys, identical to the values in
-`fa-web-api`'s env.
+vars the app reads. Pull them from the Vercel project matching your target with
+`vercel env pull` — they are browser-safe (publishable) keys, matching the same
+environment's `fa-web-api`.
+
+> **Database split (in progress):** `dev` and `prod` now use **separate Supabase
+> projects**, so their `NEXT_PUBLIC_SUPABASE_URL` / `…_PUBLISHABLE_KEY` differ —
+> `dev-fa-web-app` uses the dev project, `finance-alumni-database` (prod) uses the
+> new dedicated project. ⏳ Until the split completes both still resolve to the
+> original project, so `vercel env pull .env --environment=production` from
+> `finance-alumni-database` (scope `gunnjakes-projects`) is unchanged for now.
 
 The landing page (`/`) renders an **`ApiStatus`** badge that pings the API's
 `/health` and shows "API connected" / "API not reachable" — a quick visual check
