@@ -4,6 +4,7 @@ import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
 import { TopbarSearch } from "@/components/shared/TopbarSearch";
 import { RoleManager } from "@/components/admin/RoleManager";
 import { UserActiveToggle } from "@/components/admin/UserActiveToggle";
+import { UnlockResetPassword } from "@/components/admin/UnlockResetPassword";
 import type { UserContext } from "@/types/alumni";
 
 interface AdminUser {
@@ -13,6 +14,18 @@ interface AdminUser {
   last_name: string | null;
   active: boolean;
   roles: string[];
+  /** ISO timestamp the account was locked out (login lockout), else null. */
+  locked_at: string | null;
+  /** Whether the account is currently locked out of login. */
+  locked: boolean;
+}
+
+function LockedBadge() {
+  return (
+    <span className="shrink-0 rounded-md bg-danger-50 px-2 py-0.5 text-xs font-medium text-danger-600">
+      Locked
+    </span>
+  );
 }
 
 const displayName = (u: AdminUser) =>
@@ -79,6 +92,7 @@ export default async function AdminPage() {
                     </p>
                     <p className="truncate text-xs text-gray-500">{u.email}</p>
                   </div>
+                  {u.locked ? <LockedBadge /> : null}
                   <UserActiveToggle
                     userId={u.user_id}
                     active={u.active}
@@ -86,8 +100,13 @@ export default async function AdminPage() {
                     name={displayName(u)}
                   />
                 </div>
-                <div className="mt-2">
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                   <RoleManager userId={u.user_id} roles={u.roles} />
+                  <UnlockResetPassword
+                    userId={u.user_id}
+                    locked={u.locked}
+                    name={displayName(u)}
+                  />
                 </div>
               </div>
             ))}
@@ -102,6 +121,7 @@ export default async function AdminPage() {
                   <th className="px-4 py-3">Email</th>
                   <th className="px-4 py-3">Role</th>
                   <th className="w-48 px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -132,10 +152,20 @@ export default async function AdminPage() {
                       <RoleManager userId={u.user_id} roles={u.roles} />
                     </td>
                     <td className="px-4 py-3">
-                      <UserActiveToggle
+                      <div className="flex items-center gap-2">
+                        <UserActiveToggle
+                          userId={u.user_id}
+                          active={u.active}
+                          isSelf={u.user_id === currentUserId}
+                          name={displayName(u)}
+                        />
+                        {u.locked ? <LockedBadge /> : null}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <UnlockResetPassword
                         userId={u.user_id}
-                        active={u.active}
-                        isSelf={u.user_id === currentUserId}
+                        locked={u.locked}
                         name={displayName(u)}
                       />
                     </td>
