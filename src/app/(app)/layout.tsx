@@ -34,8 +34,10 @@ export default async function AppLayout({
   const user = session.user;
 
   let role = "";
+  let mustChangePassword = false;
   try {
     const ctx = await apiGet<UserContext>("/auth/context");
+    mustChangePassword = ctx.must_change_password === true;
     const roles = ctx.roles ?? [];
     role = roles.includes("super_admin")
       ? "super_admin"
@@ -47,6 +49,14 @@ export default async function AppLayout({
   } catch {
     // 403 = authenticated but not yet provisioned in the users table.
   }
+
+  // Force a temp-password user to set a new password before they can use any
+  // app screen. `/set-password` lives OUTSIDE this `(app)` route group, so it
+  // never renders this layout — that's what prevents a redirect loop. The
+  // `/set-password` page itself re-bounces to /dashboard once the flag clears.
+  // `redirect()` must run outside the try/catch above: it works by throwing a
+  // control-flow signal that a catch would otherwise swallow.
+  if (mustChangePassword) redirect("/set-password");
 
   return (
     <ToastProvider>

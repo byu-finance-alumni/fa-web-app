@@ -45,6 +45,13 @@ export interface UserContext {
   first_name: string | null;
   last_name: string | null;
   roles: string[];
+  /**
+   * True when the user signed in with a temporary password and must set a new
+   * one before using the app. The authenticated app shell gates on this and
+   * forces the user to `/set-password`; it's cleared via
+   * `POST /auth/password/complete` once they've set a new password.
+   */
+  must_change_password?: boolean;
 }
 
 /* ----------------------------------------------------------- data hygiene ----- */
