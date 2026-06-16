@@ -1,0 +1,14 @@
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="BYU Finance Alumni Database">
+  <rect width="32" height="32" rx="6" fill="#1C2E54"/>
+  <!-- Alumni network: three connected nodes forming a relationship graph -->
+  <g stroke="#9DB2D8" stroke-width="2" stroke-linecap="round">
+    <line x1="10" y1="11" x2="22" y2="11"/>
+    <line x1="10" y1="11" x2="16" y2="22"/>
+    <line x1="22" y1="11" x2="16" y2="22"/>
+  </g>
+  <g fill="#FFFFFF">
+    <circle cx="10" cy="11" r="3.4"/>
+    <circle cx="22" cy="11" r="3.4"/>
+    <circle cx="16" cy="22" r="3.4"/>
+  </g>
+</svg>
