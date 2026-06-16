@@ -22,6 +22,7 @@ import {
 import { apiGet, ApiError } from "@/lib/api";
 import type { Profile } from "@/types/profile";
 import type { UserContext } from "@/types/alumni";
+import { canEditAlumni, hasFullAccess } from "@/constants/roles";
 import { Topbar } from "@/components/shell/Topbar";
 import { TopbarSearch } from "@/components/shared/TopbarSearch";
 import {
@@ -210,11 +211,16 @@ export default async function AlumniProfilePage({
     throw e;
   }
 
+  // `canEdit` covers editing the EXISTING record + nested data — students get
+  // this (mirrors backend require_alumni_edit). `canArchive` is the narrower
+  // create/archive tier (full_access and up) used only for the Archive control,
+  // which the backend keeps on require_full_access (students are 403'd there).
   let canEdit = false;
+  let canArchive = false;
   try {
     const ctx = await apiGet<UserContext>("/auth/context");
-    canEdit =
-      ctx.roles?.some((r) => r === "full_access" || r === "super_admin") ?? false;
+    canEdit = canEditAlumni(ctx.roles);
+    canArchive = hasFullAccess(ctx.roles);
   } catch {
     /* not provisioned → view-only */
   }
@@ -416,11 +422,13 @@ export default async function AlumniProfilePage({
                   >
                     Edit
                   </Link>
-                  <ArchiveControls
-                    alumniId={aid}
-                    archived={a.archived}
-                    name={name}
-                  />
+                  {canArchive ? (
+                    <ArchiveControls
+                      alumniId={aid}
+                      archived={a.archived}
+                      name={name}
+                    />
+                  ) : null}
                 </div>
               ) : null}
             </div>

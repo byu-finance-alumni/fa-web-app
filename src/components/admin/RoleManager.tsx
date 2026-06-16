@@ -4,14 +4,11 @@ import { useTransition } from "react";
 import { Loader2, X } from "lucide-react";
 import { assignRole, removeRole } from "@/app/(app)/admin/actions";
 import { useToast } from "@/components/ui/Toast";
+import { ASSIGNABLE_ROLES, ROLE, roleLabel } from "@/constants/roles";
 
-const ROLES = [
-  { value: "super_admin", label: "Super admin" },
-  { value: "full_access", label: "Full access" },
-  { value: "view_only", label: "View only" },
-] as const;
-
-const labelOf = (v: string) => ROLES.find((r) => r.value === v)?.label ?? v;
+const labelOf = roleLabel;
+// The top roles get a highlighted chip so they stand out in the user table.
+const TOP_ROLES = new Set<string>([ROLE.ENGINEER, ROLE.SUPER_ADMIN]);
 
 /**
  * Super-admin role editor for an existing user: removable role chips + an
@@ -28,7 +25,7 @@ export function RoleManager({
 }) {
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
-  const available = ROLES.filter((r) => !roles.includes(r.value));
+  const available = ASSIGNABLE_ROLES.filter((r) => !roles.includes(r.value));
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -37,7 +34,7 @@ export function RoleManager({
           <span
             key={r}
             className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium ${
-              r === "super_admin"
+              TOP_ROLES.has(r)
                 ? "bg-brand-blue-50 text-brand-blue-600"
                 : "bg-gray-100 text-gray-700"
             }`}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { apiGet, ApiError } from "@/lib/api";
 import type { Alumni, AlumniPage, UserContext } from "@/types/alumni";
+import { hasFullAccess } from "@/constants/roles";
 import type { GeoSummary } from "@/types/geography";
 import { Topbar } from "@/components/shell/Topbar";
 import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
@@ -131,13 +132,10 @@ export default async function AlumniListPage({
   if (optionsResult.status === "fulfilled") {
     options = optionsResult.value.options;
   }
-  // Add alumni is full_access / super_admin only (backend enforces it too).
+  // Add alumni is full access and up — engineer / super_admin / full_access,
+  // NOT students (backend enforces it too via RequireFullAccess).
   const canCreate =
-    ctxResult.status === "fulfilled" &&
-    (ctxResult.value.roles?.some(
-      (r) => r === "full_access" || r === "super_admin",
-    ) ??
-      false);
+    ctxResult.status === "fulfilled" && hasFullAccess(ctxResult.value.roles);
 
   const from = data && data.total > 0 ? offset + 1 : 0;
   const to = data ? Math.min(offset + LIMIT, data.total) : 0;

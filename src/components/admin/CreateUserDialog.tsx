@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Copy, ShieldAlert, UserPlus } from "lucide-react";
 import { createUser } from "@/app/(app)/admin/actions";
 import { useToast } from "@/components/ui/Toast";
+import { CREATABLE_ROLES, type CreatableRoleId } from "@/constants/roles";
 
 /**
  * Super-admin "Create user" flow. Opens a dialog to provision a new account
@@ -19,15 +20,14 @@ import { useToast } from "@/components/ui/Toast";
  * errors = `danger-600`, monospace credential = `font-mono`.
  */
 
-// view_only (default) or full_access only. super_admin is intentionally NOT
-// creatable here (the backend 422s it) — it can only be granted to an existing
-// user via the role manager, so a new account can never be bootstrapped as super_admin.
-const ROLES = [
-  { value: "view_only", label: "View only" },
-  { value: "full_access", label: "Full access" },
-] as const;
+// Creatable roles only: view_only ("Professor", default), student, or
+// full_access. The top roles (engineer, super_admin) are intentionally NOT
+// creatable here (the backend 422s them) — they can only be granted to an
+// existing user via the role manager, so a new account can never be
+// bootstrapped into a privileged role. See @/constants/roles.
+const ROLES = CREATABLE_ROLES;
 
-type RoleValue = (typeof ROLES)[number]["value"];
+type RoleValue = CreatableRoleId;
 
 const labelCls = "mb-1 block text-[11px] font-medium text-gray-500";
 const fieldCls =
