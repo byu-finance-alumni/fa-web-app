@@ -19,11 +19,12 @@ import { useToast } from "@/components/ui/Toast";
  * errors = `danger-600`, monospace credential = `font-mono`.
  */
 
-// Same labels + order as RoleManager, with view_only as the default role.
+// view_only (default) or full_access only. super_admin is intentionally NOT
+// creatable here (the backend 422s it) — it can only be granted to an existing
+// user via the role manager, so a new account can never be bootstrapped as super_admin.
 const ROLES = [
   { value: "view_only", label: "View only" },
   { value: "full_access", label: "Full access" },
-  { value: "super_admin", label: "Super admin" },
 ] as const;
 
 type RoleValue = (typeof ROLES)[number]["value"];
