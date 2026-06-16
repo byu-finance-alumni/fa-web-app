@@ -6,6 +6,7 @@ import { MobileNav } from "@/components/shell/MobileNav";
 import { SessionTimeout } from "@/components/auth/SessionTimeout";
 import { apiGet } from "@/lib/api";
 import type { UserContext } from "@/types/alumni";
+import { highestRole } from "@/constants/roles";
 import { ToastProvider } from "@/components/ui/Toast";
 
 /**
@@ -38,14 +39,9 @@ export default async function AppLayout({
   try {
     const ctx = await apiGet<UserContext>("/auth/context");
     mustChangePassword = ctx.must_change_password === true;
-    const roles = ctx.roles ?? [];
-    role = roles.includes("super_admin")
-      ? "super_admin"
-      : roles.includes("full_access")
-        ? "full_access"
-        : roles.includes("view_only")
-          ? "view_only"
-          : "";
+    // Resolve the user's single highest role for role-aware nav (engineer is
+    // the top of the ladder). See @/constants/roles.
+    role = highestRole(ctx.roles);
   } catch {
     // 403 = authenticated but not yet provisioned in the users table.
   }

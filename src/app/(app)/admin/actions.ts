@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { apiPost, apiPatch, apiDelete, ApiError } from "@/lib/api";
+import type { CreatableRoleId } from "@/constants/roles";
 
 type Result = { error?: string } | null;
 
@@ -85,7 +86,7 @@ export async function createUser(input: {
   email: string;
   first_name?: string;
   last_name?: string;
-  role_name?: "view_only" | "full_access" | "super_admin";
+  role_name?: CreatableRoleId;
 }): Promise<CreatedUser | { error: string }> {
   try {
     const created = await apiPost<CreatedUser>("/admin/users", {

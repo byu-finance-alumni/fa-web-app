@@ -2,21 +2,21 @@ import { redirect } from "next/navigation";
 import { Topbar } from "@/components/shell/Topbar";
 import { apiGet } from "@/lib/api";
 import type { UserContext } from "@/types/alumni";
+import { hasFullAccess } from "@/constants/roles";
 import { ImportWizard } from "@/components/alumni/import/ImportWizard";
 
 /**
- * CSV bulk-import screen, under the Admin dropdown. Full-access / super-admin
- * only — the same gate the Admin → "Import CSV" nav item uses, and the backend
- * enforces it too (all three import endpoints require full access). View-only
- * users are redirected back to the list rather than shown a dead-end page.
+ * CSV bulk-import screen, under the Admin dropdown. Full access and up
+ * (engineer / super_admin / full_access) — the same gate the Admin → "Import
+ * CSV" nav item uses, and the backend enforces it too (all three import
+ * endpoints require full access). View-only and student users are redirected
+ * back to the list rather than shown a dead-end page.
  */
 export default async function ImportAlumniPage() {
   let canImport = false;
   try {
     const ctx = await apiGet<UserContext>("/auth/context");
-    canImport =
-      ctx.roles?.some((r) => r === "full_access" || r === "super_admin") ??
-      false;
+    canImport = hasFullAccess(ctx.roles);
   } catch {
     canImport = false;
   }

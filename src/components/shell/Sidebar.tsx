@@ -18,6 +18,7 @@ import {
   ChevronDown,
   type LucideIcon,
 } from "lucide-react";
+import { ROLE, ROLE_LABEL } from "@/constants/roles";
 
 type NavLeaf = {
   href: string;
@@ -67,20 +68,20 @@ const NAV: NavItem[] = [
   },
 ];
 
-const ROLE_LABEL: Record<string, string> = {
-  super_admin: "Super admin",
-  full_access: "Full access",
-  view_only: "View only",
-};
-
 const isActivePath = (pathname: string, href: string) =>
   pathname === href || pathname.startsWith(`${href}/`);
 
 export function Sidebar({ email, role }: { email: string; role: string }) {
   const pathname = usePathname();
-  const isSuperAdmin = role === "super_admin";
-  // full_access tooling (e.g. Tasks) is visible to full_access and super_admin.
-  const hasFullAccess = role === "super_admin" || role === "full_access";
+  // engineer is the top role and satisfies both gates. User/audit admin =
+  // engineer or super_admin; full_access tooling (e.g. Tasks) also includes
+  // full_access. (Mirrors @/constants/roles, but operates on the single
+  // highest-role string the layout resolved.)
+  const isSuperAdmin = role === ROLE.ENGINEER || role === ROLE.SUPER_ADMIN;
+  const hasFullAccess =
+    role === ROLE.ENGINEER ||
+    role === ROLE.SUPER_ADMIN ||
+    role === ROLE.FULL_ACCESS;
   // Track explicit open/close toggles per group; a group with an active child
   // defaults to open.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
