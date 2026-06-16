@@ -349,7 +349,7 @@ export default async function AlumniProfilePage({
                   netId={a.net_id}
                   initials={initials}
                   name={name}
-                  size="h-16 w-16 text-lg"
+                  size="h-24 w-24 text-2xl"
                   colorClass={avatarColor(initials)}
                 />
                 <div className="min-w-0">
