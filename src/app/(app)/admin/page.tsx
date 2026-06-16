@@ -5,6 +5,8 @@ import { TopbarSearch } from "@/components/shared/TopbarSearch";
 import { RoleManager } from "@/components/admin/RoleManager";
 import { UserActiveToggle } from "@/components/admin/UserActiveToggle";
 import { UnlockResetPassword } from "@/components/admin/UnlockResetPassword";
+import { CreateUserDialog } from "@/components/admin/CreateUserDialog";
+import { UserNameEditor } from "@/components/admin/UserNameEditor";
 import type { UserContext } from "@/types/alumni";
 
 interface AdminUser {
@@ -65,11 +67,21 @@ export default async function AdminPage() {
             <p className="mt-1 text-sm text-gray-500">{error.message}</p>
           </div>
         ) : users && users.length === 0 ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
-            No users provisioned yet.
-          </div>
+          <>
+            <div className="mb-4 flex items-center justify-end">
+              <CreateUserDialog />
+            </div>
+            <div className="rounded-xl border border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
+              No users provisioned yet.
+            </div>
+          </>
         ) : (
           <>
+          {/* Top actions */}
+          <div className="mb-4 flex items-center justify-end">
+            <CreateUserDialog />
+          </div>
+
           {/* Mobile: stacked cards */}
           <div className="space-y-2 md:hidden">
             {users!.map((u) => (
@@ -86,10 +98,17 @@ export default async function AdminPage() {
                     size="sm"
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-gray-900">
-                      {[u.first_name, u.last_name].filter(Boolean).join(" ") ||
-                        "—"}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="truncate font-medium text-gray-900">
+                        {[u.first_name, u.last_name].filter(Boolean).join(" ") ||
+                          "—"}
+                      </p>
+                      <UserNameEditor
+                        userId={u.user_id}
+                        firstName={u.first_name}
+                        lastName={u.last_name}
+                      />
+                    </div>
                     <p className="truncate text-xs text-gray-500">{u.email}</p>
                   </div>
                   {u.locked ? <LockedBadge /> : null}
@@ -145,6 +164,11 @@ export default async function AdminPage() {
                             .filter(Boolean)
                             .join(" ") || "—"}
                         </span>
+                        <UserNameEditor
+                          userId={u.user_id}
+                          firstName={u.first_name}
+                          lastName={u.last_name}
+                        />
                       </div>
                     </td>
                     <td className="px-4 py-3 text-gray-700">{u.email}</td>
