@@ -57,6 +57,12 @@ const NAV: NavItem[] = [
     icon: Shield,
     children: [
       { href: "/admin", label: "Users", icon: UserCog, superAdminOnly: true },
+      {
+        href: "/admin/vocabulary",
+        label: "Vocabulary",
+        icon: ListChecks,
+        superAdminOnly: true,
+      },
       { href: "/audit", label: "Audit", icon: History, superAdminOnly: true },
       {
         href: "/admin/import",

@@ -1,8 +1,10 @@
 import { Topbar } from "@/components/shell/Topbar";
 import { EventForm } from "@/components/events/EventForm";
+import { getEventTypeOptions } from "../vocab";
 import { createEvent } from "../actions";
 
-export default function NewEventPage() {
+export default async function NewEventPage() {
+  const eventTypeOptions = await getEventTypeOptions();
   return (
     <>
       <Topbar
@@ -16,6 +18,7 @@ export default function NewEventPage() {
           action={createEvent}
           submitLabel="Create event"
           cancelHref="/events"
+          eventTypeOptions={eventTypeOptions}
         />
       </main>
     </>
