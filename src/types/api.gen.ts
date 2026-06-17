@@ -1554,6 +1554,74 @@ export interface paths {
         patch: operations["update_vocabulary_term_admin_vocabulary__term_id__patch"];
         trace?: never;
     };
+    "/support-contacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Support Contacts
+         * @description The support contacts to show a logged-in user (ordered).
+         */
+        get: operations["list_support_contacts_support_contacts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/support-contacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Support Contacts Admin
+         * @description Same list, behind the engineer gate, for the editor UI.
+         */
+        get: operations["list_support_contacts_admin_admin_support_contacts_get"];
+        put?: never;
+        /**
+         * Create Support Contact
+         * @description Add a support contact (engineer only).
+         */
+        post: operations["create_support_contact_admin_support_contacts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/support-contacts/{contact_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Support Contact
+         * @description Remove a support contact (engineer only). 404 if missing.
+         */
+        delete: operations["delete_support_contact_admin_support_contacts__contact_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Support Contact
+         * @description Edit a support contact (engineer only). 404 if missing.
+         */
+        patch: operations["update_support_contact_admin_support_contacts__contact_id__patch"];
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -2799,6 +2867,50 @@ export interface components {
         StatusLabelCreate: {
             /** Label */
             label: string;
+        };
+        /**
+         * SupportContactCreate
+         * @description Add a support contact (engineer only).
+         */
+        SupportContactCreate: {
+            /** Role Label */
+            role_label: string;
+            /** Name */
+            name: string;
+            /** Email */
+            email: string;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+        };
+        /** SupportContactRead */
+        SupportContactRead: {
+            /** Support Contact Id */
+            support_contact_id: number;
+            /** Role Label */
+            role_label: string;
+            /** Name */
+            name: string;
+            /** Email */
+            email: string;
+            /** Sort Order */
+            sort_order: number;
+        };
+        /**
+         * SupportContactUpdate
+         * @description Edit a support contact (engineer only). Only fields present are applied.
+         */
+        SupportContactUpdate: {
+            /** Role Label */
+            role_label?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
         };
         /** SurveyRead */
         SurveyRead: {
@@ -5446,6 +5558,145 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VocabularyTermRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_support_contacts_support_contacts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportContactRead"][];
+                };
+            };
+        };
+    };
+    list_support_contacts_admin_admin_support_contacts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportContactRead"][];
+                };
+            };
+        };
+    };
+    create_support_contact_admin_support_contacts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupportContactCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportContactRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_support_contact_admin_support_contacts__contact_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contact_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportContactRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_support_contact_admin_support_contacts__contact_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contact_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupportContactUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportContactRead"];
                 };
             };
             /** @description Validation Error */
