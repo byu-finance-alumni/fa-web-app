@@ -1,58 +1,27 @@
-/** Mirrors the backend AlumniRead / AlumniPage schemas (fa-web-api). */
-export interface Alumni {
-  alumni_id: number;
-  byu_id: string | null;
-  net_id: string | null;
-  first_name: string | null;
-  middle_name: string | null;
-  last_name: string | null;
-  preferred_first_name: string | null;
-  gender: string | null;
-  /** Full date of birth, ISO "YYYY-MM-DD". `birth_year` is kept separately. */
-  birth_date: string | null;
-  graduation_year: number | null;
-  finance_program_year: number | null;
-  graduate_degree: string | null;
-  spouse_first_name: string | null;
-  spouse_last_name: string | null;
-  /** Spouse's date of birth, ISO "YYYY-MM-DD". */
-  spouse_birth_date: string | null;
-  /** Set when the spouse is also an alumnus — links to that record. */
-  spouse_alumni_id: number | null;
-  deceased: boolean;
-  archived: boolean;
-  linkedin_url: string | null;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-  /** Present on alumni-list rows (joined from current_employment); absent on
-   * single-record reads. */
-  current_employer?: string | null;
-  current_industry?: string | null;
-}
+/**
+ * Core alumni types, derived from the backend OpenAPI schema — see
+ * `src/types/api.ts`. The data-hygiene and CSV-import types further down are
+ * still hand-written because those endpoints return untyped dicts in the
+ * backend (no `response_model`), so the generated schema has nothing to derive
+ * them from.
+ */
+import type { Schema } from "./api";
 
-export interface AlumniPage {
-  items: Alumni[];
-  total: number;
-  limit: number;
-  offset: number;
-}
+/**
+ * An alumni list row (`GET /alumni`). Superset of the single-record read shape
+ * (`AlumniRead`) plus the joined `current_employer` / `current_industry`.
+ */
+export type Alumni = Schema<"AlumniListItem">;
 
-/** Mirrors the backend UserContext (auth/context). */
-export interface UserContext {
-  user_id: number;
-  email: string | null;
-  first_name: string | null;
-  last_name: string | null;
-  roles: string[];
-  /**
-   * True when the user signed in with a temporary password and must set a new
-   * one before using the app. The authenticated app shell gates on this and
-   * forces the user to `/set-password`; it's cleared via
-   * `POST /auth/password/complete` once they've set a new password.
-   */
-  must_change_password?: boolean;
-}
+export type AlumniPage = Schema<"AlumniPage">;
+
+/**
+ * The signed-in user's DB identity + roles (`GET /auth/context`).
+ * `must_change_password` is true when they signed in with a temporary password
+ * and must set a new one before using the app (the shell gates on it and
+ * forces `/set-password`, cleared via `POST /auth/password/complete`).
+ */
+export type UserContext = Schema<"UserContext">;
 
 /* ----------------------------------------------------------- data hygiene ----- */
 
