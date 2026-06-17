@@ -982,19 +982,51 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete User
+         * @description Permanently delete a user — both the ``users`` row and the Supabase auth
+         *     identity. super_admin and engineer only (engineer satisfies the guard).
+         *
+         *     This is the irreversible counterpart to deactivation: use PATCH
+         *     ``/users/{id}`` (``active=false``) to suspend access reversibly; use this to
+         *     remove the account entirely (e.g. a wrong/duplicate provision).
+         *
+         *     Integrity is handled by the schema's foreign keys, NOT by cascading our own
+         *     deletes: ``user_roles`` is ``ON DELETE CASCADE`` (role grants are removed
+         *     with the user), and every other reference — audit logs, interactions, tasks,
+         *     events, attachments, import batches — is ``ON DELETE SET NULL``. So the
+         *     FERPA audit trail and all alumni-side history are preserved; only the actor
+         *     pointer on those rows becomes null.
+         *
+         *     Guards (mirroring remove_role):
+         *       * You cannot delete your own account.
+         *       * Privilege ceiling: only an engineer may delete a user who holds the
+         *         engineer role.
+         *       * Last-holder guard: you cannot delete the final holder of a top role
+         *         (super_admin / engineer), which would lock administration out for
+         *         everyone.
+         *
+         *     Order of operations: the DB row (plus a ``delete_user`` audit entry,
+         *     attributed to the actor and recording the deleted user's email) is committed
+         *     FIRST, then the Supabase auth identity is best-effort deleted. If that last
+         *     step fails the account is already gone from the app (the auth layer requires
+         *     a matching ``users`` row), so we log the orphaned auth UUID for manual
+         *     reconciliation rather than failing the request.
+         */
+        delete: operations["delete_user_admin_users__user_id__delete"];
         options?: never;
         head?: never;
         /**
          * Set User Active
          * @description Deactivate or reactivate an existing user. super_admin only.
          *
-         *     Deactivation is the project's stand-in for removing access (users are never
-         *     hard-deleted): once ``active`` is false the auth dependency rejects every
-         *     authenticated request from that user. A super_admin cannot deactivate their
-         *     own account — that could lock administration out of the system. Every change
-         *     is audited; a no-op (already in the requested state) is idempotent and not
-         *     re-audited.
+         *     Deactivation is the REVERSIBLE way to remove access: once ``active`` is false
+         *     the auth dependency rejects every authenticated request from that user, but
+         *     the row/roles/history are kept and access can be restored later. (Permanent
+         *     removal is the separate DELETE ``/users/{id}`` endpoint.) A super_admin cannot
+         *     deactivate their own account — that could lock administration out of the
+         *     system. Every change is audited; a no-op (already in the requested state) is
+         *     idempotent and not re-audited.
          */
         patch: operations["set_user_active_admin_users__user_id__patch"];
         trace?: never;
@@ -2133,6 +2165,20 @@ export interface components {
             /** Database */
             database: string;
         };
+        /**
+         * DeleteUserResponse
+         * @description Confirmation of a permanent user deletion (the row is gone, so there is
+         *     nothing left to serialize). The deleted user's id + email are echoed back so
+         *     the UI can confirm exactly which account was removed.
+         */
+        DeleteUserResponse: {
+            /** Deleted */
+            deleted: boolean;
+            /** User Id */
+            user_id: number;
+            /** Email */
+            email: string;
+        };
         /** EducationRead */
         EducationRead: {
             /** Education Id */
@@ -2843,9 +2889,11 @@ export interface components {
          * UserActiveUpdate
          * @description Activate or deactivate an existing user account.
          *
-         *     The project never hard-deletes users; deactivation flips ``users.active`` to
-         *     false, which the auth dependency layer enforces — a deactivated user is
-         *     blocked (403) on every authenticated route.
+         *     Deactivation is the REVERSIBLE way to remove access: it flips
+         *     ``users.active`` to false, which the auth dependency layer enforces — a
+         *     deactivated user is blocked (403) on every authenticated route but keeps
+         *     their row, roles, and history and can be reactivated later. To remove an
+         *     account permanently instead, use DELETE ``/users/{id}``.
          */
         UserActiveUpdate: {
             /** Active */
@@ -4425,6 +4473,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CreateUserResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_user_admin_users__user_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteUserResponse"];
                 };
             };
             /** @description Validation Error */

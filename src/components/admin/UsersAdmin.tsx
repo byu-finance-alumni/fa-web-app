@@ -8,6 +8,8 @@ import { UserActiveToggle } from "@/components/admin/UserActiveToggle";
 import { UnlockResetPassword } from "@/components/admin/UnlockResetPassword";
 import { CreateUserDialog } from "@/components/admin/CreateUserDialog";
 import { UserNameEditor } from "@/components/admin/UserNameEditor";
+import { DeleteUser } from "@/components/admin/DeleteUser";
+import { ROLE } from "@/constants/roles";
 
 export interface AdminUser {
   user_id: number;
@@ -62,6 +64,13 @@ export function UsersAdmin({
   canAssignEngineer: boolean;
 }) {
   const [q, setQ] = useState("");
+
+  // Show the permanent-delete control everywhere the backend would allow it:
+  // never on your own row, and (for non-engineers) never on an engineer's row.
+  // The backend re-enforces these plus the last-admin guard.
+  const canDelete = (u: AdminUser) =>
+    u.user_id !== currentUserId &&
+    (!u.roles.includes(ROLE.ENGINEER) || canAssignEngineer);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -141,11 +150,20 @@ export function UsersAdmin({
                     roles={u.roles}
                     canAssignEngineer={canAssignEngineer}
                   />
-                  <UnlockResetPassword
-                    userId={u.user_id}
-                    locked={u.locked}
-                    name={displayName(u)}
-                  />
+                  <div className="flex items-center gap-2">
+                    <UnlockResetPassword
+                      userId={u.user_id}
+                      locked={u.locked}
+                      name={displayName(u)}
+                    />
+                    {canDelete(u) ? (
+                      <DeleteUser
+                        userId={u.user_id}
+                        email={u.email}
+                        name={displayName(u)}
+                      />
+                    ) : null}
+                  </div>
                 </div>
               </div>
             ))}
@@ -208,11 +226,20 @@ export function UsersAdmin({
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <UnlockResetPassword
-                        userId={u.user_id}
-                        locked={u.locked}
-                        name={displayName(u)}
-                      />
+                      <div className="flex items-center gap-2">
+                        <UnlockResetPassword
+                          userId={u.user_id}
+                          locked={u.locked}
+                          name={displayName(u)}
+                        />
+                        {canDelete(u) ? (
+                          <DeleteUser
+                            userId={u.user_id}
+                            email={u.email}
+                            name={displayName(u)}
+                          />
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))}

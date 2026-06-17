@@ -33,6 +33,25 @@ export async function removeRole(
 }
 
 /**
+ * Super-admin / engineer only: PERMANENTLY delete a user — both the `users` row
+ * and the Supabase auth identity. This is the irreversible counterpart to
+ * `setUserActive(false)` (which only suspends). The backend preserves the FERPA
+ * audit trail (foreign keys SET NULL) and refuses to delete your own account,
+ * an engineer you don't outrank, or the last holder of a top role — those
+ * surface here as the returned `error` string rather than thrown. Revalidates
+ * `/admin` so the removed row disappears on the next render.
+ */
+export async function deleteUser(userId: number): Promise<Result> {
+  try {
+    await apiDelete(`/admin/users/${userId}`);
+  } catch (e) {
+    return { error: e instanceof ApiError ? e.message : "Failed to delete user." };
+  }
+  revalidatePath("/admin");
+  return null;
+}
+
+/**
  * Super-admin only: unlock a user and reset their password. The backend clears
  * any active lockout and issues a fresh temporary password, returned here so the
  * admin can hand it to the user once. The whole Admin screen is super_admin-
