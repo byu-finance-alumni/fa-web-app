@@ -60,6 +60,59 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
 
+  # ---------------------------------------------------------------------------
+  # API CONTRACT DRIFT — required for BOTH dev and prod.
+  # The committed src/types/api.gen.ts is generated from fa-web-api's OpenAPI
+  # schema and is what the frontend type-checks against. If the backend's shape
+  # changes but this file wasn't regenerated + committed, the frontend is
+  # type-checking against a stale contract — exactly how the dashboard-birthdays
+  # and /admin/users crashes shipped green. This job regenerates from the served
+  # schema and fails on any drift, forcing a regen (which then makes `tsc` fail
+  # on any stale usage). See scripts/gen-api-types.mjs and issue #99.
+  api-contract:
+    name: API types in sync with backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Regenerate from the live backend schema. Retry to ride out a cold
+      # serverless start or transient blip on the deployed API (the schema URL
+      # defaults to the dev deployment; override via the API_SCHEMA_URL secret).
+      - name: Regenerate API types from served schema
+        env:
+          API_SCHEMA_URL: ${{ secrets.API_SCHEMA_URL }}
+        run: |
+          ok=
+          for attempt in 1 2 3; do
+            if npm run gen:api-types; then ok=1; break; fi
+            echo "::warning::gen:api-types attempt $attempt failed; retrying in 10s"
+            sleep 10
+          done
+          if [ -z "$ok" ]; then
+            echo "::error::Could not fetch the backend OpenAPI schema after 3 attempts."
+            exit 1
+          fi
+
+      - name: Fail if committed types drifted from the backend
+        run: |
+          if ! git diff --exit-code -- src/types/api.gen.ts; then
+            echo "::error::src/types/api.gen.ts is out of sync with the backend OpenAPI schema."
+            echo "The backend contract changed. Run 'npm run gen:api-types', commit the result,"
+            echo "and fix any resulting 'tsc' errors before merging."
+            exit 1
+          fi
+          echo "OK: API types match the backend schema."
+
   secret-scan:
     name: Secret scan (gitleaks)
     runs-on: ubuntu-latest

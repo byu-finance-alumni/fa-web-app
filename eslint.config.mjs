@@ -18,6 +18,7 @@ const eslintConfig = [
       "build/**",
       "node_modules/**",
       "next-env.d.ts",
+      "src/types/api.gen.ts", // auto-generated from the backend OpenAPI schema
     ],
   },
 ];
