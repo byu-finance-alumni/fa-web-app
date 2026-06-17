@@ -412,10 +412,15 @@ export default async function AlumniProfilePage({
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
                   <AddInteractionButton alumniId={aid} label="+ Add interaction" />
                   <AddTaskButton alumniId={aid} label="Create task" />
-                  <ExportProfileButton
-                    profile={profile}
-                    fileBaseName={`${name.replace(/\s+/g, "-").toLowerCase()}-${aid}`}
-                  />
+                  {/* Export is a full_access action (audited server endpoint),
+                      so it's gated to canArchive (hasFullAccess) — students and
+                      professors never see it. */}
+                  {canArchive ? (
+                    <ExportProfileButton
+                      alumniId={aid}
+                      fileBaseName={`${name.replace(/\s+/g, "-").toLowerCase()}-${aid}`}
+                    />
+                  ) : null}
                   <Link
                     href={`/alumni/${aid}/edit`}
                     className="rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500"

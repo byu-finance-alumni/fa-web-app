@@ -3,6 +3,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import {
+  apiGet,
   apiPost,
   apiPatch,
   apiDelete,
@@ -749,6 +750,31 @@ export async function downloadImportTemplate(): Promise<
       ok: false,
       error:
         e instanceof ApiError ? e.message : "Couldn't download the template.",
+    };
+  }
+}
+
+/**
+ * Export a single alumnus's full profile via GET /alumni/{id}/export
+ * (RequireFullAccess). The backend returns the profile aggregate as JSON with
+ * the `audit` trail and internal user PKs stripped, and audit-logs the export.
+ *
+ * The exported payload MUST come from this server response — never serialized
+ * client-side from an in-memory prop — so that every export is access-checked
+ * and recorded (FERPA / BYU data-governance). The client only turns the
+ * returned JSON into a Blob download.
+ */
+export async function exportProfile(
+  alumniId: number,
+): Promise<{ ok: true; data: unknown } | { ok: false; error: string }> {
+  try {
+    const data = await apiGet<unknown>(`/alumni/${alumniId}/export`);
+    return { ok: true, data };
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof ApiError ? e.message : "Couldn't export this profile.",
     };
   }
 }
