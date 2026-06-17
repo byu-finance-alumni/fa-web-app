@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   UserCog,
   ListChecks,
+  LifeBuoy,
   Upload,
   ChevronDown,
   type LucideIcon,
@@ -28,6 +29,8 @@ type NavLeaf = {
   superAdminOnly?: boolean;
   /** Visible to full_access and super_admin only (admin tooling). */
   fullAccessOnly?: boolean;
+  /** Visible to the engineer role only (e.g. support-contact management). */
+  engineerOnly?: boolean;
 };
 
 type NavItem = NavLeaf & {
@@ -66,6 +69,12 @@ const NAV: NavItem[] = [
       },
       { href: "/audit", label: "Audit", icon: History, superAdminOnly: true },
       {
+        href: "/admin/support-contacts",
+        label: "Support contacts",
+        icon: LifeBuoy,
+        engineerOnly: true,
+      },
+      {
         href: "/admin/import",
         label: "Import CSV",
         icon: Upload,
@@ -85,6 +94,7 @@ export function Sidebar({ email, role }: { email: string; role: string }) {
   // full_access. (Mirrors @/constants/roles, but operates on the single
   // highest-role string the layout resolved.)
   const isSuperAdmin = role === ROLE.ENGINEER || role === ROLE.SUPER_ADMIN;
+  const isEngineer = role === ROLE.ENGINEER;
   const hasFullAccess =
     role === ROLE.ENGINEER ||
     role === ROLE.SUPER_ADMIN ||
@@ -96,8 +106,11 @@ export function Sidebar({ email, role }: { email: string; role: string }) {
   const canSee = (n: {
     superAdminOnly?: boolean;
     fullAccessOnly?: boolean;
+    engineerOnly?: boolean;
   }) =>
-    (!n.superAdminOnly || isSuperAdmin) && (!n.fullAccessOnly || hasFullAccess);
+    (!n.superAdminOnly || isSuperAdmin) &&
+    (!n.fullAccessOnly || hasFullAccess) &&
+    (!n.engineerOnly || isEngineer);
 
   // Role-filtered nav. A group (e.g. Admin) keeps only the children the user may
   // see and is dropped entirely if none remain — so full_access staff still see
