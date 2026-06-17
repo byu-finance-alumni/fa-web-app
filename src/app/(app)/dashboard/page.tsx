@@ -37,17 +37,18 @@ interface Birthday {
   last_name: string;
   current_employer: string | null;
   graduation_year: number | null;
-  /** ISO date "YYYY-MM-DD". */
-  birth_date: string;
+  /** Recurring month/day only — the API never returns the birth year (FERPA
+   *  data minimization). */
+  birth_month: number | null;
+  birth_day: number | null;
 }
 
-/** Compact month + day for a birthday, e.g. "Jun 14". The year is ignored —
- *  birthdays recur — so we parse only the month/day to avoid TZ drift. */
-function formatBirthday(d: string): string {
-  const [, m, day] = d.split("-").map(Number);
-  if (!m || !day) return "";
-  // Use a fixed year; only the month/day are rendered.
-  return new Date(2000, m - 1, day).toLocaleDateString("en-US", {
+/** Compact month + day for a birthday, e.g. "Jun 14". Only month/day are sent —
+ *  birthdays recur and the year is withheld — so render those directly. */
+function formatBirthday(month: number | null, day: number | null): string {
+  if (!month || !day) return "";
+  // Fixed year; only the month/day are rendered.
+  return new Date(2000, month - 1, day).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
   });
@@ -269,7 +270,8 @@ function BirthdayList({ rows }: { rows: Birthday[] }) {
             <Link
               href={`/alumni/${b.id}`}
               aria-label={`View ${name}'s profile — birthday ${formatBirthday(
-                b.birth_date,
+                b.birth_month,
+                b.birth_day,
               )}`}
               className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-1.5 transition hover:bg-brand-blue-50/40"
             >
@@ -281,7 +283,7 @@ function BirthdayList({ rows }: { rows: Birthday[] }) {
                 <p className="truncate text-xs text-gray-500">{subtitle}</p>
               </div>
               <span className="shrink-0 text-sm font-medium tabular-nums text-gray-700">
-                {formatBirthday(b.birth_date)}
+                {formatBirthday(b.birth_month, b.birth_day)}
               </span>
             </Link>
           </li>
