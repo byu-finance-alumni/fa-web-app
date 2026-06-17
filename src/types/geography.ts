@@ -1,79 +1,17 @@
-/** Mirrors the backend geography endpoints (fa-web-api app/services/geography.py). */
+/**
+ * Geography dashboard types (`/geography/*`).
+ *
+ * Derived from the backend OpenAPI schema via the generated types — see
+ * `src/types/api.ts`. These routes now have real `response_model`s in
+ * fa-web-api (#88), so a backend shape change flows in on the next
+ * `npm run gen:api-types` and surfaces as a `tsc` error on stale usage.
+ */
+import type { Schema } from "./api";
 
-export interface StateCount {
-  state: string;
-  state_name: string;
-  alumni_count: number;
-}
-
-export interface GeoSummary {
-  total_alumni: number;
-  states_represented: number;
-  cities_represented: number;
-  top_employer: { employer: string; count: number } | null;
-  top_employers: { employer: string; count: number }[];
-  top_industries: { industry: string; count: number }[];
-  top_cities: { city: string; state: string; count: number }[];
-  largest_hub: { city: string; state: string; count: number } | null;
-  options: {
-    employers: string[];
-    cities: string[];
-    industries: string[];
-    graduation_years: number[];
-    regions: string[];
-    tags: string[];
-  };
-}
-
-export interface StateDetail {
-  state: string;
-  state_name: string;
-  alumni_count: number;
-  cities: { city: string; count: number }[];
-  employers: { employer: string; count: number }[];
-  industries: { industry: string; count: number }[];
-  by_graduation_year: { year: number; count: number }[];
-}
-
-export interface GeoAlumniRow {
-  alumni_id: number;
-  name: string;
-  city: string | null;
-  graduation_year: number | null;
-  current_employer: string | null;
-  current_title: string | null;
-}
-
-export interface GeoAlumniPage {
-  items: GeoAlumniRow[];
-  total: number;
-  limit: number;
-  offset: number;
-}
-
-export interface Breakdown {
-  dimension: string;
-  title: string;
-  items: {
-    key: string;
-    label: string;
-    sublabel: string | null;
-    count: number;
-  }[];
-}
-
-export interface CityDetail {
-  state: string;
-  state_name: string;
-  city: string;
-  alumni_count: number;
-  employers: { employer: string; count: number }[];
-  industries: { industry: string; count: number }[];
-  by_graduation_year: { year: number; count: number }[];
-  alumni: {
-    alumni_id: number;
-    name: string;
-    graduation_year: number | null;
-    current_employer: string | null;
-  }[];
-}
+export type StateCount = Schema<"StateCount">;
+export type GeoSummary = Schema<"GeoSummary">;
+export type StateDetail = Schema<"StateDetail">;
+export type GeoAlumniRow = Schema<"GeoAlumniRow">;
+export type GeoAlumniPage = Schema<"GeoAlumniPage">;
+export type Breakdown = Schema<"Breakdown">;
+export type CityDetail = Schema<"CityDetail">;
