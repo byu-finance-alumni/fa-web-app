@@ -14,7 +14,12 @@ export default async function AdminPage() {
   // engineer role in the UI (backend enforces the same ceiling).
   let canAssignEngineer = false;
   try {
-    users = await apiGet<AdminUser[]>("/admin/users");
+    // /admin/users is paginated: { items, total, limit, offset }. Request a high
+    // limit so the client-side search in UsersAdmin still sees the full list.
+    const page = await apiGet<{ items: AdminUser[]; total: number }>(
+      "/admin/users?limit=200",
+    );
+    users = page.items;
     // Identify the signed-in admin so we can hide self-deactivation (the backend
     // rejects it too) and decide engineer-grant rights. A failure here just
     // leaves controls visible — the backend still enforces every guard.
