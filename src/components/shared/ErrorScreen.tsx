@@ -2,22 +2,30 @@
 
 import Link from "next/link";
 import { AlertTriangle, Home, RotateCcw } from "lucide-react";
+import { SupportContacts } from "@/components/shared/SupportContacts";
+import type { SupportContact } from "@/types/support";
 
 /**
  * Branded error/empty screen shared by the route error boundaries and the 404
  * page. Calm, on-brand, and always actionable — the user can retry, go home,
  * and knows who to contact. Never a raw stack trace or white screen.
+ *
+ * `contacts` (passed only by the authenticated in-app error boundary) lists the
+ * engineer-managed support contacts; when present they replace the generic
+ * "BYU Finance Department" line. Pre-auth screens (root error, 404) pass none.
  */
 export function ErrorScreen({
   code,
   title,
   message,
   reset,
+  contacts,
 }: {
   code?: string;
   title: string;
   message: string;
   reset?: () => void;
+  contacts?: SupportContact[];
 }) {
   return (
     <div className="flex min-h-[60vh] w-full flex-1 items-center justify-center bg-gray-100 p-6">
@@ -32,13 +40,22 @@ export function ErrorScreen({
         ) : null}
         <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
         <p className="mt-2 text-sm leading-relaxed text-gray-500">{message}</p>
-        <p className="mt-4 text-sm text-gray-500">
-          If this keeps happening, please contact the{" "}
-          <span className="font-medium text-gray-700">
-            BYU Finance Department
-          </span>
-          .
-        </p>
+        {contacts && contacts.length > 0 ? (
+          <div className="mt-4">
+            <p className="text-sm text-gray-500">If this keeps happening, contact:</p>
+            <div className="mt-1.5">
+              <SupportContacts contacts={contacts} align="center" />
+            </div>
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-gray-500">
+            If this keeps happening, please contact the{" "}
+            <span className="font-medium text-gray-700">
+              BYU Finance Department
+            </span>
+            .
+          </p>
+        )}
         <div className="mt-6 flex items-center justify-center gap-3">
           {reset ? (
             <button
