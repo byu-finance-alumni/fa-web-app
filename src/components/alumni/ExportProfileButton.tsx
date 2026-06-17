@@ -3,22 +3,27 @@
 import { useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
-import type { Profile } from "@/types/profile";
+import { exportProfile } from "@/app/(app)/alumni/actions";
 
 /**
  * Exports the alumni profile as a downloadable JSON file.
  *
- * Provides full action feedback per the design system: a pending/disabled
- * state with a spinner while the file is generated, a success toast on
- * completion, and an error toast if generation/download fails (no silent
- * failures). The export is produced entirely on the client from the profile
- * data already loaded on the page.
+ * The exported DATA is fetched from the audited server endpoint
+ * (`GET /alumni/{id}/export`, RequireFullAccess) via the `exportProfile` server
+ * action — NOT serialized client-side from an in-memory prop. The backend
+ * strips the audit trail and internal user PKs and records every export
+ * (FERPA / BYU data-governance). The client only turns the returned JSON into a
+ * Blob download; `fileBaseName` is used solely for the download filename.
+ *
+ * Full action feedback per the design system: a pending/disabled state with a
+ * spinner while the export is fetched, a success toast on completion, and an
+ * error toast on failure (no silent failures).
  */
 export function ExportProfileButton({
-  profile,
+  alumniId,
   fileBaseName,
 }: {
-  profile: Profile;
+  alumniId: number;
   fileBaseName: string;
 }) {
   const { toast } = useToast();
@@ -28,11 +33,12 @@ export function ExportProfileButton({
     if (pending) return;
     setPending(true);
     try {
-      const json = JSON.stringify(
-        { exported_at: new Date().toISOString(), profile },
-        null,
-        2,
-      );
+      const result = await exportProfile(alumniId);
+      if (!result.ok) {
+        toast.error(result.error || "Export failed. Please try again.");
+        return;
+      }
+      const json = JSON.stringify(result.data, null, 2);
       const blob = new Blob([json], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   History,
   Shield,
+  ShieldCheck,
   UserCog,
   ListChecks,
   Upload,
@@ -186,7 +187,17 @@ export function Sidebar({ email, role }: { email: string; role: string }) {
         })}
       </nav>
 
-      <div className="mt-auto flex items-center gap-2.5 border-t border-navy-700 px-2 pt-3">
+      {/* Privacy & data-handling statement — visible to every authenticated
+          role (no gate). Pinned just above the user footer. */}
+      <Link
+        href="/privacy"
+        className={`mt-auto ${linkCls(isActivePath(pathname, "/privacy"))}`}
+      >
+        <ShieldCheck className="h-[18px] w-[18px]" aria-hidden="true" />
+        Privacy
+      </Link>
+
+      <div className="mt-3 flex items-center gap-2.5 border-t border-navy-700 px-2 pt-3">
         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-blue-500 text-xs font-semibold text-white">
           {(email[0] ?? "?").toUpperCase()}
         </span>
