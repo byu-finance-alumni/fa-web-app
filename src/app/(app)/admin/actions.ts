@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { apiPost, apiPatch, apiDelete, ApiError } from "@/lib/api";
+import type { CreatableRoleId } from "@/constants/roles";
 
 type Result = { error?: string } | null;
 
@@ -56,6 +57,76 @@ export async function resetUserPassword(
         e instanceof ApiError ? e.message : "Failed to reset password.",
     };
   }
+}
+
+/** The shape returned by the create-user endpoint (super_admin only). */
+export interface CreatedUser {
+  user_id: number;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  active: boolean;
+  roles: string[];
+  /** One-time temporary password — shown to the admin exactly once. */
+  temp_password: string;
+}
+
+/**
+ * Super-admin only: provision a brand-new user. The backend creates the account,
+ * assigns the requested role (defaulting to view_only), and returns a one-time
+ * temporary password the admin hands to the user once — it is never persisted
+ * client-side and won't be shown again. The whole Admin screen is super_admin-
+ * gated and the backend re-enforces it, so this mirrors that contract.
+ *
+ * A duplicate email surfaces as a 409 ApiError, returned here as an `error`
+ * string rather than thrown. On success we revalidate `/admin` so the new row
+ * appears on the next render.
+ */
+export async function createUser(input: {
+  email: string;
+  first_name?: string;
+  last_name?: string;
+  role_name?: CreatableRoleId;
+}): Promise<CreatedUser | { error: string }> {
+  try {
+    const created = await apiPost<CreatedUser>("/admin/users", {
+      email: input.email,
+      ...(input.first_name ? { first_name: input.first_name } : {}),
+      ...(input.last_name ? { last_name: input.last_name } : {}),
+      ...(input.role_name ? { role_name: input.role_name } : {}),
+    });
+    revalidatePath("/admin");
+    return created;
+  } catch (e) {
+    return {
+      error: e instanceof ApiError ? e.message : "Failed to create user.",
+    };
+  }
+}
+
+/**
+ * Super-admin only: edit a user's first/last name. Hits the `/name` sub-path
+ * (the bare `PATCH /admin/users/{id}` route is the active-toggle, not this).
+ * The backend re-enforces super_admin. Revalidates `/admin` so the row's
+ * display name updates on the next render.
+ */
+export async function updateUserName(
+  userId: number,
+  firstName: string,
+  lastName: string,
+): Promise<Result> {
+  try {
+    await apiPatch(`/admin/users/${userId}/name`, {
+      first_name: firstName,
+      last_name: lastName,
+    });
+  } catch (e) {
+    return {
+      error: e instanceof ApiError ? e.message : "Failed to update name.",
+    };
+  }
+  revalidatePath("/admin");
+  return null;
 }
 
 /**

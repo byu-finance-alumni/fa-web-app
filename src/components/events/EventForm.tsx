@@ -59,11 +59,15 @@ export function EventForm({
   submitLabel,
   cancelHref,
   initialValues,
+  eventTypeOptions = [],
 }: {
   action: Action;
   submitLabel: string;
   cancelHref: string;
   initialValues?: EventInitialValues;
+  /** Managed event-type options (from the editable vocabulary). Admins curate
+   * these under Admin → Vocabulary. */
+  eventTypeOptions?: string[];
 }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(
     action,
@@ -72,6 +76,15 @@ export function EventForm({
 
   const fe = state?.fieldErrors;
   const v = initialValues;
+
+  // Preserve a legacy/unlisted type on the record so editing never silently
+  // drops it: surface it as an extra option even if it's no longer in the set.
+  const current = v?.event_type ?? "";
+  const hasCurrent = eventTypeOptions.some(
+    (o) => o.toLowerCase() === current.toLowerCase(),
+  );
+  const typeOptions =
+    current && !hasCurrent ? [current, ...eventTypeOptions] : eventTypeOptions;
 
   return (
     <form
@@ -86,12 +99,32 @@ export function EventForm({
         error={fe?.event_name}
       />
       <div className="grid grid-cols-2 gap-4">
-        <Field
-          label="Type"
-          name="event_type"
-          defaultValue={v?.event_type ?? undefined}
-          error={fe?.event_type}
-        />
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-gray-700">
+            Type
+          </label>
+          <select
+            name="event_type"
+            defaultValue={current}
+            aria-invalid={fe?.event_type ? true : undefined}
+            style={{ colorScheme: "light" }}
+            className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 ${
+              fe?.event_type
+                ? "border-danger-600 focus:ring-danger-600"
+                : "border-gray-300 focus:ring-brand-blue-500"
+            }`}
+          >
+            <option value="">— Select —</option>
+            {typeOptions.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+          {fe?.event_type ? (
+            <p className="mt-1 text-xs text-danger-600">{fe.event_type}</p>
+          ) : null}
+        </div>
         <Field
           label="Date"
           name="event_date"

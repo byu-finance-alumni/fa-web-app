@@ -4,31 +4,39 @@ import { useTransition } from "react";
 import { Loader2, X } from "lucide-react";
 import { assignRole, removeRole } from "@/app/(app)/admin/actions";
 import { useToast } from "@/components/ui/Toast";
+import { ASSIGNABLE_ROLES, ROLE, roleLabel } from "@/constants/roles";
 
-const ROLES = [
-  { value: "super_admin", label: "Super admin" },
-  { value: "full_access", label: "Full access" },
-  { value: "view_only", label: "View only" },
-] as const;
-
-const labelOf = (v: string) => ROLES.find((r) => r.value === v)?.label ?? v;
+const labelOf = roleLabel;
+// The top roles get a highlighted chip so they stand out in the user table.
+const TOP_ROLES = new Set<string>([ROLE.ENGINEER, ROLE.SUPER_ADMIN]);
 
 /**
  * Super-admin role editor for an existing user: removable role chips + an
  * add-role dropdown. The whole Admin screen is already super_admin-gated, and
  * the backend re-enforces it. Creating brand-new users (temp password) is a
  * separate flow — see docs/PRE-LAUNCH.md.
+ *
+ * `canAssignEngineer` reflects whether the SIGNED-IN admin is an engineer. Only
+ * an engineer may grant or remove the engineer role (the backend enforces this
+ * ceiling), so for everyone else we hide engineer from the add-dropdown and hide
+ * the remove "×" on an engineer chip — no point offering an action the API 403s.
  */
 export function RoleManager({
   userId,
   roles,
+  canAssignEngineer = false,
 }: {
   userId: number;
   roles: string[];
+  canAssignEngineer?: boolean;
 }) {
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
-  const available = ROLES.filter((r) => !roles.includes(r.value));
+  const available = ASSIGNABLE_ROLES.filter(
+    (r) =>
+      !roles.includes(r.value) &&
+      (r.value !== ROLE.ENGINEER || canAssignEngineer),
+  );
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -37,27 +45,29 @@ export function RoleManager({
           <span
             key={r}
             className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium ${
-              r === "super_admin"
+              TOP_ROLES.has(r)
                 ? "bg-brand-blue-50 text-brand-blue-600"
                 : "bg-gray-100 text-gray-700"
             }`}
           >
             {labelOf(r)}
-            <button
-              type="button"
-              disabled={pending}
-              title={`Remove ${labelOf(r)}`}
-              onClick={() =>
-                startTransition(async () => {
-                  const res = await removeRole(userId, r);
-                  if (res?.error) toast.error(res.error);
-                  else toast.success(`${labelOf(r)} removed.`);
-                })
-              }
-              className="text-gray-400 hover:text-danger-600 disabled:opacity-50"
-            >
-              <X className="h-3 w-3" aria-hidden="true" />
-            </button>
+            {r === ROLE.ENGINEER && !canAssignEngineer ? null : (
+              <button
+                type="button"
+                disabled={pending}
+                title={`Remove ${labelOf(r)}`}
+                onClick={() =>
+                  startTransition(async () => {
+                    const res = await removeRole(userId, r);
+                    if (res?.error) toast.error(res.error);
+                    else toast.success(`${labelOf(r)} removed.`);
+                  })
+                }
+                className="text-gray-400 hover:text-danger-600 disabled:opacity-50"
+              >
+                <X className="h-3 w-3" aria-hidden="true" />
+              </button>
+            )}
           </span>
         ))
       ) : (

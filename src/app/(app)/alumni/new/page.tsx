@@ -3,17 +3,18 @@ import { Topbar } from "@/components/shell/Topbar";
 import { AlumniForm } from "@/components/alumni/AlumniForm";
 import { apiGet } from "@/lib/api";
 import type { UserContext } from "@/types/alumni";
+import { hasFullAccess } from "@/constants/roles";
 import { createAlumni, previewAlumni } from "../actions";
 
 export default async function NewAlumniPage() {
-  // Create is full_access / super_admin only. The backend enforces this too
-  // (POST /alumni → RequireFullAccess); this keeps view-only users out of the UI.
+  // Create is full_access and up (engineer / super_admin / full_access) — NOT
+  // students, who may only edit existing records. The backend enforces this too
+  // (POST /alumni → RequireFullAccess); this keeps view-only/student users out
+  // of the create UI.
   let canCreate = false;
   try {
     const ctx = await apiGet<UserContext>("/auth/context");
-    canCreate =
-      ctx.roles?.some((r) => r === "full_access" || r === "super_admin") ??
-      false;
+    canCreate = hasFullAccess(ctx.roles);
   } catch {
     canCreate = false;
   }

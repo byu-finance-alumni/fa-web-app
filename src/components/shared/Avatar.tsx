@@ -10,9 +10,13 @@
  * Uses a plain <img> (not next/image) so the onError fallback stays simple, and
  * is a client component for that handler. Generic/reusable — pass the size
  * classes and color class so callers control the look.
+ *
+ * When a real photo is shown, it is wrapped in a button that opens a
+ * full-screen {@link AvatarLightbox}; the initials fallback is not zoomable.
  */
 
 import { useState } from "react";
+import { AvatarLightbox } from "./AvatarLightbox";
 
 const HEADSHOT_BASE = process.env.NEXT_PUBLIC_HEADSHOT_BASE_URL;
 
@@ -32,21 +36,38 @@ export function Avatar({
   colorClass?: string;
 }) {
   const [errored, setErrored] = useState(false);
+  const [showLightbox, setShowLightbox] = useState(false);
 
   const src =
     HEADSHOT_BASE && netId ? `${HEADSHOT_BASE}/${netId}.jpg` : null;
 
   if (src && !errored) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element -- plain <img> keeps the onError headshot fallback simple
-      <img
-        src={src}
-        alt={name}
-        width={64}
-        height={64}
-        onError={() => setErrored(true)}
-        className={`shrink-0 rounded-full object-cover ${size}`}
-      />
+      <>
+        <button
+          type="button"
+          onClick={() => setShowLightbox(true)}
+          aria-label={`View ${name}'s photo`}
+          className={`shrink-0 cursor-zoom-in rounded-full focus:outline-none focus:ring-2 focus:ring-brand-blue-500 focus:ring-offset-2 ${size}`}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- plain <img> keeps the onError headshot fallback simple */}
+          <img
+            src={src}
+            alt={name}
+            width={64}
+            height={64}
+            onError={() => setErrored(true)}
+            className="h-full w-full rounded-full object-cover"
+          />
+        </button>
+        {showLightbox ? (
+          <AvatarLightbox
+            src={src}
+            alt={name}
+            onClose={() => setShowLightbox(false)}
+          />
+        ) : null}
+      </>
     );
   }
 

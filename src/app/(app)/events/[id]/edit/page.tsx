@@ -3,6 +3,7 @@ import { Topbar } from "@/components/shell/Topbar";
 import { EventForm } from "@/components/events/EventForm";
 import { AttendeeManager } from "@/components/events/AttendeeManager";
 import { apiGet, ApiError } from "@/lib/api";
+import { getEventTypeOptions } from "../../vocab";
 import { updateEvent } from "../../actions";
 
 interface EventDetail {
@@ -32,6 +33,7 @@ export default async function EditEventPage({
   }
 
   const action = updateEvent.bind(null, event.event_id);
+  const eventTypeOptions = await getEventTypeOptions();
 
   return (
     <>
@@ -52,6 +54,7 @@ export default async function EditEventPage({
           action={action}
           submitLabel="Save changes"
           cancelHref="/events"
+          eventTypeOptions={eventTypeOptions}
           initialValues={{
             event_name: event.event_name,
             event_type: event.event_type,

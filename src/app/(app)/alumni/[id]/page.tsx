@@ -22,6 +22,7 @@ import {
 import { apiGet, ApiError } from "@/lib/api";
 import type { Profile } from "@/types/profile";
 import type { UserContext } from "@/types/alumni";
+import { canEditAlumni, hasFullAccess } from "@/constants/roles";
 import { Topbar } from "@/components/shell/Topbar";
 import { TopbarSearch } from "@/components/shared/TopbarSearch";
 import {
@@ -210,11 +211,16 @@ export default async function AlumniProfilePage({
     throw e;
   }
 
+  // `canEdit` covers editing the EXISTING record + nested data — students get
+  // this (mirrors backend require_alumni_edit). `canArchive` is the narrower
+  // create/archive tier (full_access and up) used only for the Archive control,
+  // which the backend keeps on require_full_access (students are 403'd there).
   let canEdit = false;
+  let canArchive = false;
   try {
     const ctx = await apiGet<UserContext>("/auth/context");
-    canEdit =
-      ctx.roles?.some((r) => r === "full_access" || r === "super_admin") ?? false;
+    canEdit = canEditAlumni(ctx.roles);
+    canArchive = hasFullAccess(ctx.roles);
   } catch {
     /* not provisioned → view-only */
   }
@@ -349,7 +355,7 @@ export default async function AlumniProfilePage({
                   netId={a.net_id}
                   initials={initials}
                   name={name}
-                  size="h-16 w-16 text-lg"
+                  size="h-24 w-24 text-2xl"
                   colorClass={avatarColor(initials)}
                 />
                 <div className="min-w-0">
@@ -406,21 +412,28 @@ export default async function AlumniProfilePage({
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
                   <AddInteractionButton alumniId={aid} label="+ Add interaction" />
                   <AddTaskButton alumniId={aid} label="Create task" />
-                  <ExportProfileButton
-                    profile={profile}
-                    fileBaseName={`${name.replace(/\s+/g, "-").toLowerCase()}-${aid}`}
-                  />
+                  {/* Export is a full_access action (audited server endpoint),
+                      so it's gated to canArchive (hasFullAccess) — students and
+                      professors never see it. */}
+                  {canArchive ? (
+                    <ExportProfileButton
+                      alumniId={aid}
+                      fileBaseName={`${name.replace(/\s+/g, "-").toLowerCase()}-${aid}`}
+                    />
+                  ) : null}
                   <Link
                     href={`/alumni/${aid}/edit`}
                     className="rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500"
                   >
                     Edit
                   </Link>
-                  <ArchiveControls
-                    alumniId={aid}
-                    archived={a.archived}
-                    name={name}
-                  />
+                  {canArchive ? (
+                    <ArchiveControls
+                      alumniId={aid}
+                      archived={a.archived}
+                      name={name}
+                    />
+                  ) : null}
                 </div>
               ) : null}
             </div>

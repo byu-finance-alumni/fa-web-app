@@ -6,6 +6,7 @@ import { MobileNav } from "@/components/shell/MobileNav";
 import { SessionTimeout } from "@/components/auth/SessionTimeout";
 import { apiGet } from "@/lib/api";
 import type { UserContext } from "@/types/alumni";
+import { highestRole } from "@/constants/roles";
 import { ToastProvider } from "@/components/ui/Toast";
 
 /**
@@ -34,19 +35,24 @@ export default async function AppLayout({
   const user = session.user;
 
   let role = "";
+  let mustChangePassword = false;
   try {
     const ctx = await apiGet<UserContext>("/auth/context");
-    const roles = ctx.roles ?? [];
-    role = roles.includes("super_admin")
-      ? "super_admin"
-      : roles.includes("full_access")
-        ? "full_access"
-        : roles.includes("view_only")
-          ? "view_only"
-          : "";
+    mustChangePassword = ctx.must_change_password === true;
+    // Resolve the user's single highest role for role-aware nav (engineer is
+    // the top of the ladder). See @/constants/roles.
+    role = highestRole(ctx.roles);
   } catch {
     // 403 = authenticated but not yet provisioned in the users table.
   }
+
+  // Force a temp-password user to set a new password before they can use any
+  // app screen. `/set-password` lives OUTSIDE this `(app)` route group, so it
+  // never renders this layout — that's what prevents a redirect loop. The
+  // `/set-password` page itself re-bounces to /dashboard once the flag clears.
+  // `redirect()` must run outside the try/catch above: it works by throwing a
+  // control-flow signal that a catch would otherwise swallow.
+  if (mustChangePassword) redirect("/set-password");
 
   return (
     <ToastProvider>
