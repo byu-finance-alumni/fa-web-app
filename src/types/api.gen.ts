@@ -1932,6 +1932,26 @@ export interface components {
             /** File */
             file: string;
         };
+        /** Breakdown */
+        Breakdown: {
+            /** Dimension */
+            dimension: string;
+            /** Title */
+            title: string;
+            /** Items */
+            items: components["schemas"]["BreakdownItem"][];
+        };
+        /** BreakdownItem */
+        BreakdownItem: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Sublabel */
+            sublabel: string | null;
+            /** Count */
+            count: number;
+        };
         /** CareerCreate */
         CareerCreate: {
             /** Current Employer */
@@ -1952,6 +1972,43 @@ export interface components {
             current_zip?: string | null;
             /** Seniority Level */
             seniority_level?: string | null;
+        };
+        /** CityAlumniRow */
+        CityAlumniRow: {
+            /** Alumni Id */
+            alumni_id: number;
+            /** Name */
+            name: string;
+            /** Graduation Year */
+            graduation_year: number | null;
+            /** Current Employer */
+            current_employer: string | null;
+        };
+        /** CityCount */
+        CityCount: {
+            /** City */
+            city: string;
+            /** Count */
+            count: number;
+        };
+        /** CityDetail */
+        CityDetail: {
+            /** State */
+            state: string;
+            /** State Name */
+            state_name: string;
+            /** City */
+            city: string;
+            /** Alumni Count */
+            alumni_count: number;
+            /** Employers */
+            employers: components["schemas"]["EmployerCount"][];
+            /** Industries */
+            industries: components["schemas"]["IndustryCount"][];
+            /** By Graduation Year */
+            by_graduation_year: components["schemas"]["YearCount"][];
+            /** Alumni */
+            alumni: components["schemas"]["CityAlumniRow"][];
         };
         /** ContactCreate */
         ContactCreate: {
@@ -2114,6 +2171,13 @@ export interface components {
             degree_status?: string | null;
             /** Degree Year */
             degree_year?: number | null;
+        };
+        /** EmployerCount */
+        EmployerCount: {
+            /** Employer */
+            employer: string;
+            /** Count */
+            count: number;
         };
         /**
          * EmploymentHistoryCreate
@@ -2341,6 +2405,68 @@ export interface components {
             /** Event Notes */
             event_notes?: string | null;
         };
+        /** GeoAlumniPage */
+        GeoAlumniPage: {
+            /** Items */
+            items: components["schemas"]["GeoAlumniRow"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+        };
+        /** GeoAlumniRow */
+        GeoAlumniRow: {
+            /** Alumni Id */
+            alumni_id: number;
+            /** Name */
+            name: string;
+            /** City */
+            city: string | null;
+            /** Graduation Year */
+            graduation_year: number | null;
+            /** Current Employer */
+            current_employer: string | null;
+            /** Current Title */
+            current_title: string | null;
+        };
+        /**
+         * GeoOptions
+         * @description Filter-dropdown option lists (capped server-side).
+         */
+        GeoOptions: {
+            /** Employers */
+            employers: string[];
+            /** Cities */
+            cities: string[];
+            /** Industries */
+            industries: string[];
+            /** Graduation Years */
+            graduation_years: number[];
+            /** Regions */
+            regions: string[];
+            /** Tags */
+            tags: string[];
+        };
+        /** GeoSummary */
+        GeoSummary: {
+            /** Total Alumni */
+            total_alumni: number;
+            /** States Represented */
+            states_represented: number;
+            /** Cities Represented */
+            cities_represented: number;
+            top_employer: components["schemas"]["EmployerCount"] | null;
+            /** Top Employers */
+            top_employers: components["schemas"]["EmployerCount"][];
+            /** Top Industries */
+            top_industries: components["schemas"]["IndustryCount"][];
+            /** Top Cities */
+            top_cities: components["schemas"]["TopCity"][];
+            largest_hub: components["schemas"]["TopCity"] | null;
+            options: components["schemas"]["GeoOptions"];
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -2354,6 +2480,13 @@ export interface components {
             environment: string;
             /** Version */
             version: string;
+        };
+        /** IndustryCount */
+        IndustryCount: {
+            /** Industry */
+            industry: string;
+            /** Count */
+            count: number;
         };
         /**
          * InteractionCreate
@@ -2587,6 +2720,32 @@ export interface components {
          * @enum {string}
          */
         RoleName: "engineer" | "super_admin" | "full_access" | "student" | "view_only";
+        /** StateCount */
+        StateCount: {
+            /** State */
+            state: string;
+            /** State Name */
+            state_name: string;
+            /** Alumni Count */
+            alumni_count: number;
+        };
+        /** StateDetail */
+        StateDetail: {
+            /** State */
+            state: string;
+            /** State Name */
+            state_name: string;
+            /** Alumni Count */
+            alumni_count: number;
+            /** Cities */
+            cities: components["schemas"]["CityCount"][];
+            /** Employers */
+            employers: components["schemas"]["EmployerCount"][];
+            /** Industries */
+            industries: components["schemas"]["IndustryCount"][];
+            /** By Graduation Year */
+            by_graduation_year: components["schemas"]["YearCount"][];
+        };
         /**
          * StatusLabelCreate
          * @description Attach a canonical status label to an alumnus.
@@ -2656,6 +2815,15 @@ export interface components {
             task_notes: string | null;
             /** Assigned To */
             assigned_to: string | null;
+        };
+        /** TopCity */
+        TopCity: {
+            /** City */
+            city: string;
+            /** State */
+            state: string;
+            /** Count */
+            count: number;
         };
         /**
          * UpdateUserNameRequest
@@ -2773,6 +2941,13 @@ export interface components {
             sort_order?: number | null;
             /** Active */
             active?: boolean | null;
+        };
+        /** YearCount */
+        YearCount: {
+            /** Year */
+            year: number;
+            /** Count */
+            count: number;
         };
         /** EducationCreate */
         app__schemas__alumni__EducationCreate: {
@@ -4799,9 +4974,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["GeoSummary"];
                 };
             };
             /** @description Validation Error */
@@ -4836,9 +5009,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["StateCount"][];
                 };
             };
             /** @description Validation Error */
@@ -4874,9 +5045,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["Breakdown"];
                 };
             };
             /** @description Validation Error */
@@ -4913,9 +5082,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["StateDetail"];
                 };
             };
             /** @description Validation Error */
@@ -4955,9 +5122,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["GeoAlumniPage"];
                 };
             };
             /** @description Validation Error */
@@ -4994,9 +5159,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["CityDetail"];
                 };
             };
             /** @description Validation Error */
