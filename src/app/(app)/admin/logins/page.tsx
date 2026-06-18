@@ -109,7 +109,6 @@ export default async function LoginsPage({
     <>
       <Topbar breadcrumb={[{ label: "Admin", href: "/admin" }, { label: "Logins" }]} />
       <main className="flex-1 overflow-auto p-6">
-        <div className="mx-auto max-w-5xl">
         <p className="mb-4 max-w-2xl text-sm text-gray-500">
           Every successful sign-in, newest first. Recorded when a user logs in;
           a removed user’s past sign-ins keep the email they used. Times are
@@ -167,7 +166,7 @@ export default async function LoginsPage({
             <div className="hidden overflow-hidden rounded-xl border border-gray-300 bg-white md:block">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-300 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  <tr className="border-b border-gray-300 bg-gray-50 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
                     <th className="w-56 px-4 py-3">Date / time (Utah)</th>
                     <th className="px-4 py-3">User</th>
                     <th className="w-48 px-4 py-3">Location</th>
@@ -180,10 +179,10 @@ export default async function LoginsPage({
                       key={r.login_event_id}
                       className="border-b border-gray-300 last:border-0"
                     >
-                      <td className="px-4 py-3 text-gray-700">
+                      <td className="px-4 py-3 text-center text-gray-700">
                         {formatDateTime(r.occurred_at)}
                       </td>
-                      <td className="px-4 py-3 text-gray-700">
+                      <td className="px-4 py-3 text-center text-gray-700">
                         {r.email}
                         {meId !== null && r.user_id === meId ? (
                           <span className="ml-1.5 text-xs font-medium text-brand-blue-600">
@@ -196,10 +195,10 @@ export default async function LoginsPage({
                           </span>
                         ) : null}
                       </td>
-                      <td className="px-4 py-3 text-gray-700">
+                      <td className="px-4 py-3 text-center text-gray-700">
                         {formatLocation(r)}
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs text-gray-500">
+                      <td className="px-4 py-3 text-center font-mono text-xs text-gray-500">
                         {r.ip_address ?? "—"}
                       </td>
                     </tr>
@@ -219,7 +218,6 @@ export default async function LoginsPage({
             </div>
           </>
         )}
-        </div>
       </main>
     </>
   );
