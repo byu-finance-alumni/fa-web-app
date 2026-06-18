@@ -9,6 +9,10 @@ interface LoginRow {
   user_id: number | null;
   email: string;
   occurred_at: string;
+  ip_address: string | null;
+  city: string | null;
+  region: string | null;
+  country: string | null;
 }
 
 interface LoginPage {
@@ -20,6 +24,9 @@ interface LoginPage {
 
 const LIMIT = 50;
 
+// All login times are shown in Utah time (Mountain). America/Denver tracks
+// MST/MDT automatically, and timeZoneName: "short" stamps each row with the
+// active abbreviation (MST/MDT) so it's unambiguous.
 function formatDateTime(d: string | null): string {
   if (!d) return "—";
   return new Date(d).toLocaleString("en-US", {
@@ -28,7 +35,16 @@ function formatDateTime(d: string | null): string {
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "America/Denver",
+    timeZoneName: "short",
   });
+}
+
+// "Provo, UT, US" from whatever parts are present, or "—" when no geo was
+// captured (e.g. local dev, or logins recorded before location tracking).
+function formatLocation(r: LoginRow): string {
+  const parts = [r.city, r.region, r.country].filter(Boolean);
+  return parts.length ? parts.join(", ") : "—";
 }
 
 type SP = { offset?: string };
@@ -93,7 +109,9 @@ export default async function LoginsPage({
       <main className="flex-1 overflow-auto p-6">
         <p className="mb-4 max-w-2xl text-sm text-gray-500">
           Every successful sign-in, newest first. Recorded when a user logs in;
-          a removed user’s past sign-ins keep the email they used.
+          a removed user’s past sign-ins keep the email they used. Times are
+          shown in <span className="font-medium text-gray-700">Utah time
+          (Mountain)</span>; location is approximate (IP-based).
         </p>
 
         {error ? (
@@ -127,6 +145,10 @@ export default async function LoginsPage({
                     {formatDateTime(r.occurred_at)}
                     {r.user_id === null ? " · account removed" : ""}
                   </p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {formatLocation(r)}
+                    {r.ip_address ? ` · ${r.ip_address}` : ""}
+                  </p>
                 </div>
               ))}
             </div>
@@ -136,8 +158,10 @@ export default async function LoginsPage({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-300 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    <th className="w-56 px-4 py-3">Date / time</th>
+                    <th className="w-56 px-4 py-3">Date / time (Utah)</th>
                     <th className="px-4 py-3">User</th>
+                    <th className="w-48 px-4 py-3">Location</th>
+                    <th className="w-40 px-4 py-3">IP address</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -156,6 +180,12 @@ export default async function LoginsPage({
                             account removed
                           </span>
                         ) : null}
+                      </td>
+                      <td className="px-4 py-3 text-gray-700">
+                        {formatLocation(r)}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-gray-500">
+                        {r.ip_address ?? "—"}
                       </td>
                     </tr>
                   ))}

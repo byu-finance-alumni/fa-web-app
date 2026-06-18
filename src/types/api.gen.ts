@@ -2773,6 +2773,25 @@ export interface components {
             role_year?: number | null;
         };
         /**
+         * LoginContext
+         * @description Optional client context for a sign-in, forwarded by the frontend login
+         *     action from the incoming request — the client IP (``x-forwarded-for``) and
+         *     Vercel's IP-geolocation headers. All optional and length-bounded; purely
+         *     informational (never trusted for authorization), stored on the
+         *     ``login_events`` row for the engineer Logins tab. ``extra='forbid'`` rejects
+         *     unknown keys.
+         */
+        LoginContext: {
+            /** Ip Address */
+            ip_address: string | null;
+            /** City */
+            city: string | null;
+            /** Region */
+            region: string | null;
+            /** Country */
+            country: string | null;
+        };
+        /**
          * LoginEventPage
          * @description A page of login events, newest first, with the total for pagination.
          */
@@ -2790,7 +2809,8 @@ export interface components {
          * LoginEventRow
          * @description One recorded sign-in for the engineer Logins tab. ``user_id`` is null once
          *     the user has been deleted; ``email`` is the snapshot taken at sign-in, so the
-         *     row still shows who it was.
+         *     row still shows who it was. ``ip_address`` + ``city``/``region``/``country``
+         *     are the approximate (IP-based) origin captured at sign-in; any may be null.
          */
         LoginEventRow: {
             /** Login Event Id */
@@ -2804,6 +2824,14 @@ export interface components {
              * Format: date-time
              */
             occurred_at: string;
+            /** Ip Address */
+            ip_address: string | null;
+            /** City */
+            city: string | null;
+            /** Region */
+            region: string | null;
+            /** Country */
+            country: string | null;
         };
         /**
          * LoginPrecheckRequest
@@ -3417,7 +3445,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["LoginContext"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -3426,6 +3458,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LoginRecordedResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
