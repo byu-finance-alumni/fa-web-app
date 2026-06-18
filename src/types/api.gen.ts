@@ -103,6 +103,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record Login
+         * @description Record a successful sign-in for the AUTHENTICATED caller.
+         *
+         *     Logins happen client-side via Supabase, so the backend has no native login
+         *     hook — the frontend calls this exactly once, right after a successful
+         *     password sign-in, with the freshly-issued token. It does two things:
+         *
+         *       1. Stamps ``users.last_login_at`` = now (the column existed but nothing
+         *          ever wrote it, so it was always NULL).
+         *       2. Inserts a ``login_events`` row (the security log backing the engineer
+         *          "Logins" tab; email is snapshotted so the history survives the user's
+         *          later deletion).
+         *
+         *     Uses the force-password-change-EXEMPT resolver: a user on an admin-issued
+         *     temp password has still genuinely signed in, so their login must be recorded
+         *     even before they clear the flag. Takes no body and keys only on the token's
+         *     own identity, so a caller can only ever record their OWN login.
+         *
+         *     Best-effort by contract: the frontend never blocks the post-login redirect
+         *     on this call. It is deliberately NOT written to ``audit_logs`` — sign-in
+         *     events are a security log, not the record-change audit trail.
+         */
+        post: operations["record_login_auth_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/password/complete": {
         parameters: {
             query?: never;
@@ -989,6 +1028,33 @@ export interface paths {
          *     the user should change it on next login.
          */
         post: operations["create_user_admin_users_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/logins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Logins
+         * @description List recorded sign-ins, newest first (paginated). Engineer only.
+         *
+         *     Backs the Admin -> Logins tab. Rows come from ``login_events`` (written by
+         *     POST /auth/login on each successful sign-in); the snapshotted email means a
+         *     deleted user's past logins remain attributable. Paginated (default 50, hard
+         *     cap 200 — mirrors the users/audit endpoints) so one request can't enumerate
+         *     the whole history. Reading the log is itself audited (``read_login_log``;
+         *     actor + applied limit/offset) — the returned rows are not logged.
+         */
+        get: operations["list_logins_admin_logins_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2707,6 +2773,39 @@ export interface components {
             role_year?: number | null;
         };
         /**
+         * LoginEventPage
+         * @description A page of login events, newest first, with the total for pagination.
+         */
+        LoginEventPage: {
+            /** Items */
+            items: components["schemas"]["LoginEventRow"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+        };
+        /**
+         * LoginEventRow
+         * @description One recorded sign-in for the engineer Logins tab. ``user_id`` is null once
+         *     the user has been deleted; ``email`` is the snapshot taken at sign-in, so the
+         *     row still shows who it was.
+         */
+        LoginEventRow: {
+            /** Login Event Id */
+            login_event_id: number;
+            /** User Id */
+            user_id: number | null;
+            /** Email */
+            email: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+        };
+        /**
          * LoginPrecheckRequest
          * @description Email to evaluate the pre-login throttle/lock state for.
          */
@@ -2723,6 +2822,23 @@ export interface components {
             email: string;
             /** Success */
             success: boolean;
+        };
+        /**
+         * LoginRecordedResponse
+         * @description Acknowledgement that a successful sign-in was recorded, echoing the
+         *     stamped time so a client could display it.
+         */
+        LoginRecordedResponse: {
+            /**
+             * Status
+             * @default ok
+             */
+            status: string;
+            /**
+             * Last Login At
+             * Format: date-time
+             */
+            last_login_at: string;
         };
         /**
          * LoginThrottleStatus
@@ -3290,6 +3406,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserContext"];
+                };
+            };
+        };
+    };
+    record_login_auth_login_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginRecordedResponse"];
                 };
             };
         };
@@ -4675,6 +4811,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CreateUserResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_logins_admin_logins_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginEventPage"];
                 };
             };
             /** @description Validation Error */
