@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
@@ -93,9 +93,37 @@ async function recordLoginAttempt(
  */
 async function recordLoginSuccess(accessToken: string): Promise<void> {
   try {
+    // The client IP + location can only be read HERE (the edge sees the real
+    // client; the backend call is server→server). Vercel injects the client IP
+    // (x-forwarded-for) and IP-geolocation headers onto this request. Best-
+    // effort: any header may be absent (local dev, non-Vercel) → null. Clip to
+    // the backend's column limits so an odd value never 422s the whole record.
+    const h = await headers();
+    const clip = (v: string | null, n: number) => (v ? v.slice(0, n) : null);
+    const decode = (v: string | null) => {
+      if (!v) return null;
+      try {
+        return decodeURIComponent(v); // x-vercel-ip-city is URL-encoded
+      } catch {
+        return v;
+      }
+    };
+    const xff = h.get("x-forwarded-for");
+    const ip = xff ? xff.split(",")[0]?.trim() : h.get("x-real-ip");
+    const context = {
+      ip_address: clip(ip ?? null, 64),
+      city: clip(decode(h.get("x-vercel-ip-city")), 128),
+      region: clip(h.get("x-vercel-ip-country-region"), 128),
+      country: clip(h.get("x-vercel-ip-country"), 64),
+    };
+
     const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(context),
       cache: "no-store",
     });
     if (!res.ok) console.error("[login] record-success non-OK:", res.status);
