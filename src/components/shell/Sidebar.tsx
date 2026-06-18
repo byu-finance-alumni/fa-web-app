@@ -16,6 +16,7 @@ import {
   UserCog,
   ListChecks,
   LifeBuoy,
+  LogIn,
   Upload,
   ChevronDown,
   type LucideIcon,
@@ -68,6 +69,12 @@ const NAV: NavItem[] = [
         superAdminOnly: true,
       },
       { href: "/audit", label: "Audit", icon: History, superAdminOnly: true },
+      {
+        href: "/admin/logins",
+        label: "Logins",
+        icon: LogIn,
+        engineerOnly: true,
+      },
       {
         href: "/admin/support-contacts",
         label: "Support contacts",

@@ -80,6 +80,31 @@ async function recordLoginAttempt(
 }
 
 /**
+ * Record a SUCCESSFUL sign-in on the backend (stamps `users.last_login_at` and
+ * appends to the login history shown on the engineer Logins tab). Logins happen
+ * here in the server action, so this is the one precise "a real login just
+ * happened" signal — fired exactly once per credential sign-in, not on every
+ * token refresh.
+ *
+ * Best-effort / FAIL-OPEN: the post-login redirect must never hinge on this, so
+ * any error is logged and swallowed. Authenticated with the freshly-issued
+ * access token (passed in, since the session cookie isn't committed to the
+ * cookie store yet at this point in the request).
+ */
+async function recordLoginSuccess(accessToken: string): Promise<void> {
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      cache: "no-store",
+    });
+    if (!res.ok) console.error("[login] record-success non-OK:", res.status);
+  } catch (e) {
+    console.error("[login] record-success error (ignored):", e);
+  }
+}
+
+/**
  * Server-side password sign-in. Doing this in a Server Action (rather than the
  * browser client) is what makes the post-login load reliable: the Supabase
  * server client writes the auth cookies onto THIS response synchronously, and
@@ -121,6 +146,18 @@ export async function signIn(
     // is an account-enumeration oracle. Log the real reason server-side only.
     console.error("[login] auth error:", error.code ?? error.message);
     return { error: "Incorrect email or password." };
+  }
+
+  // Record the successful sign-in (last_login_at + login history). Best-effort:
+  // read the just-issued token from the in-memory session (the cookie isn't in
+  // the store yet) and fire the authenticated record call. Never blocks login —
+  // recordLoginSuccess swallows its own errors, and we only attempt it when a
+  // token is present.
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (session?.access_token) {
+    await recordLoginSuccess(session.access_token);
   }
 
   // Invalidate the router/data cache for everything under the root layout so
