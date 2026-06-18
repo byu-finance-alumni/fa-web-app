@@ -209,6 +209,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/alumni/filter-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Alumni Filter Options
+         * @description Distinct option lists for the advanced-filter panel's multi-selects.
+         *
+         *     Declared before the ``/{alumni_id}`` routes so the literal path always wins
+         *     (``alumni_id`` is int-typed, so a non-numeric segment can't match it anyway).
+         */
+        get: operations["alumni_filter_options_alumni_filter_options_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/alumni/import/template": {
         parameters: {
             query?: never;
@@ -2519,6 +2542,33 @@ export interface components {
             /** Event Notes */
             event_notes?: string | null;
         };
+        /** FilterOptions */
+        FilterOptions: {
+            /** Employers */
+            employers: string[];
+            /** Past Employers */
+            past_employers: string[];
+            /** Titles */
+            titles: string[];
+            /** Seniority Levels */
+            seniority_levels: string[];
+            /** Industries */
+            industries: string[];
+            /** Cities */
+            cities: string[];
+            /** States */
+            states: string[];
+            /** Tags */
+            tags: string[];
+            /** Status Labels */
+            status_labels: string[];
+            /** Leadership Roles */
+            leadership_roles: string[];
+            /** Survey Statuses */
+            survey_statuses: string[];
+            /** Graduation Years */
+            graduation_years: number[];
+        };
         /** GeoAlumniPage */
         GeoAlumniPage: {
             /** Items */
@@ -3340,14 +3390,34 @@ export interface operations {
                 grad_year_max?: number | null;
                 /** @description Filter by deceased flag. */
                 deceased?: boolean | null;
-                /** @description Current employer (case-insensitive exact match). */
-                employer?: string | null;
-                /** @description Current industry / work area, primary or secondary (case-insensitive exact match). */
-                industry?: string | null;
-                /** @description Current city (case-insensitive exact match). */
-                city?: string | null;
-                /** @description Engagement tag label, e.g. 'Speaker' or 'Highly Engaged' (case-insensitive exact match). Accepts any tag value. */
-                tag?: string | null;
+                /** @description Current employer(s) — repeatable (OR), exact match. */
+                employer?: string[] | null;
+                /** @description Prior employer(s) from employment history — repeatable. */
+                past_employer?: string[] | null;
+                /** @description Industry / work area (primary or secondary) — repeatable. */
+                industry?: string[] | null;
+                /** @description Current job title(s) — repeatable, exact match. */
+                title?: string[] | null;
+                /** @description Seniority level(s) — repeatable, exact match. */
+                seniority?: string[] | null;
+                /** @description Current city/cities — repeatable, exact match. */
+                city?: string[] | null;
+                /** @description Current state(s) — repeatable, exact match. */
+                state?: string[] | null;
+                /** @description Engagement tag(s) — repeatable, exact match. */
+                tag?: string[] | null;
+                /** @description Status label(s) — repeatable, exact match. */
+                status_label?: string[] | null;
+                /** @description Finance Society leadership role(s) — repeatable. */
+                leadership_role?: string[] | null;
+                /** @description Survey status value(s) — repeatable, exact match. */
+                survey_status?: string[] | null;
+                /** @description Only alumni with an interaction on/after this date. */
+                contacted_after?: string | null;
+                /** @description Only alumni NOT contacted since this date (stale). */
+                contacted_before?: string | null;
+                /** @description Only alumni with no logged interactions. */
+                never_contacted?: boolean;
                 /** @description Only alumni who attended at least one event. */
                 attended_event?: boolean;
                 /** @description Only PIFF donors. */
@@ -3423,6 +3493,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    alumni_filter_options_alumni_filter_options_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FilterOptions"];
                 };
             };
         };
