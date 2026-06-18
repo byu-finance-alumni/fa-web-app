@@ -3,14 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
-import {
-  ChevronDown,
-  Loader2,
-  Plus,
-  Search,
-  SlidersHorizontal,
-} from "lucide-react";
-import { INDUSTRY_OPTIONS } from "@/constants/dropdowns";
+import { Loader2, Plus, Search, SlidersHorizontal, X } from "lucide-react";
+import { MultiSelect } from "@/components/alumni/MultiSelect";
+import type { FilterOptions } from "@/types/filters";
 
 /** Everything the backend GET /alumni supports, mirrored in the URL. */
 export interface AlumniFilterState {
@@ -18,13 +13,22 @@ export interface AlumniFilterState {
   /** Grad-year range (inclusive). Same value in both = exact year. */
   ymin: string;
   ymax: string;
-  employer: string;
-  /** Work area — current industry, primary or secondary. */
-  industry: string;
-  /** Current city (case-insensitive exact match). */
-  city: string;
-  /** Engagement tag label (case-insensitive exact match). */
-  tag: string;
+  // Multi-select facets (repeated URL params; OR within a facet).
+  employer: string[];
+  pastEmployer: string[];
+  industry: string[];
+  title: string[];
+  seniority: string[];
+  city: string[];
+  state: string[];
+  tag: string[];
+  statusLabel: string[];
+  leadership: string[];
+  surveyStatus: string[];
+  // Last-contacted (derived from interactions).
+  contactedAfter: string;
+  contactedBefore: string;
+  neverContacted: boolean;
   attended: boolean;
   donor: boolean;
   mentor: boolean;
@@ -34,7 +38,6 @@ export interface AlumniFilterState {
   missingEmail: boolean;
   missingEmployer: boolean;
   duplicate: boolean;
-  /** List sort order. */
   sort: "name" | "grad_desc" | "grad_asc";
 }
 
@@ -42,10 +45,20 @@ export const EMPTY_FILTERS: AlumniFilterState = {
   q: "",
   ymin: "",
   ymax: "",
-  employer: "",
-  industry: "",
-  city: "",
-  tag: "",
+  employer: [],
+  pastEmployer: [],
+  industry: [],
+  title: [],
+  seniority: [],
+  city: [],
+  state: [],
+  tag: [],
+  statusLabel: [],
+  leadership: [],
+  surveyStatus: [],
+  contactedAfter: "",
+  contactedBefore: "",
+  neverContacted: false,
   attended: false,
   donor: false,
   mentor: false,
@@ -58,16 +71,42 @@ export const EMPTY_FILTERS: AlumniFilterState = {
   sort: "name",
 };
 
+/**
+ * Each multi-select facet: state key, display label, the URL/query param name,
+ * and which FilterOptions list feeds it. Drives the panel, the chips, and
+ * serialization so all three stay in sync.
+ */
+const FACETS: {
+  key: keyof AlumniFilterState;
+  label: string;
+  param: string;
+  optKey: keyof FilterOptions;
+}[] = [
+  { key: "employer", label: "Employer", param: "employer", optKey: "employers" },
+  { key: "pastEmployer", label: "Past employer", param: "past_employer", optKey: "past_employers" },
+  { key: "industry", label: "Industry", param: "industry", optKey: "industries" },
+  { key: "title", label: "Job title", param: "title", optKey: "titles" },
+  { key: "seniority", label: "Seniority", param: "seniority", optKey: "seniority_levels" },
+  { key: "city", label: "City", param: "city", optKey: "cities" },
+  { key: "state", label: "State", param: "state", optKey: "states" },
+  { key: "tag", label: "Engagement tag", param: "tag", optKey: "tags" },
+  { key: "statusLabel", label: "Status label", param: "status_label", optKey: "status_labels" },
+  { key: "leadership", label: "Leadership role", param: "leadership_role", optKey: "leadership_roles" },
+  { key: "surveyStatus", label: "Survey status", param: "survey_status", optKey: "survey_statuses" },
+];
+
 /** Serialize filter state to the canonical /alumni query string. */
 function toQs(f: AlumniFilterState): string {
   const p = new URLSearchParams();
   if (f.q.trim()) p.set("q", f.q.trim());
   if (f.ymin.trim()) p.set("ymin", f.ymin.trim());
   if (f.ymax.trim()) p.set("ymax", f.ymax.trim());
-  if (f.employer) p.set("employer", f.employer);
-  if (f.industry) p.set("industry", f.industry);
-  if (f.city) p.set("city", f.city);
-  if (f.tag) p.set("tag", f.tag);
+  for (const facet of FACETS) {
+    for (const v of f[facet.key] as string[]) p.append(facet.param, v);
+  }
+  if (f.contactedAfter) p.set("contacted_after", f.contactedAfter);
+  if (f.contactedBefore) p.set("contacted_before", f.contactedBefore);
+  if (f.neverContacted) p.set("never_contacted", "1");
   if (f.attended) p.set("attended", "1");
   if (f.donor) p.set("donor", "1");
   if (f.mentor) p.set("mentor", "1");
@@ -82,45 +121,49 @@ function toQs(f: AlumniFilterState): string {
   return p.toString();
 }
 
+const EMPTY_OPTIONS: FilterOptions = {
+  employers: [],
+  past_employers: [],
+  titles: [],
+  seniority_levels: [],
+  industries: [],
+  cities: [],
+  states: [],
+  tags: [],
+  status_labels: [],
+  leadership_roles: [],
+  survey_statuses: [],
+  graduation_years: [],
+};
+
 /**
- * Toolbar for the alumni list: Add alumni on the left, the live search
- * spanning the middle, and the Filters menu pinned far right. Filtering is
- * LIVE — typing or toggling any filter navigates (debounced) and the server
- * refetches; there is no Apply button. State is mirrored into the URL so
- * dashboard deep links and manual filtering share one source of truth; a
- * guarded re-seed keeps the inputs in sync when navigation changes the params
- * underneath us without clobbering keystrokes typed since the last push.
+ * Alumni list toolbar + advanced filter panel. The toolbar has Add / live search
+ * / sort / a Filters button (with an active count). The Filters button opens a
+ * right-side slide-over with every PRD facet as a multi-select, plus grad-year
+ * range, last-contacted, engagement, and status. Active filters also render as
+ * removable chips below the toolbar. Filtering is LIVE (debounced) and mirrored
+ * into the URL so dashboard deep-links and manual filtering share one source of
+ * truth.
  */
 export function AlumniFilters({
   initial,
-  employers,
-  cities = [],
-  tags = [],
+  options = EMPTY_OPTIONS,
   canCreate = false,
 }: {
   initial: AlumniFilterState;
-  /** Distinct employer options for the menu (from geography summary). */
-  employers: string[];
-  /** Distinct city options for the menu (from geography summary options.cities). */
-  cities?: string[];
-  /** Distinct engagement tag options (from geography summary options.tags). */
-  tags?: string[];
-  /** Show the "Add alumni" button (full_access / super_admin only). */
+  options?: FilterOptions;
   canCreate?: boolean;
 }) {
   const router = useRouter();
   const [f, setF] = useState<AlumniFilterState>(initial);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const menuRef = useRef<HTMLDivElement>(null);
-  // Query string of the last navigation WE initiated (or were seeded with) —
-  // distinguishes our own URL updates from external ones (deep links, Clear).
   const lastPushedRef = useRef(toQs(initial));
 
   const serialized = toQs(f);
   const initialQs = toQs(initial);
 
-  // Live navigation: debounce any state change, skip no-ops.
+  // Live navigation: debounce any change, skip no-ops.
   useEffect(() => {
     if (serialized === lastPushedRef.current) return;
     const timer = setTimeout(() => {
@@ -132,8 +175,7 @@ export function AlumniFilters({
     return () => clearTimeout(timer);
   }, [serialized, router]);
 
-  // Re-seed only when the URL changed from outside (e.g. a dashboard
-  // deep-link) — never in response to our own pushes mid-typing.
+  // Re-seed only when the URL changed from outside (deep-link / Clear).
   useEffect(() => {
     if (initialQs !== lastPushedRef.current) {
       lastPushedRef.current = initialQs;
@@ -142,15 +184,13 @@ export function AlumniFilters({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialQs]);
 
-  // Close the menu on any click outside it.
+  // Close the slide-over on Escape.
   useEffect(() => {
-    function onMouseDown(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
     }
-    document.addEventListener("mousedown", onMouseDown);
-    return () => document.removeEventListener("mousedown", onMouseDown);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
   }, []);
 
   const set = <K extends keyof AlumniFilterState>(
@@ -158,12 +198,16 @@ export function AlumniFilters({
     value: AlumniFilterState[K],
   ) => setF((prev) => ({ ...prev, [key]: value }));
 
+  const facetCount = FACETS.reduce(
+    (n, facet) => n + (f[facet.key] as string[]).length,
+    0,
+  );
   const activeCount =
+    facetCount +
     (f.ymin.trim() || f.ymax.trim() ? 1 : 0) +
-    (f.employer ? 1 : 0) +
-    (f.industry ? 1 : 0) +
-    (f.city ? 1 : 0) +
-    (f.tag ? 1 : 0) +
+    (f.contactedAfter ? 1 : 0) +
+    (f.contactedBefore ? 1 : 0) +
+    (f.neverContacted ? 1 : 0) +
     (f.attended ? 1 : 0) +
     (f.donor ? 1 : 0) +
     (f.mentor ? 1 : 0) +
@@ -176,16 +220,48 @@ export function AlumniFilters({
 
   const isDirty = serialized !== "";
 
+  // Flat list of removable chips across every active filter.
+  const chips: { label: string; remove: () => void }[] = [];
+  for (const facet of FACETS) {
+    for (const v of f[facet.key] as string[]) {
+      chips.push({
+        label: `${facet.label}: ${v}`,
+        remove: () =>
+          set(
+            facet.key,
+            (f[facet.key] as string[]).filter((x) => x !== v) as never,
+          ),
+      });
+    }
+  }
+  if (f.ymin || f.ymax) {
+    chips.push({
+      label: `Grad year: ${f.ymin || "…"}–${f.ymax || "…"}`,
+      remove: () => setF((p) => ({ ...p, ymin: "", ymax: "" })),
+    });
+  }
+  if (f.contactedAfter)
+    chips.push({ label: `Contacted after ${f.contactedAfter}`, remove: () => set("contactedAfter", "") });
+  if (f.contactedBefore)
+    chips.push({ label: `Not contacted since ${f.contactedBefore}`, remove: () => set("contactedBefore", "") });
+  if (f.neverContacted)
+    chips.push({ label: "Never contacted", remove: () => set("neverContacted", false) });
+  if (f.attended) chips.push({ label: "Attended an event", remove: () => set("attended", false) });
+  if (f.donor) chips.push({ label: "PIFF donor", remove: () => set("donor", false) });
+  if (f.mentor) chips.push({ label: "Willing to mentor", remove: () => set("mentor", false) });
+  if (f.speaker) chips.push({ label: "Willing to guest speak", remove: () => set("speaker", false) });
+  if (f.missingEmail) chips.push({ label: "Missing email", remove: () => set("missingEmail", false) });
+  if (f.missingEmployer) chips.push({ label: "Missing employer", remove: () => set("missingEmployer", false) });
+  if (f.duplicate) chips.push({ label: "Duplicate", remove: () => set("duplicate", false) });
+  if (f.archived) chips.push({ label: "Including archived", remove: () => set("archived", false) });
+  if (f.deceased)
+    chips.push({
+      label: f.deceased === "only" ? "Deceased only" : "Excluding deceased",
+      remove: () => set("deceased", ""),
+    });
+
   const checkboxRow = (
-    key:
-      | "attended"
-      | "donor"
-      | "mentor"
-      | "speaker"
-      | "archived"
-      | "missingEmail"
-      | "missingEmployer"
-      | "duplicate",
+    key: "attended" | "donor" | "mentor" | "speaker" | "archived" | "neverContacted" | "missingEmail" | "missingEmployer" | "duplicate",
     label: string,
   ) => (
     <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -199,91 +275,49 @@ export function AlumniFilters({
     </label>
   );
 
-  const selectRow = (
-    key: "employer" | "industry" | "city" | "tag",
-    label: string,
-    options: readonly string[],
-  ) => (
-    <div>
-      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
-        {label}
-      </p>
-      <select
-        value={f[key]}
-        onChange={(e) => set(key, e.target.value)}
-        aria-label={label}
-        className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 focus:outline-none"
-        style={{ colorScheme: "light" }}
-      >
-        <option value="">All</option>
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ))}
-        {/* Keep a deep-linked value selectable even if it isn't in options. */}
-        {f[key] && !options.includes(f[key]) && (
-          <option value={f[key]}>{f[key]}</option>
-        )}
-      </select>
-    </div>
-  );
-
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-gray-300 bg-white p-3">
-      {canCreate ? (
-        <Link
-          href="/alumni/new"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500"
-        >
-          <Plus className="h-4 w-4" /> Add alumni
-        </Link>
-      ) : null}
+    <>
+      {/* Toolbar */}
+      <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-gray-300 bg-white p-3">
+        {canCreate ? (
+          <Link
+            href="/alumni/new"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500"
+          >
+            <Plus className="h-4 w-4" /> Add alumni
+          </Link>
+        ) : null}
 
-      <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 focus-within:border-brand-blue-600 focus-within:ring-1 focus-within:ring-brand-blue-600">
-        <Search className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
-        <input
-          value={f.q}
-          onChange={(e) => set("q", e.target.value)}
-          placeholder="Search name, BYU ID, or Net ID"
-          aria-label="Search alumni"
-          className="w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none"
-        />
-        {isPending && (
-          <Loader2
-            className="h-4 w-4 shrink-0 animate-spin text-gray-500"
-            aria-hidden="true"
+        <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 focus-within:border-brand-blue-600 focus-within:ring-1 focus-within:ring-brand-blue-600">
+          <Search className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
+          <input
+            value={f.q}
+            onChange={(e) => set("q", e.target.value)}
+            placeholder="Search name, BYU ID, or Net ID"
+            aria-label="Search alumni"
+            className="w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none"
           />
-        )}
-      </div>
+          {isPending && (
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin text-gray-500" aria-hidden="true" />
+          )}
+        </div>
 
-      <div className="relative shrink-0">
         <select
           value={f.sort}
-          onChange={(e) =>
-            set("sort", e.target.value as AlumniFilterState["sort"])
-          }
+          onChange={(e) => set("sort", e.target.value as AlumniFilterState["sort"])}
           aria-label="Sort alumni"
-          className="appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-9 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus:outline-none"
+          className="shrink-0 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus:outline-none"
           style={{ colorScheme: "light" }}
         >
           <option value="name">Sort: Name (A–Z)</option>
           <option value="grad_desc">Sort: Grad year (newest)</option>
           <option value="grad_asc">Sort: Grad year (oldest)</option>
         </select>
-        <ChevronDown
-          className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500"
-          aria-hidden="true"
-        />
-      </div>
 
-      <div ref={menuRef} className="relative shrink-0">
         <button
           type="button"
-          onClick={() => setMenuOpen((o) => !o)}
-          aria-expanded={menuOpen}
-          aria-haspopup="true"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          onClick={() => setOpen(true)}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
         >
           <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
           Filters
@@ -292,28 +326,74 @@ export function AlumniFilters({
               {activeCount}
             </span>
           )}
-          <ChevronDown className="h-4 w-4 text-gray-500" aria-hidden="true" />
         </button>
+      </div>
 
-        {menuOpen && (
-          <div className="absolute right-0 top-full z-50 mt-1 w-80 rounded-lg border border-gray-300 bg-white p-4 shadow-lg">
-            <div className="space-y-4">
-              {selectRow("industry", "Work area", INDUSTRY_OPTIONS)}
-              {selectRow("employer", "Employer", employers)}
-              {selectRow("city", "City", cities)}
-              {selectRow("tag", "Tag", tags)}
+      {/* Active-filter chips */}
+      {chips.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          {chips.map((chip, i) => (
+            <span
+              key={`${chip.label}-${i}`}
+              className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white py-1 pl-3 pr-1.5 text-xs font-medium text-gray-700"
+            >
+              {chip.label}
+              <button
+                type="button"
+                onClick={chip.remove}
+                aria-label={`Remove ${chip.label}`}
+                className="flex h-4 w-4 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+              >
+                <X className="h-3 w-3" aria-hidden="true" />
+              </button>
+            </span>
+          ))}
+          <button
+            type="button"
+            onClick={() => setF(EMPTY_FILTERS)}
+            className="text-xs font-semibold text-brand-blue-600 hover:text-brand-blue-500"
+          >
+            Clear all
+          </button>
+        </div>
+      )}
 
-              <div>
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Engagement
-                </p>
-                <div className="space-y-2">
-                  {checkboxRow("attended", "Attended an event")}
-                  {checkboxRow("donor", "PIFF donor")}
-                  {checkboxRow("mentor", "Willing to mentor")}
-                  {checkboxRow("speaker", "Willing to guest speak")}
-                </div>
-              </div>
+      {/* Slide-over panel */}
+      {open && (
+        <div className="fixed inset-0 z-[100] flex justify-end">
+          <div
+            className="absolute inset-0 bg-navy-900/40"
+            onClick={() => setOpen(false)}
+            aria-hidden="true"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Advanced filters"
+            className="relative flex h-full w-full max-w-md flex-col bg-white shadow-xl"
+          >
+            <div className="flex items-center justify-between border-b border-gray-300 px-5 py-4">
+              <h2 className="text-base font-semibold text-gray-900">Filters</h2>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Close filters"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"
+              >
+                <X className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-4 overflow-auto px-5 py-4">
+              {FACETS.map((facet) => (
+                <MultiSelect
+                  key={facet.key as string}
+                  label={facet.label}
+                  options={options[facet.optKey] as string[]}
+                  selected={f[facet.key] as string[]}
+                  onChange={(next) => set(facet.key, next as never)}
+                />
+              ))}
 
               <div>
                 <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -342,6 +422,58 @@ export function AlumniFilters({
 
               <div>
                 <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Last contacted
+                </p>
+                <div className="space-y-2">
+                  <label className="flex items-center justify-between gap-2 text-sm text-gray-700">
+                    Contacted after
+                    <input
+                      type="date"
+                      value={f.contactedAfter}
+                      onChange={(e) => set("contactedAfter", e.target.value)}
+                      className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 focus:outline-none"
+                      style={{ colorScheme: "light" }}
+                    />
+                  </label>
+                  <label className="flex items-center justify-between gap-2 text-sm text-gray-700">
+                    Not contacted since
+                    <input
+                      type="date"
+                      value={f.contactedBefore}
+                      onChange={(e) => set("contactedBefore", e.target.value)}
+                      className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 focus:outline-none"
+                      style={{ colorScheme: "light" }}
+                    />
+                  </label>
+                  {checkboxRow("neverContacted", "Never contacted")}
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Engagement
+                </p>
+                <div className="space-y-2">
+                  {checkboxRow("attended", "Attended an event")}
+                  {checkboxRow("donor", "PIFF donor")}
+                  {checkboxRow("mentor", "Willing to mentor")}
+                  {checkboxRow("speaker", "Willing to guest speak")}
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Data quality
+                </p>
+                <div className="space-y-2">
+                  {checkboxRow("missingEmail", "Missing email")}
+                  {checkboxRow("missingEmployer", "Missing employer")}
+                  {checkboxRow("duplicate", "Possible duplicate")}
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Status
                 </p>
                 <div className="space-y-2">
@@ -351,10 +483,7 @@ export function AlumniFilters({
                     <select
                       value={f.deceased}
                       onChange={(e) =>
-                        set(
-                          "deceased",
-                          e.target.value as AlumniFilterState["deceased"],
-                        )
+                        set("deceased", e.target.value as AlumniFilterState["deceased"])
                       }
                       className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 focus:outline-none"
                       style={{ colorScheme: "light" }}
@@ -366,19 +495,28 @@ export function AlumniFilters({
                   </label>
                 </div>
               </div>
+            </div>
 
+            <div className="flex items-center justify-between gap-2 border-t border-gray-300 px-5 py-4">
               <button
                 type="button"
                 onClick={() => setF(EMPTY_FILTERS)}
                 disabled={!isDirty}
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 enabled:hover:bg-gray-50 disabled:text-gray-300"
+                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 enabled:hover:bg-gray-50 disabled:text-gray-300"
               >
-                Clear all filters
+                Clear all
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500"
+              >
+                Done
               </button>
             </div>
           </div>
-        )}
-      </div>
-    </div>
+        </div>
+      )}
+    </>
   );
 }
