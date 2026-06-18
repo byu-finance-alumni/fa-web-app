@@ -1051,6 +1051,11 @@ export interface paths {
          *     cap 200 — mirrors the users/audit endpoints) so one request can't enumerate
          *     the whole history. Reading the log is itself audited (``read_login_log``;
          *     actor + applied limit/offset) — the returned rows are not logged.
+         *
+         *     Only logins WITH a captured IP are returned (so the tab is consistent — every
+         *     row has IP + location). Logins recorded before IP capture, and local-dev
+         *     sign-ins with no Vercel geo headers, have a null ``ip_address`` and are
+         *     omitted; ``total`` reflects the filtered set so pagination stays correct.
          */
         get: operations["list_logins_admin_logins_get"];
         put?: never;
