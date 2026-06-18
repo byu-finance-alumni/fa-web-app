@@ -61,9 +61,11 @@ export default async function LoginsPage({
   searchParams: Promise<SP>;
 }) {
   let isEngineer = false;
+  let meId: number | null = null;
   try {
     const ctx = await apiGet<UserContext>("/auth/context");
     isEngineer = ctx.roles?.includes(ROLE.ENGINEER) ?? false;
+    meId = ctx.user_id;
   } catch {
     /* fall through to the access-required screen */
   }
@@ -107,6 +109,7 @@ export default async function LoginsPage({
     <>
       <Topbar breadcrumb={[{ label: "Admin", href: "/admin" }, { label: "Logins" }]} />
       <main className="flex-1 overflow-auto p-6">
+        <div className="mx-auto max-w-5xl">
         <p className="mb-4 max-w-2xl text-sm text-gray-500">
           Every successful sign-in, newest first. Recorded when a user logs in;
           a removed user’s past sign-ins keep the email they used. Times are
@@ -140,7 +143,14 @@ export default async function LoginsPage({
                   key={r.login_event_id}
                   className="rounded-xl border border-gray-300 bg-white p-3"
                 >
-                  <p className="font-medium text-gray-900">{r.email}</p>
+                  <p className="font-medium text-gray-900">
+                    {r.email}
+                    {meId !== null && r.user_id === meId ? (
+                      <span className="ml-1.5 text-xs font-medium text-brand-blue-600">
+                        (you)
+                      </span>
+                    ) : null}
+                  </p>
                   <p className="mt-1 text-xs text-gray-500">
                     {formatDateTime(r.occurred_at)}
                     {r.user_id === null ? " · account removed" : ""}
@@ -175,6 +185,11 @@ export default async function LoginsPage({
                       </td>
                       <td className="px-4 py-3 text-gray-700">
                         {r.email}
+                        {meId !== null && r.user_id === meId ? (
+                          <span className="ml-1.5 text-xs font-medium text-brand-blue-600">
+                            (you)
+                          </span>
+                        ) : null}
                         {r.user_id === null ? (
                           <span className="ml-2 rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
                             account removed
@@ -204,6 +219,7 @@ export default async function LoginsPage({
             </div>
           </>
         )}
+        </div>
       </main>
     </>
   );
