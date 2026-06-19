@@ -103,6 +103,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record Login
+         * @description Record a successful sign-in for the AUTHENTICATED caller.
+         *
+         *     Logins happen client-side via Supabase, so the backend has no native login
+         *     hook — the frontend calls this exactly once, right after a successful
+         *     password sign-in, with the freshly-issued token. It does two things:
+         *
+         *       1. Stamps ``users.last_login_at`` = now (the column existed but nothing
+         *          ever wrote it, so it was always NULL).
+         *       2. Inserts a ``login_events`` row (the security log backing the engineer
+         *          "Logins" tab; email is snapshotted so the history survives the user's
+         *          later deletion).
+         *
+         *     Uses the force-password-change-EXEMPT resolver: a user on an admin-issued
+         *     temp password has still genuinely signed in, so their login must be recorded
+         *     even before they clear the flag. Takes no body and keys only on the token's
+         *     own identity, so a caller can only ever record their OWN login.
+         *
+         *     Best-effort by contract: the frontend never blocks the post-login redirect
+         *     on this call. It is deliberately NOT written to ``audit_logs`` — sign-in
+         *     events are a security log, not the record-change audit trail.
+         */
+        post: operations["record_login_auth_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/password/complete": {
         parameters: {
             query?: never;
@@ -203,6 +242,29 @@ export interface paths {
         put?: never;
         /** Create Alumni */
         post: operations["create_alumni_alumni_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alumni/filter-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Alumni Filter Options
+         * @description Distinct option lists for the advanced-filter panel's multi-selects.
+         *
+         *     Declared before the ``/{alumni_id}`` routes so the literal path always wins
+         *     (``alumni_id`` is int-typed, so a non-numeric segment can't match it anyway).
+         */
+        get: operations["alumni_filter_options_alumni_filter_options_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -966,6 +1028,38 @@ export interface paths {
          *     the user should change it on next login.
          */
         post: operations["create_user_admin_users_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/logins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Logins
+         * @description List recorded sign-ins, newest first (paginated). Engineer only.
+         *
+         *     Backs the Admin -> Logins tab. Rows come from ``login_events`` (written by
+         *     POST /auth/login on each successful sign-in); the snapshotted email means a
+         *     deleted user's past logins remain attributable. Paginated (default 50, hard
+         *     cap 200 — mirrors the users/audit endpoints) so one request can't enumerate
+         *     the whole history. Reading the log is itself audited (``read_login_log``;
+         *     actor + applied limit/offset) — the returned rows are not logged.
+         *
+         *     Only logins WITH a captured IP are returned (so the tab is consistent — every
+         *     row has IP + location). Logins recorded before IP capture, and local-dev
+         *     sign-ins with no Vercel geo headers, have a null ``ip_address`` and are
+         *     omitted; ``total`` reflects the filtered set so pagination stays correct.
+         */
+        get: operations["list_logins_admin_logins_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2519,6 +2613,33 @@ export interface components {
             /** Event Notes */
             event_notes?: string | null;
         };
+        /** FilterOptions */
+        FilterOptions: {
+            /** Employers */
+            employers: string[];
+            /** Past Employers */
+            past_employers: string[];
+            /** Titles */
+            titles: string[];
+            /** Seniority Levels */
+            seniority_levels: string[];
+            /** Industries */
+            industries: string[];
+            /** Cities */
+            cities: string[];
+            /** States */
+            states: string[];
+            /** Tags */
+            tags: string[];
+            /** Status Labels */
+            status_labels: string[];
+            /** Leadership Roles */
+            leadership_roles: string[];
+            /** Survey Statuses */
+            survey_statuses: string[];
+            /** Graduation Years */
+            graduation_years: number[];
+        };
         /** GeoAlumniPage */
         GeoAlumniPage: {
             /** Items */
@@ -2657,6 +2778,67 @@ export interface components {
             role_year?: number | null;
         };
         /**
+         * LoginContext
+         * @description Optional client context for a sign-in, forwarded by the frontend login
+         *     action from the incoming request — the client IP (``x-forwarded-for``) and
+         *     Vercel's IP-geolocation headers. All optional and length-bounded; purely
+         *     informational (never trusted for authorization), stored on the
+         *     ``login_events`` row for the engineer Logins tab. ``extra='forbid'`` rejects
+         *     unknown keys.
+         */
+        LoginContext: {
+            /** Ip Address */
+            ip_address: string | null;
+            /** City */
+            city: string | null;
+            /** Region */
+            region: string | null;
+            /** Country */
+            country: string | null;
+        };
+        /**
+         * LoginEventPage
+         * @description A page of login events, newest first, with the total for pagination.
+         */
+        LoginEventPage: {
+            /** Items */
+            items: components["schemas"]["LoginEventRow"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+        };
+        /**
+         * LoginEventRow
+         * @description One recorded sign-in for the engineer Logins tab. ``user_id`` is null once
+         *     the user has been deleted; ``email`` is the snapshot taken at sign-in, so the
+         *     row still shows who it was. ``ip_address`` + ``city``/``region``/``country``
+         *     are the approximate (IP-based) origin captured at sign-in; any may be null.
+         */
+        LoginEventRow: {
+            /** Login Event Id */
+            login_event_id: number;
+            /** User Id */
+            user_id: number | null;
+            /** Email */
+            email: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Ip Address */
+            ip_address: string | null;
+            /** City */
+            city: string | null;
+            /** Region */
+            region: string | null;
+            /** Country */
+            country: string | null;
+        };
+        /**
          * LoginPrecheckRequest
          * @description Email to evaluate the pre-login throttle/lock state for.
          */
@@ -2673,6 +2855,23 @@ export interface components {
             email: string;
             /** Success */
             success: boolean;
+        };
+        /**
+         * LoginRecordedResponse
+         * @description Acknowledgement that a successful sign-in was recorded, echoing the
+         *     stamped time so a client could display it.
+         */
+        LoginRecordedResponse: {
+            /**
+             * Status
+             * @default ok
+             */
+            status: string;
+            /**
+             * Last Login At
+             * Format: date-time
+             */
+            last_login_at: string;
         };
         /**
          * LoginThrottleStatus
@@ -3244,6 +3443,39 @@ export interface operations {
             };
         };
     };
+    record_login_auth_login_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["LoginContext"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginRecordedResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     password_complete_auth_password_complete_post: {
         parameters: {
             query?: never;
@@ -3340,14 +3572,34 @@ export interface operations {
                 grad_year_max?: number | null;
                 /** @description Filter by deceased flag. */
                 deceased?: boolean | null;
-                /** @description Current employer (case-insensitive exact match). */
-                employer?: string | null;
-                /** @description Current industry / work area, primary or secondary (case-insensitive exact match). */
-                industry?: string | null;
-                /** @description Current city (case-insensitive exact match). */
-                city?: string | null;
-                /** @description Engagement tag label, e.g. 'Speaker' or 'Highly Engaged' (case-insensitive exact match). Accepts any tag value. */
-                tag?: string | null;
+                /** @description Current employer(s) — repeatable (OR), exact match. */
+                employer?: string[] | null;
+                /** @description Prior employer(s) from employment history — repeatable. */
+                past_employer?: string[] | null;
+                /** @description Industry / work area (primary or secondary) — repeatable. */
+                industry?: string[] | null;
+                /** @description Current job title(s) — repeatable, exact match. */
+                title?: string[] | null;
+                /** @description Seniority level(s) — repeatable, exact match. */
+                seniority?: string[] | null;
+                /** @description Current city/cities — repeatable, exact match. */
+                city?: string[] | null;
+                /** @description Current state(s) — repeatable, exact match. */
+                state?: string[] | null;
+                /** @description Engagement tag(s) — repeatable, exact match. */
+                tag?: string[] | null;
+                /** @description Status label(s) — repeatable, exact match. */
+                status_label?: string[] | null;
+                /** @description Finance Society leadership role(s) — repeatable. */
+                leadership_role?: string[] | null;
+                /** @description Survey status value(s) — repeatable, exact match. */
+                survey_status?: string[] | null;
+                /** @description Only alumni with an interaction on/after this date. */
+                contacted_after?: string | null;
+                /** @description Only alumni NOT contacted since this date (stale). */
+                contacted_before?: string | null;
+                /** @description Only alumni with no logged interactions. */
+                never_contacted?: boolean;
                 /** @description Only alumni who attended at least one event. */
                 attended_event?: boolean;
                 /** @description Only PIFF donors. */
@@ -3423,6 +3675,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    alumni_filter_options_alumni_filter_options_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FilterOptions"];
                 };
             };
         };
@@ -4585,6 +4857,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CreateUserResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_logins_admin_logins_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginEventPage"];
                 };
             };
             /** @description Validation Error */

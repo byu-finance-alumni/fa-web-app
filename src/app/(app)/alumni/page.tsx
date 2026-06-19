@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { apiGet, ApiError } from "@/lib/api";
 import type { Alumni, AlumniPage, UserContext } from "@/types/alumni";
+import type { FilterOptions } from "@/types/filters";
 import { hasFullAccess } from "@/constants/roles";
-import type { GeoSummary } from "@/types/geography";
 import { Topbar } from "@/components/shell/Topbar";
 import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
-import { AlumniFilters } from "@/components/alumni/AlumniFilters";
+import { AlumniFilters, type AlumniFilterState } from "@/components/alumni/AlumniFilters";
 import { AlumniTable } from "@/components/alumni/AlumniTable";
 
 const LIMIT = 25;
@@ -24,31 +24,17 @@ function avatarName(a: Alumni): string {
   );
 }
 
-type SP = {
-  q?: string;
-  /** Grad-year range (inclusive). */
-  ymin?: string;
-  ymax?: string;
-  employer?: string;
-  industry?: string;
-  city?: string;
-  tag?: string;
-  attended?: string;
-  donor?: string;
-  mentor?: string;
-  speaker?: string;
-  archived?: string;
-  /** "1" = only deceased, "0" = exclude deceased, absent = any. */
-  deceased?: string;
-  missing_email?: string;
-  missing_employer?: string;
-  duplicate?: string;
-  sort?: string;
-  offset?: string;
-  /** Legacy deep-link params (pre-filter-menu), still honored. */
-  year?: string;
-  missing?: string;
-};
+/** Search params: every value may arrive as a string or (for repeated multi-
+ * select params) a string[]. */
+type SP = Record<string, string | string[] | undefined>;
+
+/** Normalize a search param to a clean string[] (handles single + repeated). */
+const arr = (v: string | string[] | undefined): string[] =>
+  v == null ? [] : (Array.isArray(v) ? v : [v]).filter(Boolean);
+
+/** First value of a possibly-repeated param. */
+const one = (v: string | string[] | undefined): string =>
+  (Array.isArray(v) ? v[0] : v) ?? "";
 
 export default async function AlumniListPage({
   searchParams,
@@ -56,35 +42,49 @@ export default async function AlumniListPage({
   searchParams: Promise<SP>;
 }) {
   const sp = await searchParams;
-  const offset = Math.max(0, Number(sp.offset ?? "0") || 0);
+  const offset = Math.max(0, Number(one(sp.offset) || "0") || 0);
 
-  // Normalize (incl. legacy ?year= / ?missing= deep links) into one model.
-  const filters = {
-    q: sp.q ?? "",
-    ymin: sp.ymin ?? sp.year ?? "",
-    ymax: sp.ymax ?? sp.year ?? "",
-    employer: sp.employer ?? "",
-    industry: sp.industry ?? "",
-    city: sp.city ?? "",
-    tag: sp.tag ?? "",
-    attended: sp.attended === "1",
-    donor: sp.donor === "1",
-    mentor: sp.mentor === "1",
-    speaker: sp.speaker === "1",
-    archived: sp.archived === "1",
-    deceased: (sp.deceased === "1"
-      ? "only"
-      : sp.deceased === "0"
-        ? "exclude"
-        : "") as "" | "only" | "exclude",
-    missingEmail: sp.missing_email === "1" || sp.missing === "email",
-    missingEmployer: sp.missing_employer === "1" || sp.missing === "employer",
-    duplicate: sp.duplicate === "1",
-    sort: (sp.sort === "grad_desc" || sp.sort === "grad_asc"
-      ? sp.sort
-      : "name") as "name" | "grad_desc" | "grad_asc",
+  // Normalize the URL (incl. legacy ?year= / ?missing= deep-links) into state.
+  const filters: AlumniFilterState = {
+    q: one(sp.q),
+    ymin: one(sp.ymin) || one(sp.year),
+    ymax: one(sp.ymax) || one(sp.year),
+    employer: arr(sp.employer),
+    pastEmployer: arr(sp.past_employer),
+    industry: arr(sp.industry),
+    title: arr(sp.title),
+    seniority: arr(sp.seniority),
+    city: arr(sp.city),
+    state: arr(sp.state),
+    tag: arr(sp.tag),
+    statusLabel: arr(sp.status_label),
+    leadership: arr(sp.leadership_role),
+    surveyStatus: arr(sp.survey_status),
+    contactedAfter: one(sp.contacted_after),
+    contactedBefore: one(sp.contacted_before),
+    neverContacted: one(sp.never_contacted) === "1",
+    attended: one(sp.attended) === "1",
+    donor: one(sp.donor) === "1",
+    mentor: one(sp.mentor) === "1",
+    speaker: one(sp.speaker) === "1",
+    archived: one(sp.archived) === "1",
+    deceased:
+      one(sp.deceased) === "1"
+        ? "only"
+        : one(sp.deceased) === "0"
+          ? "exclude"
+          : "",
+    missingEmail: one(sp.missing_email) === "1" || one(sp.missing) === "email",
+    missingEmployer:
+      one(sp.missing_employer) === "1" || one(sp.missing) === "employer",
+    duplicate: one(sp.duplicate) === "1",
+    sort:
+      one(sp.sort) === "grad_desc" || one(sp.sort) === "grad_asc"
+        ? (one(sp.sort) as "grad_desc" | "grad_asc")
+        : "name",
   };
 
+  // Backend query params (multi-select facets become repeated params).
   const params = new URLSearchParams({
     limit: String(LIMIT),
     offset: String(offset),
@@ -92,10 +92,23 @@ export default async function AlumniListPage({
   if (filters.q) params.set("q", filters.q);
   if (filters.ymin) params.set("grad_year_min", filters.ymin);
   if (filters.ymax) params.set("grad_year_max", filters.ymax);
-  if (filters.employer) params.set("employer", filters.employer);
-  if (filters.industry) params.set("industry", filters.industry);
-  if (filters.city) params.set("city", filters.city);
-  if (filters.tag) params.set("tag", filters.tag);
+  const appendAll = (name: string, values: string[]) => {
+    for (const v of values) params.append(name, v);
+  };
+  appendAll("employer", filters.employer);
+  appendAll("past_employer", filters.pastEmployer);
+  appendAll("industry", filters.industry);
+  appendAll("title", filters.title);
+  appendAll("seniority", filters.seniority);
+  appendAll("city", filters.city);
+  appendAll("state", filters.state);
+  appendAll("tag", filters.tag);
+  appendAll("status_label", filters.statusLabel);
+  appendAll("leadership_role", filters.leadership);
+  appendAll("survey_status", filters.surveyStatus);
+  if (filters.contactedAfter) params.set("contacted_after", filters.contactedAfter);
+  if (filters.contactedBefore) params.set("contacted_before", filters.contactedBefore);
+  if (filters.neverContacted) params.set("never_contacted", "true");
   if (filters.attended) params.set("attended_event", "true");
   if (filters.donor) params.set("donor", "true");
   if (filters.mentor) params.set("mentor_willing", "true");
@@ -110,15 +123,12 @@ export default async function AlumniListPage({
 
   let data: AlumniPage | null = null;
   let error: ApiError | null = null;
-  let options: GeoSummary["options"] | null = null;
-  // Fetch the list and the filter-menu options (distinct employers /
-  // industries) concurrently; the options are non-critical, so a failure
-  // there just leaves the dropdowns with "All".
+  let options: FilterOptions | null = null;
   const [listResult, optionsResult, ctxResult] = await Promise.allSettled([
     apiGet<AlumniPage>(`/alumni?${params.toString()}`),
-    apiGet<GeoSummary>("/geography/summary", {
+    apiGet<FilterOptions>("/alumni/filter-options", {
       revalidate: 300,
-      tags: ["geography"],
+      tags: ["alumni-filter-options"],
     }),
     apiGet<UserContext>("/auth/context"),
   ]);
@@ -130,10 +140,8 @@ export default async function AlumniListPage({
       e instanceof ApiError ? e : new ApiError(0, "Failed to load alumni.");
   }
   if (optionsResult.status === "fulfilled") {
-    options = optionsResult.value.options;
+    options = optionsResult.value;
   }
-  // Add alumni is full access and up — engineer / super_admin / full_access,
-  // NOT students (backend enforces it too via RequireFullAccess).
   const canCreate =
     ctxResult.status === "fulfilled" && hasFullAccess(ctxResult.value.roles);
 
@@ -141,26 +149,13 @@ export default async function AlumniListPage({
   const to = data ? Math.min(offset + LIMIT, data.total) : 0;
   const hasPrev = offset > 0;
   const hasNext = data ? offset + LIMIT < data.total : false;
+  // Preserve every active filter (incl. repeated multi-select params) on paging.
   const pageHref = (newOffset: number) => {
     const p = new URLSearchParams();
-    if (filters.q) p.set("q", filters.q);
-    if (filters.ymin) p.set("ymin", filters.ymin);
-    if (filters.ymax) p.set("ymax", filters.ymax);
-    if (filters.employer) p.set("employer", filters.employer);
-    if (filters.industry) p.set("industry", filters.industry);
-    if (filters.city) p.set("city", filters.city);
-    if (filters.tag) p.set("tag", filters.tag);
-    if (filters.attended) p.set("attended", "1");
-    if (filters.donor) p.set("donor", "1");
-    if (filters.mentor) p.set("mentor", "1");
-    if (filters.speaker) p.set("speaker", "1");
-    if (filters.archived) p.set("archived", "1");
-    if (filters.deceased === "only") p.set("deceased", "1");
-    if (filters.deceased === "exclude") p.set("deceased", "0");
-    if (filters.missingEmail) p.set("missing_email", "1");
-    if (filters.missingEmployer) p.set("missing_employer", "1");
-    if (filters.duplicate) p.set("duplicate", "1");
-    if (filters.sort !== "name") p.set("sort", filters.sort);
+    for (const [k, v] of Object.entries(sp)) {
+      if (k === "offset") continue;
+      for (const val of arr(v)) p.append(k, val);
+    }
     if (newOffset > 0) p.set("offset", String(newOffset));
     const qs = p.toString();
     return qs ? `/alumni?${qs}` : "/alumni";
@@ -172,9 +167,7 @@ export default async function AlumniListPage({
       <main className="flex-1 overflow-auto p-6">
         <AlumniFilters
           initial={filters}
-          employers={options?.employers ?? []}
-          cities={options?.cities ?? []}
-          tags={options?.tags ?? []}
+          options={options ?? undefined}
           canCreate={canCreate}
         />
 

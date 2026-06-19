@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
@@ -80,6 +80,67 @@ async function recordLoginAttempt(
 }
 
 /**
+ * Record a SUCCESSFUL sign-in on the backend (stamps `users.last_login_at` and
+ * appends to the login history shown on the engineer Logins tab). Logins happen
+ * here in the server action, so this is the one precise "a real login just
+ * happened" signal — fired exactly once per credential sign-in, not on every
+ * token refresh.
+ *
+ * Best-effort / FAIL-OPEN: the post-login redirect must never hinge on this, so
+ * any error is logged and swallowed. Authenticated with the freshly-issued
+ * access token (passed in, since the session cookie isn't committed to the
+ * cookie store yet at this point in the request).
+ */
+async function recordLoginSuccess(accessToken: string): Promise<void> {
+  try {
+    // The client IP + location can only be read HERE (the edge sees the real
+    // client; the backend call is server→server). Vercel injects the client IP
+    // (x-forwarded-for) and IP-geolocation headers onto this request. Best-
+    // effort: any header may be absent (local dev, non-Vercel) → null. Clip to
+    // the backend's column limits so an odd value never 422s the whole record.
+    const h = await headers();
+    const clip = (v: string | null, n: number) => (v ? v.slice(0, n) : null);
+    const decode = (v: string | null) => {
+      if (!v) return null;
+      try {
+        return decodeURIComponent(v); // x-vercel-ip-city is URL-encoded
+      } catch {
+        return v;
+      }
+    };
+    // Prefer the Vercel-set, trusted client IP (x-real-ip / x-vercel-forwarded-
+    // for) — the edge overwrites these, so they can't be forged. Only fall back
+    // to x-forwarded-for, and then to its LAST hop (the one Vercel's edge saw),
+    // never the leftmost entry, which the client can spoof.
+    const xff = h.get("x-forwarded-for");
+    const xffLast = xff
+      ? (xff.split(",").map((s) => s.trim()).filter(Boolean).pop() ?? null)
+      : null;
+    const ip =
+      h.get("x-real-ip") ?? h.get("x-vercel-forwarded-for") ?? xffLast;
+    const context = {
+      ip_address: clip(ip ?? null, 64),
+      city: clip(decode(h.get("x-vercel-ip-city")), 128),
+      region: clip(h.get("x-vercel-ip-country-region"), 128),
+      country: clip(h.get("x-vercel-ip-country"), 64),
+    };
+
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(context),
+      cache: "no-store",
+    });
+    if (!res.ok) console.error("[login] record-success non-OK:", res.status);
+  } catch (e) {
+    console.error("[login] record-success error (ignored):", e);
+  }
+}
+
+/**
  * Server-side password sign-in. Doing this in a Server Action (rather than the
  * browser client) is what makes the post-login load reliable: the Supabase
  * server client writes the auth cookies onto THIS response synchronously, and
@@ -119,8 +180,22 @@ export async function signIn(
     // distinct strings ("Invalid login credentials", "Email not confirmed",
     // "User is banned", rate-limit messages, …); surfacing any of them verbatim
     // is an account-enumeration oracle. Log the real reason server-side only.
-    console.error("[login] auth error:", error.code ?? error.message);
+    // Log ONLY the short error code (e.g. "invalid_credentials") — never
+    // error.message, which can echo the submitted email into Vercel logs.
+    console.error("[login] auth error:", error.code ?? "unknown_code");
     return { error: "Incorrect email or password." };
+  }
+
+  // Record the successful sign-in (last_login_at + login history). Best-effort:
+  // read the just-issued token from the in-memory session (the cookie isn't in
+  // the store yet) and fire the authenticated record call. Never blocks login —
+  // recordLoginSuccess swallows its own errors, and we only attempt it when a
+  // token is present.
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (session?.access_token) {
+    await recordLoginSuccess(session.access_token);
   }
 
   // Invalidate the router/data cache for everything under the root layout so
