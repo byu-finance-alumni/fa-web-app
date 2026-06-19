@@ -108,8 +108,16 @@ async function recordLoginSuccess(accessToken: string): Promise<void> {
         return v;
       }
     };
+    // Prefer the Vercel-set, trusted client IP (x-real-ip / x-vercel-forwarded-
+    // for) — the edge overwrites these, so they can't be forged. Only fall back
+    // to x-forwarded-for, and then to its LAST hop (the one Vercel's edge saw),
+    // never the leftmost entry, which the client can spoof.
     const xff = h.get("x-forwarded-for");
-    const ip = xff ? xff.split(",")[0]?.trim() : h.get("x-real-ip");
+    const xffLast = xff
+      ? (xff.split(",").map((s) => s.trim()).filter(Boolean).pop() ?? null)
+      : null;
+    const ip =
+      h.get("x-real-ip") ?? h.get("x-vercel-forwarded-for") ?? xffLast;
     const context = {
       ip_address: clip(ip ?? null, 64),
       city: clip(decode(h.get("x-vercel-ip-city")), 128),
@@ -172,7 +180,9 @@ export async function signIn(
     // distinct strings ("Invalid login credentials", "Email not confirmed",
     // "User is banned", rate-limit messages, …); surfacing any of them verbatim
     // is an account-enumeration oracle. Log the real reason server-side only.
-    console.error("[login] auth error:", error.code ?? error.message);
+    // Log ONLY the short error code (e.g. "invalid_credentials") — never
+    // error.message, which can echo the submitted email into Vercel logs.
+    console.error("[login] auth error:", error.code ?? "unknown_code");
     return { error: "Incorrect email or password." };
   }
 

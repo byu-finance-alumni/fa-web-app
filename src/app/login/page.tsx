@@ -31,6 +31,12 @@ export default function LoginPage() {
           <Suspense fallback={<div className="h-48" />}>
             <LoginForm />
           </Suspense>
+
+          {/* Privacy notice at the point of collection: staff should know their
+              sign-in is logged with approximate location (see Admin → Logins). */}
+          <p className="mt-5 border-t border-gray-200 pt-4 text-center text-xs text-gray-400">
+            For security, sign-ins are recorded with your approximate location.
+          </p>
         </div>
       </div>
     </main>

@@ -110,10 +110,10 @@ export default async function LoginsPage({
       <Topbar breadcrumb={[{ label: "Admin", href: "/admin" }, { label: "Logins" }]} />
       <main className="flex-1 overflow-auto p-6">
         <p className="mb-4 max-w-2xl text-sm text-gray-500">
-          Every successful sign-in, newest first. Recorded when a user logs in;
-          a removed user’s past sign-ins keep the email they used. Times are
-          shown in <span className="font-medium text-gray-700">Utah time
-          (Mountain)</span>; location is approximate (IP-based).
+          Every sign-in with a captured location, newest first. Recorded when a
+          user logs in; a removed user’s past sign-ins keep the email they used.
+          Times are shown in <span className="font-medium text-gray-700">Utah
+          time (Mountain)</span>; location is approximate (IP-based).
         </p>
 
         {error ? (
