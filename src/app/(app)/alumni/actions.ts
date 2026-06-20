@@ -303,12 +303,17 @@ export async function addInteraction(
 ): Promise<FormState> {
   const type = formData.get("interaction_type");
   const notes = formData.get("interaction_notes");
+  const when = formData.get("interaction_date_time");
   if (typeof type !== "string" || type.trim() === "") {
     return { error: "Interaction type is required." };
   }
   try {
     await apiPost(`/alumni/${alumniId}/interactions`, {
       interaction_type: type.trim(),
+      interaction_date_time:
+        typeof when === "string" && when.trim() !== ""
+          ? when.trim()
+          : undefined,
       interaction_notes:
         typeof notes === "string" && notes.trim() !== ""
           ? notes.trim()
@@ -317,6 +322,50 @@ export async function addInteraction(
   } catch (e) {
     return {
       error: e instanceof ApiError ? e.message : "Failed to add interaction.",
+    };
+  }
+  revalidatePath(`/alumni/${alumniId}`);
+  revalidateTag("dashboard"); // contacted / follow-up KPIs
+  return null;
+}
+
+export async function updateInteraction(
+  alumniId: number,
+  interactionId: number,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const type = formData.get("interaction_type");
+  if (typeof type !== "string" || type.trim() === "") {
+    return { error: "Interaction type is required." };
+  }
+  try {
+    await apiPatch(
+      `/alumni/${alumniId}/interactions/${interactionId}`,
+      compact({
+        interaction_type: type.trim(),
+        interaction_date_time: getStr(formData, "interaction_date_time"),
+        interaction_notes: getStr(formData, "interaction_notes"),
+      }),
+    );
+  } catch (e) {
+    return toFormState(e, "Failed to save interaction.");
+  }
+  revalidatePath(`/alumni/${alumniId}`);
+  revalidateTag("dashboard"); // contacted / follow-up KPIs
+  return null;
+}
+
+export async function deleteInteraction(
+  alumniId: number,
+  interactionId: number,
+): Promise<FormState> {
+  try {
+    await apiDelete(`/alumni/${alumniId}/interactions/${interactionId}`);
+  } catch (e) {
+    return {
+      error:
+        e instanceof ApiError ? e.message : "Failed to delete interaction.",
     };
   }
   revalidatePath(`/alumni/${alumniId}`);

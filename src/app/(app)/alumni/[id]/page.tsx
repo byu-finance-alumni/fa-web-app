@@ -40,10 +40,10 @@ import {
   TaskCheckbox,
 } from "@/components/alumni/ProfileDialogs";
 import {
-  ProfileActivity,
   type ActivityCategory,
   type ActivityItem,
 } from "@/components/alumni/ProfileActivity";
+import { InteractionTimeline } from "@/components/alumni/InteractionTimeline";
 import { ExportProfileButton } from "@/components/alumni/ExportProfileButton";
 import { DrawerList } from "@/components/alumni/DrawerList";
 import { DrawerView } from "@/components/alumni/DrawerView";
@@ -1068,8 +1068,14 @@ export default async function AlumniProfilePage({
             </div>
           </div>
 
-          {/* Activity feed (full width) */}
-          <ProfileActivity alumniId={aid} items={activity} canEdit={canEdit} />
+          {/* Interactions timeline (full width) — dedicated #38 deliverable.
+              Interactions only (NOT merged with audit); the merged feed's audit
+              still surfaces via the "Recent activity" panel above. */}
+          <InteractionTimeline
+            alumniId={aid}
+            items={profile.interactions}
+            canEdit={canEdit}
+          />
         </div>
       </main>
     </>
