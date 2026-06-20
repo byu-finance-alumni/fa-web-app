@@ -17,6 +17,7 @@ export type ProgramEngagement = Schema<"ProgramEngagementRead">;
 export type EngagementNote = Schema<"EngagementNoteRead">;
 export type Survey = Schema<"SurveyRead">;
 export type Interaction = Schema<"InteractionRead">;
+export type InteractionUpdate = Schema<"InteractionUpdate">;
 export type Task = Schema<"TaskRead">;
 export type Attachment = Schema<"AttachmentRead">;
 export type EventAttended = Schema<"EventAttendedRead">;

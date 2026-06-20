@@ -16,6 +16,8 @@ import {
   addEmploymentRole,
   addEventAttendance,
   addInteraction,
+  updateInteraction,
+  deleteInteraction,
   addLeadership,
   addStatusLabel,
   addTag,
@@ -32,7 +34,12 @@ import {
   updateEmploymentRole,
   updateLeadership,
 } from "@/app/(app)/alumni/actions";
-import type { Education, EmploymentHistory, Leadership } from "@/types/profile";
+import type {
+  Education,
+  EmploymentHistory,
+  Interaction,
+  Leadership,
+} from "@/types/profile";
 import {
   ATTENDANCE_STATUS_OPTIONS,
   INDUSTRY_OPTIONS,
@@ -139,6 +146,72 @@ function useOnSubmitSettled(
 
 /* -------------------------------------------------- add interaction -------- */
 
+/**
+ * Convert a stored ISO `interaction_date_time` to the `YYYY-MM-DDTHH:mm` value
+ * a `datetime-local` input expects, expressed in the viewer's local clock.
+ * Returns "" for null/unparseable so the field stays empty.
+ */
+function toDateTimeLocalValue(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  // Shift by the timezone offset so toISOString() yields the local wall-clock.
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+/** Shared field set for the add/edit interaction forms. */
+function InteractionFields({ row }: { row?: Interaction }) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className={labelCls} htmlFor="interaction_type">
+          Type
+        </label>
+        <select
+          id="interaction_type"
+          name="interaction_type"
+          className={`${fieldCls} bg-white`}
+          style={{ colorScheme: "light" }}
+          defaultValue={row?.interaction_type ?? INTERACTION_TYPES[0]}
+        >
+          {INTERACTION_TYPES.map((t) => (
+            <option key={t} value={t} className="bg-white text-gray-900">
+              {t}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className={labelCls} htmlFor="interaction_date_time">
+          Date &amp; time
+        </label>
+        <input
+          id="interaction_date_time"
+          name="interaction_date_time"
+          type="datetime-local"
+          className={`${fieldCls} bg-white`}
+          style={{ colorScheme: "light" }}
+          defaultValue={toDateTimeLocalValue(row?.interaction_date_time)}
+        />
+      </div>
+      <div>
+        <label className={labelCls} htmlFor="interaction_notes">
+          Notes
+        </label>
+        <textarea
+          id="interaction_notes"
+          name="interaction_notes"
+          rows={4}
+          className={fieldCls}
+          placeholder="What was discussed?"
+          defaultValue={row?.interaction_notes ?? ""}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function AddInteractionButton({
   alumniId,
   label = "Add interaction",
@@ -176,41 +249,10 @@ export function AddInteractionButton({
       {open ? (
         <Modal title="Log interaction" onClose={() => setOpen(false)}>
           <form action={formAction}>
-            <div className="space-y-3">
-              <div>
-                <label className={labelCls} htmlFor="interaction_type">
-                  Type
-                </label>
-                <select
-                  id="interaction_type"
-                  name="interaction_type"
-                  className={`${fieldCls} bg-white`}
-                  style={{ colorScheme: "light" }}
-                  defaultValue={INTERACTION_TYPES[0]}
-                >
-                  {INTERACTION_TYPES.map((t) => (
-                    <option key={t} value={t} className="bg-white text-gray-900">
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className={labelCls} htmlFor="interaction_notes">
-                  Notes
-                </label>
-                <textarea
-                  id="interaction_notes"
-                  name="interaction_notes"
-                  rows={4}
-                  className={fieldCls}
-                  placeholder="What was discussed?"
-                />
-              </div>
-              {state?.error ? (
-                <p className="text-sm text-danger-600">{state.error}</p>
-              ) : null}
-            </div>
+            <InteractionFields />
+            {state?.error ? (
+              <p className="mt-3 text-sm text-danger-600">{state.error}</p>
+            ) : null}
             <FormButtons
               pending={pending}
               onCancel={() => setOpen(false)}
@@ -220,6 +262,80 @@ export function AddInteractionButton({
         </Modal>
       ) : null}
     </>
+  );
+}
+
+/* ------------------------------------------------------- edit interaction --- */
+
+/** Inline "Edit" control + dialog for one interaction row. */
+export function EditInteractionButton({
+  alumniId,
+  row,
+}: {
+  alumniId: number;
+  row: Interaction;
+}) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [state, formAction, pending] = useActionState(
+    updateInteraction.bind(null, alumniId, row.interaction_id),
+    null,
+  );
+  useOnSubmitSettled(
+    pending,
+    state?.error,
+    () => {
+      setOpen(false);
+      toast.success("Interaction updated.");
+    },
+    () => toast.error(state?.error ?? "Failed to save interaction."),
+  );
+
+  return (
+    <>
+      <RowIconButton
+        label="Edit interaction"
+        icon={Pencil}
+        onClick={() => setOpen(true)}
+      />
+      {open ? (
+        <Modal title="Edit interaction" onClose={() => setOpen(false)}>
+          <form action={formAction}>
+            <InteractionFields row={row} />
+            {state?.error ? (
+              <p className="mt-3 text-sm text-danger-600">{state.error}</p>
+            ) : null}
+            <FormButtons
+              pending={pending}
+              onCancel={() => setOpen(false)}
+              submitLabel="Save interaction"
+            />
+          </form>
+        </Modal>
+      ) : null}
+    </>
+  );
+}
+
+/** Per-row edit + delete controls for one interaction row. */
+export function InteractionRowActions({
+  alumniId,
+  row,
+}: {
+  alumniId: number;
+  row: Interaction;
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      <EditInteractionButton alumniId={alumniId} row={row} />
+      <DeleteRowButton
+        label="Delete interaction"
+        confirmTitle="Delete interaction"
+        confirmBody="Delete this interaction? This can't be undone."
+        successMessage="Interaction deleted."
+        onDelete={() => deleteInteraction(alumniId, row.interaction_id)}
+      />
+    </div>
   );
 }
 

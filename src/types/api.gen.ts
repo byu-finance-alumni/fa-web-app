@@ -443,6 +443,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/alumni/{alumni_id}/interactions/{interaction_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Interaction
+         * @description Delete an interaction from an alumni's timeline (full_access). 404 if the
+         *     row is missing or belongs to another alumnus.
+         */
+        delete: operations["delete_interaction_alumni__alumni_id__interactions__interaction_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Interaction
+         * @description Edit an interaction on an alumni's timeline (full_access). 404 if the row
+         *     is missing or belongs to another alumnus.
+         */
+        patch: operations["update_interaction_alumni__alumni_id__interactions__interaction_id__patch"];
+        trace?: never;
+    };
     "/alumni/{alumni_id}/tasks": {
         parameters: {
             query?: never;
@@ -2749,6 +2775,18 @@ export interface components {
             logged_by: string | null;
         };
         /**
+         * InteractionUpdate
+         * @description Edit fields on an existing interaction (all optional).
+         */
+        InteractionUpdate: {
+            /** Interaction Type */
+            interaction_type?: string | null;
+            /** Interaction Date Time */
+            interaction_date_time?: string | null;
+            /** Interaction Notes */
+            interaction_notes?: string | null;
+        };
+        /**
          * LeadershipCreate
          * @description Add a Finance Society leadership entry to an alumnus's record.
          */
@@ -3963,6 +4001,72 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_interaction_alumni__alumni_id__interactions__interaction_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alumni_id: number;
+                interaction_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_interaction_alumni__alumni_id__interactions__interaction_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alumni_id: number;
+                interaction_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InteractionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
