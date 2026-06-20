@@ -162,6 +162,14 @@ function toDateTimeLocalValue(iso: string | null | undefined): string {
 
 /** Shared field set for the add/edit interaction forms. */
 function InteractionFields({ row }: { row?: Interaction }) {
+  // Preserve a stored type that isn't one of the preset options (e.g. an
+  // older/imported value): show it as a selectable option so editing an
+  // unrelated field doesn't silently overwrite it with the first preset.
+  const current = row?.interaction_type ?? null;
+  const typeOptions: readonly string[] =
+    current && !(INTERACTION_TYPES as readonly string[]).includes(current)
+      ? [current, ...INTERACTION_TYPES]
+      : INTERACTION_TYPES;
   return (
     <div className="space-y-3">
       <div>
@@ -173,9 +181,9 @@ function InteractionFields({ row }: { row?: Interaction }) {
           name="interaction_type"
           className={`${fieldCls} bg-white`}
           style={{ colorScheme: "light" }}
-          defaultValue={row?.interaction_type ?? INTERACTION_TYPES[0]}
+          defaultValue={current ?? INTERACTION_TYPES[0]}
         >
-          {INTERACTION_TYPES.map((t) => (
+          {typeOptions.map((t) => (
             <option key={t} value={t} className="bg-white text-gray-900">
               {t}
             </option>

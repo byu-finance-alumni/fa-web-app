@@ -340,14 +340,14 @@ export async function updateInteraction(
     return { error: "Interaction type is required." };
   }
   try {
-    await apiPatch(
-      `/alumni/${alumniId}/interactions/${interactionId}`,
-      compact({
-        interaction_type: type.trim(),
-        interaction_date_time: getStr(formData, "interaction_date_time"),
-        interaction_notes: getStr(formData, "interaction_notes"),
-      }),
-    );
+    // The edit dialog always submits date + notes (prefilled), so send them
+    // explicitly — `null` when blank, so clearing a field actually clears it
+    // (compact would have dropped a blank value and silently kept the old one).
+    await apiPatch(`/alumni/${alumniId}/interactions/${interactionId}`, {
+      interaction_type: type.trim(),
+      interaction_date_time: getStr(formData, "interaction_date_time") ?? null,
+      interaction_notes: getStr(formData, "interaction_notes") ?? null,
+    });
   } catch (e) {
     return toFormState(e, "Failed to save interaction.");
   }
