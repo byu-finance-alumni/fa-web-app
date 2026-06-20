@@ -25,6 +25,12 @@ interface Summary {
   events_this_month: number;
   /** NEW (parallel backend task) — alumni who guest-spoke this month. */
   guest_speakers_this_month: number;
+  /** NEW (#42) — alumni with no contact in the last N calendar months. The
+   *  cutoffs are computed with the same calendar-month clamp the backend uses
+   *  (see monthsBeforeISO) so each count matches its deep-linked list. */
+  not_contacted_6mo: number;
+  not_contacted_12mo: number;
+  not_contacted_24mo: number;
   by_graduation_year: { year: number; count: number }[];
   top_employers: { employer: string; count: number }[];
   by_state: { state: string; count: number }[];
@@ -52,6 +58,20 @@ function formatBirthday(month: number | null, day: number | null): string {
     month: "short",
     day: "numeric",
   });
+}
+
+/**
+ * ISO date (YYYY-MM-DD) for "N calendar months ago", clamped to a valid
+ * end-of-month day. MUST mirror the backend's `contacted_before` cutoff so the
+ * "Not contacted in N months" count equals the deep-linked alumni list.
+ */
+function monthsBeforeISO(months: number): string {
+  const now = new Date();
+  const t = new Date(now.getFullYear(), now.getMonth() - months, 1);
+  const lastDay = new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate();
+  t.setDate(Math.min(now.getDate(), lastDay));
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${t.getFullYear()}-${p(t.getMonth() + 1)}-${p(t.getDate())}`;
 }
 
 function Panel({
@@ -397,6 +417,42 @@ export default async function DashboardPage() {
                 linkLabel="View alumni"
               />
             </div>
+
+            {/* Re-engagement — alumni overdue for outreach. Cutoff dates use
+                the calendar-month clamp that matches the backend count, so the
+                tile value equals the deep-linked list it links to. */}
+            <Panel
+              title="Re-engagement"
+              action={
+                <span className="text-xs font-medium text-gray-500">
+                  Click to filter →
+                </span>
+              }
+            >
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <MetricCard
+                  size="lg"
+                  label="Not contacted in 6 months"
+                  value={s?.not_contacted_6mo ?? "—"}
+                  href={`/alumni?contacted_before=${monthsBeforeISO(6)}`}
+                  linkLabel="View alumni not contacted in 6 months"
+                />
+                <MetricCard
+                  size="lg"
+                  label="Not contacted in 12 months"
+                  value={s?.not_contacted_12mo ?? "—"}
+                  href={`/alumni?contacted_before=${monthsBeforeISO(12)}`}
+                  linkLabel="View alumni not contacted in 12 months"
+                />
+                <MetricCard
+                  size="lg"
+                  label="Not contacted in 24 months"
+                  value={s?.not_contacted_24mo ?? "—"}
+                  href={`/alumni?contacted_before=${monthsBeforeISO(24)}`}
+                  linkLabel="View alumni not contacted in 24 months"
+                />
+              </div>
+            </Panel>
 
             {/* Row A — Top employers | Top industries (equal halves) */}
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

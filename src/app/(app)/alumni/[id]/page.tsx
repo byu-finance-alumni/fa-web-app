@@ -20,6 +20,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
+import { daysAgo } from "@/lib/format";
 import type { Profile } from "@/types/profile";
 import type { UserContext } from "@/types/alumni";
 import { canEditAlumni, hasFullAccess } from "@/constants/roles";
@@ -259,6 +260,26 @@ export default async function AlumniProfilePage({
   const recentInteractions = profile.interactions.filter(
     (i) => i.interaction_date_time && i.interaction_date_time >= quarterAgo,
   ).length;
+
+  // Last-contacted is derived client-side from the newest interaction
+  // (interactions arrive newest-first), NOT a backend "score".
+  const lastInteraction = profile.interactions[0];
+  const lastContactedIso = lastInteraction?.interaction_date_time ?? null;
+  const lastContactedDays = lastContactedIso
+    ? Math.round(
+        (Date.now() - new Date(lastContactedIso).getTime()) / 864e5,
+      )
+    : null;
+  // Stale = no contact in > 180 days; recent = within ~30 days. Tone always
+  // pairs with a text label so we never rely on color alone.
+  const contactTone: "warning" | "success" | "neutral" =
+    lastContactedDays === null
+      ? "warning"
+      : lastContactedDays > 180
+        ? "warning"
+        : lastContactedDays <= 30
+          ? "success"
+          : "neutral";
 
   // Completeness checks (mirror the Figma checklist)
   const checks: { label: string; ok: boolean }[] = [
@@ -806,6 +827,69 @@ export default async function AlumniProfilePage({
             {/* Right sidebar (narrower). Same flex-column treatment so it ends
                 level with the main column. */}
             <div className="flex flex-col gap-4 lg:[&>:last-child]:flex-1">
+              {/* Engagement summary — non-sensitive metrics + tags + derived
+                  last-contacted. Shown for all roles (same gating posture as
+                  "Engagement & tags"). Last-contacted comes from the newest
+                  interaction, not a backend score. */}
+              <Panel title="Engagement summary">
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Last contacted
+                    </p>
+                    <p className="mt-0.5 text-2xl font-semibold text-gray-900">
+                      {daysAgo(lastContactedIso)}
+                    </p>
+                    {fmtDate(lastContactedIso) ? (
+                      <p className="text-sm text-gray-500">
+                        {fmtDate(lastContactedIso)}
+                      </p>
+                    ) : null}
+                    {lastInteraction?.interaction_type ? (
+                      <div className="mt-2">
+                        <EngagementChip tone={contactTone}>
+                          {lastContactedDays !== null && lastContactedDays > 180
+                            ? "Stale · "
+                            : ""}
+                          {lastInteraction.interaction_type}
+                        </EngagementChip>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 border-t border-gray-100 pt-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Interactions
+                      </p>
+                      <p className="mt-0.5 text-xl font-semibold tabular-nums text-gray-900">
+                        {profile.interaction_count}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Events attended
+                      </p>
+                      <p className="mt-0.5 text-xl font-semibold tabular-nums text-gray-900">
+                        {profile.events.length}
+                      </p>
+                    </div>
+                  </div>
+
+                  {profile.tags.length ? (
+                    <div className="border-t border-gray-100 pt-4">
+                      <ChipRow label="Tags">
+                        {profile.tags.map((t) => (
+                          <EngagementChip key={t} tone="tag">
+                            {t}
+                          </EngagementChip>
+                        ))}
+                      </ChipRow>
+                    </div>
+                  ) : null}
+                </div>
+              </Panel>
+
               {/* Personal & family */}
               <Panel title="Personal & family" action={<EditLink id={aid} />}>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
