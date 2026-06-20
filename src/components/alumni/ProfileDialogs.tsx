@@ -1525,14 +1525,14 @@ function ChipManager({
                 aria-label={`Remove ${v}`}
                 disabled={pending && busy === v}
                 onClick={() => run(v, removeAction, `Removed ${v}.`)}
-                className="rounded-full p-0.5 hover:bg-black/10 disabled:opacity-50"
+                className="rounded-full p-0.5 hover:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 disabled:opacity-50"
               >
                 <X className="h-3 w-3" />
               </button>
             </span>
           ))
         ) : (
-          <span className="text-xs text-gray-400">None yet.</span>
+          <span className="text-xs text-gray-500">None yet.</span>
         )}
       </div>
       {available.length ? (
@@ -1543,7 +1543,7 @@ function ChipManager({
               type="button"
               disabled={pending && busy === v}
               onClick={() => run(v, addAction, `Added ${v}.`)}
-              className="inline-flex items-center gap-1 rounded-full border border-dashed border-gray-300 px-2.5 py-0.5 text-xs font-medium text-gray-600 hover:border-brand-blue-600 hover:text-brand-blue-600 disabled:opacity-50"
+              className="inline-flex items-center gap-1 rounded-full border border-dashed border-gray-300 px-2.5 py-0.5 text-xs font-medium text-gray-600 hover:border-brand-blue-600 hover:text-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 disabled:opacity-50"
             >
               <Plus className="h-3 w-3" />
               {v}

@@ -1118,7 +1118,7 @@ export default async function AlumniProfilePage({
                     // view_only: read-only chips, no edit affordances.
                     engagementContent
                   ) : (
-                    <p className="py-4 text-center text-sm text-gray-500">
+                    <p className="py-6 text-center text-sm text-gray-500">
                       No tags or status labels yet.
                     </p>
                   )}
