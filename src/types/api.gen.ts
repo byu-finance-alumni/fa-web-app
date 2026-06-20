@@ -834,6 +834,11 @@ export interface paths {
          * Summary
          * @description KPIs, distributions (cohort / top employers / by state), and recent
          *     activity for the dashboard.
+         *
+         *     Aggregate counts only — no per-alumnus identity is returned, so (unlike the
+         *     per-row drill-downs in this module) it deliberately writes no record-of-
+         *     disclosure audit row. Drill-downs reached from the tiles audit their own
+         *     reads.
          */
         get: operations["summary_dashboard_summary_get"];
         put?: never;
