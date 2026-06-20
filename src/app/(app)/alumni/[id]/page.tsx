@@ -47,7 +47,6 @@ import {
 import { InteractionTimeline } from "@/components/alumni/InteractionTimeline";
 import { ExportProfileButton } from "@/components/alumni/ExportProfileButton";
 import { DrawerList } from "@/components/alumni/DrawerList";
-import { DrawerView } from "@/components/alumni/DrawerView";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { Avatar } from "@/components/shared/Avatar";
 
@@ -1090,47 +1089,37 @@ export default async function AlumniProfilePage({
               profile.status_labels.length ||
               profile.program_engagement ||
               canEdit ? (
-                <Panel
-                  title="Engagement & tags"
-                  action={
-                    <DrawerView
-                      title="Engagement & tags"
-                      triggerLabel="View all"
-                    >
-                      <div className="space-y-5">
-                        {canEdit ? (
-                          <TagStatusManager
-                            alumniId={aid}
-                            tags={profile.tags}
-                            statusLabels={profile.status_labels}
-                          />
-                        ) : null}
-                        {profile.program_engagement ? (
-                          <ChipRow label="Program">
-                            {programChips(profile.program_engagement).map(
-                              (label) => (
-                                <EngagementChip key={label} tone="success">
-                                  {label}
-                                </EngagementChip>
-                              ),
-                            )}
-                          </ChipRow>
-                        ) : null}
-                      </div>
-                    </DrawerView>
-                  }
-                >
-                  {/* Capped so a chip-heavy alumnus can't grow the box — the
-                      overflow lives behind "View all". */}
-                  {profile.tags.length ||
-                  profile.status_labels.length ||
-                  profile.program_engagement ? (
-                    <div className="max-h-40 overflow-hidden">
-                      {engagementContent}
+                <Panel title="Engagement & tags">
+                  {canEdit ? (
+                    // Editors get the inline tag + status-label manager as a
+                    // first-class section (#41) — removable chips + add-from-
+                    // vocab — instead of it being buried in a drawer.
+                    <div className="space-y-5">
+                      <TagStatusManager
+                        alumniId={aid}
+                        tags={profile.tags}
+                        statusLabels={profile.status_labels}
+                      />
+                      {profile.program_engagement ? (
+                        <ChipRow label="Program">
+                          {programChips(profile.program_engagement).map(
+                            (label) => (
+                              <EngagementChip key={label} tone="success">
+                                {label}
+                              </EngagementChip>
+                            ),
+                          )}
+                        </ChipRow>
+                      ) : null}
                     </div>
+                  ) : profile.tags.length ||
+                    profile.status_labels.length ||
+                    profile.program_engagement ? (
+                    // view_only: read-only chips, no edit affordances.
+                    engagementContent
                   ) : (
                     <p className="py-4 text-center text-sm text-gray-500">
-                      No tags or status labels yet. Use “View all” to add some.
+                      No tags or status labels yet.
                     </p>
                   )}
                 </Panel>

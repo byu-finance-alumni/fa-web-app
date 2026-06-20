@@ -38,6 +38,11 @@ export const TAG_OPTIONS = [
   "Speaker",
   "Recruiter",
   "Donor",
+  "Warm Contact",
+  "High Value",
+  "Club/Recruiting",
+  "Finance Orgs",
+  "Advisory Boards",
 ] as const;
 
 export type Tag = (typeof TAG_OPTIONS)[number];
@@ -48,6 +53,7 @@ export const STATUS_OPTIONS = [
   "Inactive",
   "Deceased",
   "Lost Contact",
+  "Retired",
   "Do Not Contact",
 ] as const;
 
