@@ -66,12 +66,19 @@ function formatBirthday(month: number | null, day: number | null): string {
  * "Not contacted in N months" count equals the deep-linked alumni list.
  */
 function monthsBeforeISO(months: number): string {
+  // UTC throughout to mirror the backend cutoff (datetime.now(UTC).date()), so
+  // the tile count equals the deep-linked /alumni?contacted_before list. Local
+  // time here drifted the date by a day each evening for US users.
   const now = new Date();
-  const t = new Date(now.getFullYear(), now.getMonth() - months, 1);
-  const lastDay = new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate();
-  t.setDate(Math.min(now.getDate(), lastDay));
+  const t = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - months, 1),
+  );
+  const lastDay = new Date(
+    Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  t.setUTCDate(Math.min(now.getUTCDate(), lastDay));
   const p = (n: number) => String(n).padStart(2, "0");
-  return `${t.getFullYear()}-${p(t.getMonth() + 1)}-${p(t.getDate())}`;
+  return `${t.getUTCFullYear()}-${p(t.getUTCMonth() + 1)}-${p(t.getUTCDate())}`;
 }
 
 function Panel({
@@ -421,14 +428,7 @@ export default async function DashboardPage() {
             {/* Re-engagement — alumni overdue for outreach. Cutoff dates use
                 the calendar-month clamp that matches the backend count, so the
                 tile value equals the deep-linked list it links to. */}
-            <Panel
-              title="Re-engagement"
-              action={
-                <span className="text-xs font-medium text-gray-500">
-                  Click to filter →
-                </span>
-              }
-            >
+            <Panel title="Re-engagement">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <MetricCard
                   size="lg"
