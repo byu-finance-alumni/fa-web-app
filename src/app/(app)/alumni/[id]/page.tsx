@@ -265,11 +265,16 @@ export default async function AlumniProfilePage({
   // (interactions arrive newest-first), NOT a backend "score".
   const lastInteraction = profile.interactions[0];
   const lastContactedIso = lastInteraction?.interaction_date_time ?? null;
-  const lastContactedDays = lastContactedIso
-    ? Math.round(
-        (Date.now() - new Date(lastContactedIso).getTime()) / 864e5,
-      )
-    : null;
+  // Whole-day difference between calendar dates (same basis as daysAgo), so the
+  // tone and the "N days ago" label can never disagree near a threshold.
+  const lastContactedDays = (() => {
+    if (!lastContactedIso) return null;
+    const then = new Date(lastContactedIso);
+    if (Number.isNaN(then.getTime())) return null;
+    const startOfDay = (d: Date) =>
+      new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    return Math.round((startOfDay(new Date()) - startOfDay(then)) / 864e5);
+  })();
   // Stale = no contact in > 180 days; recent = within ~30 days. Tone always
   // pairs with a text label so we never rely on color alone.
   const contactTone: "warning" | "success" | "neutral" =
@@ -845,12 +850,15 @@ export default async function AlumniProfilePage({
                         {fmtDate(lastContactedIso)}
                       </p>
                     ) : null}
-                    {lastInteraction?.interaction_type ? (
+                    {lastContactedIso !== null &&
+                    lastInteraction?.interaction_type ? (
                       <div className="mt-2">
                         <EngagementChip tone={contactTone}>
-                          {lastContactedDays !== null && lastContactedDays > 180
+                          {contactTone === "warning"
                             ? "Stale · "
-                            : ""}
+                            : contactTone === "success"
+                              ? "Recent · "
+                              : ""}
                           {lastInteraction.interaction_type}
                         </EngagementChip>
                       </div>
