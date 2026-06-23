@@ -45,6 +45,8 @@ import {
   type ActivityItem,
 } from "@/components/alumni/ProfileActivity";
 import { InteractionTimeline } from "@/components/alumni/InteractionTimeline";
+import { ProfileNotes } from "@/components/alumni/ProfileNotes";
+import type { Note } from "@/types/notes";
 import { ExportProfileButton } from "@/components/alumni/ExportProfileButton";
 import { DrawerList } from "@/components/alumni/DrawerList";
 import { MetricCard } from "@/components/shared/MetricCard";
@@ -209,6 +211,17 @@ export default async function AlumniProfilePage({
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) notFound();
     throw e;
+  }
+
+  // Unified notes (#39): readable by every role; a failure here must not break
+  // the whole profile, so fall back to an empty list.
+  let notes: Note[] = [];
+  try {
+    notes = await apiGet<Note[]>(
+      `/notes?entity_type=alumni&entity_id=${id}`,
+    );
+  } catch {
+    /* notes unavailable — render the card empty rather than 500 the page */
   }
 
   // `canEdit` covers editing the EXISTING record + nested data — students get
@@ -825,6 +838,17 @@ export default async function AlumniProfilePage({
                   )}
                 </Panel>
               ) : null}
+
+              {/* Unified notes (#39): free-text notes on this alumnus. Visible to
+                  every role; writing is full_access (canArchive), re-enforced and
+                  audit-logged server-side. */}
+              <Panel title="Notes">
+                <ProfileNotes
+                  alumniId={aid}
+                  notes={notes}
+                  canWrite={canArchive}
+                />
+              </Panel>
 
             </div>
 
