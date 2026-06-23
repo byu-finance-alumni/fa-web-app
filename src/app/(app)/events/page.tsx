@@ -2,6 +2,8 @@ import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
 import { EventsExplorer, type EventRow } from "@/components/events/EventsExplorer";
 import { EventsToolbar } from "@/components/events/EventsToolbar";
+import { hasFullAccess } from "@/constants/roles";
+import type { UserContext } from "@/types/alumni";
 
 type SP = {
   q?: string;
@@ -72,6 +74,17 @@ export default async function EventsPage({
     types = optionsResult.value.types;
   }
 
+  // Writing event discussion notes (#39) is full_access only. Fetch the caller's
+  // role context; default to false (read-only) if the account isn't provisioned.
+  // The backend re-enforces this on every /notes write.
+  let canWriteNotes = false;
+  try {
+    const ctx = await apiGet<UserContext>("/auth/context");
+    canWriteNotes = hasFullAccess(ctx.roles);
+  } catch {
+    canWriteNotes = false;
+  }
+
   return (
     <>
       <Topbar title="Events" />
@@ -92,7 +105,11 @@ export default async function EventsPage({
             No events match your search.
           </div>
         ) : (
-          <EventsExplorer events={events!} initialOpenId={openId} />
+          <EventsExplorer
+            events={events!}
+            initialOpenId={openId}
+            canWriteNotes={canWriteNotes}
+          />
         )}
       </main>
     </>
