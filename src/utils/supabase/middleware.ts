@@ -55,15 +55,37 @@ export const updateSession = async (request: NextRequest) => {
   // IMPORTANT: getUser() revalidates the token against Supabase and rotates
   // expiring cookies. Do not gate auth decisions on getSession() — it only
   // reads the (spoofable) cookie without verifying it.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  const user = userData.user;
 
   const { pathname } = request.nextUrl;
 
+  // Distinguish "definitely signed out" from "couldn't verify right now". A
+  // transient getUser() failure (Supabase 5xx/timeout, network blip, or a
+  // token-refresh race moments after a token rotated) returns no user PLUS an
+  // error, while the browser is still holding valid session cookies. Treating
+  // that as logged-out bounced authenticated users to /login?next= mid-navigation
+  // (E7: intermittent 307 → /login on /admin/vocabulary and /alumni). Fail SAFE:
+  // only treat it as a real sign-out when the auth server gives a definitive
+  // auth verdict — a missing session (AuthSessionMissingError, 400) or a rejected
+  // token (401/403). A 5xx or a transport error (status 0/undefined) means we
+  // simply couldn't reach Supabase to verify a session that may well be valid,
+  // so we let the request through; the page's own getSession()/backend stay the
+  // source of truth and the next request retries the refresh. A spoofed cookie
+  // can't gain access here — protected pages and the backend re-verify the token
+  // regardless, so failing open at the middleware is safe.
+  const hasSessionCookies = request.cookies
+    .getAll()
+    .some((c) => c.name.startsWith("sb-") && c.name.includes("auth-token"));
+  const status = userError?.status ?? 0;
+  const isDefinitiveAuthFailure = status === 400 || status === 401 || status === 403;
+  const verificationFailedButMaybeAuthed =
+    !user && userError != null && !isDefinitiveAuthFailure && hasSessionCookies;
+
   // Unauthenticated user hitting a protected route → send to login, remembering
-  // where they were headed so we can return them there after sign-in.
-  if (!user && !isPublicPath(pathname)) {
+  // where they were headed so we can return them there after sign-in. A
+  // transient verification failure (above) is NOT treated as unauthenticated.
+  if (!user && !verificationFailedButMaybeAuthed && !isPublicPath(pathname)) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.search = "";
