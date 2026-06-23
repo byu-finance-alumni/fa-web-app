@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { apiGet, ApiError } from "@/lib/api";
+import { apiGet, apiGetWithRetry, ApiError } from "@/lib/api";
 import type { Alumni, AlumniPage, UserContext } from "@/types/alumni";
 import type { FilterOptions } from "@/types/filters";
 import { hasFullAccess } from "@/constants/roles";
@@ -139,7 +139,10 @@ export default async function AlumniListPage({
   let error: ApiError | null = null;
   let options: FilterOptions | null = null;
   const [listResult, optionsResult, ctxResult] = await Promise.allSettled([
-    apiGet<AlumniPage>(`/alumni?${params.toString()}`),
+    // Retry the list read once on a transient 5xx (serverless cold start /
+    // dropped DB connection) so the list loads reliably on first navigation
+    // instead of intermittently showing "Couldn't load alumni".
+    apiGetWithRetry<AlumniPage>(`/alumni?${params.toString()}`),
     apiGet<FilterOptions>("/alumni/filter-options", {
       revalidate: 300,
       tags: ["alumni-filter-options"],
