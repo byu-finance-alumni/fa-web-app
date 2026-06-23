@@ -3922,6 +3922,10 @@ export interface operations {
                 never_contacted?: boolean;
                 /** @description Only alumni who attended at least one event. */
                 attended_event?: boolean;
+                /** @description Only alumni who served as a guest speaker at an event held on/after this date (matches the dashboard 'Guest speakers this month' KPI). */
+                spoke_after?: string | null;
+                /** @description Only alumni who served as a guest speaker at an event held on/before this date. */
+                spoke_before?: string | null;
                 /** @description Only PIFF donors. */
                 donor?: boolean;
                 /** @description Only alumni willing to mentor. */
