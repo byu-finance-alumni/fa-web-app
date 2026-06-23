@@ -232,6 +232,10 @@ function Field({
         type={type}
         defaultValue={defaultValue}
         placeholder={placeholder}
+        // Off so the browser can't inject/duplicate autofill text into these
+        // uncontrolled fields (the only path that could render e.g. a doubled
+        // "FinanceFinance" department value; the stored data is single).
+        autoComplete="off"
         aria-invalid={error ? true : undefined}
         aria-describedby={errorId}
         onBlur={onBlur ? (e) => onBlur(name, e.target.value) : undefined}
