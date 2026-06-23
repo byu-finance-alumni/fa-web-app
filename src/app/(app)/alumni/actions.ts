@@ -21,6 +21,7 @@ import type {
   AlumniExportRequest,
   ExportColumnCatalog,
 } from "@/types/export";
+import type { Note } from "@/types/notes";
 
 /**
  * Result of a form server action.
@@ -868,6 +869,73 @@ export async function exportAlumni(
     return {
       ok: false,
       error: e instanceof ApiError ? e.message : "Export failed — try again.",
+    };
+  }
+}
+
+// --- Unified notes (#39) -----------------------------------------------------
+//
+// Profile-scoped wrappers over the generic /notes endpoints (entity_type
+// "alumni"). Write = full_access and up; the backend re-enforces it and
+// audit-logs every change. We revalidate the profile so the notes card and the
+// Audit tab refresh after a mutation.
+
+/** Add a note to an alumni profile (full_access). */
+export async function addProfileNote(
+  alumniId: number,
+  body: string,
+): Promise<{ ok: true; note: Note } | { ok: false; error: string }> {
+  const trimmed = body.trim();
+  if (!trimmed) return { ok: false, error: "Note can't be empty." };
+  try {
+    const note = await apiPost<Note>("/notes", {
+      entity_type: "alumni",
+      entity_id: alumniId,
+      body: trimmed,
+    });
+    revalidatePath(`/alumni/${alumniId}`);
+    return { ok: true, note };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Couldn't add the note.",
+    };
+  }
+}
+
+/** Edit a note's body (full_access). */
+export async function updateProfileNote(
+  alumniId: number,
+  noteId: number,
+  body: string,
+): Promise<{ ok: true; note: Note } | { ok: false; error: string }> {
+  const trimmed = body.trim();
+  if (!trimmed) return { ok: false, error: "Note can't be empty." };
+  try {
+    const note = await apiPatch<Note>(`/notes/${noteId}`, { body: trimmed });
+    revalidatePath(`/alumni/${alumniId}`);
+    return { ok: true, note };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Couldn't save the note.",
+    };
+  }
+}
+
+/** Delete a note (full_access). */
+export async function deleteProfileNote(
+  alumniId: number,
+  noteId: number,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await apiDelete(`/notes/${noteId}`);
+    revalidatePath(`/alumni/${alumniId}`);
+    return { ok: true };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Couldn't delete the note.",
     };
   }
 }
