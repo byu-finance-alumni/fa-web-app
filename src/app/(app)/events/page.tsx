@@ -74,14 +74,19 @@ export default async function EventsPage({
     types = optionsResult.value.types;
   }
 
-  // Writing event discussion notes (#39) is full_access only. Fetch the caller's
-  // role context; default to false (read-only) if the account isn't provisioned.
-  // The backend re-enforces this on every /notes write.
+  // Event management (create/edit, attendance, discussion notes #39) is
+  // full_access only — mirrors backend require_full_access. Fetch the caller's
+  // role context once; default to read-only if the account isn't provisioned.
+  // Both flags resolve from the same tier today, but they're kept distinct so
+  // the gates read by intent. The backend re-enforces every write.
+  let canManageEvents = false;
   let canWriteNotes = false;
   try {
     const ctx = await apiGet<UserContext>("/auth/context");
+    canManageEvents = hasFullAccess(ctx.roles);
     canWriteNotes = hasFullAccess(ctx.roles);
   } catch {
+    canManageEvents = false;
     canWriteNotes = false;
   }
 
@@ -89,7 +94,11 @@ export default async function EventsPage({
     <>
       <Topbar title="Events" />
       <main className="flex-1 overflow-auto p-6">
-        <EventsToolbar initial={filters} types={types} />
+        <EventsToolbar
+          initial={filters}
+          types={types}
+          canManageEvents={canManageEvents}
+        />
 
         {error ? (
           <div className="rounded-xl border border-gray-300 bg-white p-10 text-center">
@@ -109,6 +118,7 @@ export default async function EventsPage({
             events={events!}
             initialOpenId={openId}
             canWriteNotes={canWriteNotes}
+            canManageEvents={canManageEvents}
           />
         )}
       </main>
