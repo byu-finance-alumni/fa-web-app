@@ -77,6 +77,8 @@ export default async function AlumniListPage({
     donor: one(sp.donor) === "1",
     mentor: one(sp.mentor) === "1",
     speaker: one(sp.speaker) === "1",
+    cfa: one(sp.cfa) === "1",
+    cpa: one(sp.cpa) === "1",
     archived: one(sp.archived) === "1",
     deceased:
       one(sp.deceased) === "1"
@@ -131,6 +133,8 @@ export default async function AlumniListPage({
   if (filters.donor) params.set("donor", "true");
   if (filters.mentor) params.set("mentor_willing", "true");
   if (filters.speaker) params.set("guest_speaker_willing", "true");
+  if (filters.cfa) params.set("cfa", "true");
+  if (filters.cpa) params.set("cpa", "true");
   // Event-speaker window deep-link (from the dashboard "Guest speakers this
   // month" tile): alumni who served as a guest speaker at an event in the
   // window. Forwarded straight through (no chip UI) — same pattern as the
