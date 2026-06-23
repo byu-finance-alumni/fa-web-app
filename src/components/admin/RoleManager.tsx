@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2, X } from "lucide-react";
 import { assignRole, removeRole } from "@/app/(app)/admin/actions";
 import { useToast } from "@/components/ui/Toast";
@@ -31,6 +32,7 @@ export function RoleManager({
   canAssignEngineer?: boolean;
 }) {
   const { toast } = useToast();
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const available = ASSIGNABLE_ROLES.filter(
     (r) =>
@@ -60,7 +62,12 @@ export function RoleManager({
                   startTransition(async () => {
                     const res = await removeRole(userId, r);
                     if (res?.error) toast.error(res.error);
-                    else toast.success(`${labelOf(r)} removed.`);
+                    else {
+                      toast.success(`${labelOf(r)} removed.`);
+                      // revalidatePath alone doesn't re-render from a bare
+                      // startTransition (PR #138) — refresh so the chip updates.
+                      router.refresh();
+                    }
                   })
                 }
                 className="text-gray-400 hover:text-danger-600 disabled:opacity-50"
@@ -85,7 +92,10 @@ export function RoleManager({
               startTransition(async () => {
                 const res = await assignRole(userId, v);
                 if (res?.error) toast.error(res.error);
-                else toast.success(`${labelOf(v)} added.`);
+                else {
+                  toast.success(`${labelOf(v)} added.`);
+                  router.refresh();
+                }
               });
           }}
           // Explicit light surface + color-scheme so the native option list
