@@ -10,6 +10,7 @@ import {
   Calendar,
   Activity,
   AlertTriangle,
+  CalendarClock,
   History,
   Shield,
   ShieldCheck,
@@ -52,6 +53,12 @@ const NAV: NavItem[] = [
     href: "/tasks",
     label: "Tasks",
     icon: ListChecks,
+    fullAccessOnly: true,
+  },
+  {
+    href: "/needs-surveying",
+    label: "Needs Surveying",
+    icon: CalendarClock,
     fullAccessOnly: true,
   },
   {

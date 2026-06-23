@@ -41,6 +41,12 @@ export interface AlumniFilterState {
   missingEmail: boolean;
   missingEmployer: boolean;
   duplicate: boolean;
+  /** "Needs Surveying" view: alumni DUE for the biennial re-survey. Forced on by
+   *  the /needs-surveying page (admin tier only) and never surfaced as a toggle/
+   *  chip here — it's not serialized into the query string (the route, not the
+   *  URL, owns it), but it DOES flow into the export filters so an export from
+   *  that page covers exactly the due set. */
+  needsSurvey: boolean;
   sort: "name" | "grad_desc" | "grad_asc";
 }
 
@@ -72,6 +78,7 @@ export const EMPTY_FILTERS: AlumniFilterState = {
   missingEmail: false,
   missingEmployer: false,
   duplicate: false,
+  needsSurvey: false,
   sort: "name",
 };
 
@@ -156,6 +163,7 @@ export function AlumniFilters({
   canCreate = false,
   canExport = false,
   total,
+  basePath = "/alumni",
 }: {
   initial: AlumniFilterState;
   options?: FilterOptions;
@@ -163,6 +171,10 @@ export function AlumniFilters({
   canExport?: boolean;
   /** Filtered alumni total (= export row count, since exports reuse these filters). */
   total?: number;
+  /** Route the live filtering navigates within. Defaults to the main alumni list;
+   *  the /needs-surveying view passes its own path so narrowing the due set stays
+   *  on that page (and keeps the route-owned needs_survey flag in effect). */
+  basePath?: string;
 }) {
   const router = useRouter();
   const [f, setF] = useState<AlumniFilterState>(initial);
@@ -172,6 +184,14 @@ export function AlumniFilters({
 
   const serialized = toQs(f);
   const initialQs = toQs(initial);
+
+  // "Clear all" resets every user-facing filter but PRESERVES the route-owned
+  // needs_survey flag (true only on /needs-surveying) so clearing within the due
+  // set keeps both the listing AND the export scoped to the due set.
+  const clearedFilters: AlumniFilterState = {
+    ...EMPTY_FILTERS,
+    needsSurvey: initial.needsSurvey,
+  };
 
   // Live navigation: debounce any change, skip no-ops. Use replace() (not push)
   // so live filtering doesn't stack a history entry per keystroke — that lets
@@ -183,7 +203,7 @@ export function AlumniFilters({
     const navigate = () => {
       lastPushedRef.current = serialized;
       startTransition(() => {
-        router.replace(serialized ? `/alumni?${serialized}` : "/alumni");
+        router.replace(serialized ? `${basePath}?${serialized}` : basePath);
       });
     };
     if (serialized === "") {
@@ -192,7 +212,7 @@ export function AlumniFilters({
     }
     const timer = setTimeout(navigate, 300);
     return () => clearTimeout(timer);
-  }, [serialized, router]);
+  }, [serialized, router, basePath]);
 
   // Re-seed only when the URL changed from outside (deep-link / Clear).
   useEffect(() => {
@@ -415,7 +435,7 @@ export function AlumniFilters({
           ))}
           <button
             type="button"
-            onClick={() => setF(EMPTY_FILTERS)}
+            onClick={() => setF(clearedFilters)}
             className="text-xs font-semibold text-brand-blue-600 hover:text-brand-blue-500"
           >
             Clear all
@@ -567,7 +587,7 @@ export function AlumniFilters({
             <div className="flex items-center justify-between gap-2 border-t border-gray-300 px-5 py-4">
               <button
                 type="button"
-                onClick={() => setF(EMPTY_FILTERS)}
+                onClick={() => setF(clearedFilters)}
                 disabled={!isDirty}
                 className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 enabled:hover:bg-gray-50 disabled:text-gray-300"
               >

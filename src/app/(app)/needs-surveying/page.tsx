@@ -5,10 +5,14 @@ import type { FilterOptions } from "@/types/filters";
 import { hasFullAccess } from "@/constants/roles";
 import { Topbar } from "@/components/shell/Topbar";
 import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
-import { AlumniFilters, type AlumniFilterState } from "@/components/alumni/AlumniFilters";
+import {
+  AlumniFilters,
+  type AlumniFilterState,
+} from "@/components/alumni/AlumniFilters";
 import { AlumniTable } from "@/components/alumni/AlumniTable";
 
 const LIMIT = 25;
+const BASE_PATH = "/needs-surveying";
 
 function fullName(a: Alumni): string {
   const last = a.last_name ?? "";
@@ -36,8 +40,7 @@ const arr = (v: string | string[] | undefined): string[] =>
 const one = (v: string | string[] | undefined): string =>
   (Array.isArray(v) ? v[0] : v) ?? "";
 
-/** The grad-year sort tokens the backend GET /alumni accepts (besides "name").
- *  newest → grad_desc (DESC, nulls last); oldest → grad_asc (ASC, nulls last). */
+/** The grad-year sort tokens the backend GET /alumni accepts (besides "name"). */
 const GRAD_SORTS = ["grad_desc", "grad_asc"] as const;
 
 /** Normalize the ?sort= param to a recognized token; anything else → "name". */
@@ -47,7 +50,21 @@ function parseSort(raw: string): AlumniFilterState["sort"] {
     : "name";
 }
 
-export default async function AlumniListPage({
+/**
+ * "Needs Surveying" — the biennial re-survey worklist.
+ *
+ * Lists alumni who are DUE for the survey (never completed one, or whose most
+ * recent completion is older than 2 years). The due-set predicate is computed
+ * server-side; this view simply forces `needs_survey=1` on every GET /alumni
+ * request (and on exports) so the list is always scoped to the due set, while
+ * the standard alumni filters can still NARROW within it.
+ *
+ * Admin-tier only (engineer / super_admin / full_access). The nav item is gated
+ * `fullAccessOnly`, and the backend 403s the `needs_survey` param for lower
+ * roles — so if a student / view_only user navigates here directly we render a
+ * graceful "not authorized" state instead of crashing (mirrors Tasks).
+ */
+export default async function NeedsSurveyingPage({
   searchParams,
 }: {
   searchParams: Promise<SP>;
@@ -55,7 +72,9 @@ export default async function AlumniListPage({
   const sp = await searchParams;
   const offset = Math.max(0, Number(one(sp.offset) || "0") || 0);
 
-  // Normalize the URL (incl. legacy ?year= / ?missing= deep-links) into state.
+  // Normalize the URL into state. needs_survey is route-owned (forced below),
+  // never read from the URL — but it IS seeded into the filter state so the
+  // export carries it.
   const filters: AlumniFilterState = {
     q: one(sp.q),
     ymin: one(sp.ymin) || one(sp.year),
@@ -77,8 +96,6 @@ export default async function AlumniListPage({
     donor: one(sp.donor) === "1",
     mentor: one(sp.mentor) === "1",
     speaker: one(sp.speaker) === "1",
-    cfa: one(sp.cfa) === "1",
-    cpa: one(sp.cpa) === "1",
     archived: one(sp.archived) === "1",
     deceased:
       one(sp.deceased) === "1"
@@ -90,22 +107,19 @@ export default async function AlumniListPage({
     missingEmployer:
       one(sp.missing_employer) === "1" || one(sp.missing) === "employer",
     duplicate: one(sp.duplicate) === "1",
-    // The main alumni roster is never scoped to the survey-due set — that's the
-    // dedicated /needs-surveying view (admin tier only).
-    needsSurvey: false,
-    // Grad-year sort. The UI offers "newest" / "oldest"; those map 1:1 to the
-    // backend's tokens — newest = grad_desc (graduation_year DESC, nulls last)
-    // and oldest = grad_asc (graduation_year ASC, nulls last). Forward only a
-    // recognized token; anything else falls back to name so a stale/legacy
-    // ?sort= value can never silently flip the order. (See AlumniFilters'
-    // dropdown + the backend GET /alumni sort enum, which stay in lockstep.)
+    cfa: one(sp.cfa) === "1",
+    cpa: one(sp.cpa) === "1",
+    // Route-owned: this view is always the due set.
+    needsSurvey: true,
     sort: parseSort(one(sp.sort)),
   };
 
-  // Backend query params (multi-select facets become repeated params).
+  // Backend query params. needs_survey is forced on so the list is ALWAYS the
+  // biennial-due set; the other facets narrow within it.
   const params = new URLSearchParams({
     limit: String(LIMIT),
     offset: String(offset),
+    needs_survey: "1",
   });
   if (filters.q) params.set("q", filters.q);
   if (filters.ymin) params.set("grad_year_min", filters.ymin);
@@ -113,11 +127,6 @@ export default async function AlumniListPage({
   const appendAll = (name: string, values: string[]) => {
     for (const v of values) params.append(name, v);
   };
-  // Current-employer filter is a pass-through deep-link param only (the alumni
-  // page no longer renders an employer dropdown facet — see #153). It still
-  // arrives from dashboard "Top employers" rows and the dashboard search bar
-  // (/alumni?employer=<v>), so forward it straight to the backend, the same way
-  // the spoke_after/spoke_before window params below are handled.
   appendAll("employer", arr(sp.employer));
   appendAll("past_employer", filters.pastEmployer);
   appendAll("industry", filters.industry);
@@ -129,41 +138,29 @@ export default async function AlumniListPage({
   appendAll("status_label", filters.statusLabel);
   appendAll("leadership_role", filters.leadership);
   appendAll("survey_status", filters.surveyStatus);
-  if (filters.contactedAfter) params.set("contacted_after", filters.contactedAfter);
-  if (filters.contactedBefore) params.set("contacted_before", filters.contactedBefore);
+  if (filters.contactedAfter)
+    params.set("contacted_after", filters.contactedAfter);
+  if (filters.contactedBefore)
+    params.set("contacted_before", filters.contactedBefore);
   if (filters.neverContacted) params.set("never_contacted", "true");
   if (filters.attended) params.set("attended_event", "true");
   if (filters.donor) params.set("donor", "true");
   if (filters.mentor) params.set("mentor_willing", "true");
   if (filters.speaker) params.set("guest_speaker_willing", "true");
-  if (filters.cfa) params.set("cfa", "true");
-  if (filters.cpa) params.set("cpa", "true");
-  // Event-speaker window deep-link (from the dashboard "Guest speakers this
-  // month" tile): alumni who served as a guest speaker at an event in the
-  // window. Forwarded straight through (no chip UI) — same pattern as the
-  // contacted_after/before deep-links — and validated as YYYY-MM-DD so a junk
-  // value can't reach the API. The backend predicate matches the KPI exactly,
-  // so the resulting list length equals the tile's count.
-  const isoDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
-  const spokeAfter = one(sp.spoke_after);
-  const spokeBefore = one(sp.spoke_before);
-  if (isoDate(spokeAfter)) params.set("spoke_after", spokeAfter);
-  if (isoDate(spokeBefore)) params.set("spoke_before", spokeBefore);
   if (filters.archived) params.set("include_archived", "true");
   if (filters.deceased === "only") params.set("deceased", "true");
   if (filters.deceased === "exclude") params.set("deceased", "false");
   if (filters.missingEmail) params.set("missing_email", "true");
   if (filters.missingEmployer) params.set("missing_employer", "true");
   if (filters.duplicate) params.set("duplicate", "true");
+  if (filters.cfa) params.set("cfa", "true");
+  if (filters.cpa) params.set("cpa", "true");
   if (filters.sort !== "name") params.set("sort", filters.sort);
 
   let data: AlumniPage | null = null;
   let error: ApiError | null = null;
   let options: FilterOptions | null = null;
   const [listResult, optionsResult, ctxResult] = await Promise.allSettled([
-    // Retry the list read once on a transient 5xx (serverless cold start /
-    // dropped DB connection) so the list loads reliably on first navigation
-    // instead of intermittently showing "Couldn't load alumni".
     apiGetWithRetry<AlumniPage>(`/alumni?${params.toString()}`),
     apiGet<FilterOptions>("/alumni/filter-options", {
       revalidate: 300,
@@ -181,7 +178,7 @@ export default async function AlumniListPage({
   if (optionsResult.status === "fulfilled") {
     options = optionsResult.value;
   }
-  const canCreate =
+  const canExport =
     ctxResult.status === "fulfilled" && hasFullAccess(ctxResult.value.roles);
 
   const from = data && data.total > 0 ? offset + 1 : 0;
@@ -197,39 +194,49 @@ export default async function AlumniListPage({
     }
     if (newOffset > 0) p.set("offset", String(newOffset));
     const qs = p.toString();
-    return qs ? `/alumni?${qs}` : "/alumni";
+    return qs ? `${BASE_PATH}?${qs}` : BASE_PATH;
   };
 
   return (
     <>
-      <Topbar title="All Alumni" />
+      <Topbar title="Needs Surveying" />
       <main className="flex-1 overflow-auto p-6">
+        <p className="mb-4 max-w-3xl text-sm text-gray-500">
+          Alumni due for the biennial re-survey — anyone who has never completed
+          a survey, or whose most recent completion is more than two years old.
+          The list is always scoped to this due set; use the filters to narrow
+          it further.
+        </p>
+
         <AlumniFilters
           initial={filters}
           options={options ?? undefined}
-          canCreate={canCreate}
-          canExport={canCreate}
+          // No "Add alumni" affordance on this worklist — it's a re-survey view,
+          // not the master roster.
+          canCreate={false}
+          canExport={canExport}
           total={data?.total ?? 0}
+          basePath={BASE_PATH}
         />
 
         {error ? (
           <div className="rounded-xl border border-gray-300 bg-white p-10 text-center">
             <p className="font-medium text-gray-900">
               {error.status === 403
-                ? "Your account isn't provisioned yet"
+                ? "You don't have access to Needs Surveying"
                 : error.status === 401
                   ? "Please sign in again"
                   : "Couldn't load alumni"}
             </p>
             <p className="mt-1 text-sm text-gray-500">
               {error.status === 403
-                ? "Ask a Super Admin to grant your account a role."
+                ? "The re-survey worklist is available to full-access users only."
                 : error.message}
             </p>
           </div>
         ) : data && data.items.length === 0 ? (
           <div className="rounded-xl border border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
-            No alumni match your search.
+            No alumni are currently due for re-survey.
           </div>
         ) : (
           <>
@@ -248,7 +255,9 @@ export default async function AlumniListPage({
                     </p>
                     <p className="truncate text-xs text-gray-500">
                       {[
-                        a.graduation_year ? `Class of ${a.graduation_year}` : null,
+                        a.graduation_year
+                          ? `Class of ${a.graduation_year}`
+                          : null,
                         a.current_employer,
                       ]
                         .filter(Boolean)
@@ -298,7 +307,10 @@ function PageLink({
   const cls =
     "rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium";
   return enabled ? (
-    <Link href={href} className={`${cls} bg-white text-gray-700 hover:bg-gray-50`}>
+    <Link
+      href={href}
+      className={`${cls} bg-white text-gray-700 hover:bg-gray-50`}
+    >
       {label}
     </Link>
   ) : (
