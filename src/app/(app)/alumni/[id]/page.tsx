@@ -1180,6 +1180,7 @@ export default async function AlumniProfilePage({
             alumniId={aid}
             items={profile.interactions}
             canEdit={canEdit}
+            canWriteNotes={canArchive}
           />
         </div>
       </main>

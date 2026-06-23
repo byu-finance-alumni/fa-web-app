@@ -1,14 +1,19 @@
 "use client";
 
+import { useCallback, useState } from "react";
 import {
   Users,
   Phone,
   StickyNote,
   CalendarDays,
   MessageSquare,
+  ChevronRight,
   type LucideIcon,
 } from "lucide-react";
 import type { Interaction } from "@/types/profile";
+import type { Note } from "@/types/notes";
+import { clientGet } from "@/lib/api-client";
+import { EntityNotes } from "@/components/notes/EntityNotes";
 import {
   AddInteractionButton,
   InteractionRowActions,
@@ -39,18 +44,113 @@ const fmtMountain = (iso: string | null) =>
     : "—";
 
 /**
+ * Collapsible unified-notes thread for a single interaction (#39). Notes are
+ * loaded lazily the first time the disclosure is opened (any view-access role),
+ * and writing is gated to `canWrite` (full_access). The count badge reflects the
+ * latest loaded notes once expanded.
+ */
+function InteractionNotes({
+  interactionId,
+  canWrite,
+}: {
+  interactionId: number;
+  canWrite: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [notes, setNotes] = useState<Note[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const data = await clientGet<Note[]>(
+        `/notes?entity_type=interaction&entity_id=${interactionId}`,
+      );
+      setNotes(data);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [interactionId]);
+
+  function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next && notes === null && !loading) void load();
+  }
+
+  const count = notes?.length ?? 0;
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        aria-controls={`interaction-notes-${interactionId}`}
+        aria-label="Notes for this interaction"
+        className="flex items-center gap-1 rounded-md text-xs font-medium text-gray-700 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500"
+      >
+        <ChevronRight
+          className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-90" : ""}`}
+          aria-hidden="true"
+        />
+        Notes{notes !== null && count > 0 ? ` (${count})` : ""}
+      </button>
+      {open ? (
+        <div
+          id={`interaction-notes-${interactionId}`}
+          className="mt-2 border-l border-gray-300 pl-3"
+        >
+          {loading ? (
+            <p className="py-2 text-xs text-gray-500">Loading notes…</p>
+          ) : error ? (
+            <div className="flex items-center gap-2 py-2 text-xs text-gray-500">
+              <span>Couldn&apos;t load notes.</span>
+              <button
+                type="button"
+                onClick={() => void load()}
+                className="font-medium text-brand-blue-600 hover:text-brand-blue-500"
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
+            <EntityNotes
+              entityType="interaction"
+              entityId={interactionId}
+              notes={notes ?? []}
+              canWrite={canWrite}
+              onChanged={() => void load()}
+            />
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
  * Dedicated interactions timeline (issue #38) — interactions only, newest
  * first. Distinct from `ProfileActivity`, which merges audit events in. Editors
  * can log, edit, and delete from here; view-only users see a read-only history.
+ *
+ * `canEdit` is the broad edit tier (includes students); `canWriteNotes` is the
+ * narrower full_access tier used to gate note writing (#39).
  */
 export function InteractionTimeline({
   alumniId,
   items,
   canEdit,
+  canWriteNotes = false,
 }: {
   alumniId: number;
   items: Interaction[];
   canEdit: boolean;
+  canWriteNotes?: boolean;
 }) {
   return (
     <section className="rounded-xl border border-gray-300 bg-white p-5">
@@ -89,7 +189,7 @@ export function InteractionTimeline({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700">
                         {i.interaction_type ?? "Interaction"}
                       </span>
                       <p className="mt-1 text-xs text-gray-500">
@@ -107,6 +207,10 @@ export function InteractionTimeline({
                       {i.interaction_notes}
                     </p>
                   ) : null}
+                  <InteractionNotes
+                    interactionId={i.interaction_id}
+                    canWrite={canWriteNotes}
+                  />
                 </div>
               </li>
             );

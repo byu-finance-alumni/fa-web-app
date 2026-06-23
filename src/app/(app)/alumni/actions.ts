@@ -21,7 +21,7 @@ import type {
   AlumniExportRequest,
   ExportColumnCatalog,
 } from "@/types/export";
-import type { Note } from "@/types/notes";
+import type { Note, NoteEntityType } from "@/types/notes";
 
 /**
  * Result of a form server action.
@@ -931,6 +931,70 @@ export async function deleteProfileNote(
   try {
     await apiDelete(`/notes/${noteId}`);
     revalidatePath(`/alumni/${alumniId}`);
+    return { ok: true };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Couldn't delete the note.",
+    };
+  }
+}
+
+// --- Generic notes (#39) -----------------------------------------------------
+//
+// Entity-agnostic wrappers over the generic /notes endpoints, used by the
+// reusable <EntityNotes> component (alumni / interaction / event). Write =
+// full_access and up; the backend re-enforces it and audit-logs every change.
+// Unlike the profile-scoped wrappers above we DON'T revalidate a hardcoded path
+// (the entity varies) — callers refresh via router.refresh() / onChanged.
+
+/** Add a note to any supported entity (full_access). */
+export async function addNote(
+  entityType: NoteEntityType,
+  entityId: number,
+  body: string,
+): Promise<{ ok: true; note: Note } | { ok: false; error: string }> {
+  const trimmed = body.trim();
+  if (!trimmed) return { ok: false, error: "Note can't be empty." };
+  try {
+    const note = await apiPost<Note>("/notes", {
+      entity_type: entityType,
+      entity_id: entityId,
+      body: trimmed,
+    });
+    return { ok: true, note };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Couldn't add the note.",
+    };
+  }
+}
+
+/** Edit a note's body (full_access). */
+export async function updateNote(
+  noteId: number,
+  body: string,
+): Promise<{ ok: true; note: Note } | { ok: false; error: string }> {
+  const trimmed = body.trim();
+  if (!trimmed) return { ok: false, error: "Note can't be empty." };
+  try {
+    const note = await apiPatch<Note>(`/notes/${noteId}`, { body: trimmed });
+    return { ok: true, note };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Couldn't save the note.",
+    };
+  }
+}
+
+/** Delete a note (full_access). */
+export async function deleteNote(
+  noteId: number,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await apiDelete(`/notes/${noteId}`);
     return { ok: true };
   } catch (e) {
     return {
