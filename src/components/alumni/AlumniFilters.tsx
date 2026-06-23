@@ -16,7 +16,6 @@ export interface AlumniFilterState {
   ymin: string;
   ymax: string;
   // Multi-select facets (repeated URL params; OR within a facet).
-  employer: string[];
   pastEmployer: string[];
   industry: string[];
   title: string[];
@@ -47,7 +46,6 @@ export const EMPTY_FILTERS: AlumniFilterState = {
   q: "",
   ymin: "",
   ymax: "",
-  employer: [],
   pastEmployer: [],
   industry: [],
   title: [],
@@ -84,7 +82,6 @@ const FACETS: {
   param: string;
   optKey: keyof FilterOptions;
 }[] = [
-  { key: "employer", label: "Employer", param: "employer", optKey: "employers" },
   { key: "pastEmployer", label: "Past employer", param: "past_employer", optKey: "past_employers" },
   { key: "industry", label: "Industry", param: "industry", optKey: "industries" },
   { key: "title", label: "Job title", param: "title", optKey: "titles" },
