@@ -1,16 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { isPrefetchHeaders } from "@/lib/prefetch";
 import { updateSession } from "@/utils/supabase/middleware";
 
 // Detects a Next.js <Link> prefetch (or any speculative fetch) so we can skip
-// auth refresh/redirect for it. Next sets `next-router-prefetch` on App Router
-// prefetches; browsers also advertise speculation via `purpose`/`sec-purpose`.
+// auth refresh/redirect for it. The detection logic lives in @/lib/prefetch as a
+// pure function so it can be unit-tested (issue #31 regression).
 function isPrefetch(request: NextRequest): boolean {
-  const headers = request.headers;
-  return (
-    headers.get("next-router-prefetch") !== null ||
-    headers.get("purpose") === "prefetch" ||
-    headers.get("sec-purpose")?.includes("prefetch") === true
-  );
+  return isPrefetchHeaders(request.headers);
 }
 
 export async function middleware(request: NextRequest) {

@@ -51,6 +51,10 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      # Unit tests (vitest). Fast, runs before the heavier build.
+      - name: Test
+        run: npm test
+
       # Next.js production build — the same build Vercel runs, so a green build
       # here means the Vercel deploy will not break on a compile/build error.
       - name: Build
