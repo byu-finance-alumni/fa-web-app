@@ -1622,7 +1622,8 @@ export interface paths {
         /**
          * List Notes
          * @description List the notes on one entity, newest first (any view-access role). 404 if
-         *     the parent entity doesn't exist. The disclosure is audit-logged.
+         *     the parent entity doesn't exist. The disclosure is audit-logged. A view_only
+         *     caller sees note authors by first name only; editors see full names.
          */
         get: operations["list_notes_notes_get"];
         put?: never;
