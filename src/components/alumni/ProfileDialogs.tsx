@@ -184,6 +184,13 @@ function InteractionFields({ row }: { row?: Interaction }) {
     current && !(INTERACTION_TYPES as readonly string[]).includes(current)
       ? [current, ...INTERACTION_TYPES]
       : INTERACTION_TYPES;
+  // Controlled date so an explicit "Clear" reliably empties the field (the
+  // browser-native datetime-local clear is inconsistent across browsers and was
+  // reported not clearing — FA-6). The empty value submits as "", which the
+  // updateInteraction action sends as null so the cleared date persists.
+  const [when, setWhen] = useState(() =>
+    toDateTimeLocalValue(row?.interaction_date_time),
+  );
   return (
     <div className="space-y-3">
       <div>
@@ -205,16 +212,28 @@ function InteractionFields({ row }: { row?: Interaction }) {
         </select>
       </div>
       <div>
-        <label className={labelCls} htmlFor="interaction_date_time">
-          Date &amp; time
-        </label>
+        <div className="mb-1 flex items-center justify-between">
+          <label className={`${labelCls} mb-0`} htmlFor="interaction_date_time">
+            Date &amp; time
+          </label>
+          {when ? (
+            <button
+              type="button"
+              onClick={() => setWhen("")}
+              className="text-[11px] font-medium text-brand-blue-600 hover:text-brand-blue-500"
+            >
+              Clear
+            </button>
+          ) : null}
+        </div>
         <input
           id="interaction_date_time"
           name="interaction_date_time"
           type="datetime-local"
           className={`${fieldCls} bg-white`}
           style={{ colorScheme: "light" }}
-          defaultValue={toDateTimeLocalValue(row?.interaction_date_time)}
+          value={when}
+          onChange={(e) => setWhen(e.target.value)}
         />
       </div>
       <div>
