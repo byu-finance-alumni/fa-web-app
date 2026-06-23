@@ -198,6 +198,21 @@ export function SpousePicker({
           type="date"
           defaultValue={defaults?.spouse_birth_date ?? ""}
           aria-invalid={errors?.spouse_birth_date ? true : undefined}
+          // Open the native date picker on a click anywhere in the field, not
+          // just the small calendar glyph — clicking the body otherwise does
+          // nothing in some browsers (QA: picker didn't open reliably).
+          // showPicker() throws if unsupported / outside a user gesture, so guard it.
+          onClick={(e) => {
+            const el = e.currentTarget as HTMLInputElement & {
+              showPicker?: () => void;
+            };
+            try {
+              el.showPicker?.();
+            } catch {
+              /* unsupported or blocked — native click behaviour still applies */
+            }
+          }}
+          style={{ colorScheme: "light" }}
           className={inputClasses(!!errors?.spouse_birth_date)}
         />
         {errors?.spouse_birth_date ? (

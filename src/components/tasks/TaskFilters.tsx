@@ -68,15 +68,23 @@ export function TaskFilters({
   const serialized = toQs(f);
   const initialQs = toQs(initial);
 
-  // Live navigation: debounce any state change, skip no-ops.
+  // Live navigation: search filters as you type (debounced); toggles like Overdue
+  // apply immediately. replace() (not push) so each keystroke/toggle doesn't stack
+  // a history entry — Back returns to the previous page rather than stepping back
+  // through filter states. Clearing navigates at once without the debounce.
   useEffect(() => {
     if (serialized === lastPushedRef.current) return;
-    const timer = setTimeout(() => {
+    const navigate = () => {
       lastPushedRef.current = serialized;
       startTransition(() => {
-        router.push(serialized ? `/tasks?${serialized}` : "/tasks");
+        router.replace(serialized ? `/tasks?${serialized}` : "/tasks");
       });
-    }, 300);
+    };
+    if (serialized === "") {
+      navigate();
+      return;
+    }
+    const timer = setTimeout(navigate, 300);
     return () => clearTimeout(timer);
   }, [serialized, router]);
 

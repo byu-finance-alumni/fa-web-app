@@ -71,15 +71,23 @@ export function AuditToolbar({
   const serialized = toQs(f);
   const initialQs = toQs(initial);
 
-  // Live navigation: debounce any state change, skip no-ops.
+  // Live navigation: debounce any state change, skip no-ops. replace() (not push)
+  // so live filtering doesn't stack a history entry per keystroke — Back returns
+  // to the previous page rather than stepping through filter states. Clearing
+  // navigates immediately so the list resets without waiting out the debounce.
   useEffect(() => {
     if (serialized === lastPushedRef.current) return;
-    const timer = setTimeout(() => {
+    const navigate = () => {
       lastPushedRef.current = serialized;
       startTransition(() => {
-        router.push(serialized ? `/audit?${serialized}` : "/audit");
+        router.replace(serialized ? `/audit?${serialized}` : "/audit");
       });
-    }, 300);
+    };
+    if (serialized === "") {
+      navigate();
+      return;
+    }
+    const timer = setTimeout(navigate, 300);
     return () => clearTimeout(timer);
   }, [serialized, router]);
 

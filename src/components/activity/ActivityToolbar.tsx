@@ -74,12 +74,17 @@ export function ActivityToolbar({
   // resets pagination by dropping the offset (we never carry it forward here).
   useEffect(() => {
     if (serialized === lastPushedRef.current) return;
-    const timer = setTimeout(() => {
+    const navigate = () => {
       lastPushedRef.current = serialized;
       startTransition(() => {
-        router.push(serialized ? `/activity?${serialized}` : "/activity");
+        router.replace(serialized ? `/activity?${serialized}` : "/activity");
       });
-    }, 300);
+    };
+    if (serialized === "") {
+      navigate();
+      return;
+    }
+    const timer = setTimeout(navigate, 300);
     return () => clearTimeout(timer);
   }, [serialized, router]);
 

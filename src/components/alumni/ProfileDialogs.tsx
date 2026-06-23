@@ -540,7 +540,8 @@ export function ArchiveControls({
             <button
               type="button"
               onClick={() => setConfirming(false)}
-              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              disabled={pending}
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
             >
               Cancel
             </button>
@@ -873,7 +874,8 @@ export function DeleteRowButton({
             <button
               type="button"
               onClick={() => setConfirming(false)}
-              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              disabled={pending}
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
             >
               Cancel
             </button>

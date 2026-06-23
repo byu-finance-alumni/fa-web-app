@@ -75,15 +75,23 @@ export function EventsToolbar({
   const serialized = toQs(f);
   const initialQs = toQs(initial);
 
-  // Live navigation: debounce any state change, skip no-ops.
+  // Live navigation: debounce any state change, skip no-ops. replace() (not push)
+  // so each keystroke/filter tweak doesn't stack a history entry — Back returns to
+  // the previous page, not through intermediate filter states. Clearing navigates
+  // immediately so the list resets without waiting out the debounce.
   useEffect(() => {
     if (serialized === lastPushedRef.current) return;
-    const timer = setTimeout(() => {
+    const navigate = () => {
       lastPushedRef.current = serialized;
       startTransition(() => {
-        router.push(serialized ? `/events?${serialized}` : "/events");
+        router.replace(serialized ? `/events?${serialized}` : "/events");
       });
-    }, 300);
+    };
+    if (serialized === "") {
+      navigate();
+      return;
+    }
+    const timer = setTimeout(navigate, 300);
     return () => clearTimeout(timer);
   }, [serialized, router]);
 
@@ -193,7 +201,12 @@ export function EventsToolbar({
                 </p>
                 <select
                   value={f.type}
-                  onChange={(e) => set("type", e.target.value)}
+                  onChange={(e) => {
+                    set("type", e.target.value);
+                    // A type pick is a complete selection; close the menu so the
+                    // user is not left having to click outside (QA LOW-batch).
+                    setMenuOpen(false);
+                  }}
                   aria-label="Event type"
                   className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 focus:outline-none"
                   style={{ colorScheme: "light" }}

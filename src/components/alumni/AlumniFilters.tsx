@@ -170,15 +170,24 @@ export function AlumniFilters({
   const serialized = toQs(f);
   const initialQs = toQs(initial);
 
-  // Live navigation: debounce any change, skip no-ops.
+  // Live navigation: debounce any change, skip no-ops. Use replace() (not push)
+  // so live filtering doesn't stack a history entry per keystroke — that lets
+  // Back return to the previous page instead of stepping through filter states,
+  // and keeps the filtered URL shareable. Clearing to empty navigates at once so
+  // the list (and the ?q= param) reset immediately rather than after the debounce.
   useEffect(() => {
     if (serialized === lastPushedRef.current) return;
-    const timer = setTimeout(() => {
+    const navigate = () => {
       lastPushedRef.current = serialized;
       startTransition(() => {
-        router.push(serialized ? `/alumni?${serialized}` : "/alumni");
+        router.replace(serialized ? `/alumni?${serialized}` : "/alumni");
       });
-    }, 300);
+    };
+    if (serialized === "") {
+      navigate();
+      return;
+    }
+    const timer = setTimeout(navigate, 300);
     return () => clearTimeout(timer);
   }, [serialized, router]);
 
@@ -306,6 +315,16 @@ export function AlumniFilters({
           />
           {isPending && (
             <Loader2 className="h-4 w-4 shrink-0 animate-spin text-gray-500" aria-hidden="true" />
+          )}
+          {f.q && !isPending && (
+            <button
+              type="button"
+              onClick={() => set("q", "")}
+              aria-label="Clear search"
+              className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-gray-400 hover:text-gray-700"
+            >
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
           )}
         </div>
 
