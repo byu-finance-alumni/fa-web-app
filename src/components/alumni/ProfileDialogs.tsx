@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useActionState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Archive,
   ArchiveRestore,
@@ -127,21 +128,34 @@ function FormButtons({
   );
 }
 
-/** Run a side effect once a submit transitions from pending to resolved. */
+/**
+ * Run a side effect once a submit transitions from pending to resolved.
+ *
+ * On success we also `router.refresh()` so the server-rendered profile (the
+ * interaction timeline, employment/education/leadership lists, etc.) re-fetches
+ * and reflects the mutation. The server actions call `revalidatePath`, but a
+ * `useActionState` form submit does NOT re-render the current route on its own —
+ * without this refresh the just-added/edited row keeps its stale data and a
+ * deleted/re-edited row 404s on the next action (QA B1/B2).
+ */
 function useOnSubmitSettled(
   pending: boolean,
   error: string | undefined,
   onSuccess: () => void,
   onError: () => void,
 ) {
+  const router = useRouter();
   const wasPending = useRef(false);
   useEffect(() => {
     if (wasPending.current && !pending) {
       if (error) onError();
-      else onSuccess();
+      else {
+        onSuccess();
+        router.refresh();
+      }
     }
     wasPending.current = pending;
-  }, [pending, error, onSuccess, onError]);
+  }, [pending, error, onSuccess, onError, router]);
 }
 
 /* -------------------------------------------------- add interaction -------- */
@@ -447,6 +461,7 @@ export function ArchiveControls({
   name: string;
 }) {
   const { toast } = useToast();
+  const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -462,7 +477,10 @@ export function ArchiveControls({
               const res = await restoreAlumni(alumniId);
               setError(res?.error ?? null);
               if (res?.error) toast.error(res.error);
-              else toast.success("Record unarchived.");
+              else {
+                toast.success("Record unarchived.");
+                router.refresh();
+              }
             })
           }
           className="inline-flex items-center gap-2 rounded-lg border border-success-600 bg-white px-4 py-2 text-sm font-semibold text-success-600 hover:bg-success-50 disabled:opacity-60"
@@ -519,6 +537,7 @@ export function ArchiveControls({
                   } else {
                     setConfirming(false);
                     toast.success("Record archived.");
+                    router.refresh();
                   }
                 })
               }
@@ -547,6 +566,7 @@ export function TaskCheckbox({
   disabled?: boolean;
 }) {
   const { toast } = useToast();
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   return (
     <button
@@ -556,7 +576,10 @@ export function TaskCheckbox({
         startTransition(async () => {
           const res = await setTaskComplete(alumniId, taskId, !completed);
           if (res?.error) toast.error(res.error);
-          else toast.success(completed ? "Task reopened." : "Task completed.");
+          else {
+            toast.success(completed ? "Task reopened." : "Task completed.");
+            router.refresh();
+          }
         })
       }
       aria-pressed={completed}
@@ -812,6 +835,7 @@ export function DeleteRowButton({
   successMessage: string;
 }) {
   const { toast } = useToast();
+  const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -845,6 +869,10 @@ export function DeleteRowButton({
                   } else {
                     setConfirming(false);
                     toast.success(successMessage);
+                    // Re-render the server-rendered list so the deleted row
+                    // disappears; otherwise a second click on the stale row
+                    // hits the now-gone id and 404s (QA B1/B2).
+                    router.refresh();
                   }
                 })
               }
@@ -1317,6 +1345,7 @@ export function AddEventButton({
   label?: string;
 }) {
   const { toast } = useToast();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [events, setEvents] = useState<EventOption[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -1366,6 +1395,7 @@ export function AddEventButton({
       } else {
         close();
         toast.success("Event attendance added.");
+        router.refresh();
       }
     });
   }
@@ -1489,6 +1519,7 @@ function ChipManager({
   toneAccent: string;
 }) {
   const { toast } = useToast();
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState<string | null>(null);
   const available = options.filter((o) => !current.includes(o));
@@ -1503,7 +1534,11 @@ function ChipManager({
       const res = await action(alumniId, value);
       setBusy(null);
       if (res?.error) toast.error(res.error);
-      else toast.success(okMsg);
+      else {
+        toast.success(okMsg);
+        // Refresh so the chip list reflects the add/remove immediately.
+        router.refresh();
+      }
     });
   }
 
@@ -1512,22 +1547,25 @@ function ChipManager({
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
         {heading}
       </p>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2.5">
         {current.length ? (
           current.map((v) => (
             <span
               key={v}
-              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${toneAccent}`}
+              className={`inline-flex min-h-[32px] items-center gap-1 rounded-full py-1 pl-3 pr-1.5 text-xs font-medium ${toneAccent}`}
             >
               {v}
+              {/* Remove control is its own 24x24 target, padded away from the
+                  label, so tapping it can't be mistaken for adding a chip (B3). */}
               <button
                 type="button"
                 aria-label={`Remove ${v}`}
+                title={`Remove ${v}`}
                 disabled={pending && busy === v}
                 onClick={() => run(v, removeAction, `Removed ${v}.`)}
-                className="rounded-full p-0.5 hover:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 disabled:opacity-50"
+                className="-mr-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full hover:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 disabled:opacity-50"
               >
-                <X className="h-3 w-3" />
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             </span>
           ))
@@ -1536,16 +1574,16 @@ function ChipManager({
         )}
       </div>
       {available.length ? (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap gap-2.5">
           {available.map((v) => (
             <button
               key={v}
               type="button"
               disabled={pending && busy === v}
               onClick={() => run(v, addAction, `Added ${v}.`)}
-              className="inline-flex items-center gap-1 rounded-full border border-dashed border-gray-300 px-2.5 py-0.5 text-xs font-medium text-gray-600 hover:border-brand-blue-600 hover:text-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 disabled:opacity-50"
+              className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-dashed border-gray-300 px-3 py-1 text-xs font-medium text-gray-600 hover:border-brand-blue-600 hover:bg-brand-blue-50 hover:text-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 disabled:opacity-50"
             >
-              <Plus className="h-3 w-3" />
+              <Plus className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               {v}
             </button>
           ))}
