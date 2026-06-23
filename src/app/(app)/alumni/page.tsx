@@ -127,6 +127,17 @@ export default async function AlumniListPage({
   if (filters.donor) params.set("donor", "true");
   if (filters.mentor) params.set("mentor_willing", "true");
   if (filters.speaker) params.set("guest_speaker_willing", "true");
+  // Event-speaker window deep-link (from the dashboard "Guest speakers this
+  // month" tile): alumni who served as a guest speaker at an event in the
+  // window. Forwarded straight through (no chip UI) — same pattern as the
+  // contacted_after/before deep-links — and validated as YYYY-MM-DD so a junk
+  // value can't reach the API. The backend predicate matches the KPI exactly,
+  // so the resulting list length equals the tile's count.
+  const isoDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+  const spokeAfter = one(sp.spoke_after);
+  const spokeBefore = one(sp.spoke_before);
+  if (isoDate(spokeAfter)) params.set("spoke_after", spokeAfter);
+  if (isoDate(spokeBefore)) params.set("spoke_before", spokeBefore);
   if (filters.archived) params.set("include_archived", "true");
   if (filters.deceased === "only") params.set("deceased", "true");
   if (filters.deceased === "exclude") params.set("deceased", "false");

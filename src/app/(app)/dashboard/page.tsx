@@ -306,6 +306,26 @@ function isoToday(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/** First day of the current calendar month as YYYY-MM-DD (UTC). Matches the
+ *  backend's calendar-month window for the "Events this month" and "Guest
+ *  speakers this month" KPIs (month_start) so a tile's count and its deep-linked
+ *  list agree. */
+function isoMonthStart(): string {
+  const d = new Date();
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1))
+    .toISOString()
+    .slice(0, 10);
+}
+
+/** Last day of the current calendar month as YYYY-MM-DD (UTC) — day 0 of next
+ *  month. Mirrors the backend's inclusive month_end bound. */
+function isoMonthEnd(): string {
+  const d = new Date();
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0))
+    .toISOString()
+    .slice(0, 10);
+}
+
 export default async function DashboardPage() {
   // "This month" KPIs use a rolling 30-day window on the backend
   // (contacted_this_month: interactions in the last 30 days;
@@ -315,6 +335,12 @@ export default async function DashboardPage() {
   // to the same window via from/to (→ date_from/date_to).
   const thirtyDaysAgo = isoDaysAgo(30);
   const today = isoToday();
+  // The "Events this month" and "Guest speakers this month" KPIs are
+  // CALENDAR-month scoped on the backend (month_start..month_end), unlike the
+  // rolling-30-day "Attended this month" / "Contacted this month" tiles. Their
+  // deep-links therefore use the calendar-month bounds so count == list length.
+  const monthStart = isoMonthStart();
+  const monthEnd = isoMonthEnd();
 
   let s: Summary | null = null;
   let geo: StateCount[] = [];
@@ -387,8 +413,8 @@ export default async function DashboardPage() {
                 size="lg"
                 label="Guest speakers this month"
                 value={s?.guest_speakers_this_month ?? "—"}
-                href="/alumni?speaker=1"
-                linkLabel="View alumni willing to guest speak"
+                href={`/alumni?spoke_after=${monthStart}&spoke_before=${monthEnd}`}
+                linkLabel="View alumni who guest-spoke this month"
               />
               <MetricCard
                 size="lg"
@@ -401,8 +427,8 @@ export default async function DashboardPage() {
                 size="lg"
                 label="Events this month"
                 value={s?.events_this_month ?? "—"}
-                href="/events"
-                linkLabel="View events"
+                href={`/events?from=${monthStart}&to=${monthEnd}`}
+                linkLabel="View events held this month"
               />
               <MetricCard
                 size="lg"
