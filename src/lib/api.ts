@@ -172,3 +172,33 @@ export async function apiGetText(path: string): Promise<string> {
   }
   return res.text();
 }
+
+/**
+ * Server-side JSON POST that returns the raw response body as TEXT (not JSON) —
+ * used for the alumni CSV export, where the request carries the column + filter
+ * selection but the response is a CSV file the client turns into a Blob
+ * download. Auth header is attached; an error body's JSON message is surfaced.
+ */
+export async function apiPostText(path: string, body: unknown): Promise<string> {
+  if (!API_URL) throw new ApiError(0, "API URL is not configured.");
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "POST",
+    headers: {
+      ...(await authHeaders()),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    let message = res.statusText;
+    try {
+      const errBody = await res.json();
+      message = errBody?.error?.message ?? message;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new ApiError(res.status, message);
+  }
+  return res.text();
+}

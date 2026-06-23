@@ -9,6 +9,7 @@ import {
   apiDelete,
   apiPostForm,
   apiGetText,
+  apiPostText,
   ApiError,
 } from "@/lib/api";
 import type {
@@ -16,6 +17,10 @@ import type {
   ImportPreview,
   ImportResult,
 } from "@/types/alumni";
+import type {
+  AlumniExportRequest,
+  ExportColumnCatalog,
+} from "@/types/export";
 
 /**
  * Result of a form server action.
@@ -824,6 +829,45 @@ export async function exportProfile(
       ok: false,
       error:
         e instanceof ApiError ? e.message : "Couldn't export this profile.",
+    };
+  }
+}
+
+/**
+ * The catalog of exportable columns + the default-checked selection
+ * (GET /alumni/export/columns, RequireFullAccess), for the export column picker.
+ */
+export async function getExportColumns(): Promise<
+  { ok: true; catalog: ExportColumnCatalog } | { ok: false; error: string }
+> {
+  try {
+    const catalog = await apiGet<ExportColumnCatalog>("/alumni/export/columns");
+    return { ok: true, catalog };
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof ApiError ? e.message : "Couldn't load export columns.",
+    };
+  }
+}
+
+/**
+ * Run the customizable alumni CSV export (POST /alumni/export, RequireFullAccess)
+ * for the chosen columns over the current list filters. The backend streams the
+ * CSV (and audit-logs the disclosure); we return the text so the client can turn
+ * it into a Blob download. A 413 (too many rows) surfaces as a clear message.
+ */
+export async function exportAlumni(
+  req: AlumniExportRequest,
+): Promise<{ ok: true; csv: string } | { ok: false; error: string }> {
+  try {
+    const csv = await apiPostText("/alumni/export", req);
+    return { ok: true, csv };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Export failed — try again.",
     };
   }
 }
