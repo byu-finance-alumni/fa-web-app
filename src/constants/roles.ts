@@ -69,6 +69,7 @@ const FULL_ACCESS_ROLES = new Set<string>([
   ROLE.FULL_ACCESS,
 ]);
 const USER_ADMIN_ROLES = new Set<string>([ROLE.ENGINEER, ROLE.SUPER_ADMIN]);
+const ENGINEER_ROLES = new Set<string>([ROLE.ENGINEER]);
 
 const hasAny = (roles: readonly string[] | null | undefined, set: Set<string>) =>
   (roles ?? []).some((r) => set.has(r));
@@ -96,6 +97,14 @@ export const hasFullAccess = (roles: readonly string[] | null | undefined) =>
  */
 export const isUserAdmin = (roles: readonly string[] | null | undefined) =>
   hasAny(roles, USER_ADMIN_ROLES);
+
+/**
+ * Engineer-only tooling (e.g. the Admin → Vocabulary editor, support contacts,
+ * logins). Mirrors backend `require_engineer`: the single top role. super_admin
+ * and below never qualify.
+ */
+export const isEngineer = (roles: readonly string[] | null | undefined) =>
+  hasAny(roles, ENGINEER_ROLES);
 
 // --- Admin UI option lists ---------------------------------------------------
 

@@ -293,7 +293,29 @@ function BirthdayList({ rows }: { rows: Birthday[] }) {
   );
 }
 
+/** YYYY-MM-DD for a date `days` before today (UTC), matching the dashboard
+ *  KPIs' rolling 30-day window so a tile's count and its deep-linked list agree. */
+function isoDaysAgo(days: number): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Today as YYYY-MM-DD (UTC). */
+function isoToday(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default async function DashboardPage() {
+  // "This month" KPIs use a rolling 30-day window on the backend
+  // (contacted_this_month: interactions in the last 30 days;
+  // attended_event_this_month: events held in the last 30 days). The two tiles
+  // deep-link with the matching list filters so the count and the resulting
+  // list agree: /alumni?contacted_after=<30d ago> and the events list bounded
+  // to the same window via from/to (→ date_from/date_to).
+  const thirtyDaysAgo = isoDaysAgo(30);
+  const today = isoToday();
+
   let s: Summary | null = null;
   let geo: StateCount[] = [];
   let geoSum: GeoSummary | null = null;
@@ -386,15 +408,15 @@ export default async function DashboardPage() {
                 size="lg"
                 label="Attended this month"
                 value={s?.attended_event_this_month ?? "—"}
-                href="/events"
-                linkLabel="View events"
+                href={`/events?from=${thirtyDaysAgo}&to=${today}`}
+                linkLabel="View events held this month"
               />
               <MetricCard
                 size="lg"
                 label="Contacted this month"
                 value={s?.contacted_this_month ?? "—"}
-                href="/alumni"
-                linkLabel="View alumni"
+                href={`/alumni?contacted_after=${thirtyDaysAgo}`}
+                linkLabel="View alumni contacted this month"
               />
             </div>
 

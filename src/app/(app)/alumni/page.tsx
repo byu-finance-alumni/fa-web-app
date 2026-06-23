@@ -36,6 +36,17 @@ const arr = (v: string | string[] | undefined): string[] =>
 const one = (v: string | string[] | undefined): string =>
   (Array.isArray(v) ? v[0] : v) ?? "";
 
+/** The grad-year sort tokens the backend GET /alumni accepts (besides "name").
+ *  newest → grad_desc (DESC, nulls last); oldest → grad_asc (ASC, nulls last). */
+const GRAD_SORTS = ["grad_desc", "grad_asc"] as const;
+
+/** Normalize the ?sort= param to a recognized token; anything else → "name". */
+function parseSort(raw: string): AlumniFilterState["sort"] {
+  return (GRAD_SORTS as readonly string[]).includes(raw)
+    ? (raw as AlumniFilterState["sort"])
+    : "name";
+}
+
 export default async function AlumniListPage({
   searchParams,
 }: {
@@ -78,10 +89,13 @@ export default async function AlumniListPage({
     missingEmployer:
       one(sp.missing_employer) === "1" || one(sp.missing) === "employer",
     duplicate: one(sp.duplicate) === "1",
-    sort:
-      one(sp.sort) === "grad_desc" || one(sp.sort) === "grad_asc"
-        ? (one(sp.sort) as "grad_desc" | "grad_asc")
-        : "name",
+    // Grad-year sort. The UI offers "newest" / "oldest"; those map 1:1 to the
+    // backend's tokens — newest = grad_desc (graduation_year DESC, nulls last)
+    // and oldest = grad_asc (graduation_year ASC, nulls last). Forward only a
+    // recognized token; anything else falls back to name so a stale/legacy
+    // ?sort= value can never silently flip the order. (See AlumniFilters'
+    // dropdown + the backend GET /alumni sort enum, which stay in lockstep.)
+    sort: parseSort(one(sp.sort)),
   };
 
   // Backend query params (multi-select facets become repeated params).
