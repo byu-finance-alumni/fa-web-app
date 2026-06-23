@@ -39,6 +39,11 @@ export function toExportFilters(f: AlumniFilterState): AlumniExportFilters {
     missing_employer: f.missingEmployer,
     duplicate: f.duplicate,
     include_archived: f.archived,
+    // Wired to real filter state by the cert-filter (#159) and needs-surveying
+    // (#160) work; default off until AlumniFilterState carries them.
+    cfa: false,
+    cpa: false,
+    needs_survey: false,
     sort: "name",
   };
 }
