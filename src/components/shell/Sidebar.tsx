@@ -70,7 +70,7 @@ const NAV: NavItem[] = [
         href: "/admin/vocabulary",
         label: "Vocabulary",
         icon: ListChecks,
-        superAdminOnly: true,
+        engineerOnly: true,
       },
       { href: "/audit", label: "Audit", icon: History, superAdminOnly: true },
       {

@@ -1,6 +1,9 @@
+import { redirect } from "next/navigation";
 import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
 import { VocabularyManager } from "@/components/admin/VocabularyManager";
+import { isEngineer } from "@/constants/roles";
+import type { UserContext } from "@/types/alumni";
 
 export interface VocabTerm {
   term_id: number;
@@ -42,6 +45,21 @@ const CATEGORIES: { key: string; label: string; help: string }[] = [
  * (same pattern as the user-admin page).
  */
 export default async function VocabularyAdminPage() {
+  // Editing the controlled vocabulary is engineer-only tooling. A non-engineer
+  // (incl. super_admin) navigating directly to this route is bounced to the
+  // dashboard rather than shown an editor. Resolve the flag inside the try/catch,
+  // then redirect OUTSIDE it — redirect() works by throwing a control-flow signal
+  // a catch would otherwise swallow (same pattern as /alumni/[id]/edit). The
+  // backend stays the source of truth; this is UX only.
+  let canManage = false;
+  try {
+    const ctx = await apiGet<UserContext>("/auth/context");
+    canManage = isEngineer(ctx.roles);
+  } catch {
+    /* not provisioned / context error → treat as no access */
+  }
+  if (!canManage) redirect("/dashboard");
+
   let groups: { key: string; label: string; help: string; terms: VocabTerm[] }[] | null =
     null;
   let error: ApiError | null = null;
