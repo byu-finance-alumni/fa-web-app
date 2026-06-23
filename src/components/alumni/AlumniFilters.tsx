@@ -34,6 +34,8 @@ export interface AlumniFilterState {
   donor: boolean;
   mentor: boolean;
   speaker: boolean;
+  cfa: boolean;
+  cpa: boolean;
   archived: boolean;
   deceased: "" | "only" | "exclude";
   missingEmail: boolean;
@@ -63,6 +65,8 @@ export const EMPTY_FILTERS: AlumniFilterState = {
   donor: false,
   mentor: false,
   speaker: false,
+  cfa: false,
+  cpa: false,
   archived: false,
   deceased: "",
   missingEmail: false,
@@ -110,6 +114,8 @@ function toQs(f: AlumniFilterState): string {
   if (f.donor) p.set("donor", "1");
   if (f.mentor) p.set("mentor", "1");
   if (f.speaker) p.set("speaker", "1");
+  if (f.cfa) p.set("cfa", "1");
+  if (f.cpa) p.set("cpa", "1");
   if (f.archived) p.set("archived", "1");
   if (f.deceased === "only") p.set("deceased", "1");
   if (f.deceased === "exclude") p.set("deceased", "0");
@@ -225,6 +231,8 @@ export function AlumniFilters({
     (f.donor ? 1 : 0) +
     (f.mentor ? 1 : 0) +
     (f.speaker ? 1 : 0) +
+    (f.cfa ? 1 : 0) +
+    (f.cpa ? 1 : 0) +
     (f.archived ? 1 : 0) +
     (f.deceased ? 1 : 0) +
     (f.missingEmail ? 1 : 0) +
@@ -263,6 +271,8 @@ export function AlumniFilters({
   if (f.donor) chips.push({ label: "PIFF donor", remove: () => set("donor", false) });
   if (f.mentor) chips.push({ label: "Willing to mentor", remove: () => set("mentor", false) });
   if (f.speaker) chips.push({ label: "Willing to guest speak", remove: () => set("speaker", false) });
+  if (f.cfa) chips.push({ label: "CFA", remove: () => set("cfa", false) });
+  if (f.cpa) chips.push({ label: "CPA", remove: () => set("cpa", false) });
   if (f.missingEmail) chips.push({ label: "Missing email", remove: () => set("missingEmail", false) });
   if (f.missingEmployer) chips.push({ label: "Missing employer", remove: () => set("missingEmployer", false) });
   if (f.duplicate) chips.push({ label: "Duplicate", remove: () => set("duplicate", false) });
@@ -273,8 +283,29 @@ export function AlumniFilters({
       remove: () => set("deceased", ""),
     });
 
+  // Quick-filter toggle: a one-click pill in the toolbar for the most common
+  // designation filters (CFA / CPA). Mirrors the boolean state used everywhere
+  // else; active = brand-blue solid, inactive = secondary (white + gray border).
+  const quickToggle = (key: "cfa" | "cpa", label: string) => {
+    const active = f[key];
+    return (
+      <button
+        type="button"
+        onClick={() => set(key, !active)}
+        aria-pressed={active}
+        className={`inline-flex shrink-0 items-center rounded-lg border px-3 py-2 text-sm font-semibold ${
+          active
+            ? "border-brand-blue-600 bg-brand-blue-600 text-white hover:bg-brand-blue-500"
+            : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+        }`}
+      >
+        {label}
+      </button>
+    );
+  };
+
   const checkboxRow = (
-    key: "attended" | "donor" | "mentor" | "speaker" | "archived" | "neverContacted" | "missingEmail" | "missingEmployer" | "duplicate",
+    key: "attended" | "donor" | "mentor" | "speaker" | "cfa" | "cpa" | "archived" | "neverContacted" | "missingEmail" | "missingEmployer" | "duplicate",
     label: string,
   ) => (
     <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -350,6 +381,9 @@ export function AlumniFilters({
             </span>
           )}
         </button>
+
+        {quickToggle("cfa", "CFA")}
+        {quickToggle("cpa", "CPA")}
 
         {canExport ? (
           <ExportAlumniButton
@@ -489,6 +523,8 @@ export function AlumniFilters({
                   {checkboxRow("donor", "PIFF donor")}
                   {checkboxRow("mentor", "Willing to mentor")}
                   {checkboxRow("speaker", "Willing to guest speak")}
+                  {checkboxRow("cfa", "CFA designation")}
+                  {checkboxRow("cpa", "CPA designation")}
                 </div>
               </div>
 
