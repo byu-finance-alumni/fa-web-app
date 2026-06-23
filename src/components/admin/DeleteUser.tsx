@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2, Trash2, TriangleAlert } from "lucide-react";
 import { deleteUser } from "@/app/(app)/admin/actions";
 import { useToast } from "@/components/ui/Toast";
@@ -31,6 +32,7 @@ export function DeleteUser({
   name: string;
 }) {
   const { toast } = useToast();
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   // null = closed; "confirm" = "are you sure?"; "type" = type-email-to-confirm.
   const [step, setStep] = useState<null | "confirm" | "type">(null);
@@ -52,6 +54,13 @@ export function DeleteUser({
       } else {
         toast.success(`${name} permanently deleted.`);
         close();
+        // `deleteUser` calls `revalidatePath("/admin")`, which refreshes the
+        // server cache but does NOT re-render the current route when the action
+        // is invoked from a bare `startTransition` (see PR #138). Without this,
+        // the deleted row stays on screen ("the user remains") and a second
+        // click 404s the now-gone id. Force the server component to re-fetch so
+        // the row disappears immediately.
+        router.refresh();
       }
     });
   }

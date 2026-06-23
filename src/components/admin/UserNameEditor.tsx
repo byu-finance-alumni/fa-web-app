@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Pencil } from "lucide-react";
 import { updateUserName } from "@/app/(app)/admin/actions";
 import { useToast } from "@/components/ui/Toast";
@@ -31,6 +32,7 @@ export function UserNameEditor({
   lastName: string | null;
 }) {
   const { toast } = useToast();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [first, setFirst] = useState(firstName ?? "");
@@ -67,6 +69,9 @@ export function UserNameEditor({
       } else {
         setOpen(false);
         toast.success("Name updated.");
+        // revalidatePath alone doesn't re-render from a bare startTransition
+        // (PR #138) — refresh so the row's display name updates immediately.
+        router.refresh();
       }
     });
   }

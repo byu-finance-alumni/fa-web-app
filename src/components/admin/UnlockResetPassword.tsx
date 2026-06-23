@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Copy, KeyRound, Loader2, ShieldAlert } from "lucide-react";
 import { resetUserPassword } from "@/app/(app)/admin/actions";
 import { useToast } from "@/components/ui/Toast";
@@ -30,8 +31,17 @@ export function UnlockResetPassword({
   name: string;
 }) {
   const { toast } = useToast();
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [tempPassword, setTempPassword] = useState<string | null>(null);
+
+  // Dismiss the one-time reveal AND refresh the server component so the row's
+  // "Locked" badge clears. `resetUserPassword` revalidates `/admin`, but a bare
+  // startTransition doesn't re-render the current route on its own (PR #138).
+  function done() {
+    setTempPassword(null);
+    if (locked) router.refresh();
+  }
 
   function run() {
     startTransition(async () => {
@@ -126,7 +136,7 @@ export function UnlockResetPassword({
               <button
                 type="button"
                 autoFocus
-                onClick={() => setTempPassword(null)}
+                onClick={done}
                 className="inline-flex items-center justify-center rounded-md bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-blue-500"
               >
                 Done

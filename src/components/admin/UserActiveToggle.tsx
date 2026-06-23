@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { setUserActive } from "@/app/(app)/admin/actions";
 import { useToast } from "@/components/ui/Toast";
@@ -31,6 +32,7 @@ export function UserActiveToggle({
   name: string;
 }) {
   const { toast } = useToast();
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
 
@@ -44,6 +46,9 @@ export function UserActiveToggle({
         toast.success(
           next ? `${name} reactivated.` : `${name} deactivated.`,
         );
+        // revalidatePath alone doesn't re-render this route from a bare
+        // startTransition (PR #138) — refresh so the status badge flips.
+        router.refresh();
       }
     });
   }
