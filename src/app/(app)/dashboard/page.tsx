@@ -3,11 +3,9 @@ import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { TopbarSearch } from "@/components/shared/TopbarSearch";
-import { DashboardSearchBar } from "@/components/dashboard/DashboardSearchBar";
-import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
-import { UsStateMap } from "@/components/geography/UsStateMap";
+import { DashboardHub } from "@/components/dashboard/DashboardHub";
 import { DATA_VIZ_PALETTE } from "@/constants/chart";
-import type { StateCount, GeoSummary } from "@/types/geography";
+import type { GeoSummary } from "@/types/geography";
 
 interface Summary {
   total_alumni: number;
@@ -28,30 +26,6 @@ interface Summary {
   by_graduation_year: { year: number; count: number }[];
   top_employers: { employer: string; count: number }[];
   by_state: { state: string; count: number }[];
-}
-
-/** A birthday row from GET /dashboard/birthdays (ordered by day asc). */
-interface Birthday {
-  id: number;
-  first_name: string;
-  last_name: string;
-  current_employer: string | null;
-  graduation_year: number | null;
-  /** Recurring month/day only — the API never returns the birth year (FERPA
-   *  data minimization). */
-  birth_month: number | null;
-  birth_day: number | null;
-}
-
-/** Compact month + day for a birthday, e.g. "Jun 14". Only month/day are sent —
- *  birthdays recur and the year is withheld — so render those directly. */
-function formatBirthday(month: number | null, day: number | null): string {
-  if (!month || !day) return "";
-  // Fixed year; only the month/day are rendered.
-  return new Date(2000, month - 1, day).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
 }
 
 function Panel({
@@ -241,58 +215,6 @@ function DonutChart({
   );
 }
 
-/** "Birthdays this month" list. Each row: an initials avatar, the alumnus's
- *  name (links to their profile), an "<employer> · Class of <year>" subtitle,
- *  and a right-aligned "Jun 14" date. Rows arrive ordered by day ascending.
- *  Fills the panel height and scrolls internally when there are many. */
-function BirthdayList({ rows }: { rows: Birthday[] }) {
-  if (rows.length === 0)
-    return (
-      <div className="flex flex-1 items-center justify-center">
-        <p className="text-sm text-gray-400">No birthdays this month.</p>
-      </div>
-    );
-
-  return (
-    <ul className="-mx-2 flex min-h-0 flex-1 flex-col gap-0.5 overflow-auto px-2">
-      {rows.map((b) => {
-        const name =
-          [b.first_name, b.last_name].filter(Boolean).join(" ") || "—";
-        const subtitle =
-          [
-            b.current_employer,
-            b.graduation_year ? `Class of ${b.graduation_year}` : null,
-          ]
-            .filter(Boolean)
-            .join(" · ") || "—";
-        return (
-          <li key={b.id}>
-            <Link
-              href={`/alumni/${b.id}`}
-              aria-label={`View ${name}'s profile — birthday ${formatBirthday(
-                b.birth_month,
-                b.birth_day,
-              )}`}
-              className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-1.5 transition hover:bg-brand-blue-50/40"
-            >
-              <InitialsAvatar name={name} size="md" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-gray-900">
-                  {name}
-                </p>
-                <p className="truncate text-xs text-gray-500">{subtitle}</p>
-              </div>
-              <span className="shrink-0 text-sm font-medium tabular-nums text-gray-700">
-                {formatBirthday(b.birth_month, b.birth_day)}
-              </span>
-            </Link>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
 /** YYYY-MM-DD for a date `days` before today (UTC), matching the dashboard
  *  KPIs' rolling 30-day window so a tile's count and its deep-linked list agree. */
 function isoDaysAgo(days: number): string {
@@ -343,64 +265,48 @@ export default async function DashboardPage() {
   const monthEnd = isoMonthEnd();
 
   let s: Summary | null = null;
-  let geo: StateCount[] = [];
   let geoSum: GeoSummary | null = null;
-  let birthdays: Birthday[] = [];
   let notProvisioned = false;
   try {
-    [s, geo, geoSum, birthdays] = await Promise.all([
+    [s, geoSum] = await Promise.all([
       apiGet<Summary>("/dashboard/summary", {
         revalidate: 60,
         tags: ["dashboard"],
       }),
-      apiGet<StateCount[]>("/geography/states", {
-        revalidate: 60,
-        tags: ["geography"],
-      }),
+      // Geography summary still feeds the Top industries panel; the map quick
+      // view and birthdays sections were removed, so /geography/states and
+      // /dashboard/birthdays are no longer fetched.
       apiGet<GeoSummary>("/geography/summary", {
         revalidate: 60,
         tags: ["geography"],
-      }),
-      // Birthdays is a brand-new endpoint shipping in parallel; until it lands
-      // a 404 (or any error) must not break the page, so swallow it to [].
-      apiGet<Birthday[]>("/dashboard/birthdays", {
-        revalidate: 60,
-        tags: ["dashboard"],
-      }).catch((e) => {
-        // A 403 still means "not provisioned" — re-throw so the outer catch
-        // shows the provisioning notice instead of a half-empty dashboard.
-        if (e instanceof ApiError && e.status === 403) throw e;
-        return [] as Birthday[];
       }),
     ]);
   } catch (e) {
     if (e instanceof ApiError && e.status === 403) notProvisioned = true;
   }
-  const geoCounts: Record<string, number> = {};
-  for (const st of geo) geoCounts[st.state] = st.alumni_count;
 
   return (
     <>
       <Topbar title="Dashboard">
         <TopbarSearch />
       </Topbar>
-      <main className="flex min-h-0 flex-1 flex-col overflow-auto p-6 lg:overflow-hidden">
+      <main className="flex-1 overflow-auto p-6">
         {notProvisioned ? (
           <div className="rounded-xl border border-gray-300 bg-white p-4 text-sm text-gray-700">
             Your account is authenticated but not yet provisioned. Ask a Super
             Admin to grant your account a role to see data.
           </div>
         ) : (
-          <div className="flex min-h-0 flex-1 flex-col gap-4 lg:overflow-hidden">
-            {/* Search / filter bar — find alumni fast */}
-            <DashboardSearchBar
-              employers={geoSum?.options.employers ?? []}
-              gradYears={geoSum?.options.graduation_years ?? []}
-              cities={geoSum?.options.cities ?? []}
-              tags={geoSum?.options.tags ?? []}
+          <div className="flex flex-col gap-6">
+            {/* Search + preset-filter hub — the focal point. Everything here is a
+                launchpad: it deep-links into the alumni list, never renders
+                results inline. */}
+            <DashboardHub
+              topEmployers={(s?.top_employers ?? []).map((e) => e.employer)}
             />
 
-            {/* KPI strip (6 across) */}
+            {/* KPI strip (6 across). Each tile deep-links into a pre-filtered
+                list (Total alumni → the full list). */}
             <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
               <MetricCard
                 size="lg"
@@ -446,7 +352,7 @@ export default async function DashboardPage() {
               />
             </div>
 
-            {/* Row A — Top employers | Top industries (equal halves) */}
+            {/* Top employers | Top industries — clickable-to-filter stat panels. */}
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <Panel
                 title="Top employers"
@@ -482,48 +388,6 @@ export default async function DashboardPage() {
                   }))}
                   emptyLabel="No industry data yet."
                 />
-              </Panel>
-            </div>
-
-            {/* Row B — Map quick view (left) | Birthdays this month (right),
-                equal halves. Grows to fill the remaining viewport height on
-                lg+; stacks at natural height below lg. */}
-            <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-2">
-              <Panel
-                className="flex h-full flex-col"
-                title="Map quick view"
-                action={
-                  <Link
-                    href="/map"
-                    className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
-                  >
-                    Open full map →
-                  </Link>
-                }
-              >
-                <div className="min-h-0 flex-1">
-                  <UsStateMap
-                    counts={geoCounts}
-                    selected={null}
-                    filterQuery=""
-                    fit
-                  />
-                </div>
-              </Panel>
-
-              <Panel
-                className="flex h-full flex-col"
-                title="Birthdays this month"
-                action={
-                  <Link
-                    href="/alumni"
-                    className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
-                  >
-                    View all
-                  </Link>
-                }
-              >
-                <BirthdayList rows={birthdays} />
               </Panel>
             </div>
           </div>
