@@ -1,7 +1,7 @@
 "use server";
 
 import { cookies, headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { redirect, RedirectType } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
 
@@ -203,5 +203,10 @@ export async function signIn(
   // serving the cached logged-out render (which showed up as "empty until you
   // manually refresh"). This is the canonical Supabase App Router login step.
   revalidatePath("/", "layout");
-  redirect(safeNext(next));
+  // REPLACE, not push: inside a Server Action `redirect()` defaults to push,
+  // which leaves `/login` as the previous history entry. Pressing Back then
+  // restores the cached login paint from bfcache (a visible flash) before the
+  // middleware re-redirects an authenticated user to the app (issue #31).
+  // Replacing drops `/login` from history so Back never returns to it.
+  redirect(safeNext(next), RedirectType.replace);
 }
