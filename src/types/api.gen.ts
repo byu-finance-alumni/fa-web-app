@@ -339,6 +339,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/alumni/export/columns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Alumni Export Columns
+         * @description The catalog of exportable columns + the default-checked selection, for the
+         *     export column picker (full_access).
+         */
+        get: operations["alumni_export_columns_alumni_export_columns_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alumni/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export Alumni
+         * @description Export the filtered alumni list as CSV with the chosen columns
+         *     (full_access). Hits the SAME population the list view shows (same filters).
+         *     An unknown column key is a 422; a result set larger than the export cap is a
+         *     413 asking the caller to narrow filters. Audit-logged (``export_alumni``).
+         */
+        post: operations["export_alumni_alumni_export_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/alumni/{alumni_id}": {
         parameters: {
             query?: never;
@@ -1568,6 +1612,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Notes
+         * @description List the notes on one entity, newest first (any view-access role). 404 if
+         *     the parent entity doesn't exist. The disclosure is audit-logged.
+         */
+        get: operations["list_notes_notes_get"];
+        put?: never;
+        /**
+         * Create Note
+         * @description Create a note on an alumni / interaction / event (full_access). 404 if the
+         *     target entity doesn't exist.
+         */
+        post: operations["create_note_notes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notes/{note_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Note
+         * @description Delete a note (full_access). 404 if the note doesn't exist. The body is
+         *     snapshotted to the audit trail before removal.
+         */
+        delete: operations["delete_note_notes__note_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Note
+         * @description Edit a note's body (full_access). 404 if the note doesn't exist.
+         */
+        patch: operations["update_note_notes__note_id__patch"];
+        trace?: never;
+    };
     "/tasks": {
         parameters: {
             query?: never;
@@ -1870,6 +1965,111 @@ export interface components {
             career: components["schemas"]["CareerCreate"] | null;
             education: components["schemas"]["app__schemas__alumni__EducationCreate"] | null;
             engagement: components["schemas"]["EngagementCreate"] | null;
+        };
+        /**
+         * AlumniExportFilters
+         * @description The list view's filter set, as a body model so the export hits exactly the
+         *     same population the user is looking at. Every field is optional; unset fields
+         *     fall back to ``build_alumni_query``'s defaults. Mirrors the ``GET /alumni``
+         *     query parameters one-for-one.
+         */
+        AlumniExportFilters: {
+            /** Q */
+            q: string | null;
+            /** Graduation Year */
+            graduation_year: number | null;
+            /** Grad Year Min */
+            grad_year_min: number | null;
+            /** Grad Year Max */
+            grad_year_max: number | null;
+            /** Deceased */
+            deceased: boolean | null;
+            /** Employer */
+            employer: string[] | null;
+            /** Past Employer */
+            past_employer: string[] | null;
+            /** Industry */
+            industry: string[] | null;
+            /** Title */
+            title: string[] | null;
+            /** Seniority */
+            seniority: string[] | null;
+            /** City */
+            city: string[] | null;
+            /** State */
+            state: string[] | null;
+            /** Tag */
+            tag: string[] | null;
+            /** Status Label */
+            status_label: string[] | null;
+            /** Leadership Role */
+            leadership_role: string[] | null;
+            /** Survey Status */
+            survey_status: string[] | null;
+            /** Contacted After */
+            contacted_after: string | null;
+            /** Contacted Before */
+            contacted_before: string | null;
+            /**
+             * Never Contacted
+             * @default false
+             */
+            never_contacted: boolean;
+            /**
+             * Attended Event
+             * @default false
+             */
+            attended_event: boolean;
+            /**
+             * Donor
+             * @default false
+             */
+            donor: boolean;
+            /**
+             * Mentor Willing
+             * @default false
+             */
+            mentor_willing: boolean;
+            /**
+             * Guest Speaker Willing
+             * @default false
+             */
+            guest_speaker_willing: boolean;
+            /**
+             * Missing Email
+             * @default false
+             */
+            missing_email: boolean;
+            /**
+             * Missing Employer
+             * @default false
+             */
+            missing_employer: boolean;
+            /**
+             * Duplicate
+             * @default false
+             */
+            duplicate: boolean;
+            /**
+             * Include Archived
+             * @default false
+             */
+            include_archived: boolean;
+            /**
+             * Sort
+             * @default name
+             */
+            sort: string;
+        };
+        /**
+         * AlumniExportRequest
+         * @description Body for ``POST /alumni/export``: the chosen column keys (a non-empty
+         *     subset of the catalog) and the active filters.
+         */
+        AlumniExportRequest: {
+            /** Columns */
+            columns: string[];
+            filters?: components["schemas"]["AlumniExportFilters"];
         };
         /**
          * AlumniListItem
@@ -2644,6 +2844,29 @@ export interface components {
             /** Event Notes */
             event_notes?: string | null;
         };
+        /**
+         * ExportColumn
+         * @description One offerable export column: a stable ``key``, a human ``label`` for the
+         *     CSV header + the picker, and a ``group`` for sectioning the picker UI.
+         */
+        ExportColumn: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Group */
+            group: string;
+        };
+        /**
+         * ExportColumnCatalog
+         * @description The full set of exportable columns plus the default-checked selection.
+         */
+        ExportColumnCatalog: {
+            /** Columns */
+            columns: components["schemas"]["ExportColumn"][];
+            /** Default Selected */
+            default_selected: string[];
+        };
         /** FilterOptions */
         FilterOptions: {
             /** Employers */
@@ -2933,6 +3156,59 @@ export interface components {
             reason: string;
             /** Retry After Seconds */
             retry_after_seconds: number | null;
+        };
+        /**
+         * NoteCreate
+         * @description Body for creating a note. ``extra='forbid'`` rejects unknown keys.
+         */
+        NoteCreate: {
+            entity_type: components["schemas"]["NoteEntityType"];
+            /** Entity Id */
+            entity_id: number;
+            /** Body */
+            body: string;
+        };
+        /**
+         * NoteEntityType
+         * @description The three levels a note can attach to.
+         * @enum {string}
+         */
+        NoteEntityType: "alumni" | "interaction" | "event";
+        /**
+         * NoteRead
+         * @description A note as returned to clients. ``author`` is the resolved display name of
+         *     the creator (snapshot of the user record at read time, or ``None`` if the
+         *     user was deleted).
+         */
+        NoteRead: {
+            /** Note Id */
+            note_id: number;
+            entity_type: components["schemas"]["NoteEntityType"];
+            /** Entity Id */
+            entity_id: number;
+            /** Body */
+            body: string;
+            /** Author */
+            author: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * NoteUpdate
+         * @description Body for editing a note. Only the free-text body is mutable; the attach
+         *     target is fixed at creation.
+         */
+        NoteUpdate: {
+            /** Body */
+            body: string;
         };
         /**
          * PasswordCompleteResponse
@@ -3805,6 +4081,59 @@ export interface operations {
         requestBody: {
             content: {
                 "multipart/form-data": components["schemas"]["Body_import_alumni_alumni_import_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    alumni_export_columns_alumni_export_columns_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportColumnCatalog"];
+                };
+            };
+        };
+    };
+    export_alumni_alumni_export_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlumniExportRequest"];
             };
         };
         responses: {
@@ -5764,6 +6093,137 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CityDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_notes_notes_get: {
+        parameters: {
+            query: {
+                /** @description Which level the notes are attached to. */
+                entity_type: components["schemas"]["NoteEntityType"];
+                /** @description Id of the alumni / interaction / event. */
+                entity_id: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_note_notes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoteCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_note_notes__note_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                note_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_note_notes__note_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                note_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoteUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteRead"];
                 };
             };
             /** @description Validation Error */

@@ -169,6 +169,7 @@ export default async function AlumniListPage({
           initial={filters}
           options={options ?? undefined}
           canCreate={canCreate}
+          canExport={canCreate}
         />
 
         {error ? (

@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Loader2, Plus, Search, SlidersHorizontal, X } from "lucide-react";
 import { MultiSelect } from "@/components/alumni/MultiSelect";
+import { ExportAlumniButton } from "@/components/alumni/ExportAlumniButton";
+import { toExportFilters } from "@/lib/exportFilters";
 import type { FilterOptions } from "@/types/filters";
 
 /** Everything the backend GET /alumni supports, mirrored in the URL. */
@@ -149,10 +151,12 @@ export function AlumniFilters({
   initial,
   options = EMPTY_OPTIONS,
   canCreate = false,
+  canExport = false,
 }: {
   initial: AlumniFilterState;
   options?: FilterOptions;
   canCreate?: boolean;
+  canExport?: boolean;
 }) {
   const router = useRouter();
   const [f, setF] = useState<AlumniFilterState>(initial);
@@ -327,6 +331,13 @@ export function AlumniFilters({
             </span>
           )}
         </button>
+
+        {canExport ? (
+          <ExportAlumniButton
+            filters={toExportFilters(f)}
+            filtersActive={isDirty}
+          />
+        ) : null}
       </div>
 
       {/* Active-filter chips */}
