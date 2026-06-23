@@ -102,6 +102,31 @@ export async function apiGet<T>(
   );
 }
 
+/**
+ * Retry a transient server failure once. Server reads (e.g. the alumni list)
+ * can intermittently 5xx on a serverless cold start / a dropped upstream DB
+ * connection; a single immediate retry lands on a fresh connection and turns
+ * what used to be a hard "Couldn't load" into a transparent success. Only 5xx
+ * (and network-level ApiError status 0) are retried — never a 4xx, which is a
+ * deterministic client/auth error that a retry can't fix.
+ */
+export async function apiGetWithRetry<T>(
+  path: string,
+  cacheOpts?: ApiCacheOptions,
+  retries = 1,
+): Promise<T> {
+  try {
+    return await apiGet<T>(path, cacheOpts);
+  } catch (e) {
+    const transient =
+      e instanceof ApiError && (e.status === 0 || e.status >= 500);
+    if (transient && retries > 0) {
+      return apiGetWithRetry<T>(path, cacheOpts, retries - 1);
+    }
+    throw e;
+  }
+}
+
 async function apiSend<T>(
   method: "POST" | "PATCH" | "DELETE",
   path: string,
