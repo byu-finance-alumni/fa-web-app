@@ -23,7 +23,7 @@ import { apiGet, ApiError } from "@/lib/api";
 import { daysAgo } from "@/lib/format";
 import type { Profile } from "@/types/profile";
 import type { UserContext } from "@/types/alumni";
-import { canEditAlumni, hasFullAccess } from "@/constants/roles";
+import { canAddInteraction, canEditAlumni, hasFullAccess } from "@/constants/roles";
 import { Topbar } from "@/components/shell/Topbar";
 import { TopbarSearch } from "@/components/shared/TopbarSearch";
 import {
@@ -228,12 +228,18 @@ export default async function AlumniProfilePage({
   // this (mirrors backend require_alumni_edit). `canArchive` is the narrower
   // create/archive tier (full_access and up) used only for the Archive control,
   // which the backend keeps on require_full_access (students are 403'd there).
+  // `canAdd` additionally lets professors (view_only) log interactions — the
+  // backend (fa-web-api#129) permits view_only to POST interactions. It gates
+  // ONLY the add-interaction control; it must never unlock any other edit
+  // affordance (alumni record, employment, education, tasks, etc.).
   let canEdit = false;
   let canArchive = false;
+  let canAdd = false;
   try {
     const ctx = await apiGet<UserContext>("/auth/context");
     canEdit = canEditAlumni(ctx.roles);
     canArchive = hasFullAccess(ctx.roles);
+    canAdd = canAddInteraction(ctx.roles);
   } catch {
     /* not provisioned → view-only */
   }
@@ -446,31 +452,39 @@ export default async function AlumniProfilePage({
                 </div>
               </div>
 
-              {canEdit ? (
+              {canAdd ? (
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  {/* Add-interaction is the only header control professors
+                      (view_only) get — gated on canAdd. Every other control
+                      below stays on canEdit so professors never gain edits to
+                      the alumni record, tasks, exports, or archive state. */}
                   <AddInteractionButton alumniId={aid} label="+ Add interaction" />
-                  <AddTaskButton alumniId={aid} label="Create task" />
-                  {/* Export is a full_access action (audited server endpoint),
-                      so it's gated to canArchive (hasFullAccess) — students and
-                      professors never see it. */}
-                  {canArchive ? (
-                    <ExportProfileButton
-                      alumniId={aid}
-                      fileBaseName={`${name.replace(/\s+/g, "-").toLowerCase()}-${aid}`}
-                    />
-                  ) : null}
-                  <Link
-                    href={`/alumni/${aid}/edit`}
-                    className="rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500"
-                  >
-                    Edit
-                  </Link>
-                  {canArchive ? (
-                    <ArchiveControls
-                      alumniId={aid}
-                      archived={a.archived}
-                      name={name}
-                    />
+                  {canEdit ? (
+                    <>
+                      <AddTaskButton alumniId={aid} label="Create task" />
+                      {/* Export is a full_access action (audited server
+                          endpoint), so it's gated to canArchive (hasFullAccess)
+                          — students and professors never see it. */}
+                      {canArchive ? (
+                        <ExportProfileButton
+                          alumniId={aid}
+                          fileBaseName={`${name.replace(/\s+/g, "-").toLowerCase()}-${aid}`}
+                        />
+                      ) : null}
+                      <Link
+                        href={`/alumni/${aid}/edit`}
+                        className="rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500"
+                      >
+                        Edit
+                      </Link>
+                      {canArchive ? (
+                        <ArchiveControls
+                          alumniId={aid}
+                          archived={a.archived}
+                          name={name}
+                        />
+                      ) : null}
+                    </>
                   ) : null}
                 </div>
               ) : null}
@@ -1188,6 +1202,7 @@ export default async function AlumniProfilePage({
           <InteractionTimeline
             alumniId={aid}
             items={profile.interactions}
+            canAdd={canAdd}
             canEdit={canEdit}
             canWriteNotes={canArchive}
           />
