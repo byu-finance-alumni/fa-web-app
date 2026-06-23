@@ -138,17 +138,25 @@ function InteractionNotes({
  * first. Distinct from `ProfileActivity`, which merges audit events in. Editors
  * can log, edit, and delete from here; view-only users see a read-only history.
  *
- * `canEdit` is the broad edit tier (includes students); `canWriteNotes` is the
+ * `canAdd` gates ONLY the "+ Log interaction" control — it's the broad edit tier
+ * PLUS professors (view_only), who the backend allows to POST interactions
+ * (fa-web-api#129). `canEdit` (the broad edit tier, includes students) gates the
+ * per-row edit/delete affordances: the API only exposes a `logged_by` display
+ * string, not the author's user id, so the frontend can't reliably tell which
+ * interactions a professor authored — edit/delete therefore stay on the edit
+ * tier (any of whose members may edit/delete any row). `canWriteNotes` is the
  * narrower full_access tier used to gate note writing (#39).
  */
 export function InteractionTimeline({
   alumniId,
   items,
+  canAdd = false,
   canEdit,
   canWriteNotes = false,
 }: {
   alumniId: number;
   items: Interaction[];
+  canAdd?: boolean;
   canEdit: boolean;
   canWriteNotes?: boolean;
 }) {
@@ -156,7 +164,7 @@ export function InteractionTimeline({
     <section className="rounded-xl border border-gray-300 bg-white p-5">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-[15px] font-semibold text-gray-900">Interactions</h3>
-        {canEdit ? (
+        {canAdd ? (
           <AddInteractionButton
             alumniId={alumniId}
             label="+ Log interaction"
