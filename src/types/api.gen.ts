@@ -478,7 +478,12 @@ export interface paths {
         put?: never;
         /**
          * Add Interaction
-         * @description Log an interaction on an alumni's timeline (full_access).
+         * @description Log an interaction on an alumni's timeline.
+         *
+         *     Open to every authenticated role, including view_only ("Professor"): adding
+         *     an interaction is the one timeline write a professor may perform (#129). The
+         *     row is stamped with the actor's user id so ownership can later gate edit /
+         *     delete for view_only users.
          */
         post: operations["add_interaction_alumni__alumni_id__interactions_post"];
         delete?: never;
@@ -499,16 +504,25 @@ export interface paths {
         post?: never;
         /**
          * Delete Interaction
-         * @description Delete an interaction from an alumni's timeline (full_access). 404 if the
-         *     row is missing or belongs to another alumnus.
+         * @description Delete an interaction from an alumni's timeline. 404 if the row is missing
+         *     or belongs to another alumnus.
+         *
+         *     Edit-tier roles (engineer / super_admin / full_access / student) may delete
+         *     ANY interaction. A view_only ("Professor") user may delete only the
+         *     interactions they logged themselves; deleting another user's interaction is
+         *     403 (#129).
          */
         delete: operations["delete_interaction_alumni__alumni_id__interactions__interaction_id__delete"];
         options?: never;
         head?: never;
         /**
          * Update Interaction
-         * @description Edit an interaction on an alumni's timeline (full_access). 404 if the row
-         *     is missing or belongs to another alumnus.
+         * @description Edit an interaction on an alumni's timeline. 404 if the row is missing or
+         *     belongs to another alumnus.
+         *
+         *     Edit-tier roles (engineer / super_admin / full_access / student) may edit ANY
+         *     interaction. A view_only ("Professor") user may edit only the interactions
+         *     they logged themselves; editing another user's interaction is 403 (#129).
          */
         patch: operations["update_interaction_alumni__alumni_id__interactions__interaction_id__patch"];
         trace?: never;
@@ -2007,6 +2021,11 @@ export interface components {
             leadership_role: string[] | null;
             /** Survey Status */
             survey_status: string[] | null;
+            /**
+             * Needs Survey
+             * @default false
+             */
+            needs_survey: boolean;
             /** Contacted After */
             contacted_after: string | null;
             /** Contacted Before */
@@ -2036,6 +2055,16 @@ export interface components {
              * @default false
              */
             guest_speaker_willing: boolean;
+            /**
+             * Cfa
+             * @default false
+             */
+            cfa: boolean;
+            /**
+             * Cpa
+             * @default false
+             */
+            cpa: boolean;
             /**
              * Missing Email
              * @default false
@@ -2754,6 +2783,11 @@ export interface components {
              * @default false
              */
             cfa_designation: boolean;
+            /**
+             * Cpa Designation
+             * @default false
+             */
+            cpa_designation: boolean;
             /** Engagement Notes */
             engagement_notes?: string | null;
         };
@@ -3329,6 +3363,8 @@ export interface components {
             cfp_designation: boolean;
             /** Cfa Designation */
             cfa_designation: boolean;
+            /** Cpa Designation */
+            cpa_designation: boolean;
             /** Engagement Notes */
             engagement_notes: string | null;
         };
@@ -3914,6 +3950,8 @@ export interface operations {
                 leadership_role?: string[] | null;
                 /** @description Survey status value(s) — repeatable, exact match. */
                 survey_status?: string[] | null;
+                /** @description 'Needs surveying' view (admin tier and up only): alumni DUE for the biennial survey — never completed one, or whose most-recent completion is older than 2 years. The 2-year threshold is computed server-side. Forbidden for student / view_only roles (403). */
+                needs_survey?: boolean;
                 /** @description Only alumni with an interaction on/after this date. */
                 contacted_after?: string | null;
                 /** @description Only alumni NOT contacted since this date (stale). */
@@ -3932,6 +3970,10 @@ export interface operations {
                 mentor_willing?: boolean;
                 /** @description Only alumni willing to guest speak. */
                 guest_speaker_willing?: boolean;
+                /** @description Only alumni holding the CFA designation. */
+                cfa?: boolean;
+                /** @description Only alumni holding the CPA designation. */
+                cpa?: boolean;
                 /** @description Only alumni with no contact-info email on file. */
                 missing_email?: boolean;
                 /** @description Only alumni with no current employer on file. */
@@ -5149,6 +5191,8 @@ export interface operations {
                 date_to?: string | null;
                 /** @description Sort order: recent (newest first) | oldest. */
                 sort?: string;
+                /** @description When true, restrict to interactions logged by the current authenticated user (the actor / 'interacted by me'). */
+                mine?: boolean;
                 limit?: number;
                 offset?: number;
             };
