@@ -54,10 +54,14 @@ function toQs(f: EventsFilterState): string {
 export function EventsToolbar({
   initial,
   types,
+  canManageEvents = false,
 }: {
   initial: EventsFilterState;
   /** Distinct event-type options for the menu (from GET /events/options). */
   types: string[];
+  /** full_access tier — gates the "Add event" entry point. view_only
+   *  ("Professor") never sees it; the backend re-enforces every write. */
+  canManageEvents?: boolean;
 }) {
   const router = useRouter();
   const [f, setF] = useState<EventsFilterState>(initial);
@@ -116,12 +120,14 @@ export function EventsToolbar({
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-gray-300 bg-white p-3">
-      <Link
-        href="/events/new"
-        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500"
-      >
-        <Plus className="h-4 w-4" /> Add event
-      </Link>
+      {canManageEvents ? (
+        <Link
+          href="/events/new"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500"
+        >
+          <Plus className="h-4 w-4" /> Add event
+        </Link>
+      ) : null}
 
       <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 focus-within:border-brand-blue-600 focus-within:ring-1 focus-within:ring-brand-blue-600">
         <Search className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />

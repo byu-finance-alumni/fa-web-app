@@ -32,6 +32,10 @@ type NavLeaf = {
   fullAccessOnly?: boolean;
   /** Visible to the engineer role only (e.g. support-contact management). */
   engineerOnly?: boolean;
+  /** Hidden from view_only ("Professor"). Use for tabs that only error for
+   *  unprovisioned/read-only users (e.g. Activity) — still shown to student and
+   *  every higher tier. */
+  hideViewOnly?: boolean;
 };
 
 type NavItem = NavLeaf & {
@@ -43,7 +47,7 @@ const NAV: NavItem[] = [
   { href: "/alumni", label: "Alumni", icon: Users },
   { href: "/map", label: "Map", icon: Map },
   { href: "/events", label: "Events", icon: Calendar },
-  { href: "/activity", label: "Activity", icon: Activity },
+  { href: "/activity", label: "Activity", icon: Activity, hideViewOnly: true },
   {
     href: "/tasks",
     label: "Tasks",
@@ -106,6 +110,9 @@ export function Sidebar({ email, role }: { email: string; role: string }) {
     role === ROLE.ENGINEER ||
     role === ROLE.SUPER_ADMIN ||
     role === ROLE.FULL_ACCESS;
+  // view_only ("Professor") is the lowest provisioned tier; some tabs (e.g.
+  // Activity) only error for it and should be hidden.
+  const isViewOnly = role === ROLE.VIEW_ONLY;
   // Track explicit open/close toggles per group; a group with an active child
   // defaults to open.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
@@ -114,10 +121,12 @@ export function Sidebar({ email, role }: { email: string; role: string }) {
     superAdminOnly?: boolean;
     fullAccessOnly?: boolean;
     engineerOnly?: boolean;
+    hideViewOnly?: boolean;
   }) =>
     (!n.superAdminOnly || isSuperAdmin) &&
     (!n.fullAccessOnly || hasFullAccess) &&
-    (!n.engineerOnly || isEngineer);
+    (!n.engineerOnly || isEngineer) &&
+    (!n.hideViewOnly || !isViewOnly);
 
   // Role-filtered nav. A group (e.g. Admin) keeps only the children the user may
   // see and is dropped entirely if none remain — so full_access staff still see

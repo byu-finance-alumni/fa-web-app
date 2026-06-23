@@ -573,7 +573,10 @@ export default async function AlumniProfilePage({
                 both columns end at the same point (equal length). */}
             <div className="flex flex-col gap-4 lg:col-span-2 lg:[&>:last-child]:flex-1">
               {/* Contact information */}
-              <Panel title="Contact information" action={<EditLink id={aid} />}>
+              <Panel
+                title="Contact information"
+                action={canEdit ? <EditLink id={aid} /> : undefined}
+              >
                 {c ? (
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <ContactField
@@ -629,7 +632,10 @@ export default async function AlumniProfilePage({
               </Panel>
 
               {/* Career snapshot */}
-              <Panel title="Career snapshot" action={<EditLink id={aid} />}>
+              <Panel
+                title="Career snapshot"
+                action={canEdit ? <EditLink id={aid} /> : undefined}
+              >
                 {career ? (
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <Field label="Current employer" value={career.current_employer} />
@@ -922,7 +928,10 @@ export default async function AlumniProfilePage({
               </Panel>
 
               {/* Personal & family */}
-              <Panel title="Personal & family" action={<EditLink id={aid} />}>
+              <Panel
+                title="Personal & family"
+                action={canEdit ? <EditLink id={aid} /> : undefined}
+              >
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field label="Birthday" value={fmtDate(a.birth_date)} />
                   <div>

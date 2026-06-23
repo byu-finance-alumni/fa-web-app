@@ -45,6 +45,7 @@ export function EventsExplorer({
   events,
   initialOpenId,
   canWriteNotes = false,
+  canManageEvents = false,
 }: {
   events: EventRow[];
   /** Event id to auto-open on mount — set from the `?event=<id>` deep-link
@@ -53,6 +54,9 @@ export function EventsExplorer({
   /** full_access tier — gates writing event discussion notes (#39). Read is
    *  open to every view-access role; the backend re-enforces writes. */
   canWriteNotes?: boolean;
+  /** full_access tier — gates the drawer's "Edit" entry point to
+   *  /events/{id}/edit. view_only ("Professor") never sees it. */
+  canManageEvents?: boolean;
 }) {
   const [selected, setSelected] = useState<EventRow | null>(null);
 
@@ -160,6 +164,7 @@ export function EventsExplorer({
           event={selected}
           onClose={() => setSelected(null)}
           canWriteNotes={canWriteNotes}
+          canManageEvents={canManageEvents}
         />
       ) : null}
     </>
@@ -265,10 +270,12 @@ function EventDrawer({
   event,
   onClose,
   canWriteNotes,
+  canManageEvents,
 }: {
   event: EventRow;
   onClose: () => void;
   canWriteNotes: boolean;
+  canManageEvents: boolean;
 }) {
   const [detail, setDetail] = useState<EventDetail | null>(null);
   const [attendees, setAttendees] = useState<Attendee[] | null>(null);
@@ -321,13 +328,15 @@ function EventDrawer({
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <Link
-              href={`/events/${event.event_id}/edit`}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-brand-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-blue-500"
-            >
-              <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-              Edit
-            </Link>
+            {canManageEvents ? (
+              <Link
+                href={`/events/${event.event_id}/edit`}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-brand-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-blue-500"
+              >
+                <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                Edit
+              </Link>
+            ) : null}
             <button
               type="button"
               onClick={onClose}
