@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { X, ChevronRight, Pencil } from "lucide-react";
 import { clientGet } from "@/lib/api-client";
+import type { Note } from "@/types/notes";
+import { EntityNotes } from "@/components/notes/EntityNotes";
 
 export interface EventRow {
   event_id: number;
@@ -42,11 +44,15 @@ function formatDate(d: string | null): string {
 export function EventsExplorer({
   events,
   initialOpenId,
+  canWriteNotes = false,
 }: {
   events: EventRow[];
   /** Event id to auto-open on mount — set from the `?event=<id>` deep-link
    *  (e.g. the dashboard's Event-participation panel links here). */
   initialOpenId?: number;
+  /** full_access tier — gates writing event discussion notes (#39). Read is
+   *  open to every view-access role; the backend re-enforces writes. */
+  canWriteNotes?: boolean;
 }) {
   const [selected, setSelected] = useState<EventRow | null>(null);
 
@@ -150,9 +156,106 @@ export function EventsExplorer({
       </div>
 
       {selected ? (
-        <EventDrawer event={selected} onClose={() => setSelected(null)} />
+        <EventDrawer
+          event={selected}
+          onClose={() => setSelected(null)}
+          canWriteNotes={canWriteNotes}
+        />
       ) : null}
     </>
+  );
+}
+
+/* ------------------------------------------------------- discussion notes -- */
+
+/**
+ * Collapsible unified-notes thread for a single event (#39) — mirrors
+ * `InteractionNotes`. Notes are loaded lazily the first time the disclosure is
+ * opened (any view-access role); writing is gated to `canWrite` (full_access)
+ * and re-enforced by the backend. The count badge reflects the latest loaded
+ * notes once expanded.
+ */
+function EventNotes({
+  eventId,
+  canWrite,
+}: {
+  eventId: number;
+  canWrite: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [notes, setNotes] = useState<Note[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const data = await clientGet<Note[]>(
+        `/notes?entity_type=event&entity_id=${eventId}`,
+      );
+      setNotes(data);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [eventId]);
+
+  function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next && notes === null && !loading) void load();
+  }
+
+  const count = notes?.length ?? 0;
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        aria-controls={`event-notes-${eventId}`}
+        aria-label="Discussion notes for this event"
+        className="flex items-center gap-1 rounded-md text-xs font-semibold uppercase tracking-wide text-gray-500 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500"
+      >
+        <ChevronRight
+          className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-90" : ""}`}
+          aria-hidden="true"
+        />
+        Notes{notes !== null && count > 0 ? ` (${count})` : ""}
+      </button>
+      {open ? (
+        <div
+          id={`event-notes-${eventId}`}
+          className="mt-3 border-l border-gray-300 pl-3"
+        >
+          {loading ? (
+            <p className="py-2 text-xs text-gray-500">Loading notes…</p>
+          ) : error ? (
+            <div className="flex items-center gap-2 py-2 text-xs text-gray-500">
+              <span>Couldn&apos;t load notes.</span>
+              <button
+                type="button"
+                onClick={() => void load()}
+                className="font-medium text-brand-blue-600 hover:text-brand-blue-500"
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
+            <EntityNotes
+              entityType="event"
+              entityId={eventId}
+              notes={notes ?? []}
+              canWrite={canWrite}
+              onChanged={() => void load()}
+            />
+          )}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -161,9 +264,11 @@ export function EventsExplorer({
 function EventDrawer({
   event,
   onClose,
+  canWriteNotes,
 }: {
   event: EventRow;
   onClose: () => void;
+  canWriteNotes: boolean;
 }) {
   const [detail, setDetail] = useState<EventDetail | null>(null);
   const [attendees, setAttendees] = useState<Attendee[] | null>(null);
@@ -264,15 +369,22 @@ function EventDrawer({
             </div>
           ) : null}
 
+          {/* Discussion notes (#39) — additive unified-notes thread, distinct
+              from the primary `event_notes` shown as Description above. Lazily
+              loaded the first time the disclosure is opened. */}
+          <div className="rounded-xl border border-gray-300 bg-white p-4">
+            <EventNotes eventId={event.event_id} canWrite={canWriteNotes} />
+          </div>
+
           {/* Attendees */}
           <div className="rounded-xl border border-gray-300 bg-white p-4">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
               Attendees
             </p>
             {loading ? (
-              <p className="py-3 text-sm text-gray-400">Loading…</p>
+              <p className="py-3 text-sm text-gray-500">Loading…</p>
             ) : error ? (
-              <p className="py-3 text-sm text-gray-400">
+              <p className="py-3 text-sm text-gray-500">
                 Couldn&apos;t load attendees.
               </p>
             ) : attendees && attendees.length > 0 ? (
@@ -299,7 +411,7 @@ function EventDrawer({
                 ))}
               </ul>
             ) : (
-              <p className="py-3 text-sm text-gray-400">No attendees recorded.</p>
+              <p className="py-3 text-sm text-gray-500">No attendees recorded.</p>
             )}
           </div>
         </div>
