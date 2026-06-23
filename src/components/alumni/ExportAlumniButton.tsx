@@ -23,9 +23,12 @@ import type {
 export function ExportAlumniButton({
   filters,
   filtersActive,
+  total,
 }: {
   filters: AlumniExportFilters;
   filtersActive: boolean;
+  /** Number of alumni the export will cover (= the list's filtered total). */
+  total?: number;
 }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -146,14 +149,20 @@ export function ExportAlumniButton({
             aria-modal="true"
             aria-label="Export alumni to CSV"
           >
-            <div className="border-b border-gray-200 p-5">
+            <div className="border-b border-gray-300 p-5">
               <h3 className="text-base font-semibold text-gray-900">
                 Export alumni to CSV
               </h3>
-              <p className="mt-1 text-sm text-gray-500">
-                {filtersActive
-                  ? "Exports the alumni matching your current filters."
-                  : "Exports all alumni."}{" "}
+              <p className="mt-1 text-sm tabular-nums text-gray-500">
+                {(() => {
+                  const count =
+                    typeof total === "number" && Number.isFinite(total)
+                      ? `${total.toLocaleString()} `
+                      : "";
+                  return filtersActive
+                    ? `Exports the ${count}alumni matching your current filters.`
+                    : `Exports all ${count}alumni.`;
+                })()}{" "}
                 Choose the columns to include.
               </p>
             </div>
@@ -204,7 +213,7 @@ export function ExportAlumniButton({
               )}
             </div>
 
-            <div className="flex items-center justify-between gap-2 border-t border-gray-200 p-5">
+            <div className="flex items-center justify-between gap-2 border-t border-gray-300 p-5">
               <button
                 type="button"
                 onClick={resetDefaults}

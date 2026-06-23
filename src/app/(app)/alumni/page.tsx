@@ -170,6 +170,7 @@ export default async function AlumniListPage({
           options={options ?? undefined}
           canCreate={canCreate}
           canExport={canCreate}
+          total={data?.total ?? 0}
         />
 
         {error ? (
