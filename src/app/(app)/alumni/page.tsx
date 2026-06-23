@@ -60,7 +60,6 @@ export default async function AlumniListPage({
     q: one(sp.q),
     ymin: one(sp.ymin) || one(sp.year),
     ymax: one(sp.ymax) || one(sp.year),
-    employer: arr(sp.employer),
     pastEmployer: arr(sp.past_employer),
     industry: arr(sp.industry),
     title: arr(sp.title),
@@ -109,7 +108,12 @@ export default async function AlumniListPage({
   const appendAll = (name: string, values: string[]) => {
     for (const v of values) params.append(name, v);
   };
-  appendAll("employer", filters.employer);
+  // Current-employer filter is a pass-through deep-link param only (the alumni
+  // page no longer renders an employer dropdown facet — see #153). It still
+  // arrives from dashboard "Top employers" rows and the dashboard search bar
+  // (/alumni?employer=<v>), so forward it straight to the backend, the same way
+  // the spoke_after/spoke_before window params below are handled.
+  appendAll("employer", arr(sp.employer));
   appendAll("past_employer", filters.pastEmployer);
   appendAll("industry", filters.industry);
   appendAll("title", filters.title);
