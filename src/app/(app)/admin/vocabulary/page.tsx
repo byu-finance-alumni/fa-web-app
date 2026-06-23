@@ -51,14 +51,25 @@ export default async function VocabularyAdminPage() {
   // then redirect OUTSIDE it — redirect() works by throwing a control-flow signal
   // a catch would otherwise swallow (same pattern as /alumni/[id]/edit). The
   // backend stays the source of truth; this is UX only.
-  let canManage = false;
+  //
+  // Fail SAFE on a transient /auth/context failure (E7): a network blip / API
+  // 5xx must NOT be misread as "not an engineer" and bounce a valid engineer to
+  // /dashboard. Only redirect when the backend DEFINITIVELY says this user isn't
+  // an engineer (we successfully read their roles, or it returned 401/403). On
+  // any other error we let the page render — the engineer-only vocabulary
+  // endpoints below still 403 a non-engineer, so access can't actually leak.
+  let deniedByBackend = false;
   try {
     const ctx = await apiGet<UserContext>("/auth/context");
-    canManage = isEngineer(ctx.roles);
-  } catch {
-    /* not provisioned / context error → treat as no access */
+    deniedByBackend = !isEngineer(ctx.roles); // roles read OK and lack engineer
+  } catch (e) {
+    // 401/403 = authenticated-but-not-engineer (a definitive deny). Anything
+    // else (network/timeout/5xx) is transient → don't bounce; render the page.
+    if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+      deniedByBackend = true;
+    }
   }
-  if (!canManage) redirect("/dashboard");
+  if (deniedByBackend) redirect("/dashboard");
 
   let groups: { key: string; label: string; help: string; terms: VocabTerm[] }[] | null =
     null;
@@ -76,7 +87,11 @@ export default async function VocabularyAdminPage() {
   return (
     <>
       <Topbar title="Vocabulary" />
-      <main className="flex-1 overflow-auto p-6">
+      {/* min-h-0 lets this flex-1 scroll container cap its height and actually
+          scroll tall content (E8). The (app) layout column also sets min-h-0 so
+          every page inherits the fix; kept here too as a direct guarantee for
+          this editor, which is the first page tall enough to overflow. */}
+      <main className="min-h-0 flex-1 overflow-auto p-6">
         {error ? (
           <div className="rounded-xl border border-gray-300 bg-white p-10 text-center">
             <p className="font-medium text-gray-900">
