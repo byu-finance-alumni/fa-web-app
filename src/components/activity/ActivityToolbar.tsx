@@ -7,6 +7,7 @@ import {
   Loader2,
   Search,
   SlidersHorizontal,
+  UserCheck,
 } from "lucide-react";
 
 /** Everything the backend GET /dashboard/activity supports, mirrored in the URL. */
@@ -19,6 +20,8 @@ export interface ActivityFilterState {
   to: string;
   /** Feed sort order. */
   sort: "recent" | "oldest";
+  /** "Interacted by me" — restrict to rows the current user is the actor of. */
+  mine: boolean;
 }
 
 export const EMPTY_FILTERS: ActivityFilterState = {
@@ -27,6 +30,7 @@ export const EMPTY_FILTERS: ActivityFilterState = {
   from: "",
   to: "",
   sort: "recent",
+  mine: false,
 };
 
 /** Serialize filter state to the canonical /activity query string. */
@@ -37,6 +41,7 @@ function toQs(f: ActivityFilterState): string {
   if (f.from.trim()) p.set("from", f.from.trim());
   if (f.to.trim()) p.set("to", f.to.trim());
   if (f.sort && f.sort !== "recent") p.set("sort", f.sort);
+  if (f.mine) p.set("mine", "1");
   return p.toString();
 }
 
@@ -137,6 +142,23 @@ export function ActivityToolbar({
           />
         )}
       </div>
+
+      {/* "Interacted by me" quick toggle — a prominent pill next to the search
+          box (not buried in Filters). Active = filled brand-blue; aria-pressed
+          conveys state to assistive tech, not color alone. */}
+      <button
+        type="button"
+        onClick={() => set("mine", !f.mine)}
+        aria-pressed={f.mine}
+        className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 ${
+          f.mine
+            ? "border-brand-blue-600 bg-brand-blue-600 text-white hover:bg-brand-blue-500"
+            : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+        }`}
+      >
+        <UserCheck className="h-4 w-4" aria-hidden="true" />
+        Interacted by me
+      </button>
 
       <div className="relative shrink-0">
         <select

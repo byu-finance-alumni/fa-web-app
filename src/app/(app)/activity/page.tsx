@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { apiGet, ApiError } from "@/lib/api";
+import { humanize } from "@/lib/format";
 import { Topbar } from "@/components/shell/Topbar";
+import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
 import {
   ActivityToolbar,
   type ActivityFilterState,
@@ -14,7 +16,10 @@ interface ActivityRow {
   alumni_name: string;
   type: string | null;
   when: string | null;
+  /** Actor display name / email (who logged the interaction). */
   by: string | null;
+  /** Actor's user id; may be null. Read directly off the untyped response. */
+  by_user_id?: string | null;
 }
 
 interface ActivityPage {
@@ -25,12 +30,14 @@ interface ActivityPage {
   offset: number;
 }
 
-const fmtDate = (iso: string | null) =>
+const fmtDateTime = (iso: string | null) =>
   iso
-    ? new Date(iso).toLocaleDateString("en-US", {
+    ? new Date(iso).toLocaleString("en-US", {
         year: "numeric",
         month: "short",
         day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
       })
     : "—";
 
@@ -43,6 +50,7 @@ export default async function ActivityPage({
     from?: string;
     to?: string;
     sort?: string;
+    mine?: string;
     offset?: string;
   }>;
 }) {
@@ -55,6 +63,7 @@ export default async function ActivityPage({
     from: sp.from ?? "",
     to: sp.to ?? "",
     sort: sp.sort === "oldest" ? "oldest" : "recent",
+    mine: sp.mine === "1",
   };
 
   // Forward the active filters to the API (its param names differ slightly).
@@ -66,6 +75,7 @@ export default async function ActivityPage({
   if (filters.from) apiParams.set("date_from", filters.from);
   if (filters.to) apiParams.set("date_to", filters.to);
   if (filters.sort !== "recent") apiParams.set("sort", filters.sort);
+  if (filters.mine) apiParams.set("mine", "true");
 
   let data: ActivityPage | null = null;
   let error: ApiError | null = null;
@@ -90,6 +100,7 @@ export default async function ActivityPage({
     if (filters.from) p.set("from", filters.from);
     if (filters.to) p.set("to", filters.to);
     if (filters.sort !== "recent") p.set("sort", filters.sort);
+    if (filters.mine) p.set("mine", "1");
     if (newOffset > 0) p.set("offset", String(newOffset));
     const qs = p.toString();
     return qs ? `/activity?${qs}` : "/activity";
@@ -118,37 +129,95 @@ export default async function ActivityPage({
           </div>
         ) : data && data.items.length === 0 ? (
           <div className="rounded-xl border border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
-            {filters.q || filters.type || filters.from || filters.to
+            {filters.q ||
+            filters.type ||
+            filters.from ||
+            filters.to ||
+            filters.mine
               ? "No interactions match your filters."
               : "No interactions logged yet."}
           </div>
         ) : (
           <>
-            <div className="rounded-xl border border-gray-300 bg-white p-5">
-              <ul className="space-y-3">
-                {data!.items.map((r) => (
-                  <li key={r.interaction_id} className="flex gap-3 text-sm">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-blue-600" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-gray-900">
+            {/* Mobile: stacked cards (dense tables collapse to cards per UX-UI.md). */}
+            <div className="space-y-2 md:hidden">
+              {data!.items.map((r) => (
+                <div
+                  key={r.interaction_id}
+                  className="rounded-xl border border-gray-300 bg-white p-3"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <Link
+                      href={`/alumni/${r.alumni_id}`}
+                      className="font-medium text-gray-900 hover:text-brand-blue-600"
+                    >
+                      {r.alumni_name}
+                    </Link>
+                    {r.type ? (
+                      <span className="shrink-0 rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+                        {humanize(r.type)}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-1.5 text-xs text-gray-500">
+                    {fmtDateTime(r.when)}
+                    {r.by ? ` · ${r.by}` : ""}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop: table */}
+            <div className="hidden overflow-hidden rounded-xl border border-gray-300 bg-white md:block">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-300 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <th className="w-56 px-4 py-3">Edited by</th>
+                    <th className="w-52 px-4 py-3">Date / time</th>
+                    <th className="w-44 px-4 py-3">Action</th>
+                    <th className="px-4 py-3">Record</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data!.items.map((r) => (
+                    <tr
+                      key={r.interaction_id}
+                      className="border-b border-gray-300 last:border-0 hover:bg-brand-blue-50/40"
+                    >
+                      <td className="px-4 py-3">
+                        {r.by ? (
+                          <div className="flex items-center gap-2.5">
+                            <InitialsAvatar name={r.by} size="sm" />
+                            <span className="text-gray-700">{r.by}</span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 tabular-nums text-gray-700">
+                        {fmtDateTime(r.when)}
+                      </td>
+                      <td className="px-4 py-3">
+                        {r.type ? (
+                          <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+                            {humanize(r.type)}
+                          </span>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
                         <Link
                           href={`/alumni/${r.alumni_id}`}
-                          className="font-medium hover:text-brand-blue-600"
+                          className="font-medium text-brand-blue-600 hover:underline"
                         >
                           {r.alumni_name}
                         </Link>
-                        {r.type ? (
-                          <span className="text-gray-500"> · {r.type}</span>
-                        ) : null}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {fmtDate(r.when)}
-                        {r.by ? ` · ${r.by}` : ""}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
 
             <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
