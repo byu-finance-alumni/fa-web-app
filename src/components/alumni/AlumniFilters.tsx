@@ -152,11 +152,14 @@ export function AlumniFilters({
   options = EMPTY_OPTIONS,
   canCreate = false,
   canExport = false,
+  total,
 }: {
   initial: AlumniFilterState;
   options?: FilterOptions;
   canCreate?: boolean;
   canExport?: boolean;
+  /** Filtered alumni total (= export row count, since exports reuse these filters). */
+  total?: number;
 }) {
   const router = useRouter();
   const [f, setF] = useState<AlumniFilterState>(initial);
@@ -336,6 +339,7 @@ export function AlumniFilters({
           <ExportAlumniButton
             filters={toExportFilters(f)}
             filtersActive={isDirty}
+            total={total}
           />
         ) : null}
       </div>
