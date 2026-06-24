@@ -387,11 +387,15 @@ export default async function AlumniProfilePage({
                     {[
                       a.graduation_year ? `Class of ${a.graduation_year}` : null,
                       a.byu_id ? `BYU ID ${a.byu_id}` : null,
-                      a.net_id ? `BYU Net ID ${a.net_id}` : null,
                     ]
                       .filter(Boolean)
                       .join(" · ")}
                   </p>
+                  {a.net_id ? (
+                    <p className="mt-0.5 text-base text-gray-500">
+                      BYU Net ID {a.net_id}
+                    </p>
+                  ) : null}
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-base text-gray-600">
                     {career?.current_employer || career?.current_title ? (
                       <span className="flex items-center gap-1.5">
