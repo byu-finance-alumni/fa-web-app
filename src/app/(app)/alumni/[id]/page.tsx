@@ -358,12 +358,12 @@ export default async function AlumniProfilePage({
                   netId={a.net_id}
                   initials={initials}
                   name={name}
-                  size="h-40 w-40 text-4xl"
+                  size="h-48 w-48 text-5xl"
                   colorClass={avatarColor(initials)}
                 />
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-2xl font-semibold text-gray-900">{name}</h2>
+                    <h2 className="text-3xl font-semibold text-gray-900">{name}</h2>
                     {a.preferred_first_name &&
                     a.preferred_first_name !== a.first_name ? (
                       <EngagementChip tone="neutral">
@@ -383,7 +383,7 @@ export default async function AlumniProfilePage({
                       {recordStatus}
                     </span>
                   </div>
-                  <p className="mt-1 text-sm text-gray-500">
+                  <p className="mt-1 text-base text-gray-500">
                     {[
                       a.graduation_year ? `Class of ${a.graduation_year}` : null,
                       a.byu_id ? `BYU ID ${a.byu_id}` : null,
@@ -392,7 +392,7 @@ export default async function AlumniProfilePage({
                       .filter(Boolean)
                       .join(" · ")}
                   </p>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-base text-gray-600">
                     {career?.current_employer || career?.current_title ? (
                       <span className="flex items-center gap-1.5">
                         <Building2 className="h-4 w-4 text-gray-400" />
