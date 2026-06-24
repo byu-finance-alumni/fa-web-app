@@ -1,32 +1,17 @@
 import Link from "next/link";
 import { apiGet, apiGetWithRetry, ApiError } from "@/lib/api";
-import type { Alumni, AlumniPage, UserContext } from "@/types/alumni";
+import type { AlumniPage, UserContext } from "@/types/alumni";
 import type { FilterOptions } from "@/types/filters";
 import { hasFullAccess } from "@/constants/roles";
 import { Topbar } from "@/components/shell/Topbar";
-import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
 import {
   AlumniFilters,
   type AlumniFilterState,
 } from "@/components/alumni/AlumniFilters";
-import { AlumniTable } from "@/components/alumni/AlumniTable";
+import { SurveyCampaignConsole } from "@/components/needs-surveying/SurveyCampaignConsole";
 
 const LIMIT = 25;
 const BASE_PATH = "/needs-surveying";
-
-function fullName(a: Alumni): string {
-  const last = a.last_name ?? "";
-  const first = a.preferred_first_name ?? a.first_name ?? "";
-  return last && first ? `${last}, ${first}` : last || first || "—";
-}
-
-function avatarName(a: Alumni): string {
-  return (
-    [a.preferred_first_name ?? a.first_name, a.last_name]
-      .filter(Boolean)
-      .join(" ") || "?"
-  );
-}
 
 /** Search params: every value may arrive as a string or (for repeated multi-
  * select params) a string[]. */
@@ -51,13 +36,21 @@ function parseSort(raw: string): AlumniFilterState["sort"] {
 }
 
 /**
- * "Needs Surveying" — the biennial re-survey worklist.
+ * "Needs Surveying" — the biennial re-survey CAMPAIGN CONSOLE (not the roster).
  *
  * Lists alumni who are DUE for the survey (never completed one, or whose most
- * recent completion is older than 2 years). The due-set predicate is computed
- * server-side; this view simply forces `needs_survey=1` on every GET /alumni
- * request (and on exports) so the list is always scoped to the due set, while
- * the standard alumni filters can still NARROW within it.
+ * recent completion is older than 2 years) and reframes them as a send
+ * campaign: a campaign header card with the due count, a "Grab surveys" action
+ * that assembles the due alumni into a reviewable send BATCH (client-side
+ * staging — there is no backend campaign endpoint yet), and a "Send surveys"
+ * PLACEHOLDER for the future verify-your-info email flow (see
+ * docs/spikes/verify-info-email-spike.md) that is intentionally disabled and
+ * never calls an API.
+ *
+ * The due-set predicate is computed server-side; this view forces
+ * `needs_survey=1` on every GET /alumni request (and on exports) so the list is
+ * always scoped to the due set, while the standard alumni filters can still
+ * NARROW within it (so staff can target a sub-batch before grabbing).
  *
  * Admin-tier only (engineer / super_admin / full_access). The nav item is gated
  * `fullAccessOnly`, and the backend 403s the `needs_survey` param for lower
@@ -201,24 +194,6 @@ export default async function NeedsSurveyingPage({
     <>
       <Topbar title="Needs Surveying" />
       <main className="flex-1 overflow-auto p-6">
-        <p className="mb-4 max-w-3xl text-sm text-gray-500">
-          Alumni due for the biennial re-survey — anyone who has never completed
-          a survey, or whose most recent completion is more than two years old.
-          The list is always scoped to this due set; use the filters to narrow
-          it further.
-        </p>
-
-        <AlumniFilters
-          initial={filters}
-          options={options ?? undefined}
-          // No "Add alumni" affordance on this worklist — it's a re-survey view,
-          // not the master roster.
-          canCreate={false}
-          canExport={canExport}
-          total={data?.total ?? 0}
-          basePath={BASE_PATH}
-        />
-
         {error ? (
           <div className="rounded-xl border border-gray-300 bg-white p-10 text-center">
             <p className="font-medium text-gray-900">
@@ -230,50 +205,54 @@ export default async function NeedsSurveyingPage({
             </p>
             <p className="mt-1 text-sm text-gray-500">
               {error.status === 403
-                ? "The re-survey worklist is available to full-access users only."
+                ? "The re-survey campaign console is available to full-access users only."
                 : error.message}
             </p>
           </div>
-        ) : data && data.items.length === 0 ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
-            No alumni are currently due for re-survey.
+        ) : data && data.total === 0 ? (
+          // Distinct empty state — the campaign is "all caught up", not an empty
+          // roster.
+          <div className="rounded-xl border border-gray-300 bg-white p-10 text-center">
+            <p className="font-medium text-gray-900">No alumni are due</p>
+            <p className="mt-1 text-sm text-gray-500">
+              Everyone has completed the biennial survey within the last two
+              years. New records roll onto this list as their two-year window
+              lapses.
+            </p>
           </div>
-        ) : (
+        ) : data ? (
           <>
-            {/* Mobile: stacked cards (dense tables collapse, never h-scroll) */}
-            <div className="space-y-2 md:hidden">
-              {data!.items.map((a) => (
-                <Link
-                  key={a.alumni_id}
-                  href={`/alumni/${a.alumni_id}`}
-                  className="flex items-center gap-3 rounded-xl border border-gray-300 bg-white p-3"
-                >
-                  <InitialsAvatar name={avatarName(a)} size="md" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-gray-900">
-                      {fullName(a)}
-                    </p>
-                    <p className="truncate text-xs text-gray-500">
-                      {[
-                        a.graduation_year
-                          ? `Class of ${a.graduation_year}`
-                          : null,
-                        a.current_employer,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ") || "—"}
-                    </p>
-                  </div>
-                </Link>
-              ))}
-            </div>
+            {/* Campaign console: header card + Grab (stage batch) + Send
+                (placeholder) + the scoped re-survey worklist. */}
+            <SurveyCampaignConsole
+              items={data.items}
+              dueCount={data.total}
+              pageCount={data.items.length}
+            />
 
-            {/* Desktop: dense table (whole row navigates to the profile) */}
-            <AlumniTable items={data!.items} />
+            {/* Narrow-the-batch controls — reuse the alumni filter toolbar so
+                staff can scope WHO gets surveyed before grabbing. Exports stay
+                scoped to the due set. Placed below the console so it reads as a
+                refinement of the campaign, not the page's primary chrome. */}
+            <div className="mt-6">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Narrow the due list
+              </p>
+              <AlumniFilters
+                initial={filters}
+                options={options ?? undefined}
+                // No "Add alumni" affordance — this is a campaign view, not the
+                // master roster.
+                canCreate={false}
+                canExport={canExport}
+                total={data.total}
+                basePath={BASE_PATH}
+              />
+            </div>
 
             <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
               <span>
-                Showing {from}–{to} of {data!.total}
+                Showing {from}–{to} of {data.total} due
               </span>
               <div className="flex gap-2">
                 <PageLink
@@ -289,7 +268,7 @@ export default async function NeedsSurveyingPage({
               </div>
             </div>
           </>
-        )}
+        ) : null}
       </main>
     </>
   );
