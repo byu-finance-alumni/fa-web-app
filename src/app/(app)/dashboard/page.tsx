@@ -161,14 +161,14 @@ function DonutChart({
     return <p className="py-4 text-sm text-gray-400">{emptyLabel}</p>;
 
   const total = rows.reduce((sum, r) => sum + r.count, 0);
-  const size = 128;
-  const stroke = 20;
+  const size = 184;
+  const stroke = 30;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   let acc = 0;
 
   return (
-    <div className="flex w-full items-center gap-5">
+    <div className="flex w-full items-center gap-6">
       <svg
         width={size}
         height={size}
@@ -213,26 +213,26 @@ function DonutChart({
           y="50%"
           textAnchor="middle"
           dominantBaseline="central"
-          className="fill-gray-900 text-lg font-semibold tabular-nums"
+          className="fill-gray-900 text-3xl font-semibold tabular-nums"
         >
           {total}
         </text>
       </svg>
-      <ul className="min-w-0 flex-1 space-y-1.5">
+      <ul className="min-w-0 flex-1 space-y-3">
         {rows.map((r, i) => {
           const body = (
             <>
               <span
-                className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                className="h-3 w-3 shrink-0 rounded-sm"
                 style={{
                   backgroundColor: DATA_VIZ_PALETTE[i % DATA_VIZ_PALETTE.length],
                 }}
                 aria-hidden="true"
               />
-              <span className="min-w-0 flex-1 truncate text-sm text-gray-700">
+              <span className="min-w-0 flex-1 truncate text-base text-gray-700">
                 {r.label}
               </span>
-              <span className="shrink-0 text-sm font-medium tabular-nums text-gray-900">
+              <span className="shrink-0 text-base font-medium tabular-nums text-gray-900">
                 {r.count}
               </span>
             </>
@@ -243,12 +243,12 @@ function DonutChart({
                 <Link
                   href={r.href}
                   aria-label={`View ${r.label} in alumni list`}
-                  className="-mx-2 flex items-center gap-2.5 rounded-lg px-2 py-1 transition hover:bg-brand-blue-50/40"
+                  className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-1.5 transition hover:bg-brand-blue-50/40"
                 >
                   {body}
                 </Link>
               ) : (
-                <div className="flex items-center gap-2.5 px-2 py-1">{body}</div>
+                <div className="flex items-center gap-3 px-2 py-1.5">{body}</div>
               )}
             </li>
           );
