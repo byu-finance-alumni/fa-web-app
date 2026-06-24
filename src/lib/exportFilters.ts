@@ -43,9 +43,9 @@ export function toExportFilters(f: AlumniFilterState): AlumniExportFilters {
     include_archived: f.archived,
     cfa: f.cfa,
     cpa: f.cpa,
-    // Wired to real filter state by the needs-surveying (#160) work; default off
-    // until AlumniFilterState carries it.
-    needs_survey: false,
+    // needs_survey is forced on by the /needs-surveying view so an export there
+    // covers exactly the biennial-due set.
+    needs_survey: f.needsSurvey,
     sort: "name",
   };
 }
