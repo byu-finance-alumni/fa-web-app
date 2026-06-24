@@ -3,12 +3,6 @@ import { notFound } from "next/navigation";
 import {
   GraduationCap,
   Building2,
-  Briefcase,
-  Cake,
-  MessageSquare,
-  CalendarDays,
-  CheckSquare,
-  PieChart,
   Mail,
   Phone,
   Link2,
@@ -255,14 +249,13 @@ export default async function AlumniProfilePage({
 
   // KPI derivations
   const openTasks = profile.tasks.filter((t) => !t.completed);
-  const overdueTasks = openTasks.filter(
-    (t) => t.due_date && new Date(t.due_date) < new Date(),
-  );
-  const lastEvent = profile.events[0];
-  const quarterAgo = new Date(Date.now() - 90 * 864e5).toISOString();
-  const recentInteractions = profile.interactions.filter(
-    (i) => i.interaction_date_time && i.interaction_date_time >= quarterAgo,
-  ).length;
+  // Most recent completed survey → "Last surveyed" KPI.
+  const lastSurveyedIso =
+    [...profile.surveys]
+      .filter((s) => s.completed_at)
+      .sort((x, y) =>
+        (y.completed_at ?? "").localeCompare(x.completed_at ?? ""),
+      )[0]?.completed_at ?? null;
 
   // Last-contacted is derived client-side from the newest interaction
   // (interactions arrive newest-first), NOT a backend "score".
@@ -475,73 +468,26 @@ export default async function AlumniProfilePage({
             ) : null}
           </div>
 
-          {/* KPI strip — always 6 slots. For view_only the admin-only Open
-              tasks + Completeness tiles become blank placeholders so the 4 real
-              tiles stay aligned with the admin layout. */}
+          {/* KPI strip — 6 non-sensitive tiles, shown for every role. */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <MetricCard
-              icon={GraduationCap}
+              label="Year entered program"
+              value={a.finance_program_year ?? "—"}
+            />
+            <MetricCard
               label="Graduation year"
-              value={a.graduation_year}
-              sub={
-                a.finance_program_year
-                  ? `Finance program '${String(a.finance_program_year).slice(-2)}`
-                  : null
-              }
+              value={a.graduation_year ?? "—"}
+            />
+            <MetricCard label="Interactions" value={profile.interaction_count} />
+            <MetricCard label="Events attended" value={profile.events.length} />
+            <MetricCard
+              label="Last updated"
+              value={fmtDate(a.updated_at) ?? "—"}
             />
             <MetricCard
-              icon={Building2}
-              label="Industry"
-              value={career?.current_industry ?? "—"}
-              sub={career?.current_industry_secondary ?? null}
+              label="Last surveyed"
+              value={fmtDate(lastSurveyedIso) ?? "—"}
             />
-            <MetricCard
-              icon={MessageSquare}
-              label="Interactions"
-              value={profile.interaction_count}
-              sub={recentInteractions ? `+${recentInteractions} this quarter` : null}
-              subTone={recentInteractions ? "success" : "muted"}
-            />
-            <MetricCard
-              icon={CalendarDays}
-              label="Events attended"
-              value={profile.events.length}
-              sub={lastEvent ? `Last: ${lastEvent.event_name}` : null}
-            />
-            {/* Tasks are visible to admins (full_access / super_admin) only. */}
-            {canEdit ? (
-              <MetricCard
-                icon={CheckSquare}
-                label="Open tasks"
-                value={openTasks.length}
-                sub={overdueTasks.length ? `${overdueTasks.length} overdue` : null}
-                subTone={overdueTasks.length ? "warning" : "muted"}
-              />
-            ) : (
-              <MetricCard
-                icon={Briefcase}
-                label="Past roles"
-                value={profile.employment_history.length}
-                sub={profile.employment_history[0]?.employer_name ?? null}
-              />
-            )}
-            {/* Completeness for admins; Birthday fills the slot for view_only. */}
-            {canEdit ? (
-              <MetricCard
-                icon={PieChart}
-                label="Completeness"
-                value={`${completeness}%`}
-                sub={missing.length ? `${missing.length} fields missing` : "Complete"}
-                subTone={missing.length ? "warning" : "success"}
-              />
-            ) : (
-              <MetricCard
-                icon={Cake}
-                label="Birthday"
-                value={fmtDate(a.birth_date) ?? "—"}
-                sub={null}
-              />
-            )}
           </div>
 
           {/* Paired-row body */}
