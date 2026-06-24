@@ -40,10 +40,6 @@ import {
   TagStatusManager,
   TaskCheckbox,
 } from "@/components/alumni/ProfileDialogs";
-import {
-  type ActivityCategory,
-  type ActivityItem,
-} from "@/components/alumni/ProfileActivity";
 import { InteractionTimeline } from "@/components/alumni/InteractionTimeline";
 import { ProfileNotes } from "@/components/alumni/ProfileNotes";
 import type { Note } from "@/types/notes";
@@ -74,17 +70,6 @@ function monthDay(iso: string | null): { mon: string; day: string } | null {
 
 const place = (...parts: (string | null | undefined)[]) =>
   parts.filter(Boolean).join(", ") || null;
-
-function activityCategory(type: string | null): ActivityCategory {
-  const t = (type ?? "").toLowerCase();
-  if (t.includes("call")) return "Calls";
-  if (t.includes("note")) return "Notes";
-  if (t.includes("event")) return "Events";
-  return "Meetings";
-}
-
-const humanize = (s: string) =>
-  s.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 
 /* -------------------------------------------------------- server components */
 
@@ -317,32 +302,6 @@ export default async function AlumniProfilePage({
   const completeness = Math.round((completeCount / checks.length) * 100);
   const missing = checks.filter((x) => !x.ok);
 
-  // Activity feed = interactions (typed) + audit (updates), newest first
-  const activity: ActivityItem[] = [
-    ...profile.interactions.map((i) => ({
-      id: `i${i.interaction_id}`,
-      category: activityCategory(i.interaction_type),
-      title: i.interaction_type ?? "Interaction",
-      typeLabel: i.interaction_type ?? "Interaction",
-      when: i.interaction_date_time,
-      who: i.logged_by,
-      description: i.interaction_notes,
-    })),
-    ...profile.audit.map((e) => ({
-      id: `a${e.audit_log_id}`,
-      category: "Updates" as ActivityCategory,
-      title: humanize(e.action_type),
-      typeLabel: "Update",
-      when: e.created_at,
-      who: null,
-      description: e.field_name
-        ? `${e.field_name}: ${e.old_value ?? "∅"} → ${e.new_value ?? "∅"}`
-        : null,
-    })),
-  ].sort((x, y) => (y.when ?? "").localeCompare(x.when ?? ""));
-
-  const recentActivity = activity.slice(0, 5);
-
   // Shared chip content for Engagement & tags — rendered in the panel and in
   // its "View all" right-side drawer.
   const engagementContent = (
@@ -399,7 +358,7 @@ export default async function AlumniProfilePage({
                   netId={a.net_id}
                   initials={initials}
                   name={name}
-                  size="h-24 w-24 text-2xl"
+                  size="h-32 w-32 text-3xl"
                   colorClass={avatarColor(initials)}
                 />
                 <div className="min-w-0">
@@ -586,6 +545,33 @@ export default async function AlumniProfilePage({
             {/* Main column (wider). Flex column with the last panel growing so
                 both columns end at the same point (equal length). */}
             <div className="flex flex-col gap-4 lg:col-span-2 lg:[&>:last-child]:flex-1">
+              {/* Career snapshot — lead with what they do (before contact info) */}
+              <Panel
+                title="Career snapshot"
+                action={canEdit ? <EditLink id={aid} /> : undefined}
+              >
+                {career ? (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <Field label="Current employer" value={career.current_employer} />
+                    <Field label="Current title" value={career.current_title} />
+                    <Field label="Industry" value={career.current_industry} />
+                    <Field label="Seniority level" value={career.seniority_level} />
+                    <Field
+                      label="Graduate degree"
+                      value={a.graduate_degree}
+                    />
+                    <Field
+                      label="Location"
+                      value={place(career.current_city, career.current_state)}
+                    />
+                  </div>
+                ) : (
+                  <p className="py-6 text-center text-sm text-gray-500">
+                    No current employment on file yet.
+                  </p>
+                )}
+              </Panel>
+
               {/* Contact information */}
               <Panel
                 title="Contact information"
@@ -641,33 +627,6 @@ export default async function AlumniProfilePage({
                 ) : (
                   <p className="py-6 text-center text-sm text-gray-500">
                     No contact information on file yet.
-                  </p>
-                )}
-              </Panel>
-
-              {/* Career snapshot */}
-              <Panel
-                title="Career snapshot"
-                action={canEdit ? <EditLink id={aid} /> : undefined}
-              >
-                {career ? (
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <Field label="Current employer" value={career.current_employer} />
-                    <Field label="Current title" value={career.current_title} />
-                    <Field label="Industry" value={career.current_industry} />
-                    <Field label="Seniority level" value={career.seniority_level} />
-                    <Field
-                      label="Graduate degree"
-                      value={a.graduate_degree}
-                    />
-                    <Field
-                      label="Location"
-                      value={place(career.current_city, career.current_state)}
-                    />
-                  </div>
-                ) : (
-                  <p className="py-6 text-center text-sm text-gray-500">
-                    No current employment on file yet.
                   </p>
                 )}
               </Panel>
@@ -1172,27 +1131,6 @@ export default async function AlumniProfilePage({
                 </Panel>
               ) : null}
 
-              {/* Recent activity — admin-only (hidden for view_only). */}
-              {canEdit && recentActivity.length ? (
-                <Panel title="Recent activity">
-                  <ul className="space-y-2.5">
-                    {recentActivity.map((i) => (
-                      <li
-                        key={i.id}
-                        className="flex items-start justify-between gap-3 text-sm"
-                      >
-                        <span className="flex min-w-0 items-start gap-2 text-gray-700">
-                          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-blue-600" />
-                          <span className="truncate">{i.title}</span>
-                        </span>
-                        <span className="shrink-0 text-xs text-gray-500">
-                          {fmtDate(i.when)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </Panel>
-              ) : null}
             </div>
           </div>
 
