@@ -28,7 +28,20 @@ const config: Config = {
         danger: { 600: "#B42318", 50: "#FEF3F2" },
       },
       fontFamily: {
-        sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+        // Inter is loaded in app/layout.tsx via next/font (exposed as --font-inter).
+        // Reference the variable so `font-sans` actually uses the loaded font.
+        sans: [
+          "var(--font-inter)",
+          "Inter",
+          "ui-sans-serif",
+          "system-ui",
+          "sans-serif",
+        ],
+      },
+      boxShadow: {
+        // Design-system shadow hierarchy (UX-UI.md): cards get a single subtle
+        // shadow; popovers use md; dialogs/toasts use lg (Tailwind defaults).
+        card: "0 1px 2px 0 rgb(16 24 40 / 0.04), 0 1px 3px 0 rgb(16 24 40 / 0.06)",
       },
     },
   },

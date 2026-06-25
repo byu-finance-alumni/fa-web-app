@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Search } from "lucide-react";
 import { parseAlumniQuery } from "@/lib/alumniQueryParser";
+import { Button } from "@/components/ui/button";
 
 /**
  * Dashboard search hero — the page's primary call to action. A real search
@@ -28,7 +29,7 @@ export function SearchHero() {
       onSubmit={submit}
       role="search"
       aria-label="Search alumni"
-      className="flex h-full items-center gap-3 rounded-xl border border-gray-300 bg-white px-4 py-3 transition focus-within:border-brand-blue-600 focus-within:ring-1 focus-within:ring-brand-blue-600"
+      className="flex h-full items-center gap-3 rounded-lg border border-gray-300 bg-white px-4 py-3 shadow-card transition focus-within:border-brand-blue-600 focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1"
     >
       <Search className="h-5 w-5 shrink-0 text-gray-400" aria-hidden="true" />
       <input
@@ -39,12 +40,7 @@ export function SearchHero() {
         autoComplete="off"
         className="min-w-0 flex-1 bg-transparent text-base text-gray-900 placeholder:text-gray-400 focus:outline-none"
       />
-      <button
-        type="submit"
-        className="shrink-0 rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-blue-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500"
-      >
-        Search
-      </button>
+      <Button type="submit">Search</Button>
     </form>
   );
 }

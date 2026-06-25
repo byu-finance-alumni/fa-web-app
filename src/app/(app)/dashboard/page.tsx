@@ -14,6 +14,7 @@ import { Topbar } from "@/components/shell/Topbar";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { TopbarSearch } from "@/components/shared/TopbarSearch";
 import { SearchHero } from "@/components/dashboard/SearchHero";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DATA_VIZ_PALETTE } from "@/constants/chart";
 import type { GeoSummary } from "@/types/geography";
 
@@ -88,13 +89,13 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <section className="flex h-full flex-col rounded-xl border border-gray-300 bg-white p-5">
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <h3 className="text-[17px] font-semibold text-gray-900">{title}</h3>
+    <Card className="flex h-full flex-col">
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
         {action}
-      </div>
-      {children}
-    </section>
+      </CardHeader>
+      <CardContent className="flex flex-1 flex-col">{children}</CardContent>
+    </Card>
   );
 }
 
@@ -263,10 +264,10 @@ function DonutChart({
  *  treatment so the two columns read as the same component family. */
 function QuickFilters({ rows }: { rows: { label: string; href: string }[] }) {
   return (
-    <section className="flex h-full flex-col rounded-xl border border-gray-300 bg-white">
-      <h3 className="px-5 pb-4 pt-5 text-[17px] font-semibold text-gray-900">
-        Quick filters
-      </h3>
+    <Card className="flex h-full flex-col">
+      <CardHeader>
+        <CardTitle>Quick filters</CardTitle>
+      </CardHeader>
       {/* Rows share the remaining card height evenly so the list fills the
           column the same way the Top employers panel does across from it. */}
       <ul className="flex flex-1 flex-col">
@@ -285,7 +286,7 @@ function QuickFilters({ rows }: { rows: { label: string; href: string }[] }) {
           </li>
         ))}
       </ul>
-    </section>
+    </Card>
   );
 }
 
@@ -305,7 +306,7 @@ function BrowseTile({
   return (
     <Link
       href={href}
-      className="flex flex-col rounded-xl border border-gray-300 bg-white p-4 transition hover:border-brand-blue-300 hover:bg-brand-blue-50/40 hover:shadow-sm"
+      className="flex flex-col rounded-lg border border-gray-300 bg-white p-4 shadow-card transition-colors hover:border-brand-blue-300 hover:bg-brand-blue-50/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
     >
       <Icon className="h-5 w-5 text-brand-blue-600" aria-hidden="true" />
       <p className="mt-2 text-sm font-semibold text-gray-900">{title}</p>
@@ -379,10 +380,10 @@ export default async function DashboardPage() {
       </Topbar>
       <main className="flex-1 overflow-auto p-6">
         {notProvisioned ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-4 text-sm text-gray-700">
+          <Card className="p-4 text-sm text-gray-700">
             Your account is authenticated but not yet provisioned. Ask a Super
             Admin to grant your account a role to see data.
-          </div>
+          </Card>
         ) : (
           /* One interleaved 2-col grid so each row's left/right blocks align
              (and stay equal height) like the Figma: search│KPIs,

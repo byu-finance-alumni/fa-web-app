@@ -1,9 +1,12 @@
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 
+import { cn } from "@/lib/utils";
+
 /**
  * KPI / metric tile: an uppercase label across the top and a single large,
- * centered value. Bordered radius-12 card, shared by the Dashboard,
+ * centered value. Built on the design-system surface tokens (rounded-lg border,
+ * subtle `shadow-card`) so it matches Card everywhere it's used — the Dashboard,
  * data-quality, and the alumni profile KPI strips.
  *
  * `icon`, `sub`, and `subTone` are accepted for backward compatibility but no
@@ -35,17 +38,23 @@ export function MetricCard({
   onClick?: () => void;
 }) {
   const lg = size === "lg";
-  const base = `flex h-full flex-col rounded-xl border border-gray-300 bg-white ${lg ? "p-5" : "p-4"}`;
+  const base = cn(
+    "flex h-full flex-col rounded-lg border border-gray-300 bg-white shadow-card",
+    lg ? "p-5" : "p-4",
+  );
   const inner = (
     <>
       {/* Title — uniform min-height so every card's title lines up across the
           top, whether it wraps to one line or two. */}
-      <span className="block min-h-[2rem] text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
+      <span className="block min-h-8 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
         {label}
       </span>
       <div className="flex flex-1 items-center justify-center">
         <p
-          className={`tabular-nums font-semibold tracking-tight text-gray-900 ${lg ? "text-3xl" : "text-xl"}`}
+          className={cn(
+            "font-semibold tracking-tight tabular-nums text-gray-900",
+            lg ? "text-3xl" : "text-xl",
+          )}
         >
           {value ?? "—"}
         </p>
@@ -53,7 +62,10 @@ export function MetricCard({
     </>
   );
 
-  const interactive = `${base} cursor-pointer transition hover:border-brand-blue-300 hover:bg-brand-blue-50/40 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500`;
+  const interactive = cn(
+    base,
+    "cursor-pointer transition-colors hover:border-brand-blue-300 hover:bg-brand-blue-50/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
+  );
 
   if (href) {
     return (
@@ -73,7 +85,7 @@ export function MetricCard({
         type="button"
         onClick={onClick}
         aria-label={linkLabel ?? `${label}: view details`}
-        className={`${interactive} w-full`}
+        className={cn(interactive, "w-full")}
       >
         {inner}
       </button>
