@@ -24,21 +24,29 @@ export function SearchHero() {
   };
 
   return (
-    <form
-      onSubmit={submit}
-      role="search"
-      aria-label="Search alumni"
-      className="flex h-full items-center gap-3 rounded-lg border border-gray-300 bg-white px-5 py-3.5 shadow-card transition focus-within:border-brand-blue-600 focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1"
-    >
-      <input
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        placeholder="Search alumni by name, employer, title, location, or industry"
-        aria-label="Search alumni by name, employer, title, location, or industry"
-        autoComplete="off"
-        className="min-w-0 flex-1 bg-transparent text-base text-gray-900 placeholder:text-gray-400 focus:outline-none"
-      />
-      <Button type="submit">Search</Button>
-    </form>
+    <div>
+      <form
+        onSubmit={submit}
+        role="search"
+        aria-label="Search alumni"
+        className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white py-1.5 pl-4 pr-1.5 shadow-card transition focus-within:border-brand-blue-600 focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1"
+      >
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search alumni by name, employer, title, location, or industry"
+          aria-label="Search alumni by name, employer, title, location, or industry"
+          autoComplete="off"
+          className="min-w-0 flex-1 bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
+        />
+        <Button type="submit">Search</Button>
+      </form>
+      <p className="mt-2 px-1 text-xs text-gray-500">
+        Try plain English — e.g.{" "}
+        <span className="text-gray-700">
+          “Find me all alumni in investment banking near Seattle”
+        </span>
+      </p>
+    </div>
   );
 }

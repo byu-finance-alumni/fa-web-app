@@ -39,7 +39,7 @@ export function MetricCard({
 }) {
   const lg = size === "lg";
   const base = cn(
-    "flex h-full flex-col rounded-lg border border-gray-300 bg-white shadow-card",
+    "flex h-full flex-col rounded-lg border border-gray-200 bg-white shadow-card",
     lg ? "p-5" : "p-4",
   );
   const inner = (

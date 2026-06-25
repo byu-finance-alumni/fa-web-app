@@ -26,10 +26,9 @@ const config: Config = {
         success: { 600: "#15803D", 50: "#ECFDF3" },
         warning: { 600: "#B45309", 50: "#FEF6E7" },
         danger: { 600: "#B42318", 50: "#FEF3F2" },
-        // App background — a faint navy-tinted neutral, intentionally NOT the
-        // default Tailwind gray-100 (UX-UI.md flags default grays as an AI tell).
-        // White cards lift off it cleanly.
-        canvas: "#EDF0F6",
+        // App background — a near-white neutral. White cards pop cleanly
+        // against it (modern SaaS look) with soft gray-200 borders + shadow.
+        canvas: "#F9FAFB",
       },
       fontFamily: {
         // Inter is loaded in app/layout.tsx via next/font (exposed as --font-inter).

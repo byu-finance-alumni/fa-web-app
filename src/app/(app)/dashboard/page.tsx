@@ -278,22 +278,24 @@ function QuickFilters({ rows }: { rows: { label: string; href: string }[] }) {
 /** A single "Browse" tile — title and a small subtitle (a count or hint),
  *  linking to the matching view. Text-only: a left navy keyline gives it
  *  identity instead of a decorative icon. */
-function BrowseTile({
-  title,
-  sub,
+function BrowseStat({
+  value,
+  label,
   href,
 }: {
-  title: string;
-  sub: string;
+  value: React.ReactNode;
+  label: string;
   href: string;
 }) {
   return (
     <Link
       href={href}
-      className="group flex flex-col justify-center rounded-lg border border-l-2 border-gray-300 border-l-navy-800 bg-white px-4 py-3.5 shadow-card transition-colors hover:border-l-brand-blue-600 hover:bg-brand-blue-50/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
+      className="flex flex-col justify-center rounded-lg px-3 py-3 transition-colors hover:bg-brand-blue-50/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500"
     >
-      <p className="text-sm font-semibold text-gray-900">{title}</p>
-      <p className="mt-0.5 text-xs text-gray-500">{sub}</p>
+      <span className="text-2xl font-semibold tabular-nums tracking-tight text-navy-800">
+        {value}
+      </span>
+      <span className="mt-0.5 text-sm font-medium text-gray-700">{label}</span>
     </Link>
   );
 }
@@ -326,7 +328,7 @@ export default async function DashboardPage() {
     if (e instanceof ApiError && e.status === 403) notProvisioned = true;
   }
 
-  // Derived counts for the Browse tiles (fall back to a hint when unavailable).
+  // Derived counts for the Browse stat tiles.
   const utahCount = s?.by_state?.find((r) => r.state === "UT")?.count;
   const recentGradCount = s?.by_graduation_year
     ?.filter((r) => r.year >= THIS_YEAR - 5)
@@ -335,12 +337,10 @@ export default async function DashboardPage() {
   const ibPeCount = ["Investment Banking", "Private Equity"]
     .map((name) => industries.find((i) => i.industry === name)?.count ?? 0)
     .reduce((a, b) => a + b, 0);
-  const topEmployerNames = (s?.top_employers ?? [])
-    .slice(0, 2)
-    .map((e) => e.employer);
 
-  const countSub = (n: number | undefined) =>
-    typeof n === "number" ? `${n.toLocaleString()} alumni` : "View";
+  // Format a count for a Browse stat, or an em dash when unavailable.
+  const stat = (n: number | undefined) =>
+    typeof n === "number" ? n.toLocaleString() : "—";
 
   const quickFilters = [
     {
@@ -366,124 +366,104 @@ export default async function DashboardPage() {
             Admin to grant your account a role to see data.
           </Card>
         ) : (
-          /* One interleaved 2-col grid so each row's left/right blocks align
-             (and stay equal height) like the Figma: search│KPIs,
-             quick-filters│top-employers, browse│top-industries. */
+          /* Two columns: quick-search features on the left half, KPIs + the
+             two charts on the right half. */
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-            {/* Row 1 — search | KPI strip */}
-            <SearchHero />
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-              <MetricCard
-                size="lg"
-                label="Total alumni"
-                value={s?.total_alumni ?? "—"}
-                href="/alumni"
-                linkLabel="View all alumni"
-              />
-              <MetricCard
-                size="lg"
-                label="Contacted this month"
-                value={s?.contacted_this_month ?? "—"}
-                href={`/alumni?contacted_after=${thirtyDaysAgo}`}
-                linkLabel="View alumni contacted this month"
-              />
-              <MetricCard
-                size="lg"
-                label="Attended this month"
-                value={s?.attended_event_this_month ?? "—"}
-                href={`/events?from=${thirtyDaysAgo}&to=${today}`}
-                linkLabel="View events held this month"
-              />
+            {/* LEFT — search, quick filters, browse */}
+            <div className="flex flex-col gap-5">
+              <SearchHero />
+              <QuickFilters rows={quickFilters} />
+              <Card className="flex flex-1 flex-col">
+                <CardHeader>
+                  <CardTitle>Browse alumni</CardTitle>
+                </CardHeader>
+                <CardContent className="grid flex-1 grid-cols-2 content-center gap-1">
+                  <BrowseStat
+                    value={stat(utahCount)}
+                    label="In Utah"
+                    href="/alumni?state=UT"
+                  />
+                  <BrowseStat
+                    value={stat(recentGradCount)}
+                    label="Recent grads"
+                    href={`/alumni?ymin=${recentMin}&ymax=${recentMax}`}
+                  />
+                  <BrowseStat
+                    value={stat(ibPeCount)}
+                    label="In IB / PE"
+                    href="/alumni?industry=Investment%20Banking"
+                  />
+                  <BrowseStat
+                    value={stat(s?.willing_mentors)}
+                    label="Willing mentors"
+                    href="/alumni?mentor=1"
+                  />
+                </CardContent>
+              </Card>
             </div>
 
-            {/* Row 2 — quick filters | top employers */}
-            <QuickFilters rows={quickFilters} />
-            <Panel
-              title="Top employers"
-              action={
-                <span className="text-xs font-medium text-gray-500">
-                  Click to filter
-                </span>
-              }
-            >
-              <BarList
-                rows={(s?.top_employers ?? []).slice(0, 5).map((e) => ({
-                  label: e.employer,
-                  count: e.count,
-                  href: `/alumni?employer=${encodeURIComponent(e.employer)}`,
-                }))}
-                emptyLabel="No employer data yet."
-              />
-            </Panel>
-
-            {/* Row 3 — browse | top industries */}
-            <section className="flex h-full flex-col">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                Browse
-              </p>
-              {/* Tiles keep a compact height; any extra column height falls
-                  into the gaps between rows (content-between), not into taller
-                  tiles — matching the Figma. */}
-              <div className="grid flex-1 grid-cols-1 auto-rows-min content-between gap-5 sm:grid-cols-2">
-                <BrowseTile
-                  title="Utah"
-                  sub={countSub(utahCount)}
-                  href="/alumni?state=UT"
+            {/* RIGHT — KPI strip + the two charts */}
+            <div className="flex flex-col gap-5">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+                <MetricCard
+                  size="lg"
+                  label="Total alumni"
+                  value={s?.total_alumni ?? "—"}
+                  href="/alumni"
+                  linkLabel="View all alumni"
                 />
-                <BrowseTile
-                  title="Recent grads"
-                  sub={
-                    typeof recentGradCount === "number"
-                      ? `${recentGradCount.toLocaleString()} · last 5 years`
-                      : "Last 5 years"
-                  }
-                  href={`/alumni?ymin=${recentMin}&ymax=${recentMax}`}
+                <MetricCard
+                  size="lg"
+                  label="Contacted this month"
+                  value={s?.contacted_this_month ?? "—"}
+                  href={`/alumni?contacted_after=${thirtyDaysAgo}`}
+                  linkLabel="View alumni contacted this month"
                 />
-                <BrowseTile
-                  title="IB / PE"
-                  sub={ibPeCount > 0 ? `${ibPeCount.toLocaleString()} alumni` : "View"}
-                  href="/alumni?industry=Investment%20Banking"
-                />
-                <BrowseTile
-                  title="Willing mentors"
-                  sub={countSub(s?.willing_mentors)}
-                  href="/alumni?mentor=1"
-                />
-                <BrowseTile
-                  title="Top employers"
-                  sub={
-                    topEmployerNames.length
-                      ? `${topEmployerNames.join(", ")}…`
-                      : "Browse all"
-                  }
-                  href="/map/breakdown/employers"
-                />
-                <BrowseTile
-                  title="By industry"
-                  sub="Browse all"
-                  href="/map/breakdown/industries"
+                <MetricCard
+                  size="lg"
+                  label="Attended this month"
+                  value={s?.attended_event_this_month ?? "—"}
+                  href={`/events?from=${thirtyDaysAgo}&to=${today}`}
+                  linkLabel="View events held this month"
                 />
               </div>
-            </section>
-            <Panel
-              title="Top industries"
-              action={
-                <span className="text-xs font-medium text-gray-500">
-                  Click to filter
-                </span>
-              }
-            >
-              <div className="flex w-full flex-1 items-center">
-                <DonutChart
-                  rows={industries.slice(0, 5).map((i) => ({
-                    label: i.industry,
-                    count: i.count,
-                    href: `/alumni?industry=${encodeURIComponent(i.industry)}`,
+              <Panel
+                title="Top employers"
+                action={
+                  <span className="text-xs font-medium text-gray-500">
+                    Click to filter
+                  </span>
+                }
+              >
+                <BarList
+                  rows={(s?.top_employers ?? []).slice(0, 5).map((e) => ({
+                    label: e.employer,
+                    count: e.count,
+                    href: `/alumni?employer=${encodeURIComponent(e.employer)}`,
                   }))}
-                  emptyLabel="No industry data yet."
+                  emptyLabel="No employer data yet."
                 />
-              </div>
-            </Panel>
+              </Panel>
+              <Panel
+                title="Top industries"
+                action={
+                  <span className="text-xs font-medium text-gray-500">
+                    Click to filter
+                  </span>
+                }
+              >
+                <div className="flex w-full flex-1 items-center">
+                  <DonutChart
+                    rows={industries.slice(0, 5).map((i) => ({
+                      label: i.industry,
+                      count: i.count,
+                      href: `/alumni?industry=${encodeURIComponent(i.industry)}`,
+                    }))}
+                    emptyLabel="No industry data yet."
+                  />
+                </div>
+              </Panel>
+            </div>
           </div>
         )}
       </main>
