@@ -26,6 +26,10 @@ const config: Config = {
         success: { 600: "#15803D", 50: "#ECFDF3" },
         warning: { 600: "#B45309", 50: "#FEF6E7" },
         danger: { 600: "#B42318", 50: "#FEF3F2" },
+        // App background — a faint navy-tinted neutral, intentionally NOT the
+        // default Tailwind gray-100 (UX-UI.md flags default grays as an AI tell).
+        // White cards lift off it cleanly.
+        canvas: "#EDF0F6",
       },
       fontFamily: {
         // Inter is loaded in app/layout.tsx via next/font (exposed as --font-inter).
@@ -41,7 +45,7 @@ const config: Config = {
       boxShadow: {
         // Design-system shadow hierarchy (UX-UI.md): cards get a single subtle
         // shadow; popovers use md; dialogs/toasts use lg (Tailwind defaults).
-        card: "0 1px 2px 0 rgb(16 24 40 / 0.04), 0 1px 3px 0 rgb(16 24 40 / 0.06)",
+        card: "0 1px 2px 0 rgb(16 24 40 / 0.06), 0 1px 3px 0 rgb(16 24 40 / 0.10)",
       },
     },
   },

@@ -1,18 +1,7 @@
 import Link from "next/link";
-import {
-  BarChart3,
-  Briefcase,
-  Building2,
-  ChevronRight,
-  GraduationCap,
-  MapPin,
-  Star,
-  type LucideIcon,
-} from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
 import { MetricCard } from "@/components/shared/MetricCard";
-import { TopbarSearch } from "@/components/shared/TopbarSearch";
 import { SearchHero } from "@/components/dashboard/SearchHero";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DATA_VIZ_PALETTE } from "@/constants/chart";
@@ -275,13 +264,9 @@ function QuickFilters({ rows }: { rows: { label: string; href: string }[] }) {
           <li key={r.label} className="flex flex-1 border-t border-gray-100">
             <Link
               href={r.href}
-              className="flex w-full items-center justify-between gap-3 px-5 py-3 text-sm text-gray-700 transition hover:bg-brand-blue-50/40"
+              className="flex w-full items-center px-5 py-3 text-sm text-gray-700 transition-colors hover:bg-brand-blue-50/40 hover:text-brand-blue-600"
             >
               <span className="truncate">{r.label}</span>
-              <ChevronRight
-                className="h-4 w-4 shrink-0 text-gray-400"
-                aria-hidden="true"
-              />
             </Link>
           </li>
         ))}
@@ -290,15 +275,14 @@ function QuickFilters({ rows }: { rows: { label: string; href: string }[] }) {
   );
 }
 
-/** A single "Browse" tile — icon, title, and a small subtitle (a count or
- *  hint), linking to the matching view. */
+/** A single "Browse" tile — title and a small subtitle (a count or hint),
+ *  linking to the matching view. Text-only: a left navy keyline gives it
+ *  identity instead of a decorative icon. */
 function BrowseTile({
-  icon: Icon,
   title,
   sub,
   href,
 }: {
-  icon: LucideIcon;
   title: string;
   sub: string;
   href: string;
@@ -306,10 +290,9 @@ function BrowseTile({
   return (
     <Link
       href={href}
-      className="flex flex-col rounded-lg border border-gray-300 bg-white p-4 shadow-card transition-colors hover:border-brand-blue-300 hover:bg-brand-blue-50/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
+      className="group flex flex-col justify-center rounded-lg border border-l-2 border-gray-300 border-l-navy-800 bg-white px-4 py-3.5 shadow-card transition-colors hover:border-l-brand-blue-600 hover:bg-brand-blue-50/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
     >
-      <Icon className="h-5 w-5 text-brand-blue-600" aria-hidden="true" />
-      <p className="mt-2 text-sm font-semibold text-gray-900">{title}</p>
+      <p className="text-sm font-semibold text-gray-900">{title}</p>
       <p className="mt-0.5 text-xs text-gray-500">{sub}</p>
     </Link>
   );
@@ -375,9 +358,7 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <Topbar title="Dashboard">
-        <TopbarSearch />
-      </Topbar>
+      <Topbar title="Dashboard" />
       <main className="flex-1 overflow-auto p-6">
         {notProvisioned ? (
           <Card className="p-4 text-sm text-gray-700">
@@ -421,7 +402,7 @@ export default async function DashboardPage() {
               title="Top employers"
               action={
                 <span className="text-xs font-medium text-gray-500">
-                  Click to filter →
+                  Click to filter
                 </span>
               }
             >
@@ -445,13 +426,11 @@ export default async function DashboardPage() {
                   tiles — matching the Figma. */}
               <div className="grid flex-1 grid-cols-1 auto-rows-min content-between gap-4 sm:grid-cols-2">
                 <BrowseTile
-                  icon={MapPin}
                   title="Utah"
                   sub={countSub(utahCount)}
                   href="/alumni?state=UT"
                 />
                 <BrowseTile
-                  icon={GraduationCap}
                   title="Recent grads"
                   sub={
                     typeof recentGradCount === "number"
@@ -461,19 +440,16 @@ export default async function DashboardPage() {
                   href={`/alumni?ymin=${recentMin}&ymax=${recentMax}`}
                 />
                 <BrowseTile
-                  icon={Briefcase}
                   title="IB / PE"
                   sub={ibPeCount > 0 ? `${ibPeCount.toLocaleString()} alumni` : "View"}
                   href="/alumni?industry=Investment%20Banking"
                 />
                 <BrowseTile
-                  icon={Star}
                   title="Willing mentors"
                   sub={countSub(s?.willing_mentors)}
                   href="/alumni?mentor=1"
                 />
                 <BrowseTile
-                  icon={Building2}
                   title="Top employers"
                   sub={
                     topEmployerNames.length
@@ -483,7 +459,6 @@ export default async function DashboardPage() {
                   href="/map/breakdown/employers"
                 />
                 <BrowseTile
-                  icon={BarChart3}
                   title="By industry"
                   sub="Browse all"
                   href="/map/breakdown/industries"
@@ -494,7 +469,7 @@ export default async function DashboardPage() {
               title="Top industries"
               action={
                 <span className="text-xs font-medium text-gray-500">
-                  Click to filter →
+                  Click to filter
                 </span>
               }
             >

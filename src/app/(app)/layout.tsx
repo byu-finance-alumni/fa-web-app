@@ -57,7 +57,7 @@ export default async function AppLayout({
   return (
     <ToastProvider>
       <SessionTimeout />
-      <div className="flex h-screen overflow-hidden bg-gray-100">
+      <div className="flex h-screen overflow-hidden bg-canvas">
         <Sidebar email={user.email ?? ""} role={role} />
         {/* min-h-0 lets the inner <main className="flex-1 overflow-auto"> on each
             page actually cap its height and scroll. A flex child defaults to

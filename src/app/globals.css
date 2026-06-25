@@ -29,5 +29,5 @@ option {
 }
 
 body {
-  @apply bg-gray-100 text-gray-900 antialiased;
+  @apply bg-canvas text-gray-900 antialiased;
 }

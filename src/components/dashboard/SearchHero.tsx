@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Search } from "lucide-react";
 import { parseAlumniQuery } from "@/lib/alumniQueryParser";
 import { Button } from "@/components/ui/button";
 
@@ -29,13 +28,12 @@ export function SearchHero() {
       onSubmit={submit}
       role="search"
       aria-label="Search alumni"
-      className="flex h-full items-center gap-3 rounded-lg border border-gray-300 bg-white px-4 py-3 shadow-card transition focus-within:border-brand-blue-600 focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1"
+      className="flex h-full items-center gap-3 rounded-lg border border-gray-300 bg-white px-5 py-3.5 shadow-card transition focus-within:border-brand-blue-600 focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1"
     >
-      <Search className="h-5 w-5 shrink-0 text-gray-400" aria-hidden="true" />
       <input
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="Search alumni — try “near Las Vegas in investment banking”"
+        placeholder="Search alumni by name, employer, title, location, or industry"
         aria-label="Search alumni by name, employer, title, location, or industry"
         autoComplete="off"
         className="min-w-0 flex-1 bg-transparent text-base text-gray-900 placeholder:text-gray-400 focus:outline-none"
