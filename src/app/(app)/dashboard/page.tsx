@@ -99,20 +99,20 @@ function BarList({
     return <p className="py-4 text-sm text-gray-400">{emptyLabel}</p>;
   const max = Math.max(1, ...rows.map((r) => r.count));
   return (
-    <ul className="space-y-3">
+    <ul className="space-y-3.5">
       {rows.map((r) => {
         const row = (
           <>
-            <span className="w-28 shrink-0 truncate text-sm text-gray-700">
+            <span className="w-36 shrink-0 truncate text-sm font-medium text-gray-700">
               {r.label}
             </span>
-            <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
+            <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-gray-100">
               <div
                 className="h-full rounded-full bg-brand-blue-600"
                 style={{ width: `${Math.round((r.count / max) * 100)}%` }}
               />
             </div>
-            <span className="w-6 shrink-0 text-right text-sm font-medium tabular-nums text-gray-900">
+            <span className="w-8 shrink-0 text-right text-sm font-semibold tabular-nums text-gray-900">
               {r.count}
             </span>
           </>
@@ -369,10 +369,10 @@ export default async function DashboardPage() {
           /* One interleaved 2-col grid so each row's left/right blocks align
              (and stay equal height) like the Figma: search│KPIs,
              quick-filters│top-employers, browse│top-industries. */
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             {/* Row 1 — search | KPI strip */}
             <SearchHero />
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
               <MetricCard
                 size="lg"
                 label="Total alumni"
@@ -424,7 +424,7 @@ export default async function DashboardPage() {
               {/* Tiles keep a compact height; any extra column height falls
                   into the gaps between rows (content-between), not into taller
                   tiles — matching the Figma. */}
-              <div className="grid flex-1 grid-cols-1 auto-rows-min content-between gap-4 sm:grid-cols-2">
+              <div className="grid flex-1 grid-cols-1 auto-rows-min content-between gap-5 sm:grid-cols-2">
                 <BrowseTile
                   title="Utah"
                   sub={countSub(utahCount)}
