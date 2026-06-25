@@ -78,12 +78,14 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <Card className="flex h-full flex-col">
+    <Card className="flex flex-1 flex-col">
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         {action}
       </CardHeader>
-      <CardContent className="flex flex-1 flex-col">{children}</CardContent>
+      <CardContent className="flex flex-1 flex-col justify-center">
+        {children}
+      </CardContent>
     </Card>
   );
 }
@@ -253,7 +255,7 @@ function DonutChart({
  *  treatment so the two columns read as the same component family. */
 function QuickFilters({ rows }: { rows: { label: string; href: string }[] }) {
   return (
-    <Card className="flex h-full flex-col">
+    <Card className="flex flex-1 flex-col">
       <CardHeader>
         <CardTitle>Quick filters</CardTitle>
       </CardHeader>
@@ -275,28 +277,30 @@ function QuickFilters({ rows }: { rows: { label: string; href: string }[] }) {
   );
 }
 
-/** A single "Browse" tile — title and a small subtitle (a count or hint),
- *  linking to the matching view. Text-only: a left navy keyline gives it
- *  identity instead of a decorative icon. */
-function BrowseStat({
-  value,
+/** A single "Browse alumni" row — a segment label on the left and its alumni
+ *  count on the right, linking to that pre-filtered alumni list. Rows share the
+ *  card height evenly so the list fills its column. */
+function BrowseRow({
   label,
+  value,
   href,
 }: {
-  value: React.ReactNode;
   label: string;
+  value: React.ReactNode;
   href: string;
 }) {
   return (
-    <Link
-      href={href}
-      className="flex flex-col justify-center rounded-lg px-3 py-3 transition-colors hover:bg-brand-blue-50/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500"
-    >
-      <span className="text-2xl font-semibold tabular-nums tracking-tight text-navy-800">
-        {value}
-      </span>
-      <span className="mt-0.5 text-sm font-medium text-gray-700">{label}</span>
-    </Link>
+    <li className="flex flex-1 border-t border-gray-100">
+      <Link
+        href={href}
+        className="flex w-full items-center justify-between gap-3 px-5 py-3 text-sm transition-colors hover:bg-brand-blue-50/40"
+      >
+        <span className="truncate text-gray-700">{label}</span>
+        <span className="shrink-0 font-semibold tabular-nums text-gray-900">
+          {value}
+        </span>
+      </Link>
+    </li>
   );
 }
 
@@ -366,44 +370,44 @@ export default async function DashboardPage() {
             Admin to grant your account a role to see data.
           </Card>
         ) : (
-          /* Two columns: quick-search features on the left half, KPIs + the
-             two charts on the right half. */
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          /* Two columns that stretch to fill the viewport: quick-search
+             features on the left half, KPIs + the two charts on the right. */
+          <div className="flex min-h-full flex-col gap-5 lg:flex-row lg:items-stretch">
             {/* LEFT — search, quick filters, browse */}
-            <div className="flex flex-col gap-5">
+            <div className="flex flex-1 flex-col gap-5">
               <SearchHero />
               <QuickFilters rows={quickFilters} />
               <Card className="flex flex-1 flex-col">
                 <CardHeader>
                   <CardTitle>Browse alumni</CardTitle>
                 </CardHeader>
-                <CardContent className="grid flex-1 grid-cols-2 content-center gap-1">
-                  <BrowseStat
-                    value={stat(utahCount)}
+                <ul className="flex flex-1 flex-col">
+                  <BrowseRow
                     label="In Utah"
+                    value={stat(utahCount)}
                     href="/alumni?state=UT"
                   />
-                  <BrowseStat
+                  <BrowseRow
+                    label="Recent grads (last 5 yrs)"
                     value={stat(recentGradCount)}
-                    label="Recent grads"
                     href={`/alumni?ymin=${recentMin}&ymax=${recentMax}`}
                   />
-                  <BrowseStat
-                    value={stat(ibPeCount)}
+                  <BrowseRow
                     label="In IB / PE"
+                    value={stat(ibPeCount)}
                     href="/alumni?industry=Investment%20Banking"
                   />
-                  <BrowseStat
-                    value={stat(s?.willing_mentors)}
+                  <BrowseRow
                     label="Willing mentors"
+                    value={stat(s?.willing_mentors)}
                     href="/alumni?mentor=1"
                   />
-                </CardContent>
+                </ul>
               </Card>
             </div>
 
             {/* RIGHT — KPI strip + the two charts */}
-            <div className="flex flex-col gap-5">
+            <div className="flex flex-1 flex-col gap-5">
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
                 <MetricCard
                   size="lg"
