@@ -10,7 +10,7 @@ export default function Loading() {
       <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-6 lg:overflow-hidden">
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-4 lg:grid-rows-1">
           {/* Map (left, dominant) */}
-          <div className="flex min-h-0 flex-col rounded-xl border border-gray-300 bg-white p-4 lg:col-span-3">
+          <div className="flex min-h-0 flex-col rounded-lg border border-gray-200 bg-white p-4 shadow-card lg:col-span-3">
             <div className="mb-2 flex items-center justify-between gap-3">
               <div className="space-y-1.5">
                 <div className="h-5 w-40 animate-pulse rounded bg-gray-100" />
@@ -26,7 +26,7 @@ export default function Loading() {
             {Array.from({ length: 4 }).map((_, i) => (
               <div
                 key={i}
-                className="min-h-0 flex-1 animate-pulse rounded-xl border border-gray-300 bg-white"
+                className="min-h-0 flex-1 animate-pulse rounded-lg border border-gray-200 bg-white shadow-card"
               />
             ))}
           </div>

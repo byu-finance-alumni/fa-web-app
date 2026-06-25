@@ -9,6 +9,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import type { ImportRow } from "@/types/alumni";
+import { Badge } from "@/components/ui/badge";
 
 /** Pretty-print a before/after value for a change diff. */
 function fmt(v: unknown): string {
@@ -27,16 +28,16 @@ function fmt(v: unknown): string {
 export function ImportReviewTable({ rows }: { rows: ImportRow[] }) {
   if (rows.length === 0) {
     return (
-      <div className="rounded-xl border border-gray-300 bg-white p-8 text-center text-sm text-gray-500">
+      <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
         The file has no data rows.
       </div>
     );
   }
   return (
-    <div className="overflow-hidden rounded-xl border border-gray-300 bg-white">
+    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-card">
       <div className="max-h-[28rem] overflow-auto">
         <table className="w-full border-collapse text-sm">
-          <thead className="sticky top-0 z-10 bg-gray-100 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+          <thead className="sticky top-0 z-10 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
             <tr>
               <th className="w-10 px-3 py-2" />
               <th className="w-28 px-3 py-2">Status</th>
@@ -105,21 +106,19 @@ function ReviewRow({ row }: { row: ImportRow }) {
         <td className="px-3 py-2 align-top text-gray-700">
           <div className="flex flex-wrap gap-1.5">
             {row.changes.length > 0 && (
-              <Pill tone="info">
-                {row.changes.length} cleaned
-              </Pill>
+              <Badge variant="tag">{row.changes.length} cleaned</Badge>
             )}
             {row.warnings.length > 0 && (
-              <Pill tone="warning">
+              <Badge variant="warning">
                 {row.warnings.length} warning
                 {row.warnings.length === 1 ? "" : "s"}
-              </Pill>
+              </Badge>
             )}
             {(row.blockers.length > 0 || row.error) && (
-              <Pill tone="danger">
+              <Badge variant="danger">
                 {row.blockers.length + (row.error ? 1 : 0)} blocker
                 {row.blockers.length + (row.error ? 1 : 0) === 1 ? "" : "s"}
-              </Pill>
+              </Badge>
             )}
             {!hasDetail && <span className="text-gray-400">Clean</span>}
           </div>
@@ -205,39 +204,9 @@ function ReviewRow({ row }: { row: ImportRow }) {
 
 function StatusBadge({ status }: { status: ImportRow["status"] }) {
   if (status === "importable") {
-    return (
-      <span className="inline-flex items-center rounded-full bg-success-50 px-2 py-0.5 text-xs font-semibold text-success-600">
-        Importable
-      </span>
-    );
+    return <Badge variant="success">Importable</Badge>;
   }
-  return (
-    <span className="inline-flex items-center rounded-full bg-danger-50 px-2 py-0.5 text-xs font-semibold text-danger-600">
-      Rejected
-    </span>
-  );
-}
-
-function Pill({
-  tone,
-  children,
-}: {
-  tone: "info" | "warning" | "danger";
-  children: React.ReactNode;
-}) {
-  const cls =
-    tone === "warning"
-      ? "bg-warning-50 text-warning-600"
-      : tone === "danger"
-        ? "bg-danger-50 text-danger-600"
-        : "bg-brand-blue-50 text-brand-blue-600";
-  return (
-    <span
-      className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${cls}`}
-    >
-      {children}
-    </span>
-  );
+  return <Badge variant="danger">Rejected</Badge>;
 }
 
 function Section({

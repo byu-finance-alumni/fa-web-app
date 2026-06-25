@@ -2,7 +2,9 @@ import Link from "next/link";
 import { apiGet, ApiError } from "@/lib/api";
 import { humanize } from "@/lib/format";
 import { Topbar } from "@/components/shell/Topbar";
-import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
   ActivityToolbar,
   type ActivityFilterState,
@@ -30,16 +32,76 @@ interface ActivityPage {
   offset: number;
 }
 
-const fmtDateTime = (iso: string | null) =>
-  iso
-    ? new Date(iso).toLocaleString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : "—";
+/** A run of log rows that share one calendar day (Mountain time). */
+interface DayGroup {
+  key: string;
+  label: string;
+  rows: ActivityRow[];
+}
+
+/** Start-of-day in local time, for whole-day difference math. */
+function startOfDay(d: Date): number {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+/** Compact time-of-day for the left rail, e.g. "2:32p" / "11:05a". */
+function fmtTime(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const s = d
+    .toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: "America/Denver",
+    })
+    .toLowerCase()
+    .replace(/\s/g, "");
+  // "2:32pm" -> "2:32p" to keep the rail tight.
+  return s.replace(/m$/, "");
+}
+
+/** Day-group header label: "Today" / "Yesterday" / "Jun 22, 2026". */
+function fmtDayLabel(iso: string): string {
+  const d = new Date(iso);
+  const diff = Math.round((startOfDay(new Date()) - startOfDay(d)) / 86_400_000);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  return d.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+/** Stable per-day key (local calendar date) so rows bucket correctly. */
+function dayKey(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+/**
+ * Bucket the already-sorted rows into consecutive day groups, preserving the
+ * server's ordering (newest- or oldest-first). Rows without a timestamp fall
+ * into a trailing "Undated" group.
+ */
+function groupByDay(rows: ActivityRow[]): DayGroup[] {
+  const groups: DayGroup[] = [];
+  let current: DayGroup | null = null;
+  for (const r of rows) {
+    const key = r.when ? dayKey(r.when) : "undated";
+    if (!current || current.key !== key) {
+      current = {
+        key,
+        label: r.when ? fmtDayLabel(r.when) : "Undated",
+        rows: [],
+      };
+      groups.push(current);
+    }
+    current.rows.push(r);
+  }
+  return groups;
+}
 
 export default async function ActivityPage({
   searchParams,
@@ -106,6 +168,8 @@ export default async function ActivityPage({
     return qs ? `/activity?${qs}` : "/activity";
   };
 
+  const groups = data ? groupByDay(data.items) : [];
+
   return (
     <>
       <Topbar title="Activity" />
@@ -113,8 +177,8 @@ export default async function ActivityPage({
         <ActivityToolbar initial={filters} types={data?.types ?? []} />
 
         {error ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-10 text-center">
-            <p className="font-medium text-gray-900">
+          <Card className="p-10 text-center">
+            <p className="text-sm font-semibold text-gray-900">
               {error.status === 403
                 ? "Your account isn't provisioned yet"
                 : error.status === 401
@@ -126,9 +190,9 @@ export default async function ActivityPage({
                 ? "Ask a Super Admin to grant your account a role."
                 : error.message}
             </p>
-          </div>
+          </Card>
         ) : data && data.items.length === 0 ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
+          <Card className="p-10 text-center text-sm text-gray-500">
             {filters.q ||
             filters.type ||
             filters.from ||
@@ -136,92 +200,53 @@ export default async function ActivityPage({
             filters.mine
               ? "No interactions match your filters."
               : "No interactions logged yet."}
-          </div>
+          </Card>
         ) : (
           <>
-            {/* Mobile: stacked cards (dense tables collapse to cards per UX-UI.md). */}
-            <div className="space-y-2 md:hidden">
-              {data!.items.map((r) => (
-                <div
-                  key={r.interaction_id}
-                  className="rounded-xl border border-gray-300 bg-white p-3"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <Link
-                      href={`/alumni/${r.alumni_id}`}
-                      className="font-medium text-gray-900 hover:text-brand-blue-600"
-                    >
-                      {r.alumni_name}
-                    </Link>
-                    {r.type ? (
-                      <span className="shrink-0 rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-                        {humanize(r.type)}
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="mt-1.5 text-xs text-gray-500">
-                    {fmtDateTime(r.when)}
-                    {r.by ? ` · ${r.by}` : ""}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            {/* Desktop: table */}
-            <div className="hidden overflow-hidden rounded-xl border border-gray-300 bg-white md:block">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-300 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    <th className="w-56 px-4 py-3">Edited by</th>
-                    <th className="w-52 px-4 py-3">Date / time</th>
-                    <th className="w-44 px-4 py-3">Action</th>
-                    <th className="px-4 py-3">Record</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data!.items.map((r) => (
-                    <tr
-                      key={r.interaction_id}
-                      className="border-b border-gray-300 last:border-0 hover:bg-brand-blue-50/40"
-                    >
-                      <td className="px-4 py-3">
+            {/* Chronological log feed — grouped by day, newest first within a
+                group (server-sorted). A fixed left rail holds the time so every
+                line aligns; the alumnus, action chip, and muted actor read as a
+                single scannable row rather than a data grid. */}
+            <Card className="mx-auto max-w-3xl overflow-hidden">
+              {groups.map((g) => (
+                <section key={g.key}>
+                  <h2 className="sticky top-0 z-10 border-b border-gray-200 bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    {g.label}
+                  </h2>
+                  <ul>
+                    {g.rows.map((r) => (
+                      <li
+                        key={r.interaction_id}
+                        className="flex items-baseline gap-3 border-b border-gray-200 px-4 py-2.5 last:border-0 hover:bg-brand-blue-50/40"
+                      >
+                        <time className="w-14 shrink-0 text-xs tabular-nums text-gray-500">
+                          {fmtTime(r.when)}
+                        </time>
+                        <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-1">
+                          <Link
+                            href={`/alumni/${r.alumni_id}`}
+                            className="truncate text-sm font-medium text-gray-900 hover:text-brand-blue-600"
+                          >
+                            {r.alumni_name}
+                          </Link>
+                          {r.type ? (
+                            <Badge variant="neutral">{humanize(r.type)}</Badge>
+                          ) : null}
+                        </div>
                         {r.by ? (
-                          <div className="flex items-center gap-2.5">
-                            <InitialsAvatar name={r.by} size="sm" />
-                            <span className="text-gray-700">{r.by}</span>
-                          </div>
-                        ) : (
-                          <span className="text-gray-300">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 tabular-nums text-gray-700">
-                        {fmtDateTime(r.when)}
-                      </td>
-                      <td className="px-4 py-3">
-                        {r.type ? (
-                          <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-                            {humanize(r.type)}
+                          <span className="shrink-0 truncate text-xs text-gray-500">
+                            by {r.by}
                           </span>
-                        ) : (
-                          <span className="text-gray-300">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Link
-                          href={`/alumni/${r.alumni_id}`}
-                          className="font-medium text-brand-blue-600 hover:underline"
-                        >
-                          {r.alumni_name}
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </Card>
 
-            <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
-              <span>
+            <div className="mx-auto mt-3 flex max-w-3xl items-center justify-between text-sm text-gray-500">
+              <span className="tabular-nums">
                 Showing {from}–{to} of {data!.total}
               </span>
               <div className="flex gap-2">
@@ -253,13 +278,13 @@ function PageLink({
   enabled: boolean;
   label: string;
 }) {
-  const cls =
-    "rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium";
   return enabled ? (
-    <Link href={href} className={`${cls} bg-white text-gray-700 hover:bg-gray-50`}>
-      {label}
-    </Link>
+    <Button asChild variant="secondary" size="sm">
+      <Link href={href}>{label}</Link>
+    </Button>
   ) : (
-    <span className={`${cls} bg-gray-50 text-gray-300`}>{label}</span>
+    <Button variant="secondary" size="sm" disabled>
+      {label}
+    </Button>
   );
 }

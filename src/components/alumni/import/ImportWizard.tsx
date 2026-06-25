@@ -18,6 +18,8 @@ import {
   commitImport,
   downloadImportTemplate,
 } from "@/app/(app)/alumni/actions";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { ImportReviewTable } from "./ImportReviewTable";
 
 type Step = "upload" | "review" | "result";
@@ -215,7 +217,7 @@ function StepHeader({ step }: { step: Step }) {
                   ? "bg-brand-blue-600 text-white"
                   : done
                     ? "bg-success-600 text-white"
-                    : "border border-gray-300 bg-white text-gray-500"
+                    : "border border-gray-200 bg-white text-gray-500"
               }`}
             >
               {done ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
@@ -228,7 +230,7 @@ function StepHeader({ step }: { step: Step }) {
               {s.label}
             </span>
             {i < steps.length - 1 && (
-              <span className="mx-1 h-px w-8 bg-gray-300" aria-hidden="true" />
+              <span className="mx-1 h-px w-8 bg-gray-200" aria-hidden="true" />
             )}
           </li>
         );
@@ -268,7 +270,7 @@ function UploadStep({
 }) {
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-gray-300 bg-white p-6">
+      <Card className="p-6">
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">
@@ -281,11 +283,11 @@ function UploadStep({
             </p>
           </div>
           <div className="shrink-0 text-right">
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={onTemplate}
               disabled={downloadingTemplate}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
             >
               {downloadingTemplate ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -293,7 +295,7 @@ function UploadStep({
                 <Download className="h-4 w-4" />
               )}
               Download template
-            </button>
+            </Button>
             {templateError && (
               <p className="mt-1 text-xs text-danger-600">{templateError}</p>
             )}
@@ -313,7 +315,7 @@ function UploadStep({
             const dropped = e.dataTransfer.files?.[0];
             if (dropped) onPick(dropped);
           }}
-          className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-12 text-center transition ${
+          className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-12 text-center transition ${
             dragOver
               ? "border-brand-blue-600 bg-brand-blue-50"
               : "border-gray-300 bg-gray-50 hover:border-brand-blue-300 hover:bg-brand-blue-50/40"
@@ -340,7 +342,7 @@ function UploadStep({
         )}
 
         {file && (
-          <div className="mt-4 flex items-center justify-between rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5">
+          <div className="mt-4 flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
             <div className="flex min-w-0 items-center gap-2">
               <FileText className="h-4 w-4 shrink-0 text-gray-500" />
               <span className="truncate text-sm font-medium text-gray-900">
@@ -350,14 +352,15 @@ function UploadStep({
                 {(file.size / 1024).toFixed(1)} KB
               </span>
             </div>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
               onClick={() => onPick(null)}
               aria-label="Remove file"
-              className="rounded p-1 text-gray-500 hover:bg-gray-200 hover:text-gray-700"
             >
               <X className="h-4 w-4" />
-            </button>
+            </Button>
           </div>
         )}
 
@@ -366,33 +369,30 @@ function UploadStep({
             <p className="flex items-center gap-1.5 text-sm text-danger-600">
               <AlertTriangle className="h-4 w-4 shrink-0" /> {previewError}
             </p>
-            <button
-              type="button"
+            <Button
+              variant="link"
+              size="sm"
               onClick={onCheck}
-              className="shrink-0 text-sm font-semibold text-danger-600 underline"
+              className="shrink-0 px-0 text-danger-600 hover:text-danger-600"
             >
               Retry
-            </button>
+            </Button>
           </div>
         )}
-      </div>
+      </Card>
 
       <div className="flex items-center justify-end gap-3">
-        <Link
-          href="/alumni"
-          className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-        >
-          Cancel
-        </Link>
-        <button
-          type="button"
+        <Button asChild variant="secondary">
+          <Link href="/alumni">Cancel</Link>
+        </Button>
+        <Button
+          variant="primary"
           onClick={onCheck}
           disabled={!file || checking}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {checking && <Loader2 className="h-4 w-4 animate-spin" />}
           {checking ? "Checking…" : "Check file"}
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -440,7 +440,7 @@ function ReviewStep({
       </div>
 
       {!columns_ok && (
-        <div className="rounded-xl border border-danger-600/40 bg-danger-50 p-4">
+        <div className="rounded-lg border border-danger-600/40 bg-danger-50 p-4">
           <p className="flex items-center gap-2 text-sm font-semibold text-danger-600">
             <AlertTriangle className="h-5 w-5" /> The file&apos;s columns
             don&apos;t match the template
@@ -466,29 +466,25 @@ function ReviewStep({
           <p className="flex items-center gap-1.5 text-sm text-danger-600">
             <AlertTriangle className="h-4 w-4 shrink-0" /> {importError}
           </p>
-          <button
-            type="button"
+          <Button
+            variant="link"
+            size="sm"
             onClick={onImport}
-            className="shrink-0 text-sm font-semibold text-danger-600 underline"
+            className="shrink-0 px-0 text-danger-600 hover:text-danger-600"
           >
             Retry
-          </button>
+          </Button>
         </div>
       )}
 
       <div className="flex items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={onBack}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-        >
+        <Button variant="secondary" onClick={onBack}>
           <ArrowLeft className="h-4 w-4" /> Back
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant="primary"
           onClick={onImport}
           disabled={!canImport || importing}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {importing && <Loader2 className="h-4 w-4 animate-spin" />}
           {importing
@@ -496,7 +492,7 @@ function ReviewStep({
             : `Import ${summary.importable} row${
                 summary.importable === 1 ? "" : "s"
               }`}
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -520,7 +516,7 @@ function SummaryCard({
           ? "text-warning-600"
           : "text-gray-900";
   return (
-    <div className="rounded-xl border border-gray-300 bg-white p-4">
+    <Card className="p-4">
       <span className="block text-xs font-semibold uppercase tracking-wide text-gray-500">
         {label}
       </span>
@@ -529,7 +525,7 @@ function SummaryCard({
       >
         {value}
       </p>
-    </div>
+    </Card>
   );
 }
 
@@ -547,7 +543,7 @@ function ResultStep({
   const hasRejects = result.rejects.length > 0;
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-gray-300 bg-white p-6">
+      <Card className="p-6">
         <div className="flex items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-success-50">
             <CheckCircle2 className="h-6 w-6 text-success-600" />
@@ -600,31 +596,25 @@ function ResultStep({
                 </li>
               ))}
             </ul>
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={onDownloadRejects}
-              className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              className="mt-4"
             >
               <Download className="h-4 w-4" /> Download rejects (CSV)
-            </button>
+            </Button>
           </div>
         )}
-      </div>
+      </Card>
 
       <div className="flex items-center justify-end gap-3">
-        <button
-          type="button"
-          onClick={onImportAnother}
-          className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-        >
+        <Button variant="secondary" onClick={onImportAnother}>
           Import another file
-        </button>
-        <Link
-          href="/alumni"
-          className="rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500"
-        >
-          Go to alumni list
-        </Link>
+        </Button>
+        <Button asChild variant="primary">
+          <Link href="/alumni">Go to alumni list</Link>
+        </Button>
       </div>
     </div>
   );

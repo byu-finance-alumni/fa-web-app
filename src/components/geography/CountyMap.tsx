@@ -128,7 +128,7 @@ export function CountyMap({
       ) : null}
 
       {/* Heatmap legend (absolute thresholds) — same as UsStateMap. */}
-      <div className="mt-2 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-gray-500">
+      <div className="mt-2 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
         <span className="font-medium">Alumni</span>
         {[...BUCKETS].reverse().map((b) => (
           <span key={b.label} className="flex items-center gap-1.5">

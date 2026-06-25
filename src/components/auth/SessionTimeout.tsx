@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ShieldAlert } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
+import { Button } from "@/components/ui/button";
 
 const ACTIVITY_EVENTS = [
   "mousemove",
@@ -182,7 +183,7 @@ export function SessionTimeout({
       aria-describedby="session-timeout-desc"
       className="fixed inset-0 z-[100] flex items-center justify-center bg-navy-900/50 p-4"
     >
-      <div className="w-full max-w-sm rounded-xl border border-gray-300 bg-white p-6 shadow-lg">
+      <div className="w-full max-w-sm rounded-lg border border-gray-200 bg-white p-6 shadow-lg">
         <div className="mb-3 flex items-center gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-warning-50 text-warning-600">
             <ShieldAlert className="h-5 w-5" aria-hidden="true" />
@@ -203,21 +204,22 @@ export function SessionTimeout({
           .
         </p>
         <div className="mt-5 flex flex-col gap-2">
-          <button
+          <Button
             type="button"
             autoFocus
             onClick={() => stayRef.current()}
-            className="inline-flex w-full items-center justify-center rounded-md bg-brand-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-blue-500"
+            className="w-full"
           >
             Click here to stay signed in
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => leaveRef.current()}
-            className="inline-flex w-full items-center justify-center rounded-md px-4 py-2 text-sm font-medium text-gray-500 transition-colors hover:text-gray-700"
+            className="w-full text-gray-500 hover:text-gray-700"
           >
             Sign out now
-          </button>
+          </Button>
         </div>
       </div>
     </div>

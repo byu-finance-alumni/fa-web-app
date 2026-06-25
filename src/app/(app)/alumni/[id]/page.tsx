@@ -41,6 +41,9 @@ import { ExportProfileButton } from "@/components/alumni/ExportProfileButton";
 import { DrawerList } from "@/components/alumni/DrawerList";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { Avatar } from "@/components/shared/Avatar";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 /* ----------------------------------------------------------------- helpers */
 
@@ -79,15 +82,13 @@ function Panel({
   className?: string;
 }) {
   return (
-    <section
-      className={`rounded-xl border border-gray-300 bg-white p-5 ${className}`}
-    >
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+    <Card className={className}>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
         {action}
-      </div>
-      {children}
-    </section>
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
   );
 }
 
@@ -133,12 +134,9 @@ function ContactField({
 
 function EditLink({ id, label = "Edit" }: { id: number; label?: string }) {
   return (
-    <Link
-      href={`/alumni/${id}/edit`}
-      className="text-xs font-medium text-brand-blue-600 hover:text-brand-blue-500"
-    >
-      {label}
-    </Link>
+    <Button asChild variant="link" size="sm" className="px-0">
+      <Link href={`/alumni/${id}/edit`}>{label}</Link>
+    </Button>
   );
 }
 
@@ -149,20 +147,16 @@ function EngagementChip({
   children: React.ReactNode;
   tone?: "tag" | "neutral" | "success" | "warning" | "solid";
 }) {
-  const tones = {
-    tag: "bg-brand-blue-50 text-navy-800",
-    neutral: "bg-gray-100 text-gray-700",
-    success: "bg-success-50 text-success-600",
-    warning: "bg-warning-50 text-warning-600",
-    solid: "bg-navy-800 text-white",
-  } as const;
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${tones[tone]}`}
-    >
-      {children}
-    </span>
-  );
+  // "solid" keeps the navy treatment used on the profile; the rest map to the
+  // Badge variants directly.
+  if (tone === "solid") {
+    return (
+      <Badge variant="neutral" className="bg-navy-800 text-white">
+        {children}
+      </Badge>
+    );
+  }
+  return <Badge variant={tone}>{children}</Badge>;
 }
 
 function avatarColor(seed: string): string {
@@ -344,7 +338,7 @@ export default async function AlumniProfilePage({
       <main className="flex-1 overflow-y-auto bg-gray-100 p-4 md:p-6">
         <div className="mx-auto max-w-6xl space-y-4">
           {/* Header card */}
-          <div className="rounded-xl border border-gray-300 bg-white p-5">
+          <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-card">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div className="flex items-center gap-4">
                 <Avatar
@@ -363,18 +357,12 @@ export default async function AlumniProfilePage({
                         Goes by “{a.preferred_first_name}”
                       </EngagementChip>
                     ) : null}
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        recordStatus === "Active"
-                          ? "bg-success-50 text-success-600"
-                          : "bg-gray-100 text-gray-500"
-                      }`}
-                    >
+                    <Badge variant={recordStatus === "Active" ? "success" : "muted"}>
                       <span
                         className={`h-1.5 w-1.5 rounded-full ${recordStatus === "Active" ? "bg-success-600" : "bg-gray-400"}`}
                       />
                       {recordStatus}
-                    </span>
+                    </Badge>
                   </div>
                   <p className="mt-1 text-base text-gray-500">
                     {[
@@ -427,12 +415,9 @@ export default async function AlumniProfilePage({
                           fileBaseName={`${name.replace(/\s+/g, "-").toLowerCase()}-${aid}`}
                         />
                       ) : null}
-                      <Link
-                        href={`/alumni/${aid}/edit`}
-                        className="rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500"
-                      >
-                        Edit
-                      </Link>
+                      <Button asChild>
+                        <Link href={`/alumni/${aid}/edit`}>Edit</Link>
+                      </Button>
                       {canArchive ? (
                         <ArchiveControls
                           alumniId={aid}
@@ -611,9 +596,9 @@ export default async function AlumniProfilePage({
                             <p className="text-sm font-semibold text-gray-900">
                               {e.employer_name ?? "—"}
                               {e.is_current ? (
-                                <span className="ml-2 inline-flex items-center rounded-full bg-success-50 px-2 py-0.5 text-[11px] font-medium text-success-600">
+                                <Badge variant="success" className="ml-2">
                                   Current
-                                </span>
+                                </Badge>
                               ) : null}
                             </p>
                             <div className="flex shrink-0 items-center gap-2">
@@ -964,16 +949,13 @@ export default async function AlumniProfilePage({
                               <p className="text-sm font-medium text-gray-900">
                                 {t.task_title ?? "Untitled task"}
                               </p>
-                              <span
-                                className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                                  overdue
-                                    ? "bg-warning-50 text-warning-600"
-                                    : "bg-gray-100 text-gray-600"
-                                }`}
+                              <Badge
+                                variant={overdue ? "warning" : "neutral"}
+                                className="shrink-0"
                               >
                                 {overdue ? "Overdue · " : ""}
                                 {t.due_date ? fmtDate(t.due_date) : "No date"}
-                              </span>
+                              </Badge>
                             </div>
                             {t.assigned_to ? (
                               <p className="text-xs text-gray-500">
@@ -1030,12 +1012,9 @@ export default async function AlumniProfilePage({
                   ))}
                 </ul>
                 {canEdit && missing.length ? (
-                  <Link
-                    href={`/alumni/${aid}/edit`}
-                    className="mt-4 block rounded-lg border border-gray-300 bg-white py-2 text-center text-sm font-medium text-gray-700 hover:bg-gray-50"
-                  >
-                    Add missing info
-                  </Link>
+                  <Button asChild variant="secondary" className="mt-4 w-full">
+                    <Link href={`/alumni/${aid}/edit`}>Add missing info</Link>
+                  </Button>
                 ) : null}
               </Panel>
               ) : null}

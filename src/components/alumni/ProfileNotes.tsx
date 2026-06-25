@@ -9,6 +9,8 @@ import {
   updateProfileNote,
 } from "@/app/(app)/alumni/actions";
 import { useToast } from "@/components/ui/Toast";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import type { Note } from "@/types/notes";
 
 /**
@@ -22,9 +24,6 @@ import type { Note } from "@/types/notes";
  * `CreateUserDialog`; brand-blue primary, white/gray-300 secondary, danger-600
  * for delete.
  */
-
-const fieldCls =
-  "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-brand-blue-600 focus:outline-none focus:ring-1 focus:ring-brand-blue-500";
 
 function fmt(iso: string): string {
   return new Date(iso).toLocaleString("en-US", {
@@ -101,23 +100,22 @@ export function ProfileNotes({
     <div className="space-y-4">
       {canWrite ? (
         <div>
-          <textarea
+          <Textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             rows={3}
             placeholder="Add a note about this alumnus…"
             aria-label="New note"
-            className={fieldCls}
           />
           <div className="mt-2 flex justify-end">
-            <button
+            <Button
               type="button"
+              variant="primary"
               onClick={add}
               disabled={pending || !draft.trim()}
-              className="rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500 disabled:opacity-60"
             >
               {pending ? "Saving…" : "Add note"}
-            </button>
+            </Button>
           </div>
         </div>
       ) : null}
@@ -131,33 +129,35 @@ export function ProfileNotes({
           {notes.map((n) => (
             <li
               key={n.note_id}
-              className="rounded-lg border border-gray-300 bg-gray-50 p-3"
+              className="rounded-lg border border-gray-200 bg-gray-50 p-3"
             >
               {editingId === n.note_id ? (
                 <div>
-                  <textarea
+                  <Textarea
                     value={editBody}
                     onChange={(e) => setEditBody(e.target.value)}
                     rows={3}
                     aria-label="Edit note"
-                    className={`${fieldCls} bg-white`}
+                    className="bg-white"
                   />
                   <div className="mt-2 flex justify-end gap-2">
-                    <button
+                    <Button
                       type="button"
+                      variant="secondary"
+                      size="sm"
                       onClick={() => setEditingId(null)}
-                      className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
                     >
                       Cancel
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
+                      variant="primary"
+                      size="sm"
                       onClick={() => saveEdit(n.note_id)}
                       disabled={pending || !editBody.trim()}
-                      className="rounded-lg bg-brand-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-blue-500 disabled:opacity-60"
                     >
                       Save
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ) : (
@@ -174,43 +174,51 @@ export function ProfileNotes({
                       confirmingId === n.note_id ? (
                         <span className="flex shrink-0 items-center gap-2 text-xs">
                           <span className="text-gray-500">Delete?</span>
-                          <button
+                          <Button
                             type="button"
+                            variant="link"
+                            size="sm"
                             onClick={() => remove(n.note_id)}
                             disabled={pending}
-                            className="font-semibold text-danger-600 hover:text-danger-500 disabled:opacity-60"
+                            className="text-danger-600"
                           >
                             Yes
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             type="button"
+                            variant="link"
+                            size="sm"
                             onClick={() => setConfirmingId(null)}
-                            className="font-medium text-gray-700 hover:text-gray-900"
+                            className="text-gray-700"
                           >
                             No
-                          </button>
+                          </Button>
                         </span>
                       ) : (
                         <span className="flex shrink-0 items-center gap-1">
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
+                            size="icon"
                             onClick={() => {
                               setEditingId(n.note_id);
                               setEditBody(n.body);
                             }}
                             aria-label="Edit note"
-                            className="flex h-7 w-7 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                            className="h-7 w-7"
                           >
                             <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             type="button"
+                            variant="ghost"
+                            size="icon"
                             onClick={() => setConfirmingId(n.note_id)}
                             aria-label="Delete note"
-                            className="flex h-7 w-7 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-danger-600"
+                            className="h-7 w-7"
                           >
                             <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                          </button>
+                          </Button>
                         </span>
                       )
                     ) : null}

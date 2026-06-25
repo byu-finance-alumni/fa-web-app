@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
+import { Card } from "@/components/ui/card";
 import type { Breakdown } from "@/types/geography";
 
 const FILTER_KEYS = ["employer", "industry", "year", "region", "tag"] as const;
@@ -68,11 +69,11 @@ export default async function BreakdownPage({
       />
       <main className="flex-1 overflow-auto p-6">
         {notProvisioned ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-4 text-sm text-gray-700">
+          <Card className="p-4 text-sm text-gray-700">
             Your account is authenticated but not yet provisioned.
-          </div>
+          </Card>
         ) : loadError ? (
-          <div className="mx-auto max-w-3xl rounded-xl border border-danger-600/20 bg-danger-50 p-10 text-center">
+          <div className="mx-auto max-w-3xl rounded-lg border border-danger-600/20 bg-danger-50 p-10 text-center">
             <AlertTriangle className="mx-auto mb-2 h-6 w-6 text-danger-600" />
             <p className="text-sm font-semibold text-gray-900">
               Couldn’t load this breakdown
@@ -96,14 +97,14 @@ export default async function BreakdownPage({
             </div>
 
             {items.length === 0 ? (
-              <div className="rounded-xl border border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
+              <Card className="p-10 text-center text-sm text-gray-500">
                 No data for this breakdown.
-              </div>
+              </Card>
             ) : (
-              <div className="overflow-hidden rounded-xl border border-gray-300 bg-white">
+              <Card className="overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-gray-300 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                       <th className="w-12 px-4 py-3">#</th>
                       <th className="px-4 py-3">{data?.title?.slice(0, -1)}</th>
                       <th className="w-40 px-4 py-3">Share</th>
@@ -114,7 +115,7 @@ export default async function BreakdownPage({
                     {items.map((i, idx) => (
                       <tr
                         key={`${i.key}-${i.label}-${idx}`}
-                        className="border-b border-gray-300 last:border-0 hover:bg-brand-blue-50/40"
+                        className="border-b border-gray-200 last:border-0 hover:bg-brand-blue-50/40"
                       >
                         <td className="px-4 py-3 tabular-nums text-gray-400">
                           {idx + 1}
@@ -150,7 +151,7 @@ export default async function BreakdownPage({
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </Card>
             )}
           </div>
         )}

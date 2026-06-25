@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { Pencil } from "lucide-react";
 import { updateUserName } from "@/app/(app)/admin/actions";
 import { useToast } from "@/components/ui/Toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 /**
  * Super-admin inline editor for a user's first/last name. A small pencil button
@@ -17,10 +20,6 @@ import { useToast } from "@/components/ui/Toast";
  * values come from the design system (UX-UI.md): primary = `brand-blue-600`,
  * secondary = white + `gray-300` border, errors = `danger-600`.
  */
-
-const labelCls = "mb-1 block text-[11px] font-medium text-gray-500";
-const fieldCls =
-  "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-brand-blue-600 focus:outline-none focus:ring-1 focus:ring-brand-blue-600";
 
 export function UserNameEditor({
   userId,
@@ -78,15 +77,17 @@ export function UserNameEditor({
 
   return (
     <>
-      <button
+      <Button
         type="button"
+        variant="secondary"
+        size="icon"
         aria-label="Edit name"
         title="Edit name"
         onClick={start}
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 transition hover:border-brand-blue-600 hover:bg-gray-50 hover:text-brand-blue-600"
+        className="h-7 w-7 shrink-0 text-gray-500 hover:border-brand-blue-600 hover:text-brand-blue-600"
       >
         <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-      </button>
+      </Button>
 
       {open ? (
         <div
@@ -94,35 +95,33 @@ export function UserNameEditor({
           onClick={() => setOpen(false)}
         >
           <div
-            className="w-full max-w-md rounded-t-2xl border border-gray-300 bg-white p-5 shadow-lg sm:rounded-2xl"
+            className="w-full max-w-md rounded-t-lg border border-gray-200 bg-white p-5 shadow-card sm:rounded-lg"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
             aria-label="Edit name"
           >
-            <h3 className="mb-4 text-base font-semibold text-gray-900">
+            <h3 className="mb-4 text-sm font-semibold text-gray-900">
               Edit name
             </h3>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls} htmlFor="edit-name-first">
+                  <Label className="mb-1" htmlFor="edit-name-first">
                     First name
-                  </label>
-                  <input
+                  </Label>
+                  <Input
                     id="edit-name-first"
-                    className={fieldCls}
                     value={first}
                     onChange={(e) => setFirst(e.target.value)}
                   />
                 </div>
                 <div>
-                  <label className={labelCls} htmlFor="edit-name-last">
+                  <Label className="mb-1" htmlFor="edit-name-last">
                     Last name
-                  </label>
-                  <input
+                  </Label>
+                  <Input
                     id="edit-name-last"
-                    className={fieldCls}
                     value={last}
                     onChange={(e) => setLast(e.target.value)}
                   />
@@ -133,21 +132,16 @@ export function UserNameEditor({
               ) : null}
             </div>
             <div className="mt-5 flex justify-end gap-2">
-              <button
+              <Button
                 type="button"
+                variant="secondary"
                 onClick={() => setOpen(false)}
-                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
                 Cancel
-              </button>
-              <button
-                type="button"
-                disabled={pending}
-                onClick={submit}
-                className="rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500 disabled:opacity-60"
-              >
+              </Button>
+              <Button type="button" disabled={pending} onClick={submit}>
                 {pending ? "Saving…" : "Save"}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
+import { Card } from "@/components/ui/card";
 import { EventsExplorer, type EventRow } from "@/components/events/EventsExplorer";
 import { EventsToolbar } from "@/components/events/EventsToolbar";
 import { hasFullAccess } from "@/constants/roles";
@@ -101,18 +102,18 @@ export default async function EventsPage({
         />
 
         {error ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-10 text-center">
-            <p className="font-medium text-gray-900">
+          <Card className="p-10 text-center">
+            <p className="text-sm font-semibold text-gray-900">
               {error.status === 403
                 ? "Your account isn't provisioned yet"
                 : "Couldn't load events"}
             </p>
             <p className="mt-1 text-sm text-gray-500">{error.message}</p>
-          </div>
+          </Card>
         ) : events && events.length === 0 ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
+          <Card className="p-10 text-center text-sm text-gray-500">
             No events match your search.
-          </div>
+          </Card>
         ) : (
           <EventsExplorer
             events={events!}

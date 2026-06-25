@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Search, X, Users } from "lucide-react";
+import { Loader2, Search, X } from "lucide-react";
 import { clientGet } from "@/lib/api-client";
 import { useToast } from "@/components/ui/Toast";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { addAttendee, removeAttendee } from "@/app/(app)/events/actions";
 import type { Alumni, AlumniPage } from "@/types/alumni";
 
@@ -164,137 +167,138 @@ export function AttendeeManager({ eventId }: { eventId: number }) {
   const alreadyAdded = new Set(attendees.map((a) => a.alumni_id));
 
   return (
-    <section className="mt-8 rounded-xl border border-gray-300 bg-white p-5">
-      <div className="mb-4 flex items-center gap-2">
-        <Users className="h-5 w-5 text-brand-blue-600" aria-hidden="true" />
-        <h3 className="text-lg font-semibold text-gray-900">Attendees</h3>
-        <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-semibold tabular-nums text-gray-700">
-          {attendees.length}
-        </span>
-      </div>
+    <Card className="mt-8">
+      <CardContent className="pt-5">
+        <div className="mb-4 flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-gray-900">Attendees</h3>
+          <Badge variant="neutral" className="tabular-nums">
+            {attendees.length}
+          </Badge>
+        </div>
 
-      {/* Add-attendee search */}
-      <div ref={rootRef} className="relative mb-4">
-        <div className="flex items-center gap-2 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 focus-within:border-brand-blue-600 focus-within:ring-1 focus-within:ring-brand-blue-600">
-          <Search
-            className="h-4 w-4 shrink-0 text-gray-500"
-            aria-hidden="true"
-          />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onFocus={() => {
-              if (matches.length > 0 || searchFailed) setOpen(true);
-            }}
-            placeholder="Add attendee — search alumni…"
-            aria-label="Search alumni to add as attendee"
-            autoComplete="off"
-            className="w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none"
-          />
-          {searching && (
-            <Loader2
-              className="h-4 w-4 shrink-0 animate-spin text-gray-500"
+        {/* Add-attendee search */}
+        <div ref={rootRef} className="relative mb-4">
+          <div className="flex h-9 items-center gap-2 rounded-md border border-gray-300 bg-gray-50 px-3 focus-within:border-brand-blue-600 focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1">
+            <Search
+              className="h-4 w-4 shrink-0 text-gray-500"
               aria-hidden="true"
             />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onFocus={() => {
+                if (matches.length > 0 || searchFailed) setOpen(true);
+              }}
+              placeholder="Add attendee — search alumni…"
+              aria-label="Search alumni to add as attendee"
+              autoComplete="off"
+              className="w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
+            />
+            {searching && (
+              <Loader2
+                className="h-4 w-4 shrink-0 animate-spin text-gray-500"
+                aria-hidden="true"
+              />
+            )}
+          </div>
+
+          {open && (
+            <ul
+              role="listbox"
+              aria-label="Alumni matches"
+              className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-card"
+            >
+              {searchFailed ? (
+                <li className="px-3 py-2 text-sm text-gray-500">
+                  Couldn&rsquo;t load matches. Try again.
+                </li>
+              ) : matches.length === 0 ? (
+                <li className="px-3 py-2 text-sm text-gray-500">
+                  No alumni match &ldquo;{q.trim()}&rdquo;
+                </li>
+              ) : (
+                matches.map((a) => {
+                  const added = alreadyAdded.has(a.alumni_id);
+                  return (
+                    <li key={a.alumni_id} role="option" aria-selected={false}>
+                      <button
+                        type="button"
+                        disabled={added || pending.has(a.alumni_id)}
+                        onClick={() => handleAdd(a)}
+                        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <span className="truncate font-medium text-gray-900">
+                          {displayName(a)}
+                        </span>
+                        <span className="flex shrink-0 items-center gap-2 text-xs text-gray-500">
+                          {added ? (
+                            <Badge variant="neutral">Added</Badge>
+                          ) : a.graduation_year ? (
+                            `Class of ${a.graduation_year}`
+                          ) : (
+                            ""
+                          )}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })
+              )}
+            </ul>
           )}
         </div>
 
-        {open && (
-          <ul
-            role="listbox"
-            aria-label="Alumni matches"
-            className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-auto rounded-lg border border-gray-300 bg-white py-1 shadow-lg"
-          >
-            {searchFailed ? (
-              <li className="px-3 py-2 text-sm text-gray-500">
-                Couldn&rsquo;t load matches. Try again.
+        {/* Current attendees */}
+        {loading ? (
+          <p className="py-3 text-sm text-gray-400">Loading attendees…</p>
+        ) : loadError ? (
+          <p className="py-3 text-sm text-gray-400">
+            Couldn&rsquo;t load attendees.
+          </p>
+        ) : attendees.length === 0 ? (
+          <p className="py-3 text-sm text-gray-400">
+            No attendees yet. Search above to add the first one.
+          </p>
+        ) : (
+          <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200">
+            {attendees.map((a) => (
+              <li
+                key={a.alumni_id}
+                className="flex items-center justify-between gap-3 px-3 py-2.5"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-gray-900">
+                    {a.name}
+                  </p>
+                  <p className="truncate text-xs text-gray-500">
+                    {[
+                      a.graduation_year ? `Class of ${a.graduation_year}` : null,
+                      a.attendance_status,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "—"}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="icon"
+                  onClick={() => handleRemove(a)}
+                  disabled={pending.has(a.alumni_id)}
+                  aria-label={`Remove ${a.name}`}
+                  className="h-8 w-8 shrink-0 text-gray-500 hover:text-danger-600"
+                >
+                  {pending.has(a.alumni_id) ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  )}
+                </Button>
               </li>
-            ) : matches.length === 0 ? (
-              <li className="px-3 py-2 text-sm text-gray-500">
-                No alumni match &ldquo;{q.trim()}&rdquo;
-              </li>
-            ) : (
-              matches.map((a) => {
-                const added = alreadyAdded.has(a.alumni_id);
-                return (
-                  <li key={a.alumni_id} role="option" aria-selected={false}>
-                    <button
-                      type="button"
-                      disabled={added || pending.has(a.alumni_id)}
-                      onClick={() => handleAdd(a)}
-                      className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <span className="truncate font-medium text-gray-900">
-                        {displayName(a)}
-                      </span>
-                      <span className="flex shrink-0 items-center gap-2 text-xs text-gray-500">
-                        {added ? (
-                          <span className="rounded-md border border-gray-300 bg-gray-100 px-1.5 py-0.5 font-medium text-gray-700">
-                            Added
-                          </span>
-                        ) : a.graduation_year ? (
-                          `Class of ${a.graduation_year}`
-                        ) : (
-                          ""
-                        )}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })
-            )}
+            ))}
           </ul>
         )}
-      </div>
-
-      {/* Current attendees */}
-      {loading ? (
-        <p className="py-3 text-sm text-gray-400">Loading attendees…</p>
-      ) : loadError ? (
-        <p className="py-3 text-sm text-gray-400">
-          Couldn&rsquo;t load attendees.
-        </p>
-      ) : attendees.length === 0 ? (
-        <p className="py-3 text-sm text-gray-400">
-          No attendees yet. Search above to add the first one.
-        </p>
-      ) : (
-        <ul className="divide-y divide-gray-100 rounded-lg border border-gray-300">
-          {attendees.map((a) => (
-            <li
-              key={a.alumni_id}
-              className="flex items-center justify-between gap-3 px-3 py-2.5"
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-gray-900">
-                  {a.name}
-                </p>
-                <p className="truncate text-xs text-gray-500">
-                  {[
-                    a.graduation_year ? `Class of ${a.graduation_year}` : null,
-                    a.attendance_status,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ") || "—"}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => handleRemove(a)}
-                disabled={pending.has(a.alumni_id)}
-                aria-label={`Remove ${a.name}`}
-                className="shrink-0 rounded-lg border border-gray-300 bg-white p-1.5 text-gray-500 hover:bg-gray-50 hover:text-danger-600 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {pending.has(a.alumni_id) ? (
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <X className="h-4 w-4" aria-hidden="true" />
-                )}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
+      </CardContent>
+    </Card>
   );
 }

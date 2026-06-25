@@ -4,6 +4,8 @@ import { type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { UsStateMap } from "./UsStateMap";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import type { GeoSummary, StateCount } from "@/types/geography";
 
 type Row = { key: string; label: string; count: number };
@@ -45,7 +47,7 @@ export function GeographyExplorer({
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-4 lg:grid-rows-1">
       {/* Map (left, dominant) — filters live in this card */}
-      <div className="flex min-h-0 flex-col rounded-xl border border-gray-300 bg-white p-4 lg:col-span-3">
+      <Card className="flex min-h-0 flex-col p-4 lg:col-span-3">
         <div className="mb-2 flex flex-wrap items-end justify-between gap-x-3 gap-y-2">
           {filters}
           <span className="mr-3 shrink-0 self-start text-xl font-semibold text-gray-900">
@@ -60,12 +62,11 @@ export function GeographyExplorer({
             onSelect={openState}
           />
         </div>
-      </div>
+      </Card>
 
-      {/* Ranking rail (right) — stretched to match the map's height */}
-      <div className="flex min-h-0 flex-col gap-4">
+      {/* Ranking rail (right) — boxes size to content so nothing is clipped. */}
+      <div className="flex min-h-0 flex-col gap-3">
         <RankBox
-          grow
           title="Top states"
           rows={topStates.map((s) => ({
             key: s.state,
@@ -77,7 +78,6 @@ export function GeographyExplorer({
           moreHref={breakdownHref("states")}
         />
         <RankBox
-          grow
           title="Top cities"
           rows={topCities.map((c) => ({
             key: c.state,
@@ -89,7 +89,6 @@ export function GeographyExplorer({
           moreHref={breakdownHref("cities")}
         />
         <RankBox
-          grow
           title="Top employers"
           rows={topEmployers.map((e) => ({
             key: e.employer,
@@ -101,7 +100,6 @@ export function GeographyExplorer({
           moreHref={breakdownHref("employers")}
         />
         <RankBox
-          grow
           title="Top industries"
           rows={topIndustries.map((i) => ({
             key: i.industry,
@@ -125,36 +123,32 @@ function RankBox({
   onRow,
   moreLabel,
   moreHref,
-  grow = false,
 }: {
   title: string;
   rows: Row[];
   onRow: (key: string) => void;
   moreLabel: string;
   moreHref: string;
-  grow?: boolean;
 }) {
   const shown = rows.slice(0, 5);
   return (
-    <section
-      className={`flex flex-col rounded-xl border border-gray-300 bg-white p-5 ${grow ? "min-h-0 flex-1" : ""}`}
-    >
-      <h3 className="mb-3 text-lg font-semibold text-gray-900">{title}</h3>
+    <Card className="flex flex-col p-3">
+      <h3 className="mb-1 text-sm font-semibold text-gray-900">{title}</h3>
       {rows.length === 0 ? (
-        <p className="py-3 text-sm text-gray-400">No data yet.</p>
+        <p className="py-1.5 text-sm text-gray-400">No data yet.</p>
       ) : (
-        <ul className="min-h-0 flex-1 space-y-2 overflow-hidden">
+        <ul>
           {shown.map((r, i) => (
             <li key={`${r.key}-${i}`}>
               <button
                 type="button"
                 onClick={() => onRow(r.key)}
-                className="flex w-full items-center gap-3 rounded-md px-1 py-0.5 text-left hover:bg-gray-50"
+                className="flex w-full items-center justify-between gap-2 rounded-md px-1 py-0.5 text-left hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
               >
                 <span className="min-w-0 flex-1 truncate text-sm text-gray-700">
                   {r.label}
                 </span>
-                <span className="shrink-0 text-right text-sm font-medium tabular-nums text-gray-900">
+                <span className="shrink-0 text-right text-xs font-medium tabular-nums text-gray-900">
                   {r.count}
                 </span>
               </button>
@@ -163,13 +157,15 @@ function RankBox({
         </ul>
       )}
       {rows.length > 0 ? (
-        <Link
-          href={moreHref}
-          className="mt-3 inline-flex items-center gap-1 self-start text-xs font-medium text-brand-blue-600 hover:text-brand-blue-500"
+        <Button
+          asChild
+          variant="link"
+          size="sm"
+          className="mt-2 h-auto self-start px-0"
         >
-          {moreLabel} →
-        </Link>
+          <Link href={moreHref}>{moreLabel}</Link>
+        </Button>
       ) : null}
-    </section>
+    </Card>
   );
 }

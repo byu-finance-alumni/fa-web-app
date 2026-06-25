@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { apiGet } from "@/lib/api";
 import type { UserContext } from "@/types/alumni";
 import { SetPasswordForm } from "@/components/auth/SetPasswordForm";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 /**
  * Forced password-change screen. A clean, sign-in-style card with no app shell
@@ -52,20 +53,22 @@ export default async function SetPasswordPage() {
 
       {/* Set-password card — carded on a gray-50 panel, matching login. */}
       <div className="flex flex-1 items-center justify-center bg-gray-50 px-6 py-12">
-        <div className="w-full max-w-md rounded-2xl border border-gray-300 bg-white p-8 shadow-sm">
-          <div className="border-b border-gray-300">
-            <span className="-mb-px inline-block border-b-2 border-navy-800 pb-3 text-base font-semibold text-navy-800">
+        <Card className="w-full max-w-md">
+          <CardHeader className="border-b border-gray-200">
+            <h1 className="text-lg font-semibold text-gray-900">
               Set a new password
-            </span>
-          </div>
+            </h1>
+          </CardHeader>
 
-          <p className="mt-4 text-sm text-gray-700">
-            Your account was created with a temporary password. Choose a new
-            password to continue.
-          </p>
+          <CardContent className="pt-5">
+            <p className="text-sm text-gray-700">
+              Your account was created with a temporary password. Choose a new
+              password to continue.
+            </p>
 
-          <SetPasswordForm />
-        </div>
+            <SetPasswordForm />
+          </CardContent>
+        </Card>
       </div>
     </main>
   );

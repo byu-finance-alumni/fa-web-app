@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { UserContext } from "@/types/alumni";
 import { ROLE } from "@/constants/roles";
 
@@ -75,12 +78,14 @@ export default async function LoginsPage({
       <>
         <Topbar breadcrumb={[{ label: "Admin", href: "/admin" }, { label: "Logins" }]} />
         <main className="flex-1 overflow-auto p-6">
-          <div className="rounded-xl border border-gray-300 bg-white p-10 text-center">
-            <p className="font-medium text-gray-900">Engineer access required</p>
+          <Card className="p-10 text-center">
+            <p className="text-sm font-semibold text-gray-900">
+              Engineer access required
+            </p>
             <p className="mt-1 text-sm text-gray-500">
               Only an engineer can view the login history.
             </p>
-          </div>
+          </Card>
         </main>
       </>
     );
@@ -117,8 +122,8 @@ export default async function LoginsPage({
         </p>
 
         {error ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-10 text-center">
-            <p className="font-medium text-gray-900">
+          <Card className="p-10 text-center">
+            <p className="text-sm font-semibold text-gray-900">
               {error.status === 403
                 ? "Engineer access required"
                 : "Couldn’t load the login history"}
@@ -128,21 +133,18 @@ export default async function LoginsPage({
                 ? "The login history is restricted to engineers."
                 : error.message}
             </p>
-          </div>
+          </Card>
         ) : rows && rows.length === 0 ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
+          <Card className="p-10 text-center text-sm text-gray-500">
             No sign-ins recorded yet. They’ll appear here as users log in.
-          </div>
+          </Card>
         ) : (
           <>
             {/* Mobile: stacked cards */}
             <div className="space-y-2 md:hidden">
               {rows!.map((r) => (
-                <div
-                  key={r.login_event_id}
-                  className="rounded-xl border border-gray-300 bg-white p-3"
-                >
-                  <p className="font-medium text-gray-900">
+                <Card key={r.login_event_id} className="p-3">
+                  <p className="text-sm font-medium text-gray-900">
                     {r.email}
                     {meId !== null && r.user_id === meId ? (
                       <span className="ml-1.5 text-xs font-medium text-brand-blue-600">
@@ -158,15 +160,15 @@ export default async function LoginsPage({
                     {formatLocation(r)}
                     {r.ip_address ? ` · ${r.ip_address}` : ""}
                   </p>
-                </div>
+                </Card>
               ))}
             </div>
 
             {/* Desktop: table */}
-            <div className="hidden overflow-hidden rounded-xl border border-gray-300 bg-white md:block">
+            <Card className="hidden overflow-hidden p-0 md:block">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-300 bg-gray-50 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-500">
                     <th className="w-56 px-4 py-3">Date / time (Utah)</th>
                     <th className="px-4 py-3">User</th>
                     <th className="w-48 px-4 py-3">Location</th>
@@ -177,12 +179,12 @@ export default async function LoginsPage({
                   {rows!.map((r) => (
                     <tr
                       key={r.login_event_id}
-                      className="border-b border-gray-300 last:border-0"
+                      className="border-b border-gray-200 last:border-0 hover:bg-gray-50"
                     >
-                      <td className="px-4 py-3 text-center text-gray-700">
+                      <td className="px-4 py-3 text-gray-700">
                         {formatDateTime(r.occurred_at)}
                       </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
+                      <td className="px-4 py-3 text-gray-700">
                         {r.email}
                         {meId !== null && r.user_id === meId ? (
                           <span className="ml-1.5 text-xs font-medium text-brand-blue-600">
@@ -190,25 +192,25 @@ export default async function LoginsPage({
                           </span>
                         ) : null}
                         {r.user_id === null ? (
-                          <span className="ml-2 rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                          <Badge variant="muted" className="ml-2">
                             account removed
-                          </span>
+                          </Badge>
                         ) : null}
                       </td>
-                      <td className="px-4 py-3 text-center text-gray-700">
+                      <td className="px-4 py-3 text-gray-700">
                         {formatLocation(r)}
                       </td>
-                      <td className="px-4 py-3 text-center font-mono text-xs text-gray-500">
+                      <td className="px-4 py-3 font-mono text-xs text-gray-500">
                         {r.ip_address ?? "—"}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
+            </Card>
 
             <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
-              <span>
+              <span className="tabular-nums">
                 Showing {from}–{to} of {data!.total}
               </span>
               <div className="flex gap-2">
@@ -232,12 +234,13 @@ function PageLink({
   enabled: boolean;
   label: string;
 }) {
-  const cls = "rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium";
   return enabled ? (
-    <Link href={href} className={`${cls} bg-white text-gray-700 hover:bg-gray-50`}>
-      {label}
-    </Link>
+    <Button asChild variant="secondary">
+      <Link href={href}>{label}</Link>
+    </Button>
   ) : (
-    <span className={`${cls} bg-gray-50 text-gray-300`}>{label}</span>
+    <Button variant="secondary" disabled>
+      {label}
+    </Button>
   );
 }

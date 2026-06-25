@@ -14,6 +14,7 @@ import type { Interaction } from "@/types/profile";
 import type { Note } from "@/types/notes";
 import { clientGet } from "@/lib/api-client";
 import { EntityNotes } from "@/components/notes/EntityNotes";
+import { Badge } from "@/components/ui/badge";
 import {
   AddInteractionButton,
   InteractionRowActions,
@@ -161,9 +162,9 @@ export function InteractionTimeline({
   canWriteNotes?: boolean;
 }) {
   return (
-    <section className="rounded-xl border border-gray-300 bg-white p-5">
+    <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-card">
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-[15px] font-semibold text-gray-900">Interactions</h3>
+        <h3 className="text-sm font-semibold text-gray-900">Interactions</h3>
         {canAdd ? (
           <AddInteractionButton
             alumniId={alumniId}
@@ -197,9 +198,9 @@ export function InteractionTimeline({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700">
+                      <Badge variant="neutral">
                         {i.interaction_type ?? "Interaction"}
-                      </span>
+                      </Badge>
                       <p className="mt-1 text-xs text-gray-500">
                         {fmtMountain(i.interaction_date_time)}
                         {" · "}

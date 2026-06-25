@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { Copy, ShieldAlert, UserPlus } from "lucide-react";
 import { createUser } from "@/app/(app)/admin/actions";
 import { useToast } from "@/components/ui/Toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { CREATABLE_ROLES, type CreatableRoleId } from "@/constants/roles";
 
 /**
@@ -28,10 +32,6 @@ import { CREATABLE_ROLES, type CreatableRoleId } from "@/constants/roles";
 const ROLES = CREATABLE_ROLES;
 
 type RoleValue = CreatableRoleId;
-
-const labelCls = "mb-1 block text-[11px] font-medium text-gray-500";
-const fieldCls =
-  "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-brand-blue-600 focus:outline-none focus:ring-1 focus:ring-brand-blue-600";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -122,17 +122,16 @@ export function CreateUserDialog() {
 
   return (
     <>
-      <button
+      <Button
         type="button"
         onClick={() => {
           reset();
           setOpen(true);
         }}
-        className="inline-flex items-center gap-2 rounded-lg bg-brand-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-blue-500"
       >
         <UserPlus className="h-4 w-4" aria-hidden="true" />
         Create user
-      </button>
+      </Button>
 
       {open && tempPassword === null ? (
         <div
@@ -140,25 +139,24 @@ export function CreateUserDialog() {
           onClick={close}
         >
           <div
-            className="w-full max-w-md rounded-t-2xl border border-gray-300 bg-white p-5 shadow-lg sm:rounded-2xl"
+            className="w-full max-w-md rounded-t-lg border border-gray-200 bg-white p-5 shadow-card sm:rounded-lg"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
             aria-label="Create user"
           >
-            <h3 className="mb-4 text-base font-semibold text-gray-900">
+            <h3 className="mb-4 text-sm font-semibold text-gray-900">
               Create user
             </h3>
             <div className="space-y-3">
               <div>
-                <label className={labelCls} htmlFor="create-user-email">
+                <Label className="mb-1" htmlFor="create-user-email">
                   Email <span className="text-danger-600">*</span>
-                </label>
-                <input
+                </Label>
+                <Input
                   id="create-user-email"
                   type="email"
                   autoComplete="off"
-                  className={fieldCls}
                   placeholder="e.g. jane.doe@byu.edu"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -166,35 +164,32 @@ export function CreateUserDialog() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls} htmlFor="create-user-first">
+                  <Label className="mb-1" htmlFor="create-user-first">
                     First name
-                  </label>
-                  <input
+                  </Label>
+                  <Input
                     id="create-user-first"
-                    className={fieldCls}
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
                   />
                 </div>
                 <div>
-                  <label className={labelCls} htmlFor="create-user-last">
+                  <Label className="mb-1" htmlFor="create-user-last">
                     Last name
-                  </label>
-                  <input
+                  </Label>
+                  <Input
                     id="create-user-last"
-                    className={fieldCls}
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
                   />
                 </div>
               </div>
               <div>
-                <label className={labelCls} htmlFor="create-user-role">
+                <Label className="mb-1" htmlFor="create-user-role">
                   Role
-                </label>
-                <select
+                </Label>
+                <Select
                   id="create-user-role"
-                  className={`${fieldCls} bg-white`}
                   style={{ colorScheme: "light" }}
                   value={roleName}
                   onChange={(e) => setRoleName(e.target.value as RoleValue)}
@@ -208,28 +203,19 @@ export function CreateUserDialog() {
                       {r.label}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
               {error ? (
                 <p className="text-sm text-danger-600">{error}</p>
               ) : null}
             </div>
             <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={close}
-                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
+              <Button type="button" variant="secondary" onClick={close}>
                 Cancel
-              </button>
-              <button
-                type="button"
-                disabled={pending}
-                onClick={submit}
-                className="rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500 disabled:opacity-60"
-              >
+              </Button>
+              <Button type="button" disabled={pending} onClick={submit}>
                 {pending ? "Creating…" : "Create user"}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -243,7 +229,7 @@ export function CreateUserDialog() {
           aria-describedby="create-user-pw-desc"
           className="fixed inset-0 z-[100] flex items-center justify-center bg-navy-900/50 p-4"
         >
-          <div className="w-full max-w-md rounded-xl border border-gray-300 bg-white p-6 shadow-lg">
+          <div className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow-card">
             <div className="mb-3 flex items-center gap-3">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-blue-50 text-brand-blue-600">
                 <ShieldAlert className="h-5 w-5" aria-hidden="true" />
@@ -260,31 +246,27 @@ export function CreateUserDialog() {
               shown again.
             </p>
 
-            <div className="mt-4 flex items-center gap-2 rounded-lg border border-gray-300 bg-gray-50 p-3">
+            <div className="mt-4 flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 p-3">
               <code className="min-w-0 flex-1 break-all font-mono text-sm text-gray-900">
                 {tempPassword}
               </code>
-              <button
+              <Button
                 type="button"
+                variant="secondary"
+                size="sm"
                 onClick={() => void copy()}
                 title="Copy to clipboard"
                 aria-label="Copy temporary password"
-                className="inline-flex shrink-0 items-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-brand-blue-600"
               >
                 <Copy className="h-3.5 w-3.5" aria-hidden="true" />
                 Copy
-              </button>
+              </Button>
             </div>
 
             <div className="mt-5 flex justify-end">
-              <button
-                type="button"
-                autoFocus
-                onClick={close}
-                className="inline-flex items-center justify-center rounded-md bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-blue-500"
-              >
+              <Button type="button" autoFocus onClick={close}>
                 Done
-              </button>
+              </Button>
             </div>
           </div>
         </div>

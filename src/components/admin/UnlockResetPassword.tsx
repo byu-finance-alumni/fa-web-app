@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Copy, KeyRound, Loader2, ShieldAlert } from "lucide-react";
 import { resetUserPassword } from "@/app/(app)/admin/actions";
 import { useToast } from "@/components/ui/Toast";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 /**
  * Super-admin control to unlock a user and reset their password.
@@ -72,23 +74,23 @@ export function UnlockResetPassword({
           aria-label="Working"
         />
       ) : (
-        <button
+        <Button
           type="button"
+          variant="secondary"
+          size="sm"
           onClick={run}
           title={
             locked
               ? `Unlock ${name} and reset their password`
               : `Reset ${name}'s password`
           }
-          className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium focus:outline-none focus:ring-1 ${
-            locked
-              ? "border-danger-600/40 bg-white text-danger-600 hover:bg-danger-50 focus:ring-danger-600"
-              : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:ring-brand-blue-600"
-          }`}
+          className={cn(
+            locked && "border-danger-600/40 text-danger-600 hover:bg-danger-50",
+          )}
         >
           <KeyRound className="h-3 w-3" aria-hidden="true" />
           {locked ? "Unlock & reset" : "Reset password"}
-        </button>
+        </Button>
       )}
 
       {tempPassword !== null ? (
@@ -99,7 +101,7 @@ export function UnlockResetPassword({
           aria-describedby="reset-pw-desc"
           className="fixed inset-0 z-[100] flex items-center justify-center bg-navy-900/50 p-4"
         >
-          <div className="w-full max-w-md rounded-xl border border-gray-300 bg-white p-6 shadow-lg">
+          <div className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow-card">
             <div className="mb-3 flex items-center gap-3">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-blue-50 text-brand-blue-600">
                 <ShieldAlert className="h-5 w-5" aria-hidden="true" />
@@ -116,31 +118,27 @@ export function UnlockResetPassword({
               shown again.
             </p>
 
-            <div className="mt-4 flex items-center gap-2 rounded-lg border border-gray-300 bg-gray-50 p-3">
+            <div className="mt-4 flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 p-3">
               <code className="min-w-0 flex-1 break-all font-mono text-sm text-gray-900">
                 {tempPassword}
               </code>
-              <button
+              <Button
                 type="button"
+                variant="secondary"
+                size="sm"
                 onClick={() => void copy()}
                 title="Copy to clipboard"
                 aria-label="Copy temporary password"
-                className="inline-flex shrink-0 items-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-brand-blue-600"
               >
                 <Copy className="h-3.5 w-3.5" aria-hidden="true" />
                 Copy
-              </button>
+              </Button>
             </div>
 
             <div className="mt-5 flex justify-end">
-              <button
-                type="button"
-                autoFocus
-                onClick={done}
-                className="inline-flex items-center justify-center rounded-md bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-blue-500"
-              >
+              <Button type="button" autoFocus onClick={done}>
                 Done
-              </button>
+              </Button>
             </div>
           </div>
         </div>

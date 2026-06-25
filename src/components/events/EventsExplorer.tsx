@@ -6,6 +6,8 @@ import { X, ChevronRight, Pencil } from "lucide-react";
 import { clientGet } from "@/lib/api-client";
 import type { Note } from "@/types/notes";
 import { EntityNotes } from "@/components/notes/EntityNotes";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 export interface EventRow {
   event_id: number;
@@ -78,15 +80,15 @@ export function EventsExplorer({
             key={e.event_id}
             type="button"
             onClick={() => setSelected(e)}
-            className="block w-full rounded-xl border border-gray-300 bg-white p-3 text-left hover:bg-gray-50"
+            className="block w-full rounded-lg border border-gray-200 bg-white p-3 text-left shadow-card hover:bg-gray-50"
           >
             <div className="flex items-start justify-between gap-2">
-              <p className="font-medium text-gray-900">{e.event_name}</p>
+              <p className="text-sm font-medium text-gray-900">
+                {e.event_name}
+              </p>
               <div className="flex shrink-0 items-center gap-2">
                 {e.event_type ? (
-                  <span className="rounded-md bg-brand-blue-50 px-2 py-0.5 text-xs font-medium text-navy-800">
-                    {e.event_type}
-                  </span>
+                  <Badge variant="tag">{e.event_type}</Badge>
                 ) : null}
                 <ChevronRight
                   className="h-4 w-4 text-gray-400"
@@ -105,16 +107,16 @@ export function EventsExplorer({
       </div>
 
       {/* Desktop: table */}
-      <div className="hidden overflow-hidden rounded-xl border border-gray-300 bg-white md:block">
+      <div className="hidden overflow-hidden rounded-lg border border-gray-200 bg-white shadow-card md:block">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-300 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-              <th className="px-4 py-3">Event</th>
-              <th className="w-44 px-4 py-3">Type</th>
-              <th className="w-36 px-4 py-3">Date</th>
-              <th className="w-44 px-4 py-3">Location</th>
-              <th className="w-32 px-4 py-3">Attendance</th>
-              <th className="w-24 px-4 py-3 text-right">
+            <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+              <th className="px-4 py-2.5">Event</th>
+              <th className="w-44 px-4 py-2.5">Type</th>
+              <th className="w-36 px-4 py-2.5">Date</th>
+              <th className="w-44 px-4 py-2.5">Location</th>
+              <th className="w-32 px-4 py-2.5 text-right">Attendance</th>
+              <th className="w-24 px-4 py-2.5 text-right">
                 <span className="sr-only">View</span>
               </th>
             </tr>
@@ -124,30 +126,28 @@ export function EventsExplorer({
               <tr
                 key={e.event_id}
                 onClick={() => setSelected(e)}
-                className="group cursor-pointer border-b border-gray-300 last:border-0 hover:bg-gray-50"
+                className="group cursor-pointer border-b border-gray-200 last:border-0 hover:bg-gray-50"
               >
-                <td className="px-4 py-3 font-medium text-gray-900">
+                <td className="px-4 py-2.5 font-medium text-gray-900">
                   {e.event_name}
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-2.5">
                   {e.event_type ? (
-                    <span className="rounded-md bg-brand-blue-50 px-2 py-0.5 text-xs font-medium text-navy-800">
-                      {e.event_type}
-                    </span>
+                    <Badge variant="tag">{e.event_type}</Badge>
                   ) : (
-                    <span className="text-gray-300">—</span>
+                    <span className="text-gray-400">—</span>
                   )}
                 </td>
-                <td className="px-4 py-3 text-gray-700">
+                <td className="px-4 py-2.5 tabular-nums text-gray-700">
                   {formatDate(e.event_date)}
                 </td>
-                <td className="px-4 py-3 text-gray-700">
+                <td className="px-4 py-2.5 text-gray-700">
                   {e.event_location ?? "—"}
                 </td>
-                <td className="px-4 py-3 font-semibold tabular-nums text-gray-900">
+                <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-gray-900">
                   {e.attendance_count}
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-4 py-2.5 text-right">
                   <span className="inline-flex items-center gap-1 text-xs font-medium text-brand-blue-600 group-hover:text-brand-blue-500">
                     View
                     <ChevronRight className="h-4 w-4" aria-hidden="true" />
@@ -234,20 +234,22 @@ function EventNotes({
       {open ? (
         <div
           id={`event-notes-${eventId}`}
-          className="mt-3 border-l border-gray-300 pl-3"
+          className="mt-3 border-l border-gray-200 pl-3"
         >
           {loading ? (
             <p className="py-2 text-xs text-gray-500">Loading notes…</p>
           ) : error ? (
             <div className="flex items-center gap-2 py-2 text-xs text-gray-500">
               <span>Couldn&apos;t load notes.</span>
-              <button
+              <Button
                 type="button"
+                variant="link"
+                size="sm"
                 onClick={() => void load()}
-                className="font-medium text-brand-blue-600 hover:text-brand-blue-500"
+                className="h-auto p-0 text-xs"
               >
                 Retry
-              </button>
+              </Button>
             </div>
           ) : (
             <EntityNotes
@@ -316,9 +318,9 @@ function EventDrawer({
         aria-label={event.event_name}
         className="fixed inset-y-0 right-0 z-40 flex w-full flex-col bg-gray-100 shadow-xl sm:w-[440px]"
       >
-        <div className="flex items-start justify-between gap-3 border-b border-gray-300 bg-white p-5">
+        <div className="flex items-start justify-between gap-3 border-b border-gray-200 bg-white p-5">
           <div className="min-w-0">
-            <h3 className="truncate text-xl font-semibold text-gray-900">
+            <h3 className="truncate text-base font-semibold text-gray-900">
               {event.event_name}
             </h3>
             <p className="text-sm text-gray-500">
@@ -329,28 +331,28 @@ function EventDrawer({
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {canManageEvents ? (
-              <Link
-                href={`/events/${event.event_id}/edit`}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-brand-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-blue-500"
-              >
-                <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                Edit
-              </Link>
+              <Button asChild size="sm">
+                <Link href={`/events/${event.event_id}/edit`}>
+                  <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                  Edit
+                </Link>
+              </Button>
             ) : null}
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="icon"
               onClick={onClose}
               aria-label="Close"
-              className="rounded-lg border border-gray-300 bg-white p-1.5 text-gray-500 hover:bg-gray-50"
             >
               <X className="h-4 w-4" />
-            </button>
+            </Button>
           </div>
         </div>
 
         <div className="flex-1 space-y-4 overflow-auto p-5">
           {/* Facts */}
-          <div className="rounded-xl border border-gray-300 bg-white p-4">
+          <div className="rounded-lg border border-gray-200 bg-white p-4">
             <dl className="space-y-2 text-sm">
               <Fact label="Type" value={event.event_type ?? "—"} />
               <Fact label="Date" value={formatDate(event.event_date)} />
@@ -366,9 +368,9 @@ function EventDrawer({
 
           {/* Description */}
           {loading ? (
-            <div className="h-24 animate-pulse rounded-xl border border-gray-300 bg-white" />
+            <div className="h-24 animate-pulse rounded-lg border border-gray-200 bg-white" />
           ) : detail?.event_notes ? (
-            <div className="rounded-xl border border-gray-300 bg-white p-4">
+            <div className="rounded-lg border border-gray-200 bg-white p-4">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
                 Description
               </p>
@@ -381,12 +383,12 @@ function EventDrawer({
           {/* Discussion notes (#39) — additive unified-notes thread, distinct
               from the primary `event_notes` shown as Description above. Lazily
               loaded the first time the disclosure is opened. */}
-          <div className="rounded-xl border border-gray-300 bg-white p-4">
+          <div className="rounded-lg border border-gray-200 bg-white p-4">
             <EventNotes eventId={event.event_id} canWrite={canWriteNotes} />
           </div>
 
           {/* Attendees */}
-          <div className="rounded-xl border border-gray-300 bg-white p-4">
+          <div className="rounded-lg border border-gray-200 bg-white p-4">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
               Attendees
             </p>

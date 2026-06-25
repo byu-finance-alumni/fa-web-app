@@ -1,8 +1,8 @@
 /**
  * Reusable skeleton blocks for route-level `loading.tsx` files. Every screen
  * needs a loading state (UX-UI.md §Layout "Required states"). These mirror the
- * live surfaces — white cards on gray-100 with gray-300 borders — and pulse on
- * a gray-100 fill so they read as the real layout settling in, not spinners.
+ * live surfaces — white cards with soft gray-200 borders — and pulse on a
+ * gray-100 fill so they read as the real layout settling in, not spinners.
  */
 
 export function MetricGridSkeleton({
@@ -19,7 +19,7 @@ export function MetricGridSkeleton({
       {Array.from({ length: count }).map((_, i) => (
         <div
           key={i}
-          className="h-24 animate-pulse rounded-xl border border-gray-300 bg-white"
+          className="h-24 animate-pulse rounded-lg border border-gray-200 bg-white"
         />
       ))}
     </div>
@@ -31,9 +31,9 @@ export function MetricGridSkeleton({
  *  field and a Filters button, so the table doesn't jump down when it loads. */
 export function ToolbarSkeleton() {
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-gray-300 bg-white p-3">
-      <div className="h-10 min-w-[220px] flex-1 animate-pulse rounded-lg bg-gray-100" />
-      <div className="h-10 w-28 animate-pulse rounded-lg bg-gray-100" />
+    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white p-3">
+      <div className="h-9 min-w-[220px] flex-1 animate-pulse rounded-md bg-gray-100" />
+      <div className="h-9 w-28 animate-pulse rounded-md bg-gray-100" />
     </div>
   );
 }
@@ -46,12 +46,12 @@ export function TableSkeleton({
   cols?: number;
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-gray-300 bg-white">
-      <div className="h-11 border-b border-gray-300 bg-gray-50" />
+    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <div className="h-11 border-b border-gray-200 bg-gray-50" />
       {Array.from({ length: rows }).map((_, r) => (
         <div
           key={r}
-          className="flex items-center gap-4 border-b border-gray-300 px-4 py-3.5 last:border-0"
+          className="flex items-center gap-4 border-b border-gray-200 px-4 py-3 last:border-0"
         >
           {Array.from({ length: cols }).map((_, c) => (
             <div
@@ -69,13 +69,10 @@ export function TableSkeleton({
 
 export function ListSkeleton({ rows = 6 }: { rows?: number }) {
   return (
-    <div className="rounded-xl border border-gray-300 bg-white p-5">
+    <div className="rounded-lg border border-gray-200 bg-white p-5">
       <div className="space-y-2.5">
         {Array.from({ length: rows }).map((_, i) => (
-          <div
-            key={i}
-            className="h-14 animate-pulse rounded-lg bg-gray-50"
-          />
+          <div key={i} className="h-14 animate-pulse rounded-md bg-gray-50" />
         ))}
       </div>
     </div>
@@ -86,7 +83,7 @@ export function ListSkeleton({ rows = 6 }: { rows?: number }) {
 export function CardSkeleton({ className = "h-72" }: { className?: string }) {
   return (
     <div
-      className={`animate-pulse rounded-xl border border-gray-300 bg-white ${className}`}
+      className={`animate-pulse rounded-lg border border-gray-200 bg-white ${className}`}
     />
   );
 }

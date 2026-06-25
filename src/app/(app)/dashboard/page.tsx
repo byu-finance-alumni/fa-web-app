@@ -1,19 +1,9 @@
 import Link from "next/link";
-import {
-  BarChart3,
-  Briefcase,
-  Building2,
-  ChevronRight,
-  GraduationCap,
-  MapPin,
-  Star,
-  type LucideIcon,
-} from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
 import { MetricCard } from "@/components/shared/MetricCard";
-import { TopbarSearch } from "@/components/shared/TopbarSearch";
 import { SearchHero } from "@/components/dashboard/SearchHero";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DATA_VIZ_PALETTE } from "@/constants/chart";
 import type { GeoSummary } from "@/types/geography";
 
@@ -88,13 +78,15 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <section className="flex h-full flex-col rounded-xl border border-gray-300 bg-white p-5">
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <h3 className="text-[17px] font-semibold text-gray-900">{title}</h3>
+    <Card className="flex flex-1 flex-col">
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
         {action}
-      </div>
-      {children}
-    </section>
+      </CardHeader>
+      <CardContent className="flex flex-1 flex-col justify-center">
+        {children}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -109,20 +101,20 @@ function BarList({
     return <p className="py-4 text-sm text-gray-400">{emptyLabel}</p>;
   const max = Math.max(1, ...rows.map((r) => r.count));
   return (
-    <ul className="space-y-3">
+    <ul className="space-y-3.5">
       {rows.map((r) => {
         const row = (
           <>
-            <span className="w-28 shrink-0 truncate text-sm text-gray-700">
+            <span className="w-36 shrink-0 truncate text-sm font-medium text-gray-700">
               {r.label}
             </span>
-            <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
+            <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-gray-100">
               <div
                 className="h-full rounded-full bg-brand-blue-600"
                 style={{ width: `${Math.round((r.count / max) * 100)}%` }}
               />
             </div>
-            <span className="w-6 shrink-0 text-right text-sm font-medium tabular-nums text-gray-900">
+            <span className="w-8 shrink-0 text-right text-sm font-semibold tabular-nums text-gray-900">
               {r.count}
             </span>
           </>
@@ -263,10 +255,10 @@ function DonutChart({
  *  treatment so the two columns read as the same component family. */
 function QuickFilters({ rows }: { rows: { label: string; href: string }[] }) {
   return (
-    <section className="flex h-full flex-col rounded-xl border border-gray-300 bg-white">
-      <h3 className="px-5 pb-4 pt-5 text-[17px] font-semibold text-gray-900">
-        Quick filters
-      </h3>
+    <Card className="flex flex-1 flex-col">
+      <CardHeader>
+        <CardTitle>Quick filters</CardTitle>
+      </CardHeader>
       {/* Rows share the remaining card height evenly so the list fills the
           column the same way the Top employers panel does across from it. */}
       <ul className="flex flex-1 flex-col">
@@ -274,43 +266,41 @@ function QuickFilters({ rows }: { rows: { label: string; href: string }[] }) {
           <li key={r.label} className="flex flex-1 border-t border-gray-100">
             <Link
               href={r.href}
-              className="flex w-full items-center justify-between gap-3 px-5 py-3 text-sm text-gray-700 transition hover:bg-brand-blue-50/40"
+              className="flex w-full items-center px-5 py-3 text-sm text-gray-700 transition-colors hover:bg-brand-blue-50/40 hover:text-brand-blue-600"
             >
               <span className="truncate">{r.label}</span>
-              <ChevronRight
-                className="h-4 w-4 shrink-0 text-gray-400"
-                aria-hidden="true"
-              />
             </Link>
           </li>
         ))}
       </ul>
-    </section>
+    </Card>
   );
 }
 
-/** A single "Browse" tile — icon, title, and a small subtitle (a count or
- *  hint), linking to the matching view. */
-function BrowseTile({
-  icon: Icon,
-  title,
-  sub,
+/** A single "Browse alumni" row — a segment label on the left and its alumni
+ *  count on the right, linking to that pre-filtered alumni list. Rows share the
+ *  card height evenly so the list fills its column. */
+function BrowseRow({
+  label,
+  value,
   href,
 }: {
-  icon: LucideIcon;
-  title: string;
-  sub: string;
+  label: string;
+  value: React.ReactNode;
   href: string;
 }) {
   return (
-    <Link
-      href={href}
-      className="flex flex-col rounded-xl border border-gray-300 bg-white p-4 transition hover:border-brand-blue-300 hover:bg-brand-blue-50/40 hover:shadow-sm"
-    >
-      <Icon className="h-5 w-5 text-brand-blue-600" aria-hidden="true" />
-      <p className="mt-2 text-sm font-semibold text-gray-900">{title}</p>
-      <p className="mt-0.5 text-xs text-gray-500">{sub}</p>
-    </Link>
+    <li className="flex flex-1 border-t border-gray-100">
+      <Link
+        href={href}
+        className="flex w-full items-center justify-between gap-3 px-5 py-3 text-sm transition-colors hover:bg-brand-blue-50/40"
+      >
+        <span className="truncate text-gray-700">{label}</span>
+        <span className="shrink-0 font-semibold tabular-nums text-gray-900">
+          {value}
+        </span>
+      </Link>
+    </li>
   );
 }
 
@@ -342,7 +332,7 @@ export default async function DashboardPage() {
     if (e instanceof ApiError && e.status === 403) notProvisioned = true;
   }
 
-  // Derived counts for the Browse tiles (fall back to a hint when unavailable).
+  // Derived counts for the Browse stat tiles.
   const utahCount = s?.by_state?.find((r) => r.state === "UT")?.count;
   const recentGradCount = s?.by_graduation_year
     ?.filter((r) => r.year >= THIS_YEAR - 5)
@@ -351,12 +341,10 @@ export default async function DashboardPage() {
   const ibPeCount = ["Investment Banking", "Private Equity"]
     .map((name) => industries.find((i) => i.industry === name)?.count ?? 0)
     .reduce((a, b) => a + b, 0);
-  const topEmployerNames = (s?.top_employers ?? [])
-    .slice(0, 2)
-    .map((e) => e.employer);
 
-  const countSub = (n: number | undefined) =>
-    typeof n === "number" ? `${n.toLocaleString()} alumni` : "View";
+  // Format a count for a Browse stat, or an em dash when unavailable.
+  const stat = (n: number | undefined) =>
+    typeof n === "number" ? n.toLocaleString() : "—";
 
   const quickFilters = [
     {
@@ -374,140 +362,112 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <Topbar title="Dashboard">
-        <TopbarSearch />
-      </Topbar>
+      <Topbar title="Dashboard" />
       <main className="flex-1 overflow-auto p-6">
         {notProvisioned ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-4 text-sm text-gray-700">
+          <Card className="p-4 text-sm text-gray-700">
             Your account is authenticated but not yet provisioned. Ask a Super
             Admin to grant your account a role to see data.
-          </div>
+          </Card>
         ) : (
-          /* One interleaved 2-col grid so each row's left/right blocks align
-             (and stay equal height) like the Figma: search│KPIs,
-             quick-filters│top-employers, browse│top-industries. */
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {/* Row 1 — search | KPI strip */}
-            <SearchHero />
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <MetricCard
-                size="lg"
-                label="Total alumni"
-                value={s?.total_alumni ?? "—"}
-                href="/alumni"
-                linkLabel="View all alumni"
-              />
-              <MetricCard
-                size="lg"
-                label="Contacted this month"
-                value={s?.contacted_this_month ?? "—"}
-                href={`/alumni?contacted_after=${thirtyDaysAgo}`}
-                linkLabel="View alumni contacted this month"
-              />
-              <MetricCard
-                size="lg"
-                label="Attended this month"
-                value={s?.attended_event_this_month ?? "—"}
-                href={`/events?from=${thirtyDaysAgo}&to=${today}`}
-                linkLabel="View events held this month"
-              />
+          /* Two columns that stretch to fill the viewport: quick-search
+             features on the left half, KPIs + the two charts on the right. */
+          <div className="flex min-h-full flex-col gap-5 lg:flex-row lg:items-stretch">
+            {/* LEFT — search, quick filters, browse */}
+            <div className="flex flex-1 flex-col gap-5">
+              <SearchHero />
+              <QuickFilters rows={quickFilters} />
+              <Card className="flex flex-1 flex-col">
+                <CardHeader>
+                  <CardTitle>Browse alumni</CardTitle>
+                </CardHeader>
+                <ul className="flex flex-1 flex-col">
+                  <BrowseRow
+                    label="In Utah"
+                    value={stat(utahCount)}
+                    href="/alumni?state=UT"
+                  />
+                  <BrowseRow
+                    label="Recent grads (last 5 yrs)"
+                    value={stat(recentGradCount)}
+                    href={`/alumni?ymin=${recentMin}&ymax=${recentMax}`}
+                  />
+                  <BrowseRow
+                    label="In IB / PE"
+                    value={stat(ibPeCount)}
+                    href="/alumni?industry=Investment%20Banking"
+                  />
+                  <BrowseRow
+                    label="Willing mentors"
+                    value={stat(s?.willing_mentors)}
+                    href="/alumni?mentor=1"
+                  />
+                </ul>
+              </Card>
             </div>
 
-            {/* Row 2 — quick filters | top employers */}
-            <QuickFilters rows={quickFilters} />
-            <Panel
-              title="Top employers"
-              action={
-                <span className="text-xs font-medium text-gray-500">
-                  Click to filter →
-                </span>
-              }
-            >
-              <BarList
-                rows={(s?.top_employers ?? []).slice(0, 5).map((e) => ({
-                  label: e.employer,
-                  count: e.count,
-                  href: `/alumni?employer=${encodeURIComponent(e.employer)}`,
-                }))}
-                emptyLabel="No employer data yet."
-              />
-            </Panel>
-
-            {/* Row 3 — browse | top industries */}
-            <section className="flex h-full flex-col">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                Browse
-              </p>
-              {/* Tiles keep a compact height; any extra column height falls
-                  into the gaps between rows (content-between), not into taller
-                  tiles — matching the Figma. */}
-              <div className="grid flex-1 grid-cols-1 auto-rows-min content-between gap-4 sm:grid-cols-2">
-                <BrowseTile
-                  icon={MapPin}
-                  title="Utah"
-                  sub={countSub(utahCount)}
-                  href="/alumni?state=UT"
+            {/* RIGHT — KPI strip + the two charts */}
+            <div className="flex flex-1 flex-col gap-5">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+                <MetricCard
+                  size="lg"
+                  label="Total alumni"
+                  value={s?.total_alumni ?? "—"}
+                  href="/alumni"
+                  linkLabel="View all alumni"
                 />
-                <BrowseTile
-                  icon={GraduationCap}
-                  title="Recent grads"
-                  sub={
-                    typeof recentGradCount === "number"
-                      ? `${recentGradCount.toLocaleString()} · last 5 years`
-                      : "Last 5 years"
-                  }
-                  href={`/alumni?ymin=${recentMin}&ymax=${recentMax}`}
+                <MetricCard
+                  size="lg"
+                  label="Contacted this month"
+                  value={s?.contacted_this_month ?? "—"}
+                  href={`/alumni?contacted_after=${thirtyDaysAgo}`}
+                  linkLabel="View alumni contacted this month"
                 />
-                <BrowseTile
-                  icon={Briefcase}
-                  title="IB / PE"
-                  sub={ibPeCount > 0 ? `${ibPeCount.toLocaleString()} alumni` : "View"}
-                  href="/alumni?industry=Investment%20Banking"
-                />
-                <BrowseTile
-                  icon={Star}
-                  title="Willing mentors"
-                  sub={countSub(s?.willing_mentors)}
-                  href="/alumni?mentor=1"
-                />
-                <BrowseTile
-                  icon={Building2}
-                  title="Top employers"
-                  sub={
-                    topEmployerNames.length
-                      ? `${topEmployerNames.join(", ")}…`
-                      : "Browse all"
-                  }
-                  href="/map/breakdown/employers"
-                />
-                <BrowseTile
-                  icon={BarChart3}
-                  title="By industry"
-                  sub="Browse all"
-                  href="/map/breakdown/industries"
+                <MetricCard
+                  size="lg"
+                  label="Attended this month"
+                  value={s?.attended_event_this_month ?? "—"}
+                  href={`/events?from=${thirtyDaysAgo}&to=${today}`}
+                  linkLabel="View events held this month"
                 />
               </div>
-            </section>
-            <Panel
-              title="Top industries"
-              action={
-                <span className="text-xs font-medium text-gray-500">
-                  Click to filter →
-                </span>
-              }
-            >
-              <div className="flex w-full flex-1 items-center">
-                <DonutChart
-                  rows={industries.slice(0, 5).map((i) => ({
-                    label: i.industry,
-                    count: i.count,
-                    href: `/alumni?industry=${encodeURIComponent(i.industry)}`,
+              <Panel
+                title="Top employers"
+                action={
+                  <span className="text-xs font-medium text-gray-500">
+                    Click to filter
+                  </span>
+                }
+              >
+                <BarList
+                  rows={(s?.top_employers ?? []).slice(0, 5).map((e) => ({
+                    label: e.employer,
+                    count: e.count,
+                    href: `/alumni?employer=${encodeURIComponent(e.employer)}`,
                   }))}
-                  emptyLabel="No industry data yet."
+                  emptyLabel="No employer data yet."
                 />
-              </div>
-            </Panel>
+              </Panel>
+              <Panel
+                title="Top industries"
+                action={
+                  <span className="text-xs font-medium text-gray-500">
+                    Click to filter
+                  </span>
+                }
+              >
+                <div className="flex w-full flex-1 items-center">
+                  <DonutChart
+                    rows={industries.slice(0, 5).map((i) => ({
+                      label: i.industry,
+                      count: i.count,
+                      href: `/alumni?industry=${encodeURIComponent(i.industry)}`,
+                    }))}
+                    emptyLabel="No industry data yet."
+                  />
+                </div>
+              </Panel>
+            </div>
           </div>
         )}
       </main>

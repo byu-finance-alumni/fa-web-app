@@ -17,8 +17,8 @@ export default function PrivacyPage() {
         <TopbarSearch />
       </Topbar>
 
-      <main className="flex-1 overflow-y-auto bg-gray-100 p-4 md:p-8">
-        <article className="mx-auto max-w-3xl rounded-lg border border-gray-300 bg-white px-8 py-10 text-[15px] leading-7 text-gray-800 shadow-sm md:px-14 md:py-14">
+      <main className="flex-1 overflow-y-auto p-4 md:p-8">
+        <article className="mx-auto max-w-3xl rounded-lg border border-gray-200 bg-white px-8 py-10 text-sm leading-relaxed text-gray-700 shadow-card md:px-14 md:py-14">
           <header className="mb-8 text-center">
             <h1 className="text-2xl font-bold text-gray-900">
               Privacy &amp; Data Handling
@@ -38,7 +38,7 @@ export default function PrivacyPage() {
             who can see it, and how it is protected.
           </p>
 
-          <h2 className="mt-8 text-lg font-bold text-gray-900">
+          <h2 className="mt-8 text-base font-semibold text-gray-900">
             1. What information we store
           </h2>
           <p className="mt-2">
@@ -66,7 +66,7 @@ export default function PrivacyPage() {
             </li>
           </ul>
 
-          <h2 className="mt-8 text-lg font-bold text-gray-900">
+          <h2 className="mt-8 text-base font-semibold text-gray-900">
             2. FERPA and BYU data governance
           </h2>
           <p className="mt-2">
@@ -79,7 +79,7 @@ export default function PrivacyPage() {
             university&rsquo;s authorized staff.
           </p>
 
-          <h2 className="mt-8 text-lg font-bold text-gray-900">
+          <h2 className="mt-8 text-base font-semibold text-gray-900">
             3. Who can access it
           </h2>
           <p className="mt-2">
@@ -112,7 +112,7 @@ export default function PrivacyPage() {
             reflects what a given user is permitted to do.
           </p>
 
-          <h2 className="mt-8 text-lg font-bold text-gray-900">
+          <h2 className="mt-8 text-base font-semibold text-gray-900">
             4. Access is audit-logged
           </h2>
           <p className="mt-2">
@@ -122,7 +122,7 @@ export default function PrivacyPage() {
             information remains accountable and reviewable by administrators.
           </p>
 
-          <h2 className="mt-8 text-lg font-bold text-gray-900">
+          <h2 className="mt-8 text-base font-semibold text-gray-900">
             5. We do not sell or share your data
           </h2>
           <p className="mt-2">
@@ -133,7 +133,7 @@ export default function PrivacyPage() {
             stored within the university&rsquo;s approved systems.
           </p>
 
-          <h2 className="mt-8 text-lg font-bold text-gray-900">
+          <h2 className="mt-8 text-base font-semibold text-gray-900">
             6. Data minimization and retention
           </h2>
           <p className="mt-2">
@@ -145,7 +145,7 @@ export default function PrivacyPage() {
             reviewed, corrected, or removed.
           </p>
 
-          <h2 className="mt-8 text-lg font-bold text-gray-900">
+          <h2 className="mt-8 text-base font-semibold text-gray-900">
             7. Questions or requests
           </h2>
           <p className="mt-2">

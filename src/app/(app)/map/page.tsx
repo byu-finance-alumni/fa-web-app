@@ -3,6 +3,7 @@ import { Topbar } from "@/components/shell/Topbar";
 import { TopbarSearch } from "@/components/shared/TopbarSearch";
 import { GeographyExplorer } from "@/components/geography/GeographyExplorer";
 import { MapFilters } from "@/components/geography/MapFilters";
+import { Card } from "@/components/ui/card";
 import type { GeoSummary, StateCount } from "@/types/geography";
 
 const FILTER_KEYS = ["employer", "industry", "year", "region", "tag"] as const;
@@ -51,10 +52,10 @@ export default async function GeographyPage({
       </Topbar>
       <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-6 lg:overflow-hidden">
         {notProvisioned ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-4 text-sm text-gray-700">
+          <Card className="p-4 text-sm text-gray-700">
             Your account is authenticated but not yet provisioned. Ask a Super
             Admin to grant your account a role to see data.
-          </div>
+          </Card>
         ) : (
           <GeographyExplorer
             counts={counts}

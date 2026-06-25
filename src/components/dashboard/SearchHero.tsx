@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Search } from "lucide-react";
 import { parseAlumniQuery } from "@/lib/alumniQueryParser";
+import { Button } from "@/components/ui/button";
 
 /**
  * Dashboard search hero — the page's primary call to action. A real search
@@ -24,27 +24,29 @@ export function SearchHero() {
   };
 
   return (
-    <form
-      onSubmit={submit}
-      role="search"
-      aria-label="Search alumni"
-      className="flex h-full items-center gap-3 rounded-xl border border-gray-300 bg-white px-4 py-3 transition focus-within:border-brand-blue-600 focus-within:ring-1 focus-within:ring-brand-blue-600"
-    >
-      <Search className="h-5 w-5 shrink-0 text-gray-400" aria-hidden="true" />
-      <input
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        placeholder="Search alumni — try “near Las Vegas in investment banking”"
-        aria-label="Search alumni by name, employer, title, location, or industry"
-        autoComplete="off"
-        className="min-w-0 flex-1 bg-transparent text-base text-gray-900 placeholder:text-gray-400 focus:outline-none"
-      />
-      <button
-        type="submit"
-        className="shrink-0 rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-blue-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500"
+    <div>
+      <form
+        onSubmit={submit}
+        role="search"
+        aria-label="Search alumni"
+        className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white py-1.5 pl-4 pr-1.5 shadow-card transition focus-within:border-brand-blue-600 focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1"
       >
-        Search
-      </button>
-    </form>
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search alumni by name, employer, title, location, or industry"
+          aria-label="Search alumni by name, employer, title, location, or industry"
+          autoComplete="off"
+          className="min-w-0 flex-1 bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
+        />
+        <Button type="submit">Search</Button>
+      </form>
+      <p className="mt-2 px-1 text-xs text-gray-500">
+        Try plain English — e.g.{" "}
+        <span className="text-gray-700">
+          “Find me all alumni in investment banking near Seattle”
+        </span>
+      </p>
+    </div>
   );
 }

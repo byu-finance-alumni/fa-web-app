@@ -3,31 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import {
-  LayoutDashboard,
-  Users,
-  Map,
-  Calendar,
-  Activity,
-  AlertTriangle,
-  CalendarClock,
-  History,
-  Shield,
-  ShieldCheck,
-  UserCog,
-  ListChecks,
-  LifeBuoy,
-  LogIn,
-  Upload,
-  ChevronDown,
-  type LucideIcon,
-} from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { ROLE, ROLE_LABEL } from "@/constants/roles";
 
 type NavLeaf = {
   href: string;
   label: string;
-  icon: LucideIcon;
   superAdminOnly?: boolean;
   /** Visible to full_access and super_admin only (admin tooling). */
   fullAccessOnly?: boolean;
@@ -44,60 +25,36 @@ type NavItem = NavLeaf & {
 };
 
 const NAV: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/alumni", label: "Alumni", icon: Users },
-  { href: "/map", label: "Map", icon: Map },
-  { href: "/events", label: "Events", icon: Calendar },
-  { href: "/activity", label: "Activity", icon: Activity, hideViewOnly: true },
-  {
-    href: "/tasks",
-    label: "Tasks",
-    icon: ListChecks,
-    fullAccessOnly: true,
-  },
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/alumni", label: "Alumni" },
+  { href: "/map", label: "Map" },
+  { href: "/events", label: "Events" },
+  { href: "/activity", label: "Activity", hideViewOnly: true },
+  { href: "/tasks", label: "Tasks", fullAccessOnly: true },
   {
     href: "/needs-surveying",
     label: "Needs Surveying",
-    icon: CalendarClock,
     fullAccessOnly: true,
   },
-  {
-    href: "/data-quality",
-    label: "Data quality",
-    icon: AlertTriangle,
-    fullAccessOnly: true,
-  },
+  { href: "/data-quality", label: "Data quality", fullAccessOnly: true },
   {
     href: "/admin",
     label: "Admin",
-    icon: Shield,
     children: [
-      { href: "/admin", label: "Users", icon: UserCog, superAdminOnly: true },
+      { href: "/admin", label: "Users", superAdminOnly: true },
       {
         href: "/admin/vocabulary",
         label: "Vocabulary",
-        icon: ListChecks,
         engineerOnly: true,
       },
-      { href: "/audit", label: "Audit", icon: History, superAdminOnly: true },
-      {
-        href: "/admin/logins",
-        label: "Logins",
-        icon: LogIn,
-        engineerOnly: true,
-      },
+      { href: "/audit", label: "Audit", superAdminOnly: true },
+      { href: "/admin/logins", label: "Logins", engineerOnly: true },
       {
         href: "/admin/support-contacts",
         label: "Support contacts",
-        icon: LifeBuoy,
         engineerOnly: true,
       },
-      {
-        href: "/admin/import",
-        label: "Import CSV",
-        icon: Upload,
-        fullAccessOnly: true,
-      },
+      { href: "/admin/import", label: "Import CSV", fullAccessOnly: true },
     ],
   },
 ];
@@ -147,8 +104,8 @@ export function Sidebar({ email, role }: { email: string; role: string }) {
   });
 
   const linkCls = (active: boolean, indent = false) =>
-    `flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition-colors ${
-      indent ? "ml-4" : ""
+    `flex items-center rounded-lg px-3 py-2.5 text-sm transition-colors ${
+      indent ? "ml-3 pl-4" : ""
     } ${
       active
         ? "bg-brand-blue-600 font-semibold text-white"
@@ -166,7 +123,7 @@ export function Sidebar({ email, role }: { email: string; role: string }) {
 
       <nav className="flex flex-col gap-1">
         {visibleNav.map((item) => {
-          const { href, label, icon: Icon, children } = item;
+          const { href, label, children } = item;
 
           if (!children) {
             return (
@@ -175,7 +132,6 @@ export function Sidebar({ email, role }: { email: string; role: string }) {
                 href={href}
                 className={linkCls(isActivePath(pathname, href))}
               >
-                <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
                 {label}
               </Link>
             );
@@ -195,10 +151,7 @@ export function Sidebar({ email, role }: { email: string; role: string }) {
                 aria-expanded={open}
                 className={`w-full ${linkCls(false)} justify-between`}
               >
-                <span className="flex items-center gap-2.5">
-                  <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
-                  {label}
-                </span>
+                {label}
                 <ChevronDown
                   className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`}
                   aria-hidden="true"
@@ -212,7 +165,6 @@ export function Sidebar({ email, role }: { email: string; role: string }) {
                       href={c.href}
                       className={linkCls(isActivePath(pathname, c.href), true)}
                     >
-                      <c.icon className="h-[18px] w-[18px]" aria-hidden="true" />
                       {c.label}
                     </Link>
                   ))}
@@ -229,7 +181,6 @@ export function Sidebar({ email, role }: { email: string; role: string }) {
         href="/privacy"
         className={`mt-auto ${linkCls(isActivePath(pathname, "/privacy"))}`}
       >
-        <ShieldCheck className="h-[18px] w-[18px]" aria-hidden="true" />
         Privacy
       </Link>
 
