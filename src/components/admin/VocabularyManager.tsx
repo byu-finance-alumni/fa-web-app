@@ -8,12 +8,9 @@ import {
   setVocabTermActive,
 } from "@/app/(app)/admin/vocabulary/actions";
 import { useToast } from "@/components/ui/Toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import type { VocabTerm } from "@/app/(app)/admin/vocabulary/page";
-
-const btn =
-  "inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium disabled:opacity-50";
-const field =
-  "rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-brand-blue-600";
 
 /**
  * Manage one vocabulary category: add a term, rename an active term, hide
@@ -62,7 +59,7 @@ export function VocabularyManager({
           <li key={t.term_id} className="flex items-center gap-2 py-1.5">
             {editingId === t.term_id ? (
               <>
-                <input
+                <Input
                   autoFocus
                   value={editValue}
                   disabled={pending}
@@ -71,25 +68,28 @@ export function VocabularyManager({
                     if (e.key === "Enter") saveRename(t);
                     if (e.key === "Escape") setEditingId(null);
                   }}
-                  className={`${field} flex-1`}
+                  className="h-8 flex-1"
                   style={{ colorScheme: "light" }}
                 />
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="sm"
                   disabled={pending}
                   onClick={() => saveRename(t)}
-                  className={`${btn} text-brand-blue-600 hover:bg-brand-blue-50`}
+                  className="text-brand-blue-600 hover:bg-brand-blue-50 hover:text-brand-blue-600"
                 >
                   <Check className="h-3.5 w-3.5" aria-hidden /> Save
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="sm"
                   disabled={pending}
                   onClick={() => setEditingId(null)}
-                  className={`${btn} text-gray-500 hover:bg-gray-100`}
                 >
                   Cancel
-                </button>
+                </Button>
               </>
             ) : (
               <>
@@ -107,20 +107,24 @@ export function VocabularyManager({
                 </span>
                 {t.active ? (
                   <>
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="sm"
                       disabled={pending}
                       title="Rename"
                       onClick={() => {
                         setEditingId(t.term_id);
                         setEditValue(t.value);
                       }}
-                      className={`${btn} text-gray-500 hover:bg-gray-100`}
+                      className="text-gray-500"
                     >
                       <Pencil className="h-3.5 w-3.5" aria-hidden /> Rename
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="sm"
                       disabled={pending}
                       title="Hide from new entries"
                       onClick={() =>
@@ -129,14 +133,16 @@ export function VocabularyManager({
                           `“${t.value}” hidden.`,
                         )
                       }
-                      className={`${btn} text-danger-600 hover:bg-danger-50`}
+                      className="text-danger-600 hover:bg-danger-50 hover:text-danger-600"
                     >
                       <X className="h-3.5 w-3.5" aria-hidden /> Hide
-                    </button>
+                    </Button>
                   </>
                 ) : (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     disabled={pending}
                     onClick={() =>
                       run(
@@ -144,10 +150,10 @@ export function VocabularyManager({
                         `“${t.value}” restored.`,
                       )
                     }
-                    className={`${btn} text-brand-blue-600 hover:bg-brand-blue-50`}
+                    className="text-brand-blue-600 hover:bg-brand-blue-50 hover:text-brand-blue-600"
                   >
                     Restore
-                  </button>
+                  </Button>
                 )}
               </>
             )}
@@ -159,23 +165,22 @@ export function VocabularyManager({
       </ul>
 
       <div className="mt-3 flex items-center gap-2">
-        <input
+        <Input
           value={newValue}
           disabled={pending}
           placeholder="Add an option…"
           onChange={(e) => setNewValue(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && add()}
-          className={`${field} flex-1`}
+          className="flex-1"
           style={{ colorScheme: "light" }}
         />
-        <button
+        <Button
           type="button"
           disabled={pending || !newValue.trim()}
           onClick={add}
-          className="inline-flex items-center gap-1 rounded-lg bg-brand-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500 disabled:opacity-50"
         >
           <Plus className="h-4 w-4" aria-hidden /> Add
-        </button>
+        </Button>
         {pending ? (
           <Loader2
             className="h-4 w-4 animate-spin text-gray-400"

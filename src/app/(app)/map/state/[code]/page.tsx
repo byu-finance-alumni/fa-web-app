@@ -6,6 +6,7 @@ import { TopbarSearch } from "@/components/shared/TopbarSearch";
 import { UsStateMap } from "@/components/geography/UsStateMap";
 import { CountyMap } from "@/components/geography/CountyMap";
 import { MapFilters } from "@/components/geography/MapFilters";
+import { Card } from "@/components/ui/card";
 import { buildCountyMap } from "@/lib/geo/county-map";
 import type { GeoSummary, StateCount, StateDetail } from "@/types/geography";
 
@@ -88,12 +89,12 @@ export default async function StateMapPage({
       </Topbar>
       <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-6 lg:overflow-hidden">
         {notProvisioned ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-4 text-sm text-gray-700">
+          <Card className="p-4 text-sm text-gray-700">
             Your account is authenticated but not yet provisioned. Ask a Super
             Admin to grant your account a role to see data.
-          </div>
+          </Card>
         ) : loadError ? (
-          <div className="mx-auto max-w-5xl rounded-xl border border-danger-600/20 bg-danger-50 p-10 text-center">
+          <div className="mx-auto max-w-5xl rounded-lg border border-danger-600/20 bg-danger-50 p-10 text-center">
             <AlertTriangle className="mx-auto mb-2 h-6 w-6 text-danger-600" />
             <p className="text-sm font-semibold text-gray-900">
               Couldn’t load this state
@@ -114,7 +115,7 @@ export default async function StateMapPage({
              ranking rail on the right — only the map is zoomed to this state. */
           <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-4 lg:grid-rows-1">
             {/* Map (left, dominant) */}
-            <div className="flex min-h-0 flex-col rounded-xl border border-gray-300 bg-white p-4 lg:col-span-3">
+            <Card className="flex min-h-0 flex-col p-4 lg:col-span-3">
               <div className="mb-2 flex flex-wrap items-end justify-between gap-x-3 gap-y-2">
                 {/* Same filter dropdowns as the 50-state map, but they keep you
                     on this state (basePath → /map/state/CODE). */}
@@ -156,10 +157,10 @@ export default async function StateMapPage({
                   />
                 )}
               </div>
-            </div>
+            </Card>
 
             {/* Ranking rail (right) — same boxes/place as the main map */}
-            <div className="flex min-h-0 flex-col gap-4">
+            <div className="flex min-h-0 flex-col gap-3">
               <RankBox
                 title="Top cities"
                 rows={(detail?.cities ?? []).map((c) => [c.city, c.count])}
@@ -196,24 +197,27 @@ export default async function StateMapPage({
 function RankBox({ title, rows }: { title: string; rows: [string, number][] }) {
   const shown = rows.slice(0, 5);
   return (
-    <section className="flex min-h-0 flex-1 flex-col rounded-xl border border-gray-300 bg-white p-5">
-      <h3 className="mb-3 text-lg font-semibold text-gray-900">{title}</h3>
+    <Card className="flex flex-col p-3">
+      <h3 className="mb-1 text-sm font-semibold text-gray-900">{title}</h3>
       {rows.length === 0 ? (
-        <p className="py-3 text-sm text-gray-400">No data yet.</p>
+        <p className="py-1.5 text-sm text-gray-400">No data yet.</p>
       ) : (
-        <ul className="min-h-0 flex-1 space-y-2 overflow-hidden">
+        <ul>
           {shown.map(([label, count], i) => (
-            <li key={`${label}-${i}`} className="flex items-center gap-3">
+            <li
+              key={`${label}-${i}`}
+              className="flex items-center justify-between gap-2 py-0.5"
+            >
               <span className="min-w-0 flex-1 truncate text-sm text-gray-700">
                 {label}
               </span>
-              <span className="shrink-0 text-right text-sm font-medium tabular-nums text-gray-900">
+              <span className="shrink-0 text-right text-xs font-medium tabular-nums text-gray-900">
                 {count}
               </span>
             </li>
           ))}
         </ul>
       )}
-    </section>
+    </Card>
   );
 }

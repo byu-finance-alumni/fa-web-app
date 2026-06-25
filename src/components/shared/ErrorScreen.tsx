@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, Home, RotateCcw } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { SupportContacts } from "@/components/shared/SupportContacts";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import type { SupportContact } from "@/types/support";
 
 /**
@@ -20,16 +22,21 @@ export function ErrorScreen({
   message,
   reset,
   contacts,
+  contactsPending,
 }: {
   code?: string;
   title: string;
   message: string;
   reset?: () => void;
   contacts?: SupportContact[];
+  /** True while the caller is still fetching `contacts`. We suppress the generic
+   * fallback line until the fetch settles so the screen doesn't flash the
+   * generic contact, then swap it for the named contacts a beat later. */
+  contactsPending?: boolean;
 }) {
   return (
-    <div className="flex min-h-[60vh] w-full flex-1 items-center justify-center bg-gray-100 p-6">
-      <div className="w-full max-w-md rounded-2xl border border-gray-300 bg-white p-8 text-center shadow-sm">
+    <div className="flex min-h-[60vh] w-full flex-1 items-center justify-center bg-canvas p-6">
+      <Card className="w-full max-w-md p-8 text-center">
         <span className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-brand-blue-50 text-brand-blue-600">
           <AlertTriangle className="h-6 w-6" aria-hidden="true" />
         </span>
@@ -38,7 +45,7 @@ export function ErrorScreen({
             {code}
           </p>
         ) : null}
-        <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
+        <h1 className="text-lg font-semibold text-gray-900">{title}</h1>
         <p className="mt-2 text-sm leading-relaxed text-gray-500">{message}</p>
         {contacts && contacts.length > 0 ? (
           <div className="mt-4">
@@ -47,6 +54,10 @@ export function ErrorScreen({
               <SupportContacts contacts={contacts} align="center" />
             </div>
           </div>
+        ) : contactsPending ? (
+          /* Contacts still loading — reserve the space but show no contact line
+             yet, so we never flash the generic fallback then swap in names. */
+          <div className="mt-4 h-5" aria-hidden="true" />
         ) : (
           <p className="mt-4 text-sm text-gray-500">
             If this keeps happening, please contact the{" "}
@@ -58,24 +69,15 @@ export function ErrorScreen({
         )}
         <div className="mt-6 flex items-center justify-center gap-3">
           {reset ? (
-            <button
-              type="button"
-              onClick={reset}
-              className="inline-flex items-center gap-2 rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500"
-            >
-              <RotateCcw className="h-4 w-4" aria-hidden="true" />
+            <Button type="button" onClick={reset}>
               Try again
-            </button>
+            </Button>
           ) : null}
-          <Link
-            href="/dashboard"
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            <Home className="h-4 w-4" aria-hidden="true" />
-            Go home
-          </Link>
+          <Button asChild variant="secondary">
+            <Link href="/dashboard">Go home</Link>
+          </Button>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

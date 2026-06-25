@@ -3,6 +3,9 @@ import { apiGet, ApiError } from "@/lib/api";
 import { humanize } from "@/lib/format";
 import { Topbar } from "@/components/shell/Topbar";
 import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
   ActivityToolbar,
   type ActivityFilterState,
@@ -113,8 +116,8 @@ export default async function ActivityPage({
         <ActivityToolbar initial={filters} types={data?.types ?? []} />
 
         {error ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-10 text-center">
-            <p className="font-medium text-gray-900">
+          <Card className="p-10 text-center">
+            <p className="text-sm font-semibold text-gray-900">
               {error.status === 403
                 ? "Your account isn't provisioned yet"
                 : error.status === 401
@@ -126,9 +129,9 @@ export default async function ActivityPage({
                 ? "Ask a Super Admin to grant your account a role."
                 : error.message}
             </p>
-          </div>
+          </Card>
         ) : data && data.items.length === 0 ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
+          <Card className="p-10 text-center text-sm text-gray-500">
             {filters.q ||
             filters.type ||
             filters.from ||
@@ -136,77 +139,72 @@ export default async function ActivityPage({
             filters.mine
               ? "No interactions match your filters."
               : "No interactions logged yet."}
-          </div>
+          </Card>
         ) : (
           <>
             {/* Mobile: stacked cards (dense tables collapse to cards per UX-UI.md). */}
             <div className="space-y-2 md:hidden">
               {data!.items.map((r) => (
-                <div
-                  key={r.interaction_id}
-                  className="rounded-xl border border-gray-300 bg-white p-3"
-                >
+                <Card key={r.interaction_id} className="p-3">
                   <div className="flex items-center justify-between gap-2">
                     <Link
                       href={`/alumni/${r.alumni_id}`}
-                      className="font-medium text-gray-900 hover:text-brand-blue-600"
+                      className="text-sm font-medium text-gray-900 hover:text-brand-blue-600"
                     >
                       {r.alumni_name}
                     </Link>
                     {r.type ? (
-                      <span className="shrink-0 rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+                      <Badge variant="neutral" className="shrink-0">
                         {humanize(r.type)}
-                      </span>
+                      </Badge>
                     ) : null}
                   </div>
                   <p className="mt-1.5 text-xs text-gray-500">
                     {fmtDateTime(r.when)}
                     {r.by ? ` · ${r.by}` : ""}
                   </p>
-                </div>
+                </Card>
               ))}
             </div>
 
             {/* Desktop: table */}
-            <div className="hidden overflow-hidden rounded-xl border border-gray-300 bg-white md:block">
+            <Card className="hidden overflow-hidden p-0 md:block">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-300 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    <th className="w-56 px-4 py-3">Edited by</th>
-                    <th className="w-52 px-4 py-3">Date / time</th>
-                    <th className="w-44 px-4 py-3">Action</th>
-                    <th className="px-4 py-3">Record</th>
+                  <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <th className="w-56 px-4 py-2.5">Edited by</th>
+                    <th className="w-52 px-4 py-2.5">Date / time</th>
+                    <th className="w-44 px-4 py-2.5">Action</th>
+                    <th className="px-4 py-2.5">Record</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data!.items.map((r) => (
                     <tr
                       key={r.interaction_id}
-                      className="border-b border-gray-300 last:border-0 hover:bg-brand-blue-50/40"
+                      className="border-b border-gray-200 last:border-0 hover:bg-gray-50"
                     >
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2.5">
                         {r.by ? (
                           <div className="flex items-center gap-2.5">
                             <InitialsAvatar name={r.by} size="sm" />
                             <span className="text-gray-700">{r.by}</span>
                           </div>
                         ) : (
-                          <span className="text-gray-300">—</span>
+                          <span className="text-gray-400">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 tabular-nums text-gray-700">
+                      <td className="px-4 py-2.5 tabular-nums text-gray-700">
                         {fmtDateTime(r.when)}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2.5">
                         {r.type ? (
-                          <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-                            {humanize(r.type)}
-                          </span>
+                          <Badge variant="neutral">{humanize(r.type)}</Badge>
                         ) : (
-                          <span className="text-gray-300">—</span>
+                          <span className="text-gray-400">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2.5">
                         <Link
                           href={`/alumni/${r.alumni_id}`}
                           className="font-medium text-brand-blue-600 hover:underline"
@@ -218,7 +216,7 @@ export default async function ActivityPage({
                   ))}
                 </tbody>
               </table>
-            </div>
+            </Card>
 
             <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
               <span>
@@ -253,13 +251,13 @@ function PageLink({
   enabled: boolean;
   label: string;
 }) {
-  const cls =
-    "rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium";
   return enabled ? (
-    <Link href={href} className={`${cls} bg-white text-gray-700 hover:bg-gray-50`}>
-      {label}
-    </Link>
+    <Button asChild variant="secondary" size="sm">
+      <Link href={href}>{label}</Link>
+    </Button>
   ) : (
-    <span className={`${cls} bg-gray-50 text-gray-300`}>{label}</span>
+    <Button variant="secondary" size="sm" disabled aria-disabled>
+      {label}
+    </Button>
   );
 }

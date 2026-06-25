@@ -64,7 +64,7 @@ export function MultiSelect({
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="flex w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 focus:border-brand-blue-600 focus:outline-none focus:ring-1 focus:ring-brand-blue-600"
+        className="flex h-9 w-full items-center justify-between rounded-md border border-gray-300 bg-white px-3 text-left text-sm text-gray-900 hover:bg-gray-50 focus-visible:border-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
       >
         <span className={selected.length ? "text-gray-900" : "text-gray-400"}>
           {selected.length === 0
@@ -77,7 +77,7 @@ export function MultiSelect({
       </button>
 
       {open && (
-        <div className="mt-1 rounded-lg border border-gray-300 bg-white shadow-sm">
+        <div className="mt-1 rounded-lg border border-gray-200 bg-white shadow-card">
           {merged.length > 8 && (
             <div className="flex items-center gap-2 border-b border-gray-200 px-2.5 py-1.5">
               <Search className="h-3.5 w-3.5 shrink-0 text-gray-400" aria-hidden="true" />

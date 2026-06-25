@@ -192,7 +192,7 @@ export function UsStateMap({
 
       {/* Heatmap legend (absolute thresholds) */}
       <div
-        className={`flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-gray-500 ${fit ? "mt-2 shrink-0" : "mt-3"}`}
+        className={`flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 ${fit ? "mt-2 shrink-0" : "mt-3"}`}
       >
         <span className="font-medium">Alumni</span>
         {[...BUCKETS].reverse().map((b) => (

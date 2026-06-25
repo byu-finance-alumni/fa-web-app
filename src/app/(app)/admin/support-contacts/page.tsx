@@ -1,6 +1,7 @@
 import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
 import { SupportContactsManager } from "@/components/admin/SupportContactsManager";
+import { Card } from "@/components/ui/card";
 import type { SupportContact } from "@/types/support";
 import type { UserContext } from "@/types/alumni";
 import { ROLE } from "@/constants/roles";
@@ -25,12 +26,14 @@ export default async function SupportContactsPage() {
       <>
         <Topbar title="Support contacts" />
         <main className="flex-1 overflow-auto p-6">
-          <div className="rounded-xl border border-gray-300 bg-white p-10 text-center">
-            <p className="font-medium text-gray-900">Engineer access required</p>
+          <Card className="p-10 text-center">
+            <p className="text-sm font-semibold text-gray-900">
+              Engineer access required
+            </p>
             <p className="mt-1 text-sm text-gray-500">
               Only an engineer can manage support contacts.
             </p>
-          </div>
+          </Card>
         </main>
       </>
     );
@@ -54,10 +57,12 @@ export default async function SupportContactsPage() {
           shown on the public sign-in page.
         </p>
         {error ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-10 text-center">
-            <p className="font-medium text-gray-900">Couldn’t load contacts</p>
+          <Card className="p-10 text-center">
+            <p className="text-sm font-semibold text-gray-900">
+              Couldn’t load contacts
+            </p>
             <p className="mt-1 text-sm text-gray-500">{error.message}</p>
-          </div>
+          </Card>
         ) : (
           <SupportContactsManager contacts={contacts} />
         )}

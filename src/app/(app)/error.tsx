@@ -20,6 +20,10 @@ export default function AppError({
   reset: () => void;
 }) {
   const [contacts, setContacts] = useState<SupportContact[]>([]);
+  // True until the support-contacts fetch settles. While pending, ErrorScreen
+  // suppresses the generic contact line so it never flashes the generic copy
+  // and then swaps in the named contacts a moment later.
+  const [contactsPending, setContactsPending] = useState(true);
 
   useEffect(() => {
     console.error("App error:", error);
@@ -33,6 +37,9 @@ export default function AppError({
       })
       .catch(() => {
         /* API unreachable — fall back to the generic contact line. */
+      })
+      .finally(() => {
+        if (active) setContactsPending(false);
       });
     return () => {
       active = false;
@@ -45,6 +52,7 @@ export default function AppError({
       message="We couldn’t load this data right now — the service may be temporarily unavailable. Try again in a moment."
       reset={reset}
       contacts={contacts}
+      contactsPending={contactsPending}
     />
   );
 }

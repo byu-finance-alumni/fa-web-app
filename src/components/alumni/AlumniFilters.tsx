@@ -8,6 +8,10 @@ import { MultiSelect } from "@/components/alumni/MultiSelect";
 import { ExportAlumniButton } from "@/components/alumni/ExportAlumniButton";
 import { toExportFilters } from "@/lib/exportFilters";
 import type { FilterOptions } from "@/types/filters";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 
 /** Everything the backend GET /alumni supports, mirrored in the URL. */
 export interface AlumniFilterState {
@@ -309,18 +313,14 @@ export function AlumniFilters({
   const quickToggle = (key: "cfa" | "cpa", label: string) => {
     const active = f[key];
     return (
-      <button
+      <Button
         type="button"
+        variant={active ? "primary" : "secondary"}
         onClick={() => set(key, !active)}
         aria-pressed={active}
-        className={`inline-flex shrink-0 items-center rounded-lg border px-3 py-2 text-sm font-semibold ${
-          active
-            ? "border-brand-blue-600 bg-brand-blue-600 text-white hover:bg-brand-blue-500"
-            : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-        }`}
       >
         {label}
-      </button>
+      </Button>
     );
   };
 
@@ -331,7 +331,7 @@ export function AlumniFilters({
     <label className="flex items-center gap-2 text-sm text-gray-700">
       <input
         type="checkbox"
-        className="h-4 w-4 rounded border-gray-300 accent-brand-blue-600"
+        className="h-4 w-4 rounded border-gray-300 accent-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
         checked={f[key]}
         onChange={(e) => set(key, e.target.checked)}
       />
@@ -342,65 +342,59 @@ export function AlumniFilters({
   return (
     <>
       {/* Toolbar */}
-      <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-gray-300 bg-white p-3">
+      <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white p-3 shadow-card">
         {canCreate ? (
-          <Link
-            href="/alumni/new"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500"
-          >
-            <Plus className="h-4 w-4" /> Add alumni
-          </Link>
+          <Button asChild>
+            <Link href="/alumni/new">
+              <Plus className="h-4 w-4" /> Add alumni
+            </Link>
+          </Button>
         ) : null}
 
-        <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 focus-within:border-brand-blue-600 focus-within:ring-1 focus-within:ring-brand-blue-600">
-          <Search className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
+        <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 focus-within:border-brand-blue-600 focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1">
+          <Search className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
           <input
             value={f.q}
             onChange={(e) => set("q", e.target.value)}
             placeholder="Search name, BYU ID, or Net ID"
             aria-label="Search alumni"
-            className="w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none"
+            className="h-9 w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
           />
           {isPending && (
-            <Loader2 className="h-4 w-4 shrink-0 animate-spin text-gray-500" aria-hidden="true" />
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin text-gray-400" aria-hidden="true" />
           )}
           {f.q && !isPending && (
             <button
               type="button"
               onClick={() => set("q", "")}
               aria-label="Clear search"
-              className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-gray-400 hover:text-gray-700"
+              className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-gray-400 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
             >
               <X className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           )}
         </div>
 
-        <select
+        <Select
           value={f.sort}
           onChange={(e) => set("sort", e.target.value as AlumniFilterState["sort"])}
           aria-label="Sort alumni"
-          className="shrink-0 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus:outline-none"
-          style={{ colorScheme: "light" }}
+          className="w-auto shrink-0 font-semibold text-gray-700"
         >
           <option value="name">Sort: Name (A–Z)</option>
           <option value="grad_desc">Sort: Grad year (newest)</option>
           <option value="grad_asc">Sort: Grad year (oldest)</option>
-        </select>
+        </Select>
 
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-        >
+        <Button type="button" variant="secondary" onClick={() => setOpen(true)}>
           <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
           Filters
           {activeCount > 0 && (
-            <span className="rounded-full bg-brand-blue-600 px-1.5 py-0.5 text-xs font-semibold leading-none text-white">
+            <Badge variant="solid" size="sm" className="tabular-nums">
               {activeCount}
-            </span>
+            </Badge>
           )}
-        </button>
+        </Button>
 
         {quickToggle("cfa", "CFA")}
         {quickToggle("cpa", "CPA")}
@@ -418,28 +412,31 @@ export function AlumniFilters({
       {chips.length > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-2">
           {chips.map((chip, i) => (
-            <span
+            <Badge
               key={`${chip.label}-${i}`}
-              className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white py-1 pl-3 pr-1.5 text-xs font-medium text-gray-700"
+              variant="neutral"
+              className="py-1 pl-2.5 pr-1"
             >
               {chip.label}
               <button
                 type="button"
                 onClick={chip.remove}
                 aria-label={`Remove ${chip.label}`}
-                className="flex h-4 w-4 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                className="flex h-4 w-4 items-center justify-center rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
               >
                 <X className="h-3 w-3" aria-hidden="true" />
               </button>
-            </span>
+            </Badge>
           ))}
-          <button
+          <Button
             type="button"
+            variant="link"
+            size="sm"
+            className="px-1"
             onClick={() => setF(clearedFilters)}
-            className="text-xs font-semibold text-brand-blue-600 hover:text-brand-blue-500"
           >
             Clear all
-          </button>
+          </Button>
         </div>
       )}
 
@@ -457,16 +454,17 @@ export function AlumniFilters({
             aria-label="Advanced filters"
             className="relative flex h-full w-full max-w-md flex-col bg-white shadow-xl"
           >
-            <div className="flex items-center justify-between border-b border-gray-300 px-5 py-4">
+            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
               <h2 className="text-base font-semibold text-gray-900">Filters</h2>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon"
                 onClick={() => setOpen(false)}
                 aria-label="Close filters"
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"
               >
                 <X className="h-5 w-5" aria-hidden="true" />
-              </button>
+              </Button>
             </div>
 
             <div className="flex-1 space-y-4 overflow-auto px-5 py-4">
@@ -485,22 +483,22 @@ export function AlumniFilters({
                   Graduation year
                 </p>
                 <div className="flex items-center gap-2">
-                  <input
+                  <Input
                     type="number"
                     value={f.ymin}
                     onChange={(e) => set("ymin", e.target.value)}
                     placeholder="From"
                     aria-label="Graduation year from"
-                    className="w-24 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none"
+                    className="w-24 tabular-nums"
                   />
                   <span className="text-sm text-gray-500">–</span>
-                  <input
+                  <Input
                     type="number"
                     value={f.ymax}
                     onChange={(e) => set("ymax", e.target.value)}
                     placeholder="To"
                     aria-label="Graduation year to"
-                    className="w-24 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none"
+                    className="w-24 tabular-nums"
                   />
                 </div>
               </div>
@@ -512,21 +510,21 @@ export function AlumniFilters({
                 <div className="space-y-2">
                   <label className="flex items-center justify-between gap-2 text-sm text-gray-700">
                     Contacted after
-                    <input
+                    <Input
                       type="date"
                       value={f.contactedAfter}
                       onChange={(e) => set("contactedAfter", e.target.value)}
-                      className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 focus:outline-none"
+                      className="w-auto"
                       style={{ colorScheme: "light" }}
                     />
                   </label>
                   <label className="flex items-center justify-between gap-2 text-sm text-gray-700">
                     Not contacted since
-                    <input
+                    <Input
                       type="date"
                       value={f.contactedBefore}
                       onChange={(e) => set("contactedBefore", e.target.value)}
-                      className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 focus:outline-none"
+                      className="w-auto"
                       style={{ colorScheme: "light" }}
                     />
                   </label>
@@ -567,39 +565,34 @@ export function AlumniFilters({
                   {checkboxRow("archived", "Include archived")}
                   <label className="flex items-center gap-2 text-sm text-gray-700">
                     Deceased
-                    <select
+                    <Select
                       value={f.deceased}
                       onChange={(e) =>
                         set("deceased", e.target.value as AlumniFilterState["deceased"])
                       }
-                      className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 focus:outline-none"
-                      style={{ colorScheme: "light" }}
+                      className="w-auto"
                     >
                       <option value="">Any</option>
                       <option value="exclude">Exclude</option>
                       <option value="only">Only</option>
-                    </select>
+                    </Select>
                   </label>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-2 border-t border-gray-300 px-5 py-4">
-              <button
+            <div className="flex items-center justify-between gap-2 border-t border-gray-200 px-5 py-4">
+              <Button
                 type="button"
+                variant="secondary"
                 onClick={() => setF(clearedFilters)}
                 disabled={!isDirty}
-                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 enabled:hover:bg-gray-50 disabled:text-gray-300"
               >
                 Clear all
-              </button>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500"
-              >
+              </Button>
+              <Button type="button" onClick={() => setOpen(false)}>
                 Done
-              </button>
+              </Button>
             </div>
           </div>
         </div>

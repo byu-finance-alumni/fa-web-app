@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { Download } from "lucide-react";
 import { exportAlumni, getExportColumns } from "@/app/(app)/alumni/actions";
 import { useToast } from "@/components/ui/Toast";
+import { Button } from "@/components/ui/button";
 import type {
   AlumniExportFilters,
   ExportColumn,
@@ -129,13 +130,13 @@ export function ExportAlumniButton({
 
   return (
     <>
-      <button
+      <Button
         type="button"
+        variant="secondary"
         onClick={() => void openDialog()}
-        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
       >
         <Download className="h-4 w-4" aria-hidden="true" /> Export CSV
-      </button>
+      </Button>
 
       {open ? (
         <div
@@ -143,13 +144,13 @@ export function ExportAlumniButton({
           onClick={() => setOpen(false)}
         >
           <div
-            className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-t-2xl border border-gray-300 bg-white shadow-lg sm:rounded-2xl"
+            className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-t-lg border border-gray-200 bg-white shadow-card sm:rounded-lg"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
             aria-label="Export alumni to CSV"
           >
-            <div className="border-b border-gray-300 p-5">
+            <div className="border-b border-gray-200 p-5">
               <h3 className="text-base font-semibold text-gray-900">
                 Export alumni to CSV
               </h3>
@@ -179,16 +180,18 @@ export function ExportAlumniButton({
                     return (
                       <div key={g.name}>
                         <div className="mb-2 flex items-center justify-between">
-                          <h4 className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                          <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                             {g.name}
                           </h4>
-                          <button
+                          <Button
                             type="button"
+                            variant="link"
+                            size="sm"
+                            className="px-0"
                             onClick={() => toggleGroup(g.columns, !allOn)}
-                            className="text-xs font-medium text-brand-blue-600 hover:text-brand-blue-500"
                           >
                             {allOn ? "Clear" : "Select all"}
-                          </button>
+                          </Button>
                         </div>
                         <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                           {g.columns.map((c) => (
@@ -198,7 +201,7 @@ export function ExportAlumniButton({
                             >
                               <input
                                 type="checkbox"
-                                className="h-4 w-4 rounded border-gray-300 accent-brand-blue-600"
+                                className="h-4 w-4 rounded border-gray-300 accent-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
                                 checked={selected.has(c.key)}
                                 onChange={() => toggle(c.key)}
                               />
@@ -213,32 +216,31 @@ export function ExportAlumniButton({
               )}
             </div>
 
-            <div className="flex items-center justify-between gap-2 border-t border-gray-300 p-5">
-              <button
+            <div className="flex items-center justify-between gap-2 border-t border-gray-200 p-5">
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={resetDefaults}
-                className="text-sm font-medium text-gray-700 hover:text-gray-900"
               >
                 Reset to defaults
-              </button>
+              </Button>
               <div className="flex gap-2">
-                <button
+                <Button
                   type="button"
+                  variant="secondary"
                   onClick={() => setOpen(false)}
-                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   disabled={pending || loading || selected.size === 0}
                   onClick={runExport}
-                  className="rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500 disabled:opacity-60"
                 >
                   {pending
                     ? "Exporting…"
                     : `Export ${selected.size} column${selected.size === 1 ? "" : "s"}`}
-                </button>
+                </Button>
               </div>
             </div>
           </div>

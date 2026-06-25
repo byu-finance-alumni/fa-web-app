@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
 import { VocabularyManager } from "@/components/admin/VocabularyManager";
+import { Card } from "@/components/ui/card";
 import { isEngineer } from "@/constants/roles";
 import type { UserContext } from "@/types/alumni";
 
@@ -93,14 +94,14 @@ export default async function VocabularyAdminPage() {
           this editor, which is the first page tall enough to overflow. */}
       <main className="min-h-0 flex-1 overflow-auto p-6">
         {error ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-10 text-center">
-            <p className="font-medium text-gray-900">
+          <Card className="p-10 text-center">
+            <p className="text-sm font-semibold text-gray-900">
               {error.status === 403
                 ? "Vocabulary admin access required"
                 : "Couldn’t load vocabulary"}
             </p>
             <p className="mt-1 text-sm text-gray-500">{error.message}</p>
-          </div>
+          </Card>
         ) : (
           <div className="mx-auto max-w-3xl space-y-6">
             <p className="text-sm text-gray-500">
@@ -109,16 +110,13 @@ export default async function VocabularyAdminPage() {
               just won’t be offered for new entries.
             </p>
             {groups!.map((g) => (
-              <section
-                key={g.key}
-                className="rounded-xl border border-gray-300 bg-white p-5 shadow-sm"
-              >
+              <Card key={g.key} className="p-5">
                 <h2 className="text-sm font-semibold text-gray-900">
                   {g.label}
                 </h2>
                 <p className="mb-3 text-xs text-gray-500">{g.help}</p>
                 <VocabularyManager category={g.key} terms={g.terms} />
-              </section>
+              </Card>
             ))}
           </div>
         )}

@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { INDUSTRY_OPTIONS } from "@/constants/dropdowns";
+import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
 const FILTER_KEYS = ["employer", "industry", "year", "region", "tag"] as const;
 
@@ -87,21 +90,14 @@ export function MapFilters({
         options={options.regions}
       />
       <Filter name="tag" label="Tag" value={values.tag} options={options.tags} />
-      <button
-        type="submit"
-        disabled={pending}
-        className="inline-flex items-center gap-1.5 rounded-lg bg-brand-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500 disabled:opacity-70"
-      >
+      <Button type="submit" disabled={pending}>
         {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
         {pending ? "Applying…" : "Apply"}
-      </button>
+      </Button>
       {hasFilters ? (
-        <Link
-          href={basePath}
-          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-        >
-          Clear
-        </Link>
+        <Button variant="secondary" asChild>
+          <Link href={basePath}>Clear</Link>
+        </Button>
       ) : null}
     </form>
   );
@@ -119,11 +115,9 @@ function Filter({
   options: readonly string[];
 }) {
   return (
-    <label className="flex flex-col gap-1">
-      <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-        {label}
-      </span>
-      <select
+    <Label className="flex w-32 flex-col gap-1">
+      <span>{label}</span>
+      <Select
         name={name}
         // Keyed by the URL-derived value so navigation (Apply/Clear) remounts
         // the select and the visible label always matches the real filter
@@ -135,7 +129,6 @@ function Filter({
         // renders on a white background (Bug fix: an unstyled native select
         // can paint a dark/black dropdown on some deployed browsers).
         style={{ colorScheme: "light" }}
-        className="w-32 rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-brand-blue-600"
       >
         <option value="" className="bg-white text-gray-900">
           All
@@ -145,7 +138,7 @@ function Filter({
             {o}
           </option>
         ))}
-      </select>
-    </label>
+      </Select>
+    </Label>
   );
 }

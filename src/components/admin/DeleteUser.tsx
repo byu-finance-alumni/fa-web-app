@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Loader2, Trash2, TriangleAlert } from "lucide-react";
 import { deleteUser } from "@/app/(app)/admin/actions";
 import { useToast } from "@/components/ui/Toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 /**
  * Super-admin / engineer control to PERMANENTLY delete a user.
@@ -67,15 +69,17 @@ export function DeleteUser({
 
   return (
     <>
-      <button
+      <Button
         type="button"
+        variant="secondary"
+        size="sm"
         onClick={() => setStep("confirm")}
         title={`Permanently delete ${name}`}
-        className="inline-flex items-center gap-1 rounded-md border border-danger-600/40 bg-white px-2 py-0.5 text-xs font-medium text-danger-600 hover:bg-danger-50 focus:outline-none focus:ring-1 focus:ring-danger-600"
+        className="border-danger-600/40 text-danger-600 hover:bg-danger-50"
       >
         <Trash2 className="h-3 w-3" aria-hidden="true" />
         Remove
-      </button>
+      </Button>
 
       {step !== null ? (
         <div
@@ -85,7 +89,7 @@ export function DeleteUser({
           aria-describedby="del-user-desc"
           className="fixed inset-0 z-[100] flex items-center justify-center bg-navy-900/50 p-4"
         >
-          <div className="w-full max-w-md rounded-xl border border-gray-300 bg-white p-6 shadow-lg">
+          <div className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-6 shadow-card">
             <div className="mb-3 flex items-center gap-3">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-danger-50 text-danger-600">
                 <TriangleAlert className="h-5 w-5" aria-hidden="true" />
@@ -109,33 +113,29 @@ export function DeleteUser({
                   are kept.
                 </p>
                 <div className="mt-5 flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={close}
-                    className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-brand-blue-600"
-                  >
+                  <Button type="button" variant="secondary" onClick={close}>
                     Cancel
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    variant="destructive"
                     autoFocus
                     onClick={() => setStep("type")}
-                    className="inline-flex items-center justify-center rounded-md bg-danger-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-danger-600/90 focus:outline-none focus:ring-1 focus:ring-danger-600"
                   >
                     Yes, continue
-                  </button>
+                  </Button>
                 </div>
               </>
             ) : (
               <>
                 <p id="del-user-desc" className="text-sm text-gray-600">
                   Type{" "}
-                  <code className="break-all rounded bg-gray-100 px-1 py-0.5 font-mono text-[13px] text-gray-900">
+                  <code className="break-all rounded bg-gray-100 px-1 py-0.5 font-mono text-xs text-gray-900">
                     {email}
                   </code>{" "}
                   to confirm permanent deletion.
                 </p>
-                <input
+                <Input
                   type="email"
                   value={typed}
                   onChange={(e) => setTyped(e.target.value)}
@@ -147,22 +147,22 @@ export function DeleteUser({
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && matches && !pending) run();
                   }}
-                  className="mt-3 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-danger-600 focus:outline-none focus:ring-1 focus:ring-danger-600"
+                  className="mt-3 focus-visible:border-danger-600 focus-visible:ring-danger-600"
                 />
                 <div className="mt-5 flex justify-end gap-2">
-                  <button
+                  <Button
                     type="button"
+                    variant="secondary"
                     onClick={close}
                     disabled={pending}
-                    className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-brand-blue-600 disabled:opacity-50"
                   >
                     Cancel
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    variant="destructive"
                     onClick={run}
                     disabled={!matches || pending}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-md bg-danger-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-danger-600/90 focus:outline-none focus:ring-1 focus:ring-danger-600 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {pending ? (
                       <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -170,7 +170,7 @@ export function DeleteUser({
                       <Trash2 className="h-4 w-4" aria-hidden="true" />
                     )}
                     Delete user
-                  </button>
+                  </Button>
                 </div>
               </>
             )}

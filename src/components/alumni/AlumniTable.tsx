@@ -26,15 +26,23 @@ function avatarName(a: Alumni): string {
 export function AlumniTable({ items }: { items: Alumni[] }) {
   const router = useRouter();
   return (
-    <div className="hidden overflow-hidden rounded-xl border border-gray-300 bg-white md:block">
+    <div className="hidden overflow-hidden rounded-lg border border-gray-200 bg-white shadow-card md:block">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-gray-300 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-            <th className="px-4 py-3">Name</th>
-            <th className="w-24 px-4 py-3">Grad</th>
-            <th className="px-4 py-3">Current company</th>
-            <th className="px-4 py-3">Current industry</th>
-            <th className="w-24 px-4 py-3">LinkedIn</th>
+          <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <th className="sticky top-0 bg-gray-50 px-4 py-2.5">Name</th>
+            <th className="sticky top-0 w-20 bg-gray-50 px-4 py-2.5 text-right">
+              Grad
+            </th>
+            <th className="sticky top-0 bg-gray-50 px-4 py-2.5">
+              Current company
+            </th>
+            <th className="sticky top-0 bg-gray-50 px-4 py-2.5">
+              Current industry
+            </th>
+            <th className="sticky top-0 w-24 bg-gray-50 px-4 py-2.5">
+              LinkedIn
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -42,9 +50,9 @@ export function AlumniTable({ items }: { items: Alumni[] }) {
             <tr
               key={a.alumni_id}
               onClick={() => router.push(`/alumni/${a.alumni_id}`)}
-              className="group cursor-pointer border-b border-gray-300 last:border-0 hover:bg-brand-blue-50/40"
+              className="group cursor-pointer border-b border-gray-200 last:border-0 hover:bg-gray-50"
             >
-              <td className="px-4 py-3">
+              <td className="px-4 py-2.5">
                 <div className="flex items-center gap-3">
                   <InitialsAvatar name={avatarName(a)} size="sm" />
                   <Link
@@ -56,20 +64,20 @@ export function AlumniTable({ items }: { items: Alumni[] }) {
                   </Link>
                 </div>
               </td>
-              <td className="px-4 py-3 tabular-nums text-gray-700">
+              <td className="px-4 py-2.5 text-right tabular-nums text-gray-700">
                 {a.graduation_year ?? "—"}
               </td>
-              <td className="px-4 py-3 text-gray-700">
+              <td className="px-4 py-2.5 text-gray-700">
                 {a.current_employer ?? (
                   <span className="text-gray-300">—</span>
                 )}
               </td>
-              <td className="px-4 py-3 text-gray-700">
+              <td className="px-4 py-2.5 text-gray-700">
                 {a.current_industry ?? (
                   <span className="text-gray-300">—</span>
                 )}
               </td>
-              <td className="px-4 py-3">
+              <td className="px-4 py-2.5">
                 {a.linkedin_url ? (
                   <a
                     href={a.linkedin_url}

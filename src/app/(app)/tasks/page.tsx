@@ -2,6 +2,9 @@ import Link from "next/link";
 import { apiGet, ApiError } from "@/lib/api";
 import type { AdminTaskPage } from "@/types/tasks";
 import { Topbar } from "@/components/shell/Topbar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
   TaskFilters,
   type TaskFilterState,
@@ -105,8 +108,8 @@ export default async function TasksPage({
         <TaskFilters initial={filters} assignees={assignees} />
 
         {error ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-10 text-center">
-            <p className="font-medium text-gray-900">
+          <Card className="p-10 text-center">
+            <p className="text-sm font-semibold text-gray-900">
               {error.status === 403
                 ? "You don't have access to Tasks"
                 : error.status === 401
@@ -118,13 +121,13 @@ export default async function TasksPage({
                 ? "The cross-alumni task list is available to full-access users only."
                 : error.message}
             </p>
-          </div>
+          </Card>
         ) : data && data.items.length === 0 ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
+          <Card className="p-10 text-center text-sm text-gray-500">
             {showAll
               ? "No follow-up tasks yet."
               : "No open follow-up tasks."}
-          </div>
+          </Card>
         ) : (
           <>
             {/* Mobile: stacked cards */}
@@ -133,10 +136,10 @@ export default async function TasksPage({
                 <Link
                   key={t.follow_up_task_id}
                   href={`/alumni/${t.alumni_id}`}
-                  className="block rounded-xl border border-gray-300 bg-white p-3"
+                  className="block rounded-lg border border-gray-200 bg-white p-3 shadow-card"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <p className="min-w-0 flex-1 truncate font-medium text-gray-900">
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">
                       {t.task_title ?? "Untitled task"}
                     </p>
                     <StatusBadge completed={t.completed} />
@@ -152,29 +155,29 @@ export default async function TasksPage({
             </div>
 
             {/* Desktop: dense table */}
-            <div className="hidden overflow-hidden rounded-xl border border-gray-300 bg-white md:block">
+            <Card className="hidden overflow-hidden p-0 md:block">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-300 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    <th className="px-4 py-3">Task</th>
-                    <th className="px-4 py-3">Alumnus</th>
-                    <th className="w-32 px-4 py-3">Due</th>
-                    <th className="w-24 px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Assignee</th>
+                  <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <th className="px-4 py-2.5">Task</th>
+                    <th className="px-4 py-2.5">Alumnus</th>
+                    <th className="w-32 px-4 py-2.5">Due</th>
+                    <th className="w-24 px-4 py-2.5">Status</th>
+                    <th className="px-4 py-2.5">Assignee</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data!.items.map((t) => (
                     <tr
                       key={t.follow_up_task_id}
-                      className="border-b border-gray-300 last:border-0 hover:bg-brand-blue-50/40"
+                      className="border-b border-gray-200 last:border-0 hover:bg-gray-50"
                     >
-                      <td className="px-4 py-3 font-medium text-gray-900">
+                      <td className="px-4 py-2.5 font-medium text-gray-900">
                         {t.task_title ?? (
-                          <span className="text-gray-300">Untitled</span>
+                          <span className="text-gray-400">Untitled</span>
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2.5">
                         <Link
                           href={`/alumni/${t.alumni_id}`}
                           className="font-medium text-brand-blue-600 hover:underline"
@@ -182,26 +185,26 @@ export default async function TasksPage({
                           {t.alumni_name ?? `Alumni #${t.alumni_id}`}
                         </Link>
                       </td>
-                      <td className="px-4 py-3 tabular-nums text-gray-700">
+                      <td className="px-4 py-2.5 tabular-nums text-gray-700">
                         {t.due_date ? (
                           fmtDate(t.due_date)
                         ) : (
-                          <span className="text-gray-300">—</span>
+                          <span className="text-gray-400">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2.5">
                         <StatusBadge completed={t.completed} />
                       </td>
-                      <td className="px-4 py-3 text-gray-700">
+                      <td className="px-4 py-2.5 text-gray-700">
                         {t.assigned_to ?? (
-                          <span className="text-gray-300">Unassigned</span>
+                          <span className="text-gray-400">Unassigned</span>
                         )}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
+            </Card>
 
             <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
               <span>
@@ -229,13 +232,9 @@ export default async function TasksPage({
 
 function StatusBadge({ completed }: { completed: boolean }) {
   return completed ? (
-    <span className="inline-flex rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-      Completed
-    </span>
+    <Badge variant="success">Completed</Badge>
   ) : (
-    <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-      Open
-    </span>
+    <Badge variant="warning">Open</Badge>
   );
 }
 
@@ -248,13 +247,13 @@ function PageLink({
   enabled: boolean;
   label: string;
 }) {
-  const cls =
-    "rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium";
   return enabled ? (
-    <Link href={href} className={`${cls} bg-white text-gray-700 hover:bg-gray-50`}>
-      {label}
-    </Link>
+    <Button asChild variant="secondary" size="sm">
+      <Link href={href}>{label}</Link>
+    </Button>
   ) : (
-    <span className={`${cls} bg-gray-50 text-gray-300`}>{label}</span>
+    <Button variant="secondary" size="sm" disabled aria-disabled>
+      {label}
+    </Button>
   );
 }
