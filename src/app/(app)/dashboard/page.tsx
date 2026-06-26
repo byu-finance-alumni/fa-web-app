@@ -3,10 +3,15 @@ import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { SearchHero } from "@/components/dashboard/SearchHero";
+import { DashboardSearch } from "@/components/dashboard/DashboardSearch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DATA_VIZ_PALETTE } from "@/constants/chart";
 import type { GeoSummary } from "@/types/geography";
 import type { UserContext } from "@/types/alumni";
+import type { FilterOptions } from "@/types/filters";
+import type { components } from "@/types/api.gen";
+
+type DashboardPreset = components["schemas"]["DashboardPresetRead"];
 
 /**
  * `/dashboard/summary` has no `response_model` on the backend, so it isn't in
@@ -47,25 +52,6 @@ function isoDaysAgo(days: number): string {
 function isoToday(): string {
   return new Date().toISOString().slice(0, 10);
 }
-
-/** First day of the current calendar month as YYYY-MM-DD (UTC) — matches the
- *  backend's calendar-month window for "Guest speakers this month". */
-function isoMonthStart(): string {
-  const d = new Date();
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1))
-    .toISOString()
-    .slice(0, 10);
-}
-
-/** Last day of the current calendar month as YYYY-MM-DD (UTC). */
-function isoMonthEnd(): string {
-  const d = new Date();
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0))
-    .toISOString()
-    .slice(0, 10);
-}
-
-const THIS_YEAR = new Date().getFullYear();
 
 /** "Good morning/afternoon/evening" for the current (server) local hour. */
 function timeOfDayGreeting(): string {
@@ -290,67 +276,11 @@ function DonutChart({
   );
 }
 
-/** Quick filters — a titled card whose rows each deep-link into a pre-filtered
- *  alumni list (or geography breakdown). Mirrors the Top employers panel header
- *  treatment so the two columns read as the same component family. */
-function QuickFilters({ rows }: { rows: { label: string; href: string }[] }) {
-  return (
-    <Card className="flex flex-1 flex-col">
-      <CardHeader>
-        <CardTitle>Quick filters</CardTitle>
-      </CardHeader>
-      <ul className="flex flex-1 flex-col">
-        {rows.map((r) => (
-          <li key={r.label} className="flex flex-1 border-t border-gray-100">
-            <Link
-              href={r.href}
-              className="flex w-full items-center px-5 py-3 text-sm text-gray-700 transition-colors hover:bg-brand-blue-50/40 hover:text-brand-blue-600"
-            >
-              <span className="truncate">{r.label}</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </Card>
-  );
-}
-
-/** A single "Browse alumni" row — a segment label on the left and its alumni
- *  count on the right, linking to that pre-filtered alumni list. Rows share the
- *  card height evenly so the list fills its column. */
-function BrowseRow({
-  label,
-  value,
-  href,
-}: {
-  label: string;
-  value: React.ReactNode;
-  href: string;
-}) {
-  return (
-    <li className="flex flex-1 border-t border-gray-100">
-      <Link
-        href={href}
-        className="flex w-full items-center justify-between gap-3 px-5 py-3 text-sm transition-colors hover:bg-brand-blue-50/40"
-      >
-        <span className="truncate text-gray-700">{label}</span>
-        <span className="shrink-0 font-semibold tabular-nums text-gray-900">
-          {value}
-        </span>
-      </Link>
-    </li>
-  );
-}
-
 /* --------------------------------------------------------------------- page -- */
 
 export default async function DashboardPage() {
   const thirtyDaysAgo = isoDaysAgo(30);
   const today = isoToday();
-  const monthStart = isoMonthStart();
-  const monthEnd = isoMonthEnd();
-  const recentMin = String(THIS_YEAR - 5);
-  const recentMax = String(THIS_YEAR);
 
   let s: Summary | null = null;
   let geoSum: GeoSummary | null = null;
@@ -374,6 +304,24 @@ export default async function DashboardPage() {
     if (e instanceof ApiError && e.status === 403) notProvisioned = true;
   }
 
+  // Search workspace data (alumni filter options for the Advanced tab). Fetched
+  // tolerantly so a hiccup just leaves the facets empty rather than blanking the
+  // dashboard.
+  let filterOptions: FilterOptions | null = null;
+  let presets: DashboardPreset[] = [];
+  if (!notProvisioned) {
+    [filterOptions, presets] = await Promise.all([
+      apiGet<FilterOptions>("/alumni/filter-options", {
+        revalidate: 300,
+        tags: ["alumni-filter-options"],
+      }).catch(() => null),
+      apiGet<DashboardPreset[]>("/dashboard/presets", {
+        revalidate: 60,
+        tags: ["dashboard-presets"],
+      }).catch(() => []),
+    ]);
+  }
+
   // "Good afternoon, Marcus" — name from the auth context (or a first name
   // derived from the email), with a no-name fallback. Never a fabricated name.
   const firstName = resolveFirstName(ctx);
@@ -381,33 +329,27 @@ export default async function DashboardPage() {
     ? `${timeOfDayGreeting()}, ${firstName}`
     : timeOfDayGreeting();
 
-  // Derived counts for the Browse stat tiles.
-  const utahCount = s?.by_state?.find((r) => r.state === "UT")?.count;
-  const recentGradCount = s?.by_graduation_year
-    ?.filter((r) => r.year >= THIS_YEAR - 5)
-    .reduce((sum, r) => sum + r.count, 0);
   const industries = geoSum?.top_industries ?? [];
-  const ibPeCount = ["Investment Banking", "Private Equity"]
-    .map((name) => industries.find((i) => i.industry === name)?.count ?? 0)
-    .reduce((a, b) => a + b, 0);
 
-  // Format a count for a Browse stat, or an em dash when unavailable.
-  const stat = (n: number | undefined) =>
-    typeof n === "number" ? n.toLocaleString() : "—";
+  // Quick-filter presets on the Quick search tab — engineer/super-admin-managed
+  // (GET /dashboard/presets), each a common compound search deep-linking into
+  // the alumni list. One per line.
+  const alumniShortcuts = presets.map((p) => ({ label: p.label, href: p.href }));
 
-  const quickFilters = [
-    {
-      label: "Recent grads (last 5 years)",
-      href: `/alumni?ymin=${recentMin}&ymax=${recentMax}`,
-    },
-    { label: "Willing mentors", href: "/alumni?mentor=1" },
-    {
-      label: "Guest speakers this month",
-      href: `/alumni?spoke_after=${monthStart}&spoke_before=${monthEnd}`,
-    },
-    { label: "By location", href: "/map/breakdown/states" },
-    { label: "By industry", href: "/map/breakdown/industries" },
-  ];
+  const EMPTY_OPTIONS: FilterOptions = {
+    employers: [],
+    past_employers: [],
+    titles: [],
+    seniority_levels: [],
+    industries: [],
+    cities: [],
+    states: [],
+    tags: [],
+    status_labels: [],
+    leadership_roles: [],
+    survey_statuses: [],
+    graduation_years: [],
+  };
 
   return (
     <>
@@ -421,38 +363,15 @@ export default async function DashboardPage() {
         ) : (
           /* Two columns that stretch to fill the viewport: quick-search
              features on the left half, KPIs + the two charts on the right. */
-          <div className="flex min-h-full flex-col gap-5 lg:flex-row lg:items-stretch">
-            {/* LEFT — greeting + search, quick filters, browse */}
-            <div className="flex flex-1 flex-col gap-5">
+          <div className="flex min-h-full flex-col gap-5 lg:h-full lg:flex-row lg:items-stretch">
+            {/* LEFT — natural-language search bar, then the tabbed search
+                workspace (quick / advanced) below it */}
+            <div className="flex min-h-0 flex-1 flex-col gap-5">
               <SearchHero greeting={greeting} />
-              <QuickFilters rows={quickFilters} />
-              <Card className="flex flex-1 flex-col">
-                <CardHeader>
-                  <CardTitle>Browse alumni</CardTitle>
-                </CardHeader>
-                <ul className="flex flex-1 flex-col">
-                  <BrowseRow
-                    label="In Utah"
-                    value={stat(utahCount)}
-                    href="/alumni?state=UT"
-                  />
-                  <BrowseRow
-                    label="Recent grads (last 5 yrs)"
-                    value={stat(recentGradCount)}
-                    href={`/alumni?ymin=${recentMin}&ymax=${recentMax}`}
-                  />
-                  <BrowseRow
-                    label="In IB / PE"
-                    value={stat(ibPeCount)}
-                    href="/alumni?industry=Investment%20Banking"
-                  />
-                  <BrowseRow
-                    label="Willing mentors"
-                    value={stat(s?.willing_mentors)}
-                    href="/alumni?mentor=1"
-                  />
-                </ul>
-              </Card>
+              <DashboardSearch
+                options={filterOptions ?? EMPTY_OPTIONS}
+                alumniShortcuts={alumniShortcuts}
+              />
             </div>
 
             {/* RIGHT — KPI strip + the two charts */}
@@ -474,7 +393,7 @@ export default async function DashboardPage() {
                 />
                 <MetricCard
                   size="lg"
-                  label="Attended this month"
+                  label="Events attended this month"
                   value={s?.attended_event_this_month ?? "—"}
                   href={`/events?from=${thirtyDaysAgo}&to=${today}`}
                   linkLabel="View events held this month"

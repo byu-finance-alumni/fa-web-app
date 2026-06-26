@@ -22,14 +22,13 @@ import { cn } from "@/lib/utils";
 const RADIUS_PRESETS = [10, 25, 50, 100] as const;
 const MIN_MILES = 1;
 const MAX_MILES = 250;
-const FILTER_KEYS = ["employer", "industry", "year", "region", "tag"] as const;
+const FILTER_KEYS = ["industry", "year", "region", "tag"] as const;
 
 export interface RadiusState {
   lat?: string;
   lng?: string;
   miles: number;
   place?: string;
-  employer?: string;
   industry?: string;
   year?: string;
   region?: string;
@@ -48,6 +47,7 @@ export interface RadiusState {
  */
 export function GeographyExplorer({
   counts,
+  countyCounts,
   radius,
   filters,
   results,
@@ -55,8 +55,10 @@ export function GeographyExplorer({
   matchCounties,
 }: {
   counts: Record<string, number>;
+  /** Per-county alumni counts (FIPS → count) for the county choropleth. */
+  countyCounts?: Record<string, number>;
   radius: RadiusState;
-  /** The grouped "Filters" control (employer/industry/year/region/tag). */
+  /** The grouped "Filters" control (industry/year/region/tag). */
   filters: ReactNode;
   /** Radius results (count badge + table + export), rendered by the server. */
   results: ReactNode;
@@ -185,6 +187,7 @@ export function GeographyExplorer({
         <UsGeoMap
           mode="radius"
           counts={counts}
+          countyCounts={countyCounts}
           center={center}
           onPick={onPick}
           onResetCenter={resetCenter}

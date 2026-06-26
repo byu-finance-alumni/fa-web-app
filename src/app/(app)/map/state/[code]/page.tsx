@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { buildCountyMap } from "@/lib/geo/county-map";
 import type { GeoSummary, StateCount, StateDetail } from "@/types/geography";
 
-const FILTER_KEYS = ["employer", "industry", "year", "region", "tag"] as const;
+const FILTER_KEYS = ["industry", "year", "region", "tag"] as const;
 
 type SP = Record<string, string | undefined>;
 
@@ -123,14 +123,12 @@ export default async function StateMapPage({
                   basePath={`/map/state/${code}`}
                   hasFilters={!!qs}
                   values={{
-                    employer: sp.employer,
                     industry: sp.industry,
                     year: sp.year,
                     region: sp.region,
                     tag: sp.tag,
                   }}
                   options={{
-                    employers: summary?.options.employers ?? [],
                     industries: summary?.options.industries ?? [],
                     graduation_years: (
                       summary?.options.graduation_years ?? []

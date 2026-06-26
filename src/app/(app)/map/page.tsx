@@ -8,12 +8,12 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { lookupCityGeo } from "@/lib/geo/counties-data";
-import type { GeoSummary, StateCount } from "@/types/geography";
+import type { CountyCount, GeoSummary, StateCount } from "@/types/geography";
 import type { components } from "@/types/api.gen";
 
 type RadiusPage = components["schemas"]["RadiusPage"];
 
-const FILTER_KEYS = ["employer", "industry", "year", "region", "tag"] as const;
+const FILTER_KEYS = ["industry", "year", "region", "tag"] as const;
 
 const DEFAULT_MILES = 25;
 const RESULT_LIMIT = 200;
@@ -40,7 +40,9 @@ export default async function GeographyPage({
   const sp = await searchParams;
   const qs = filterQs(sp);
 
-  // --- Choropleth shading data (always fetched) -------------------------------
+  // --- Map shading data (always fetched) --------------------------------------
+  // States power the hover tooltip; counties power the choropleth (shade only the
+  // counties where alumni actually work).
   let summary: GeoSummary | null = null;
   let states: StateCount[] = [];
   let notProvisioned = false;
@@ -59,8 +61,26 @@ export default async function GeographyPage({
     if (e instanceof ApiError && e.status === 403) notProvisioned = true;
   }
 
+  // County choropleth (zoomed-in detail). Fetched tolerantly on its own so an
+  // API without /geography/counties (e.g. prod before this ships) just disables
+  // county shading rather than blanking the whole map.
+  let counties: CountyCount[] = [];
+  if (!notProvisioned) {
+    try {
+      counties = await apiGet<CountyCount[]>(`/geography/counties?${qs}`, {
+        revalidate: 60,
+        tags: ["geography"],
+      });
+    } catch {
+      counties = [];
+    }
+  }
+
   const counts: Record<string, number> = {};
   for (const s of states) counts[s.state] = s.alumni_count;
+
+  const countyCounts: Record<string, number> = {};
+  for (const c of counties) countyCounts[c.county_fips] = c.count;
 
   // --- Radius search (full_access-gated) — always on -------------------------
   const lat = sp.lat;
@@ -123,7 +143,6 @@ export default async function GeographyPage({
     }
     for (const c of cities) p.append("city", c);
     for (const s of statesSet) p.append("state", s);
-    if (sp.employer) p.set("employer", sp.employer);
     if (sp.industry) p.set("industry", sp.industry);
     if (sp.year) p.set("year", sp.year);
     if (sp.tag) p.set("tag", sp.tag);
@@ -194,6 +213,7 @@ export default async function GeographyPage({
         ) : (
           <GeographyExplorer
             counts={counts}
+            countyCounts={countyCounts}
             hasCenter={hasCenter || forbidden || loadError}
             matchCounties={matchCounties}
             radius={{
@@ -201,7 +221,6 @@ export default async function GeographyPage({
               lng,
               miles,
               place,
-              employer: sp.employer,
               industry: sp.industry,
               year: sp.year,
               region: sp.region,
@@ -217,14 +236,12 @@ export default async function GeographyPage({
                   miles: String(miles),
                 }}
                 values={{
-                  employer: sp.employer,
                   industry: sp.industry,
                   year: sp.year,
                   region: sp.region,
                   tag: sp.tag,
                 }}
                 options={{
-                  employers: summary?.options.employers ?? [],
                   industries: summary?.options.industries ?? [],
                   graduation_years: (summary?.options.graduation_years ?? []).map(
                     String,

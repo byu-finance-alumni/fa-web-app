@@ -9,6 +9,7 @@
 import type { Schema } from "./api";
 
 export type StateCount = Schema<"StateCount">;
+export type CountyCount = Schema<"CountyCount">;
 export type GeoSummary = Schema<"GeoSummary">;
 export type StateDetail = Schema<"StateDetail">;
 export type GeoAlumniRow = Schema<"GeoAlumniRow">;

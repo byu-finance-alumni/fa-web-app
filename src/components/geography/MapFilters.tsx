@@ -10,10 +10,9 @@ import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 
-const FILTER_KEYS = ["employer", "industry", "year", "region", "tag"] as const;
+const FILTER_KEYS = ["industry", "year", "region", "tag"] as const;
 
 export interface FilterOptions {
-  employers: string[];
   industries: string[];
   graduation_years: string[];
   regions: string[];
@@ -21,7 +20,6 @@ export interface FilterOptions {
 }
 
 export interface FilterValues {
-  employer?: string;
   industry?: string;
   year?: string;
   region?: string;
@@ -30,8 +28,8 @@ export interface FilterValues {
 
 /**
  * Geography map filters — grouped behind a single "Filters" button that opens a
- * popover with all the dropdowns (employer / industry / grad year / region /
- * tag), so the controls don't crowd the map header. Applies via a client-side
+ * popover with all the dropdowns (industry / grad year / region / tag), so the
+ * controls don't crowd the map header. Applies via a client-side
  * navigation to keep the map's radius center + radius preserved (`extraParams`).
  */
 export function MapFilters({
@@ -119,12 +117,6 @@ export function MapFilters({
       {open ? (
         <div className="absolute right-0 z-20 mt-2 w-72 rounded-lg border border-gray-200 bg-white p-4 shadow-md">
           <form onSubmit={onSubmit} className="space-y-3">
-            <Filter
-              name="employer"
-              label="Employer"
-              value={values.employer}
-              options={options.employers}
-            />
             <Filter
               name="industry"
               label="Industry"
