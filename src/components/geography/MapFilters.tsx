@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition, type FormEvent } from "react";
+import { useEffect, useRef, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
@@ -8,6 +8,7 @@ import { INDUSTRY_OPTIONS } from "@/constants/dropdowns";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 
 const FILTER_KEYS = ["employer", "industry", "year", "region", "tag"] as const;
 
@@ -28,10 +29,10 @@ export interface FilterValues {
 }
 
 /**
- * Geography map filters. A GET-style form that navigates to /map with the
- * selected filters, but intercepted client-side so we can show lightweight
- * pending feedback (Bug fix: previously a bare server form gave no signal that
- * the filter ran while the page re-rendered).
+ * Geography map filters — grouped behind a single "Filters" button that opens a
+ * popover with all the dropdowns (employer / industry / grad year / region /
+ * tag), so the controls don't crowd the map header. Applies via a client-side
+ * navigation to keep the map's radius center + radius preserved (`extraParams`).
  */
 export function MapFilters({
   options,
@@ -43,16 +44,34 @@ export function MapFilters({
   options: FilterOptions;
   values: FilterValues;
   hasFilters: boolean;
-  /** Route the filters navigate to. Defaults to the 50-state map; the per-state
-   * page passes `/map/state/{CODE}` so applying a filter stays on that state. */
   basePath?: string;
-  /** Non-filter params to PRESERVE on apply/clear (e.g. the map's radius mode +
-   * center) so changing a filter re-runs the radius search instead of bouncing
-   * back to explore mode. */
+  /** Non-filter params to PRESERVE on apply/clear (the map's radius center). */
   extraParams?: Record<string, string | undefined>;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  const activeCount = FILTER_KEYS.filter((k) => values[k]).length;
+
+  // Close on outside click / Escape.
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node))
+        setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
 
   function withExtras(params: URLSearchParams): URLSearchParams {
     if (extraParams) {
@@ -71,55 +90,79 @@ export function MapFilters({
     }
     withExtras(params);
     const qs = params.toString();
-    startTransition(() => {
-      router.push(qs ? `${basePath}?${qs}` : basePath);
-    });
+    setOpen(false);
+    startTransition(() => router.push(qs ? `${basePath}?${qs}` : basePath));
   }
 
+  const clearHref = (() => {
+    const qs = withExtras(new URLSearchParams()).toString();
+    return qs ? `${basePath}?${qs}` : basePath;
+  })();
+
   return (
-    <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2">
-      <Filter
-        name="employer"
-        label="Employer"
-        value={values.employer}
-        options={options.employers}
-      />
-      <Filter
-        name="industry"
-        label="Industry"
-        value={values.industry}
-        options={INDUSTRY_OPTIONS}
-      />
-      <Filter
-        name="year"
-        label="Grad year"
-        value={values.year}
-        options={options.graduation_years}
-      />
-      <Filter
-        name="region"
-        label="Region"
-        value={values.region}
-        options={options.regions}
-      />
-      <Filter name="tag" label="Tag" value={values.tag} options={options.tags} />
-      <Button type="submit" disabled={pending}>
+    <div ref={rootRef} className="relative shrink-0">
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+      >
         {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-        {pending ? "Applying…" : "Apply"}
+        Filters
+        {activeCount ? (
+          <Badge variant="solid" size="sm" className="ml-1 tabular-nums">
+            {activeCount}
+          </Badge>
+        ) : null}
       </Button>
-      {hasFilters ? (
-        <Button variant="secondary" asChild>
-          <Link
-            href={(() => {
-              const qs = withExtras(new URLSearchParams()).toString();
-              return qs ? `${basePath}?${qs}` : basePath;
-            })()}
-          >
-            Clear
-          </Link>
-        </Button>
+
+      {open ? (
+        <div className="absolute right-0 z-20 mt-2 w-72 rounded-lg border border-gray-200 bg-white p-4 shadow-md">
+          <form onSubmit={onSubmit} className="space-y-3">
+            <Filter
+              name="employer"
+              label="Employer"
+              value={values.employer}
+              options={options.employers}
+            />
+            <Filter
+              name="industry"
+              label="Industry"
+              value={values.industry}
+              options={INDUSTRY_OPTIONS}
+            />
+            <Filter
+              name="year"
+              label="Grad year"
+              value={values.year}
+              options={options.graduation_years}
+            />
+            <Filter
+              name="region"
+              label="Region"
+              value={values.region}
+              options={options.regions}
+            />
+            <Filter
+              name="tag"
+              label="Tag"
+              value={values.tag}
+              options={options.tags}
+            />
+            <div className="flex gap-2 pt-1">
+              <Button type="submit" disabled={pending} className="flex-1">
+                Apply
+              </Button>
+              {hasFilters ? (
+                <Button variant="secondary" asChild>
+                  <Link href={clearHref}>Clear</Link>
+                </Button>
+              ) : null}
+            </div>
+          </form>
+        </div>
       ) : null}
-    </form>
+    </div>
   );
 }
 
@@ -135,19 +178,12 @@ function Filter({
   options: readonly string[];
 }) {
   return (
-    <Label className="flex w-32 flex-col gap-1">
+    <Label className="flex flex-col gap-1">
       <span>{label}</span>
       <Select
         name={name}
-        // Keyed by the URL-derived value so navigation (Apply/Clear) remounts
-        // the select and the visible label always matches the real filter
-        // state (Bug fix: an uncontrolled select kept showing the old choice
-        // after Clear).
         key={value ?? "all"}
         defaultValue={value ?? ""}
-        // Explicit light surface + color-scheme so the native option list
-        // renders on a white background (Bug fix: an unstyled native select
-        // can paint a dark/black dropdown on some deployed browsers).
         style={{ colorScheme: "light" }}
       >
         <option value="" className="bg-white text-gray-900">

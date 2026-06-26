@@ -61,8 +61,7 @@ export default async function GeographyPage({
   const counts: Record<string, number> = {};
   for (const s of states) counts[s.state] = s.alumni_count;
 
-  // --- Radius mode + search (full_access-gated) -------------------------------
-  const mode = sp.mode === "radius" ? "radius" : "explore";
+  // --- Radius search (full_access-gated) — always on -------------------------
   const lat = sp.lat;
   const lng = sp.lng;
   const miles = clampMiles(sp.miles);
@@ -77,7 +76,7 @@ export default async function GeographyPage({
   let forbidden = false;
   let loadError = false;
 
-  if (mode === "radius" && hasCenter) {
+  if (hasCenter) {
     const p = new URLSearchParams();
     p.set("lat", String(lat));
     p.set("lng", String(lng));
@@ -176,7 +175,6 @@ export default async function GeographyPage({
         ) : (
           <GeographyExplorer
             counts={counts}
-            mode={mode}
             radius={{
               lat,
               lng,
@@ -188,21 +186,15 @@ export default async function GeographyPage({
               region: sp.region,
               tag: sp.tag,
             }}
-            filterQuery={qs}
             filters={
               <MapFilters
                 hasFilters={!!qs}
-                extraParams={
-                  mode === "radius"
-                    ? {
-                        mode: "radius",
-                        lat,
-                        lng,
-                        place,
-                        miles: String(miles),
-                      }
-                    : undefined
-                }
+                extraParams={{
+                  lat,
+                  lng,
+                  place,
+                  miles: String(miles),
+                }}
                 values={{
                   employer: sp.employer,
                   industry: sp.industry,
