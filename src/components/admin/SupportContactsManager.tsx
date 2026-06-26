@@ -14,6 +14,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { SupportContact } from "@/types/support";
 
+// Same shape used by CreateUserDialog — a pragmatic "looks like an email" check.
+// Client-side only; the backend remains the source of truth on save.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const isValidEmail = (v: string) => EMAIL_RE.test(v.trim());
+
 /**
  * Engineer-only editor for the support contacts shown to logged-in users on the
  * in-app error screen. Add, edit (role label / name / email), and remove rows.
@@ -52,9 +57,12 @@ function ContactRow({ contact }: { contact: SupportContact }) {
     role !== contact.role_label ||
     name !== contact.name ||
     email !== contact.email;
+  // Only flag a bad email once the field is non-empty (so an in-progress edit
+  // isn't nagged immediately).
+  const emailInvalid = email.trim().length > 0 && !isValidEmail(email);
 
   function save() {
-    if (!dirty) return;
+    if (!dirty || emailInvalid) return;
     startTransition(async () => {
       const res = await updateSupportContact(contact.support_contact_id, {
         role_label: role,
@@ -87,7 +95,22 @@ function ContactRow({ contact }: { contact: SupportContact }) {
         </label>
         <label className="block">
           <Label className="mb-1">Email</Label>
-          <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <Input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            aria-invalid={emailInvalid || undefined}
+            className={
+              emailInvalid
+                ? "border-danger-600 focus-visible:ring-danger-500"
+                : undefined
+            }
+          />
+          {emailInvalid ? (
+            <p className="mt-1 text-xs text-danger-600">
+              Enter a valid email address.
+            </p>
+          ) : null}
         </label>
       </div>
       <div className="mt-3 flex items-center justify-end gap-2">
@@ -106,7 +129,7 @@ function ContactRow({ contact }: { contact: SupportContact }) {
           type="button"
           size="sm"
           onClick={save}
-          disabled={!dirty || pending}
+          disabled={!dirty || emailInvalid || pending}
         >
           {pending ? (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -127,7 +150,8 @@ function AddContactRow() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
 
-  const ready = role.trim() && name.trim() && email.trim();
+  const emailInvalid = email.trim().length > 0 && !isValidEmail(email);
+  const ready = role.trim() && name.trim() && isValidEmail(email);
 
   function add() {
     if (!ready) return;
@@ -156,7 +180,25 @@ function AddContactRow() {
       <div className="grid gap-3 sm:grid-cols-3">
         <Input placeholder="Role (e.g. Super Admin)" value={role} onChange={(e) => setRole(e.target.value)} />
         <Input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
-        <Input type="email" placeholder="name@byu.edu" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <div>
+          <Input
+            type="email"
+            placeholder="name@byu.edu"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            aria-invalid={emailInvalid || undefined}
+            className={
+              emailInvalid
+                ? "border-danger-600 focus-visible:ring-danger-500"
+                : undefined
+            }
+          />
+          {emailInvalid ? (
+            <p className="mt-1 text-xs text-danger-600">
+              Enter a valid email address.
+            </p>
+          ) : null}
+        </div>
       </div>
       <div className="mt-3 flex justify-end">
         <Button

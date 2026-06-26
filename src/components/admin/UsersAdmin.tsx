@@ -12,7 +12,8 @@ import { DeleteUser } from "@/components/admin/DeleteUser";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ROLE } from "@/constants/roles";
+import { Chip } from "@/components/ui/chip";
+import { ROLE, ROLE_ORDER, roleLabel } from "@/constants/roles";
 
 export interface AdminUser {
   user_id: number;
@@ -51,6 +52,15 @@ function LockedBadge() {
   );
 }
 
+type StatusFilter = "all" | "active" | "disabled" | "locked";
+
+const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
+  { value: "all", label: "All statuses" },
+  { value: "active", label: "Active" },
+  { value: "disabled", label: "Disabled" },
+  { value: "locked", label: "Locked" },
+];
+
 /**
  * Client-side Users tab: live search (name/email), a "Created" column, and
  * role management. `canAssignEngineer` (the viewer is an engineer) gates whether
@@ -67,6 +77,18 @@ export function UsersAdmin({
   canAssignEngineer: boolean;
 }) {
   const [q, setQ] = useState("");
+  // Client-side facets over the already-loaded rows (no refetch). "" = no role
+  // filter; status defaults to "all".
+  const [roleFilter, setRoleFilter] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+
+  // Roles actually present in the loaded set, ordered by privilege, so chips
+  // only offer facets that match real rows.
+  const presentRoles = useMemo(() => {
+    const seen = new Set<string>();
+    users.forEach((u) => u.roles.forEach((r) => seen.add(r)));
+    return ROLE_ORDER.filter((r) => seen.has(r));
+  }, [users]);
 
   // Show the permanent-delete control everywhere the backend would allow it:
   // never on your own row, and (for non-engineers) never on an engineer's row.
@@ -77,15 +99,23 @@ export function UsersAdmin({
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    if (!needle) return users;
-    return users.filter((u) =>
-      [u.first_name, u.last_name, u.email]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-        .includes(needle),
-    );
-  }, [q, users]);
+    return users.filter((u) => {
+      if (
+        needle &&
+        ![u.first_name, u.last_name, u.email]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(needle)
+      )
+        return false;
+      if (roleFilter && !u.roles.includes(roleFilter)) return false;
+      if (statusFilter === "active" && !u.active) return false;
+      if (statusFilter === "disabled" && u.active) return false;
+      if (statusFilter === "locked" && !u.locked) return false;
+      return true;
+    });
+  }, [q, users, roleFilter, statusFilter]);
 
   return (
     <>
@@ -107,9 +137,44 @@ export function UsersAdmin({
         <CreateUserDialog />
       </div>
 
+      {/* Client-side facets over the loaded rows */}
+      <div className="mb-4 flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
+            Role
+          </span>
+          <Chip active={roleFilter === ""} onClick={() => setRoleFilter("")}>
+            All roles
+          </Chip>
+          {presentRoles.map((r) => (
+            <Chip
+              key={r}
+              active={roleFilter === r}
+              onClick={() => setRoleFilter((cur) => (cur === r ? "" : r))}
+            >
+              {roleLabel(r)}
+            </Chip>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
+            Status
+          </span>
+          {STATUS_FILTERS.map((s) => (
+            <Chip
+              key={s.value}
+              active={statusFilter === s.value}
+              onClick={() => setStatusFilter(s.value)}
+            >
+              {s.label}
+            </Chip>
+          ))}
+        </div>
+      </div>
+
       {filtered.length === 0 ? (
         <Card className="p-10 text-center text-sm text-gray-500">
-          No users match “{q}”.
+          {q ? `No users match “${q}”.` : "No users match these filters."}
         </Card>
       ) : (
         <>

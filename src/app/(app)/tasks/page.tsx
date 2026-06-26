@@ -24,6 +24,22 @@ const fmtDate = (iso: string | null) =>
       })
     : "—";
 
+/** Today as YYYY-MM-DD (local) for whole-day overdue comparison. */
+function todayIso(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate(),
+  ).padStart(2, "0")}`;
+}
+
+/** A task is overdue when it's still open and its due date is before today. */
+function isOverdue(
+  task: { completed: boolean; due_date: string | null },
+  today: string,
+): boolean {
+  return !task.completed && task.due_date != null && task.due_date < today;
+}
+
 type SP = {
   q?: string;
   status?: string;
@@ -85,6 +101,7 @@ export default async function TasksPage({
     (a, b) => a.name.localeCompare(b.name),
   );
 
+  const today = todayIso();
   const from = data && data.total > 0 ? offset + 1 : 0;
   const to = data ? Math.min(offset + LIMIT, data.total) : 0;
   const hasPrev = offset > 0;
@@ -142,7 +159,10 @@ export default async function TasksPage({
                     <p className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">
                       {t.task_title ?? "Untitled task"}
                     </p>
-                    <StatusBadge completed={t.completed} />
+                    <StatusBadge
+                      completed={t.completed}
+                      overdue={isOverdue(t, today)}
+                    />
                   </div>
                   <p className="mt-1 truncate text-xs text-gray-500">
                     {t.alumni_name ?? `Alumni #${t.alumni_id}`}
@@ -167,7 +187,9 @@ export default async function TasksPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {data!.items.map((t) => (
+                  {data!.items.map((t) => {
+                    const overdue = isOverdue(t, today);
+                    return (
                     <tr
                       key={t.follow_up_task_id}
                       className="border-b border-gray-200 last:border-0 hover:bg-gray-50"
@@ -185,7 +207,13 @@ export default async function TasksPage({
                           {t.alumni_name ?? `Alumni #${t.alumni_id}`}
                         </Link>
                       </td>
-                      <td className="px-4 py-2.5 tabular-nums text-gray-700">
+                      <td
+                        className={
+                          overdue
+                            ? "px-4 py-2.5 font-medium tabular-nums text-danger-600"
+                            : "px-4 py-2.5 tabular-nums text-gray-700"
+                        }
+                      >
                         {t.due_date ? (
                           fmtDate(t.due_date)
                         ) : (
@@ -193,7 +221,7 @@ export default async function TasksPage({
                         )}
                       </td>
                       <td className="px-4 py-2.5">
-                        <StatusBadge completed={t.completed} />
+                        <StatusBadge completed={t.completed} overdue={overdue} />
                       </td>
                       <td className="px-4 py-2.5 text-gray-700">
                         {t.assigned_to ?? (
@@ -201,7 +229,8 @@ export default async function TasksPage({
                         )}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </Card>
@@ -230,12 +259,21 @@ export default async function TasksPage({
   );
 }
 
-function StatusBadge({ completed }: { completed: boolean }) {
-  return completed ? (
-    <Badge variant="success">Completed</Badge>
-  ) : (
-    <Badge variant="warning">Open</Badge>
-  );
+/**
+ * Color-coded task status: done → success (green), overdue → danger (red),
+ * open → neutral (gray). Overdue is derived (open + past due date) since the
+ * backend exposes no explicit overdue flag on the item.
+ */
+function StatusBadge({
+  completed,
+  overdue,
+}: {
+  completed: boolean;
+  overdue: boolean;
+}) {
+  if (completed) return <Badge variant="success">Completed</Badge>;
+  if (overdue) return <Badge variant="danger">Overdue</Badge>;
+  return <Badge variant="neutral">Open</Badge>;
 }
 
 function PageLink({

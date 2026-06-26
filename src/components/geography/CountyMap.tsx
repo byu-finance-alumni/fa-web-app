@@ -127,11 +127,17 @@ export function CountyMap({
         </div>
       ) : null}
 
-      {/* Heatmap legend (absolute thresholds) — same as UsStateMap. */}
+      {/* Heatmap legend (absolute thresholds) — same as UsStateMap. Each swatch
+          carries a `title` with the exact alumni range; label shows the same
+          range inline. Palette/buckets are unchanged. */}
       <div className="mt-2 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
-        <span className="font-medium">Alumni</span>
+        <span className="font-medium text-gray-600">Alumni per county</span>
         {[...BUCKETS].reverse().map((b) => (
-          <span key={b.label} className="flex items-center gap-1.5">
+          <span
+            key={b.label}
+            title={`${b.label} alumni`}
+            className="flex cursor-default items-center gap-1.5 tabular-nums"
+          >
             <span
               className="h-3 w-5 rounded-sm ring-1 ring-inset ring-gray-200"
               style={{ backgroundColor: b.fill }}

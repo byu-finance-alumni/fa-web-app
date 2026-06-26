@@ -7,6 +7,7 @@ import { Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Chip } from "@/components/ui/chip";
 import { Select } from "@/components/ui/select";
 
 /** Sort options, mirrored 1:1 with the backend GET /tasks ``sort`` param. */
@@ -115,6 +116,7 @@ export function TaskFilters({
     assignees.some((a) => a.id === f.assignee);
 
   return (
+    <>
     <Card className="mb-4 flex flex-wrap items-center gap-2 p-3">
       <div className="flex h-9 min-w-[220px] flex-1 items-center gap-2 rounded-md border border-gray-300 bg-gray-50 px-3 focus-within:border-brand-blue-600 focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1">
         <Search className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
@@ -202,5 +204,29 @@ export function TaskFilters({
         ))}
       </Select>
     </Card>
+
+      {/* Quick filter chips — a one-tap complement to the Open/All toggle and
+          Overdue button above. They write the same URL-synced state, so chips
+          and controls stay in lockstep. "Open" = open-only (clears status=all);
+          "Overdue" toggles the overdue facet. */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <Chip
+          type="button"
+          active={f.status === ""}
+          aria-pressed={f.status === ""}
+          onClick={() => set("status", "")}
+        >
+          Open
+        </Chip>
+        <Chip
+          type="button"
+          active={f.overdue}
+          aria-pressed={f.overdue}
+          onClick={() => set("overdue", !f.overdue)}
+        >
+          Overdue
+        </Chip>
+      </div>
+    </>
   );
 }

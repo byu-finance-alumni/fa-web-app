@@ -205,32 +205,51 @@ function StepHeader({ step }: { step: Step }) {
   ];
   const activeIndex = steps.findIndex((s) => s.id === step);
   return (
-    <ol className="mb-6 flex items-center gap-2 text-sm">
+    <ol
+      className="mb-6 flex items-center text-sm"
+      aria-label={`Import step ${activeIndex + 1} of ${steps.length}: ${
+        steps[activeIndex]?.label ?? ""
+      }`}
+    >
       {steps.map((s, i) => {
         const done = i < activeIndex;
         const active = i === activeIndex;
         return (
-          <li key={s.id} className="flex items-center gap-2">
-            <span
-              className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${
-                active
-                  ? "bg-brand-blue-600 text-white"
-                  : done
-                    ? "bg-success-600 text-white"
-                    : "border border-gray-200 bg-white text-gray-500"
-              }`}
-            >
-              {done ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
-            </span>
-            <span
-              className={`font-medium ${
-                active ? "text-gray-900" : "text-gray-500"
-              }`}
-            >
-              {s.label}
+          <li
+            key={s.id}
+            className={i < steps.length - 1 ? "flex flex-1 items-center" : "flex items-center"}
+          >
+            <span className="flex items-center gap-2" aria-current={active ? "step" : undefined}>
+              <span
+                className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold transition-colors ${
+                  active
+                    ? "bg-brand-blue-600 text-white ring-2 ring-brand-blue-100"
+                    : done
+                      ? "bg-success-600 text-white"
+                      : "border border-gray-300 bg-white text-gray-400"
+                }`}
+              >
+                {done ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
+              </span>
+              <span
+                className={`font-medium ${
+                  active
+                    ? "text-gray-900"
+                    : done
+                      ? "text-gray-700"
+                      : "text-gray-400"
+                }`}
+              >
+                {s.label}
+              </span>
             </span>
             {i < steps.length - 1 && (
-              <span className="mx-1 h-px w-8 bg-gray-200" aria-hidden="true" />
+              <span
+                className={`mx-3 h-0.5 flex-1 rounded-full ${
+                  done ? "bg-success-600" : "bg-gray-200"
+                }`}
+                aria-hidden="true"
+              />
             )}
           </li>
         );

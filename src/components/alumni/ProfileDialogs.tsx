@@ -249,13 +249,27 @@ export function AddInteractionButton({
   alumniId,
   label = "Add interaction",
   primary = false,
+  open: openProp,
+  onOpenChange,
 }: {
   alumniId: number;
   label?: string;
   primary?: boolean;
+  /** Controlled-open mode. When provided, the default trigger button is hidden
+   *  and the modal's visibility follows this prop — lets a parent (e.g. the
+   *  alumni-list row action menu) drive the same logging dialog without
+   *  duplicating the form or its server action. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const { toast } = useToast();
-  const [open, setOpen] = useState(false);
+  const controlled = openProp !== undefined;
+  const [openState, setOpenState] = useState(false);
+  const open = controlled ? openProp : openState;
+  const setOpen = (next: boolean) => {
+    if (!controlled) setOpenState(next);
+    onOpenChange?.(next);
+  };
   const [state, formAction, pending] = useActionState(
     addInteraction.bind(null, alumniId),
     null,
@@ -272,14 +286,16 @@ export function AddInteractionButton({
 
   return (
     <>
-      <Button
-        type="button"
-        variant={primary ? "primary" : "secondary"}
-        size="sm"
-        onClick={() => setOpen(true)}
-      >
-        {label}
-      </Button>
+      {controlled ? null : (
+        <Button
+          type="button"
+          variant={primary ? "primary" : "secondary"}
+          size="sm"
+          onClick={() => setOpen(true)}
+        >
+          {label}
+        </Button>
+      )}
       {open ? (
         <Modal title="Log interaction" onClose={() => setOpen(false)}>
           <form action={formAction}>

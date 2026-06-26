@@ -1,11 +1,24 @@
 import Link from "next/link";
+import {
+  Briefcase,
+  CalendarCheck,
+  GraduationCap,
+  Handshake,
+  MapPin,
+  Mic,
+  PhoneCall,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
-import { MetricCard } from "@/components/shared/MetricCard";
 import { SearchHero } from "@/components/dashboard/SearchHero";
+import { KpiTile } from "@/components/dashboard/KpiTile";
+import { Chip } from "@/components/ui/chip";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DATA_VIZ_PALETTE } from "@/constants/chart";
 import type { GeoSummary } from "@/types/geography";
+import type { UserContext } from "@/types/alumni";
 
 /**
  * `/dashboard/summary` has no `response_model` on the backend, so it isn't in
@@ -66,6 +79,28 @@ function isoMonthEnd(): string {
 
 const THIS_YEAR = new Date().getFullYear();
 
+/** "Good morning/afternoon/evening" for the current (server) local hour. */
+function timeOfDayGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+/** A clean first name from the auth context, or null if there's nothing usable.
+ *  Falls back to the local-part of the email (title-cased) when no name field is
+ *  set — never a fabricated name. */
+function resolveFirstName(ctx: UserContext | null): string | null {
+  const name = ctx?.first_name?.trim();
+  if (name) return name;
+  const local = ctx?.email?.split("@")[0]?.trim();
+  if (!local) return null;
+  // "marcus.young" / "marcus_young" -> "Marcus"
+  const first = local.split(/[._-]/)[0];
+  if (!first || /\d/.test(first)) return null;
+  return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
+}
+
 /* -------------------------------------------------------------- presentation -- */
 
 function Panel({
@@ -124,13 +159,19 @@ function BarList({
             {r.href ? (
               <Link
                 href={r.href}
-                aria-label={`View ${r.label} in alumni list`}
+                aria-label={`View ${r.label} (${r.count}) in alumni list`}
+                title={`${r.label}: ${r.count}`}
                 className="-mx-2 flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1 transition hover:bg-brand-blue-50/40"
               >
                 {row}
               </Link>
             ) : (
-              <div className="flex items-center gap-3">{row}</div>
+              <div
+                className="flex items-center gap-3"
+                title={`${r.label}: ${r.count}`}
+              >
+                {row}
+              </div>
             )}
           </li>
         );
@@ -182,6 +223,7 @@ function DonutChart({
           ) : (
             rows.map((r, i) => {
               const arc = (r.count / total) * circumference;
+              const pct = Math.round((r.count / total) * 100);
               const seg = (
                 <circle
                   key={r.label}
@@ -193,7 +235,11 @@ function DonutChart({
                   strokeWidth={stroke}
                   strokeDasharray={`${arc} ${circumference - arc}`}
                   strokeDashoffset={-acc}
-                />
+                >
+                  {/* Native SVG tooltip on hover — exact count + its share of the
+                      charted total (a real proportion, not a trend metric). */}
+                  <title>{`${r.label}: ${r.count} (${pct}%)`}</title>
+                </circle>
               );
               acc += arc;
               return seg;
@@ -234,13 +280,19 @@ function DonutChart({
               {r.href ? (
                 <Link
                   href={r.href}
-                  aria-label={`View ${r.label} in alumni list`}
+                  aria-label={`View ${r.label} (${r.count}) in alumni list`}
+                  title={`${r.label}: ${r.count}`}
                   className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-1.5 transition hover:bg-brand-blue-50/40"
                 >
                   {body}
                 </Link>
               ) : (
-                <div className="flex items-center gap-3 px-2 py-1.5">{body}</div>
+                <div
+                  className="flex items-center gap-3 px-2 py-1.5"
+                  title={`${r.label}: ${r.count}`}
+                >
+                  {body}
+                </div>
               )}
             </li>
           );
@@ -250,57 +302,51 @@ function DonutChart({
   );
 }
 
-/** Quick filters — a titled card whose rows each deep-link into a pre-filtered
- *  alumni list (or geography breakdown). Mirrors the Top employers panel header
- *  treatment so the two columns read as the same component family. */
-function QuickFilters({ rows }: { rows: { label: string; href: string }[] }) {
+/** A chip-shaped deep link with an optional leading icon. The whole row of
+ *  these wraps, trading the old stacked list for a denser pill cluster. */
+function FilterChip({
+  label,
+  href,
+  icon: Icon,
+}: {
+  label: string;
+  href: string;
+  icon?: LucideIcon;
+}) {
   return (
-    <Card className="flex flex-1 flex-col">
-      <CardHeader>
-        <CardTitle>Quick filters</CardTitle>
-      </CardHeader>
-      {/* Rows share the remaining card height evenly so the list fills the
-          column the same way the Top employers panel does across from it. */}
-      <ul className="flex flex-1 flex-col">
-        {rows.map((r) => (
-          <li key={r.label} className="flex flex-1 border-t border-gray-100">
-            <Link
-              href={r.href}
-              className="flex w-full items-center px-5 py-3 text-sm text-gray-700 transition-colors hover:bg-brand-blue-50/40 hover:text-brand-blue-600"
-            >
-              <span className="truncate">{r.label}</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </Card>
+    <Chip asChild>
+      <Link href={href}>
+        {Icon ? <Icon aria-hidden="true" /> : null}
+        {label}
+      </Link>
+    </Chip>
   );
 }
 
-/** A single "Browse alumni" row — a segment label on the left and its alumni
- *  count on the right, linking to that pre-filtered alumni list. Rows share the
- *  card height evenly so the list fills its column. */
-function BrowseRow({
+/** A "Browse alumni" chip — segment label plus its live count, deep-linking to
+ *  the pre-filtered alumni list. The count rides inside the pill so the cluster
+ *  stays compact; an em dash shows when the count isn't available. */
+function BrowseChip({
   label,
   value,
   href,
+  icon: Icon,
 }: {
   label: string;
-  value: React.ReactNode;
+  value: string;
   href: string;
+  icon?: LucideIcon;
 }) {
   return (
-    <li className="flex flex-1 border-t border-gray-100">
-      <Link
-        href={href}
-        className="flex w-full items-center justify-between gap-3 px-5 py-3 text-sm transition-colors hover:bg-brand-blue-50/40"
-      >
-        <span className="truncate text-gray-700">{label}</span>
-        <span className="shrink-0 font-semibold tabular-nums text-gray-900">
+    <Chip asChild title={`${label}: ${value}`}>
+      <Link href={href}>
+        {Icon ? <Icon aria-hidden="true" /> : null}
+        {label}
+        <span className="ml-1 font-semibold tabular-nums text-gray-900">
           {value}
         </span>
       </Link>
-    </li>
+    </Chip>
   );
 }
 
@@ -316,9 +362,10 @@ export default async function DashboardPage() {
 
   let s: Summary | null = null;
   let geoSum: GeoSummary | null = null;
+  let ctx: UserContext | null = null;
   let notProvisioned = false;
   try {
-    [s, geoSum] = await Promise.all([
+    [s, geoSum, ctx] = await Promise.all([
       apiGet<Summary>("/dashboard/summary", {
         revalidate: 60,
         tags: ["dashboard"],
@@ -327,10 +374,20 @@ export default async function DashboardPage() {
         revalidate: 60,
         tags: ["geography"],
       }),
+      // Per-user, not cacheable — used only to greet the signed-in user by name.
+      // Tolerated separately below so a context hiccup never blanks the page.
+      apiGet<UserContext>("/auth/context").catch(() => null),
     ]);
   } catch (e) {
     if (e instanceof ApiError && e.status === 403) notProvisioned = true;
   }
+
+  // "Good afternoon, Marcus" — name from the auth context (or a first name
+  // derived from the email), with a no-name fallback. Never a fabricated name.
+  const firstName = resolveFirstName(ctx);
+  const greeting = firstName
+    ? `${timeOfDayGreeting()}, ${firstName}`
+    : timeOfDayGreeting();
 
   // Derived counts for the Browse stat tiles.
   const utahCount = s?.by_state?.find((r) => r.state === "UT")?.count;
@@ -346,18 +403,20 @@ export default async function DashboardPage() {
   const stat = (n: number | undefined) =>
     typeof n === "number" ? n.toLocaleString() : "—";
 
-  const quickFilters = [
+  const quickFilters: { label: string; href: string; icon: LucideIcon }[] = [
     {
-      label: "Recent grads (last 5 years)",
+      label: "Recent grads",
       href: `/alumni?ymin=${recentMin}&ymax=${recentMax}`,
+      icon: GraduationCap,
     },
-    { label: "Willing mentors", href: "/alumni?mentor=1" },
+    { label: "Willing mentors", href: "/alumni?mentor=1", icon: Handshake },
     {
       label: "Guest speakers this month",
       href: `/alumni?spoke_after=${monthStart}&spoke_before=${monthEnd}`,
+      icon: Mic,
     },
-    { label: "By location", href: "/map/breakdown/states" },
-    { label: "By industry", href: "/map/breakdown/industries" },
+    { label: "By location", href: "/map/breakdown/states", icon: MapPin },
+    { label: "By industry", href: "/map/breakdown/industries", icon: Briefcase },
   ];
 
   return (
@@ -373,60 +432,83 @@ export default async function DashboardPage() {
           /* Two columns that stretch to fill the viewport: quick-search
              features on the left half, KPIs + the two charts on the right. */
           <div className="flex min-h-full flex-col gap-5 lg:flex-row lg:items-stretch">
-            {/* LEFT — search, quick filters, browse */}
+            {/* LEFT — greeting + search, then chip clusters for quick filters
+                and browse-by-segment (denser than the old stacked rows). */}
             <div className="flex flex-1 flex-col gap-5">
-              <SearchHero />
-              <QuickFilters rows={quickFilters} />
+              <SearchHero greeting={greeting} />
+              <Card className="flex flex-1 flex-col">
+                <CardHeader>
+                  <CardTitle>Quick filters</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2">
+                    {quickFilters.map((f) => (
+                      <FilterChip
+                        key={f.label}
+                        label={f.label}
+                        href={f.href}
+                        icon={f.icon}
+                      />
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
               <Card className="flex flex-1 flex-col">
                 <CardHeader>
                   <CardTitle>Browse alumni</CardTitle>
                 </CardHeader>
-                <ul className="flex flex-1 flex-col">
-                  <BrowseRow
-                    label="In Utah"
-                    value={stat(utahCount)}
-                    href="/alumni?state=UT"
-                  />
-                  <BrowseRow
-                    label="Recent grads (last 5 yrs)"
-                    value={stat(recentGradCount)}
-                    href={`/alumni?ymin=${recentMin}&ymax=${recentMax}`}
-                  />
-                  <BrowseRow
-                    label="In IB / PE"
-                    value={stat(ibPeCount)}
-                    href="/alumni?industry=Investment%20Banking"
-                  />
-                  <BrowseRow
-                    label="Willing mentors"
-                    value={stat(s?.willing_mentors)}
-                    href="/alumni?mentor=1"
-                  />
-                </ul>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2">
+                    <BrowseChip
+                      label="In Utah"
+                      value={stat(utahCount)}
+                      href="/alumni?state=UT"
+                      icon={MapPin}
+                    />
+                    <BrowseChip
+                      label="Recent grads"
+                      value={stat(recentGradCount)}
+                      href={`/alumni?ymin=${recentMin}&ymax=${recentMax}`}
+                      icon={GraduationCap}
+                    />
+                    <BrowseChip
+                      label="In IB / PE"
+                      value={stat(ibPeCount)}
+                      href="/alumni?industry=Investment%20Banking"
+                      icon={Briefcase}
+                    />
+                    <BrowseChip
+                      label="Willing mentors"
+                      value={stat(s?.willing_mentors)}
+                      href="/alumni?mentor=1"
+                      icon={Handshake}
+                    />
+                  </div>
+                </CardContent>
               </Card>
             </div>
 
             {/* RIGHT — KPI strip + the two charts */}
             <div className="flex flex-1 flex-col gap-5">
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-                <MetricCard
-                  size="lg"
+                <KpiTile
                   label="Total alumni"
-                  value={s?.total_alumni ?? "—"}
+                  value={s ? s.total_alumni.toLocaleString() : "—"}
+                  icon={Users}
                   href="/alumni"
                   linkLabel="View all alumni"
                 />
-                <MetricCard
-                  size="lg"
+                <KpiTile
                   label="Contacted this month"
-                  value={s?.contacted_this_month ?? "—"}
+                  value={s ? s.contacted_this_month.toLocaleString() : "—"}
+                  icon={PhoneCall}
                   href={`/alumni?contacted_after=${thirtyDaysAgo}`}
                   linkLabel="View alumni contacted this month"
                 />
-                <MetricCard
-                  size="lg"
+                <KpiTile
                   label="Attended this month"
-                  value={s?.attended_event_this_month ?? "—"}
+                  value={s ? s.attended_event_this_month.toLocaleString() : "—"}
+                  icon={CalendarCheck}
                   href={`/events?from=${thirtyDaysAgo}&to=${today}`}
                   linkLabel="View events held this month"
                 />

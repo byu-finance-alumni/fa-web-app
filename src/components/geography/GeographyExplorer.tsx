@@ -131,25 +131,35 @@ function RankBox({
   moreHref: string;
 }) {
   const shown = rows.slice(0, 5);
+  // Relative magnitude for the inline mini-bars (presentation only — mirrors the
+  // dashboard BarList; does not touch the map's color-scale buckets).
+  const max = Math.max(1, ...shown.map((r) => r.count));
   return (
     <Card className="flex flex-col p-3">
       <h3 className="mb-1 text-sm font-semibold text-gray-900">{title}</h3>
       {rows.length === 0 ? (
         <p className="py-1.5 text-sm text-gray-400">No data yet.</p>
       ) : (
-        <ul>
+        <ul className="space-y-0.5">
           {shown.map((r, i) => (
             <li key={`${r.key}-${i}`}>
               <button
                 type="button"
                 onClick={() => onRow(r.key)}
-                className="flex w-full items-center justify-between gap-2 rounded-md px-1 py-0.5 text-left hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
+                aria-label={`${r.label}: ${r.count.toLocaleString()} alumni`}
+                className="group flex w-full items-center gap-2.5 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-brand-blue-50/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
               >
-                <span className="min-w-0 flex-1 truncate text-sm text-gray-700">
+                <span className="w-24 shrink-0 truncate text-sm text-gray-700 group-hover:text-brand-blue-700">
                   {r.label}
                 </span>
-                <span className="shrink-0 text-right text-xs font-medium tabular-nums text-gray-900">
-                  {r.count}
+                <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-100">
+                  <span
+                    className="block h-full rounded-full bg-brand-blue-500 transition-colors group-hover:bg-brand-blue-600"
+                    style={{ width: `${Math.round((r.count / max) * 100)}%` }}
+                  />
+                </span>
+                <span className="w-9 shrink-0 text-right text-xs font-semibold tabular-nums text-gray-900">
+                  {r.count.toLocaleString()}
                 </span>
               </button>
             </li>
