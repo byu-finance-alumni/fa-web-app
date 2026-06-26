@@ -281,7 +281,7 @@ export function UsGeoMap({
       <svg
         ref={svgRef}
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-        preserveAspectRatio="xMidYMid slice"
+        preserveAspectRatio="xMidYMid meet"
         className={`absolute inset-0 h-full w-full touch-none select-none ${
           view.k > 1 ? "cursor-grab" : mode === "radius" ? "cursor-crosshair" : ""
         }`}

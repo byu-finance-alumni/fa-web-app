@@ -1,12 +1,12 @@
 import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
 import { TopbarSearch } from "@/components/shared/TopbarSearch";
+import Link from "next/link";
 import { GeographyExplorer } from "@/components/geography/GeographyExplorer";
 import { MapFilters } from "@/components/geography/MapFilters";
-import { RadiusResultsTable } from "@/components/geography/RadiusResultsTable";
-import { RadiusExportButton } from "@/components/geography/RadiusExportButton";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { GeoSummary, StateCount } from "@/types/geography";
 import type { components } from "@/types/api.gen";
 
@@ -94,7 +94,26 @@ export default async function GeographyPage({
   const centerLabel = place || "this point";
   const items = page?.items ?? [];
   const total = page?.total ?? 0;
-  const capped = total > items.length;
+
+  // Build a link into the alumni list filtered to the matched cities/states (so
+  // it shows ~the same people) plus whichever geography filters were applied.
+  // year maps to the alumni list's ymin/ymax (it accepts `year` for both).
+  function alumniHref(): string {
+    const p = new URLSearchParams();
+    const cities = new Set<string>();
+    const statesSet = new Set<string>();
+    for (const it of items) {
+      if (it.city) cities.add(it.city);
+      if (it.state) statesSet.add(it.state);
+    }
+    for (const c of cities) p.append("city", c);
+    for (const s of statesSet) p.append("state", s);
+    if (sp.employer) p.set("employer", sp.employer);
+    if (sp.industry) p.set("industry", sp.industry);
+    if (sp.year) p.set("year", sp.year);
+    if (sp.tag) p.set("tag", sp.tag);
+    return `/alumni?${p.toString()}`;
+  }
 
   const results = (
     <>
@@ -104,8 +123,8 @@ export default async function GeographyPage({
             Radius search needs full access.
           </p>
           <p className="mt-1 text-gray-600">
-            This view lists the individual alumni near a location, so it&apos;s
-            limited to full-access accounts. Ask a Super Admin if you need it.
+            This view counts the alumni near a location, so it&apos;s limited to
+            full-access accounts. Ask a Super Admin if you need it.
           </p>
         </Card>
       ) : loadError ? (
@@ -114,44 +133,32 @@ export default async function GeographyPage({
             Couldn&apos;t load results.
           </p>
           <p className="mt-1 text-gray-600">
-            Something went wrong fetching alumni near this point. Try adjusting
-            the center or radius.
+            Something went wrong searching near this point. Try adjusting the
+            center or radius.
           </p>
         </Card>
       ) : !hasCenter ? null : (
-        <>
-          <Card className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-            <div className="flex items-center gap-2">
-              <Badge variant="solid" className="tabular-nums">
-                {total.toLocaleString()}
-              </Badge>
-              <span className="text-sm text-gray-700">
-                {total === 1 ? "alumnus" : "alumni"} within{" "}
-                <span className="font-semibold text-gray-900">{miles} mi</span>{" "}
-                of{" "}
-                <span className="font-semibold text-gray-900">
-                  {centerLabel}
-                </span>
-                {capped ? (
-                  <span className="text-gray-500">
-                    {" "}
-                    (showing nearest {items.length.toLocaleString()})
-                  </span>
-                ) : null}
-              </span>
-            </div>
-            <RadiusExportButton items={items} place={place} miles={miles} />
-          </Card>
-
-          {items.length === 0 ? (
-            <Card className="p-6 text-center text-sm text-gray-500">
-              No alumni found within {miles} mi of {centerLabel}. Try a larger
-              radius or a different center.
-            </Card>
+        <Card className="p-4">
+          <div className="flex items-center gap-2">
+            <Badge variant="solid" className="text-base tabular-nums">
+              {total.toLocaleString()}
+            </Badge>
+            <span className="text-sm text-gray-700">
+              {total === 1 ? "alumnus" : "alumni"} within{" "}
+              <span className="font-semibold text-gray-900">{miles} mi</span> of{" "}
+              <span className="font-semibold text-gray-900">{centerLabel}</span>
+            </span>
+          </div>
+          {total > 0 ? (
+            <Button asChild className="mt-3 w-full">
+              <Link href={alumniHref()}>View these alumni…</Link>
+            </Button>
           ) : (
-            <RadiusResultsTable items={items} />
+            <p className="mt-2 text-sm text-gray-500">
+              Try a larger radius or a different center.
+            </p>
           )}
-        </>
+        </Card>
       )}
     </>
   );
