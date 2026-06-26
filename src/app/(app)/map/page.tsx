@@ -1,8 +1,11 @@
+import Link from "next/link";
+import { Crosshair } from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
 import { TopbarSearch } from "@/components/shared/TopbarSearch";
 import { GeographyExplorer } from "@/components/geography/GeographyExplorer";
 import { MapFilters } from "@/components/geography/MapFilters";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { GeoSummary, StateCount } from "@/types/geography";
 
@@ -51,6 +54,14 @@ export default async function GeographyPage({
         <TopbarSearch />
       </Topbar>
       <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-6 lg:overflow-hidden">
+        <div className="mb-3 flex shrink-0 items-center justify-end">
+          <Button asChild variant="secondary" size="sm">
+            <Link href="/map/radius">
+              <Crosshair className="h-4 w-4" aria-hidden="true" />
+              Radius search
+            </Link>
+          </Button>
+        </div>
         {notProvisioned ? (
           <Card className="p-4 text-sm text-gray-700">
             Your account is authenticated but not yet provisioned. Ask a Super
