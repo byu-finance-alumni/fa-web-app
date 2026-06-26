@@ -159,7 +159,7 @@ export default async function StateMapPage({
               </div>
             </Card>
 
-            {/* Ranking rail (right) — same boxes/place as the main map */}
+            {/* Ranking rail (right) — two boxes split the full height to match the map. */}
             <div className="flex min-h-0 flex-col gap-3">
               <RankBox
                 title="Top cities"
@@ -168,20 +168,6 @@ export default async function StateMapPage({
               <RankBox
                 title="Top employers"
                 rows={(detail?.employers ?? []).map((e) => [e.employer, e.count])}
-              />
-              <RankBox
-                title="Top industries"
-                rows={(detail?.industries ?? []).map((i) => [
-                  i.industry,
-                  i.count,
-                ])}
-              />
-              <RankBox
-                title="By graduation year"
-                rows={(detail?.by_graduation_year ?? []).map((y) => [
-                  String(y.year),
-                  y.count,
-                ])}
               />
             </div>
           </div>
@@ -200,7 +186,7 @@ function RankBox({ title, rows }: { title: string; rows: [string, number][] }) {
   const shown = rows.slice(0, 5);
   const max = Math.max(1, ...shown.map(([, count]) => count));
   return (
-    <Card className="flex flex-col p-3">
+    <Card className="flex min-h-0 flex-1 flex-col p-3">
       <h3 className="mb-1 text-sm font-semibold text-gray-900">{title}</h3>
       {rows.length === 0 ? (
         <p className="py-1.5 text-sm text-gray-400">No data yet.</p>

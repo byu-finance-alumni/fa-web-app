@@ -61,8 +61,6 @@ export default async function GeographyPage({
             counts={counts}
             topStates={states}
             topCities={summary?.top_cities ?? []}
-            topEmployers={summary?.top_employers ?? []}
-            topIndustries={summary?.top_industries ?? []}
             filterQuery={qs}
             filters={
               <MapFilters

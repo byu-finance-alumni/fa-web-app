@@ -1,20 +1,8 @@
 import Link from "next/link";
-import {
-  Briefcase,
-  CalendarCheck,
-  GraduationCap,
-  Handshake,
-  MapPin,
-  Mic,
-  PhoneCall,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
+import { MetricCard } from "@/components/shared/MetricCard";
 import { SearchHero } from "@/components/dashboard/SearchHero";
-import { KpiTile } from "@/components/dashboard/KpiTile";
-import { Chip } from "@/components/ui/chip";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DATA_VIZ_PALETTE } from "@/constants/chart";
 import type { GeoSummary } from "@/types/geography";
@@ -302,51 +290,55 @@ function DonutChart({
   );
 }
 
-/** A chip-shaped deep link with an optional leading icon. The whole row of
- *  these wraps, trading the old stacked list for a denser pill cluster. */
-function FilterChip({
-  label,
-  href,
-  icon: Icon,
-}: {
-  label: string;
-  href: string;
-  icon?: LucideIcon;
-}) {
+/** Quick filters — a titled card whose rows each deep-link into a pre-filtered
+ *  alumni list (or geography breakdown). Mirrors the Top employers panel header
+ *  treatment so the two columns read as the same component family. */
+function QuickFilters({ rows }: { rows: { label: string; href: string }[] }) {
   return (
-    <Chip asChild>
-      <Link href={href}>
-        {Icon ? <Icon aria-hidden="true" /> : null}
-        {label}
-      </Link>
-    </Chip>
+    <Card className="flex flex-1 flex-col">
+      <CardHeader>
+        <CardTitle>Quick filters</CardTitle>
+      </CardHeader>
+      <ul className="flex flex-1 flex-col">
+        {rows.map((r) => (
+          <li key={r.label} className="flex flex-1 border-t border-gray-100">
+            <Link
+              href={r.href}
+              className="flex w-full items-center px-5 py-3 text-sm text-gray-700 transition-colors hover:bg-brand-blue-50/40 hover:text-brand-blue-600"
+            >
+              <span className="truncate">{r.label}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }
 
-/** A "Browse alumni" chip — segment label plus its live count, deep-linking to
- *  the pre-filtered alumni list. The count rides inside the pill so the cluster
- *  stays compact; an em dash shows when the count isn't available. */
-function BrowseChip({
+/** A single "Browse alumni" row — a segment label on the left and its alumni
+ *  count on the right, linking to that pre-filtered alumni list. Rows share the
+ *  card height evenly so the list fills its column. */
+function BrowseRow({
   label,
   value,
   href,
-  icon: Icon,
 }: {
   label: string;
-  value: string;
+  value: React.ReactNode;
   href: string;
-  icon?: LucideIcon;
 }) {
   return (
-    <Chip asChild title={`${label}: ${value}`}>
-      <Link href={href}>
-        {Icon ? <Icon aria-hidden="true" /> : null}
-        {label}
-        <span className="ml-1 font-semibold tabular-nums text-gray-900">
+    <li className="flex flex-1 border-t border-gray-100">
+      <Link
+        href={href}
+        className="flex w-full items-center justify-between gap-3 px-5 py-3 text-sm transition-colors hover:bg-brand-blue-50/40"
+      >
+        <span className="truncate text-gray-700">{label}</span>
+        <span className="shrink-0 font-semibold tabular-nums text-gray-900">
           {value}
         </span>
       </Link>
-    </Chip>
+    </li>
   );
 }
 
@@ -403,20 +395,18 @@ export default async function DashboardPage() {
   const stat = (n: number | undefined) =>
     typeof n === "number" ? n.toLocaleString() : "—";
 
-  const quickFilters: { label: string; href: string; icon: LucideIcon }[] = [
+  const quickFilters = [
     {
-      label: "Recent grads",
+      label: "Recent grads (last 5 years)",
       href: `/alumni?ymin=${recentMin}&ymax=${recentMax}`,
-      icon: GraduationCap,
     },
-    { label: "Willing mentors", href: "/alumni?mentor=1", icon: Handshake },
+    { label: "Willing mentors", href: "/alumni?mentor=1" },
     {
       label: "Guest speakers this month",
       href: `/alumni?spoke_after=${monthStart}&spoke_before=${monthEnd}`,
-      icon: Mic,
     },
-    { label: "By location", href: "/map/breakdown/states", icon: MapPin },
-    { label: "By industry", href: "/map/breakdown/industries", icon: Briefcase },
+    { label: "By location", href: "/map/breakdown/states" },
+    { label: "By industry", href: "/map/breakdown/industries" },
   ];
 
   return (
@@ -432,83 +422,60 @@ export default async function DashboardPage() {
           /* Two columns that stretch to fill the viewport: quick-search
              features on the left half, KPIs + the two charts on the right. */
           <div className="flex min-h-full flex-col gap-5 lg:flex-row lg:items-stretch">
-            {/* LEFT — greeting + search, then chip clusters for quick filters
-                and browse-by-segment (denser than the old stacked rows). */}
+            {/* LEFT — greeting + search, quick filters, browse */}
             <div className="flex flex-1 flex-col gap-5">
               <SearchHero greeting={greeting} />
-              <Card className="flex flex-1 flex-col">
-                <CardHeader>
-                  <CardTitle>Quick filters</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-wrap gap-2">
-                    {quickFilters.map((f) => (
-                      <FilterChip
-                        key={f.label}
-                        label={f.label}
-                        href={f.href}
-                        icon={f.icon}
-                      />
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+              <QuickFilters rows={quickFilters} />
               <Card className="flex flex-1 flex-col">
                 <CardHeader>
                   <CardTitle>Browse alumni</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="flex flex-wrap gap-2">
-                    <BrowseChip
-                      label="In Utah"
-                      value={stat(utahCount)}
-                      href="/alumni?state=UT"
-                      icon={MapPin}
-                    />
-                    <BrowseChip
-                      label="Recent grads"
-                      value={stat(recentGradCount)}
-                      href={`/alumni?ymin=${recentMin}&ymax=${recentMax}`}
-                      icon={GraduationCap}
-                    />
-                    <BrowseChip
-                      label="In IB / PE"
-                      value={stat(ibPeCount)}
-                      href="/alumni?industry=Investment%20Banking"
-                      icon={Briefcase}
-                    />
-                    <BrowseChip
-                      label="Willing mentors"
-                      value={stat(s?.willing_mentors)}
-                      href="/alumni?mentor=1"
-                      icon={Handshake}
-                    />
-                  </div>
-                </CardContent>
+                <ul className="flex flex-1 flex-col">
+                  <BrowseRow
+                    label="In Utah"
+                    value={stat(utahCount)}
+                    href="/alumni?state=UT"
+                  />
+                  <BrowseRow
+                    label="Recent grads (last 5 yrs)"
+                    value={stat(recentGradCount)}
+                    href={`/alumni?ymin=${recentMin}&ymax=${recentMax}`}
+                  />
+                  <BrowseRow
+                    label="In IB / PE"
+                    value={stat(ibPeCount)}
+                    href="/alumni?industry=Investment%20Banking"
+                  />
+                  <BrowseRow
+                    label="Willing mentors"
+                    value={stat(s?.willing_mentors)}
+                    href="/alumni?mentor=1"
+                  />
+                </ul>
               </Card>
             </div>
 
             {/* RIGHT — KPI strip + the two charts */}
             <div className="flex flex-1 flex-col gap-5">
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-                <KpiTile
+                <MetricCard
+                  size="lg"
                   label="Total alumni"
-                  value={s ? s.total_alumni.toLocaleString() : "—"}
-                  icon={Users}
+                  value={s?.total_alumni ?? "—"}
                   href="/alumni"
                   linkLabel="View all alumni"
                 />
-                <KpiTile
+                <MetricCard
+                  size="lg"
                   label="Contacted this month"
-                  value={s ? s.contacted_this_month.toLocaleString() : "—"}
-                  icon={PhoneCall}
+                  value={s?.contacted_this_month ?? "—"}
                   href={`/alumni?contacted_after=${thirtyDaysAgo}`}
                   linkLabel="View alumni contacted this month"
                 />
-                <KpiTile
+                <MetricCard
+                  size="lg"
                   label="Attended this month"
-                  value={s ? s.attended_event_this_month.toLocaleString() : "—"}
-                  icon={CalendarCheck}
+                  value={s?.attended_event_this_month ?? "—"}
                   href={`/events?from=${thirtyDaysAgo}&to=${today}`}
                   linkLabel="View events held this month"
                 />

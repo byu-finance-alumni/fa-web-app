@@ -6,7 +6,6 @@ import { hasFullAccess, canEditAlumni, canAddInteraction } from "@/constants/rol
 import { Topbar } from "@/components/shell/Topbar";
 import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
 import { AlumniFilters, type AlumniFilterState } from "@/components/alumni/AlumniFilters";
-import { AlumniQuickChips } from "@/components/alumni/AlumniQuickChips";
 import { AlumniTable } from "@/components/alumni/AlumniTable";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -219,8 +218,6 @@ export default async function AlumniListPage({
           canExport={canCreate}
           total={data?.total ?? 0}
         />
-
-        <AlumniQuickChips filters={filters} options={options ?? undefined} />
 
         {error ? (
           <Card className="p-10 text-center">

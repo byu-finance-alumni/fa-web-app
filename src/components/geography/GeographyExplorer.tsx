@@ -14,16 +14,12 @@ export function GeographyExplorer({
   counts,
   topStates,
   topCities,
-  topEmployers,
-  topIndustries,
   filterQuery,
   filters,
 }: {
   counts: Record<string, number>;
   topStates: StateCount[];
   topCities: GeoSummary["top_cities"];
-  topEmployers: GeoSummary["top_employers"];
-  topIndustries: GeoSummary["top_industries"];
   filterQuery: string;
   filters: ReactNode;
 }) {
@@ -35,11 +31,6 @@ export function GeographyExplorer({
   // dedicated centered-map state page, preserving active filters.
   function openState(code: string) {
     router.push(`/map/state/${code.toUpperCase()}?${filterQuery}`.replace(/\?$/, ""));
-  }
-  function applyFilter(key: string, value: string) {
-    const p = new URLSearchParams(filterQuery);
-    p.set(key, value);
-    router.push(`/map?${p.toString()}`);
   }
   const breakdownHref = (dim: string) =>
     `/map/breakdown/${dim}${filterQuery ? `?${filterQuery}` : ""}`;
@@ -64,7 +55,7 @@ export function GeographyExplorer({
         </div>
       </Card>
 
-      {/* Ranking rail (right) — boxes size to content so nothing is clipped. */}
+      {/* Ranking rail (right) — two boxes split the full height to match the map. */}
       <div className="flex min-h-0 flex-col gap-3">
         <RankBox
           title="Top states"
@@ -87,28 +78,6 @@ export function GeographyExplorer({
           onRow={(key) => openState(key)}
           moreLabel="View all cities"
           moreHref={breakdownHref("cities")}
-        />
-        <RankBox
-          title="Top employers"
-          rows={topEmployers.map((e) => ({
-            key: e.employer,
-            label: e.employer,
-            count: e.count,
-          }))}
-          onRow={(key) => applyFilter("employer", key)}
-          moreLabel="View all employers"
-          moreHref={breakdownHref("employers")}
-        />
-        <RankBox
-          title="Top industries"
-          rows={topIndustries.map((i) => ({
-            key: i.industry,
-            label: i.industry,
-            count: i.count,
-          }))}
-          onRow={(key) => applyFilter("industry", key)}
-          moreLabel="View all industries"
-          moreHref={breakdownHref("industries")}
         />
       </div>
     </div>
@@ -135,7 +104,7 @@ function RankBox({
   // dashboard BarList; does not touch the map's color-scale buckets).
   const max = Math.max(1, ...shown.map((r) => r.count));
   return (
-    <Card className="flex flex-col p-3">
+    <Card className="flex min-h-0 flex-1 flex-col p-3">
       <h3 className="mb-1 text-sm font-semibold text-gray-900">{title}</h3>
       {rows.length === 0 ? (
         <p className="py-1.5 text-sm text-gray-400">No data yet.</p>
