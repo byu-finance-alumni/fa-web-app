@@ -106,3 +106,32 @@ export async function geocodePlace(place: string): Promise<GeocodeResult> {
     label: `${titleCase(city)}, ${only.state}`,
   };
 }
+
+/**
+ * Reverse-geocode a dropped-pin (lat, lng) to the NEAREST city in the crosswalk,
+ * returned as a tidy "City, ST" for display. Longitude is scaled by cos(lat) so
+ * the nearest-by-degrees comparison is reasonable. Returns null if nothing fits.
+ */
+export async function reverseGeocode(
+  lat: number,
+  lng: number,
+): Promise<string | null> {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const cosLat = Math.cos((lat * Math.PI) / 180);
+  let bestKey: string | null = null;
+  let bestD = Infinity;
+  for (const key in CROSSWALK) {
+    const row = CROSSWALK[key];
+    if (!row) continue;
+    const dLat = lat - row[1];
+    const dLng = (lng - row[2]) * cosLat;
+    const d = dLat * dLat + dLng * dLng;
+    if (d < bestD) {
+      bestD = d;
+      bestKey = key;
+    }
+  }
+  if (!bestKey) return null;
+  const i = bestKey.lastIndexOf("|");
+  return `${titleCase(bestKey.slice(0, i))}, ${bestKey.slice(i + 1).toUpperCase()}`;
+}

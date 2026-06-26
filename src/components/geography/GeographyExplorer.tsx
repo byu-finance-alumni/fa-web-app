@@ -11,7 +11,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Loader2 } from "lucide-react";
-import { geocodePlace } from "@/app/(app)/map/actions";
+import { geocodePlace, reverseGeocode } from "@/app/(app)/map/actions";
 import { UsGeoMap } from "./UsGeoMap";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
@@ -145,17 +145,33 @@ export function GeographyExplorer({
     [],
   );
 
-  function onPick(lat: number, lng: number) {
+  async function onPick(lat: number, lng: number) {
     setGeoError(null);
+    // Reverse-geocode the pin to the nearest city so the label reads as a place.
+    const name = await reverseGeocode(lat, lng).catch(() => null);
+    if (name) setPlaceInput(name);
     startTransition(() =>
       router.push(
         buildRadiusUrl({
           lat: lat.toFixed(5),
           lng: lng.toFixed(5),
-          place: "Pinned location",
+          place: name ?? "Pinned location",
         }),
       ),
     );
+  }
+
+  // Clear the radius center/pin (keep the radius distance + filters).
+  function resetCenter() {
+    setGeoError(null);
+    setPlaceInput("");
+    const p = new URLSearchParams();
+    p.set("miles", String(radius.miles));
+    for (const k of FILTER_KEYS) {
+      const v = radius[k];
+      if (v) p.set(k, v);
+    }
+    startTransition(() => router.push(`/map?${p.toString()}`));
   }
 
   return (
@@ -163,7 +179,13 @@ export function GeographyExplorer({
       {/* Full-bleed map — the hero. Click to drop a pin, scroll to zoom, drag to
           pan; counties + city labels fade in as you zoom. */}
       <div className="absolute inset-0">
-        <UsGeoMap mode="radius" counts={counts} center={center} onPick={onPick} />
+        <UsGeoMap
+          mode="radius"
+          counts={counts}
+          center={center}
+          onPick={onPick}
+          onResetCenter={resetCenter}
+        />
       </div>
 
       {/* Global pending shimmer over the whole map. */}
@@ -205,12 +227,14 @@ export function GeographyExplorer({
           </form>
 
           <div className="mt-2.5 flex items-center justify-between gap-2">
-            <p className="min-w-0 truncate text-xs text-gray-500">
-              {radius.place
-                ? `Center: ${radius.place}`
-                : hasCenter
-                  ? "Center: pinned location"
-                  : "Click the map to drop a pin."}
+            <p className="min-w-0 truncate text-xs">
+              {radius.place ? (
+                <span className="font-medium text-gray-900">{radius.place}</span>
+              ) : hasCenter ? (
+                <span className="font-medium text-gray-900">Pinned location</span>
+              ) : (
+                <span className="text-gray-500">Click the map to drop a pin.</span>
+              )}
             </p>
             {filters}
           </div>

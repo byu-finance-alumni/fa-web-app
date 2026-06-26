@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { geoAlbersUsa, geoPath, type GeoProjection } from "d3-geo";
+import { geoAlbersUsa, geoContains, geoPath, type GeoProjection } from "d3-geo";
+import type { Feature } from "geojson";
 import { feature } from "topojson-client";
 import type { FeatureCollection, Geometry } from "geojson";
 import type { Topology } from "topojson-specification";
@@ -72,6 +73,8 @@ export interface UsGeoMapProps {
   center?: { lat: number; lng: number } | null;
   onStateClick?: (code: string) => void;
   onPick?: (lat: number, lng: number) => void;
+  /** Clear the current radius center/pin (renders a "Reset pin" button). */
+  onResetCenter?: () => void;
 }
 
 type StatePath = { id: string; usps: string; name: string; d: string };
@@ -83,6 +86,7 @@ export function UsGeoMap({
   center = null,
   onStateClick,
   onPick,
+  onResetCenter,
 }: UsGeoMapProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -100,16 +104,18 @@ export function UsGeoMap({
     { active: false, ox: 0, oy: 0, moved: false },
   );
 
-  const { paths, projection } = useMemo(() => {
+  const { paths, projection, features } = useMemo(() => {
     const topo = statesTopo as unknown as Topology;
     const fc = feature(
       topo,
       topo.objects.states,
     ) as unknown as FeatureCollection<Geometry>;
+    // Generous padding so the whole US starts comfortably in view (zoomed out)
+    // and the landmass sits clear of the floating control panels in the corners.
     const proj = geoAlbersUsa().fitExtent(
       [
-        [8, 8],
-        [WIDTH - 8, HEIGHT - 8],
+        [110, 80],
+        [WIDTH - 110, HEIGHT - 80],
       ],
       fc,
     );
@@ -126,7 +132,11 @@ export function UsGeoMap({
         };
       })
       .filter((p): p is StatePath => !!p.d);
-    return { paths: ds, projection: proj as GeoProjection };
+    return {
+      paths: ds,
+      projection: proj as GeoProjection,
+      features: fc.features as Feature[],
+    };
   }, []);
 
   // --- Counties (lazy, zoom-gated) -------------------------------------------
@@ -261,7 +271,10 @@ export function UsGeoMap({
     const inverted = projection.invert?.([gx, gy]);
     if (!inverted) return;
     const [lng, lat] = inverted;
-    if (Number.isFinite(lng) && Number.isFinite(lat)) onPick(lat, lng);
+    if (!Number.isFinite(lng) || !Number.isFinite(lat)) return;
+    // Only drop a pin on US soil — ignore clicks in the ocean / off the map.
+    if (!features.some((f) => geoContains(f, [lng, lat]))) return;
+    onPick(lat, lng);
   }
 
   function moveHover(e: React.MouseEvent, name: string, count: number) {
@@ -305,8 +318,8 @@ export function UsGeoMap({
                 key={p.id}
                 d={p.d}
                 fill={fillFor(count)}
-                stroke="#FFFFFF"
-                strokeWidth={0.75}
+                stroke="#9CA3AF"
+                strokeWidth={1}
                 vectorEffect="non-scaling-stroke"
                 className={
                   interactive
@@ -351,9 +364,8 @@ export function UsGeoMap({
             <g
               className="pointer-events-none"
               fill="none"
-              stroke="#FFFFFF"
-              strokeOpacity={0.55}
-              strokeWidth={0.4}
+              stroke="#9CA3AF"
+              strokeWidth={0.7}
               vectorEffect="non-scaling-stroke"
             >
               {countyPaths.map((d, i) => (
@@ -367,8 +379,8 @@ export function UsGeoMap({
             <g
               className="pointer-events-none"
               fill="none"
-              stroke="#FFFFFF"
-              strokeWidth={0.9}
+              stroke="#9CA3AF"
+              strokeWidth={1}
               vectorEffect="non-scaling-stroke"
             >
               {paths.map((p) => (
@@ -449,14 +461,27 @@ export function UsGeoMap({
         </div>
       ) : null}
 
-      {view.k > 1 ? (
-        <button
-          type="button"
-          onClick={() => setView({ k: 1, x: 0, y: 0 })}
-          className="absolute right-3 top-3 z-10 rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 shadow-card hover:bg-gray-50"
-        >
-          Reset zoom
-        </button>
+      {(center && onResetCenter) || view.k > 1 ? (
+        <div className="absolute right-3 top-3 z-10 flex gap-2">
+          {center && onResetCenter ? (
+            <button
+              type="button"
+              onClick={onResetCenter}
+              className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 shadow-card hover:bg-gray-50"
+            >
+              Reset pin
+            </button>
+          ) : null}
+          {view.k > 1 ? (
+            <button
+              type="button"
+              onClick={() => setView({ k: 1, x: 0, y: 0 })}
+              className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 shadow-card hover:bg-gray-50"
+            >
+              Reset zoom
+            </button>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );
