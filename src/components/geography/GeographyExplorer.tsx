@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
 import { geocodePlace } from "@/app/(app)/map/actions";
 import { UsGeoMap } from "./UsGeoMap";
 import { Card } from "@/components/ui/card";
@@ -37,17 +37,21 @@ export interface RadiusState {
 }
 
 /**
- * The map workspace: one big geo-projected US map shaded by alumni density,
- * with proximity search always on — click the map to drop a pin (center) or
- * search a city; scroll to zoom, drag to pan. A radius preset/slider sets the
- * distance; results render below (passed in as `results`). The grouped Filters
- * control + the results both come from the server via the URL searchParams.
+ * The map workspace, Marketplace-style: one full-bleed geo-projected US map fills
+ * the content area as the hero, with compact control Cards floating OVER it.
+ * Proximity search is always on — click the map to drop a pin (center) or search
+ * a city; scroll to zoom, drag to pan, more detail (counties + city labels) as
+ * you zoom in. A radius preset/slider sets the distance; when a center is set the
+ * results float in a collapsible panel pinned bottom-right (count badge + table +
+ * CSV export) instead of pushing the map down. The grouped Filters control + the
+ * results both come from the server via the URL searchParams.
  */
 export function GeographyExplorer({
   counts,
   radius,
   filters,
   results,
+  hasCenter: hasCenterProp,
 }: {
   counts: Record<string, number>;
   radius: RadiusState;
@@ -55,6 +59,8 @@ export function GeographyExplorer({
   filters: ReactNode;
   /** Radius results (count badge + table + export), rendered by the server. */
   results: ReactNode;
+  /** Whether a valid radius center is set (drives the floating results panel). */
+  hasCenter: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -69,6 +75,12 @@ export function GeographyExplorer({
   const [placeInput, setPlaceInput] = useState(radius.place ?? "");
   const [geoError, setGeoError] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
+  // Results panel starts open whenever there's a center; collapsible to reveal
+  // the map underneath, Marketplace-style.
+  const [resultsOpen, setResultsOpen] = useState(true);
+  useEffect(() => {
+    if (hasCenterProp) setResultsOpen(true);
+  }, [hasCenterProp]);
 
   const buildRadiusUrl = useCallback(
     (over: Partial<RadiusState>) => {
@@ -147,96 +159,132 @@ export function GeographyExplorer({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
-      {/* Search a city (the radius center) + the grouped Filters control. */}
-      <div className="flex flex-wrap items-start gap-3">
-        <form
-          onSubmit={onSearchPlace}
-          className="flex min-w-0 flex-1 items-start gap-2"
-        >
-          <div className="min-w-0 flex-1">
-            <Input
-              value={placeInput}
-              onChange={(e) => {
-                setPlaceInput(e.target.value);
-                if (geoError) setGeoError(null);
-              }}
-              placeholder="Search alumni near a city — e.g. Provo, UT"
-              aria-label="Search alumni near a city"
-              aria-invalid={geoError ? true : undefined}
+    <div className="relative min-h-0 flex-1">
+      {/* Full-bleed map — the hero. Click to drop a pin, scroll to zoom, drag to
+          pan; counties + city labels fade in as you zoom. */}
+      <div className="absolute inset-0">
+        <UsGeoMap mode="radius" counts={counts} center={center} onPick={onPick} />
+      </div>
+
+      {/* Global pending shimmer over the whole map. */}
+      {pending ? (
+        <div className="pointer-events-none absolute inset-0 z-30 flex items-start justify-center pt-6">
+          <span className="flex items-center gap-2 rounded-full bg-white/90 px-3 py-1.5 text-xs font-medium text-gray-700 shadow-card">
+            <Loader2
+              className="h-4 w-4 animate-spin text-brand-blue-600"
+              aria-hidden="true"
             />
-            {geoError ? (
-              <p className="mt-1.5 text-xs text-danger-600">{geoError}</p>
-            ) : null}
-          </div>
-          <Button type="submit" disabled={searching || pending}>
-            {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Search
-          </Button>
-        </form>
-        {filters}
-      </div>
-
-      {/* Radius distance control. */}
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="text-sm font-medium text-gray-700">Radius</span>
-        <div className="flex flex-wrap gap-1.5">
-          {RADIUS_PRESETS.map((p) => (
-            <Chip
-              key={p}
-              type="button"
-              active={miles === p}
-              aria-pressed={miles === p}
-              onClick={() => {
-                setMiles(p);
-                applyMiles(p);
-              }}
-            >
-              {p} mi
-            </Chip>
-          ))}
+            Updating…
+          </span>
         </div>
-        <input
-          type="range"
-          min={MIN_MILES}
-          max={MAX_MILES}
-          value={miles}
-          onChange={(e) => onSlider(Number(e.target.value))}
-          aria-label="Search radius in miles"
-          className={cn(
-            "h-1.5 max-w-[12rem] flex-1 cursor-pointer appearance-none rounded-full bg-gray-200 accent-brand-blue-600",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
-          )}
-        />
-        <span className="text-sm font-semibold tabular-nums text-gray-900">
-          {miles} mi
-        </span>
+      ) : null}
+
+      {/* Top-left: city search + grouped Filters, floating over the map. */}
+      <div className="absolute left-4 top-4 z-20 w-[min(22rem,calc(100%-2rem))]">
+        <Card className="p-3">
+          <form onSubmit={onSearchPlace} className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <Input
+                value={placeInput}
+                onChange={(e) => {
+                  setPlaceInput(e.target.value);
+                  if (geoError) setGeoError(null);
+                }}
+                placeholder="Search alumni near a city — e.g. Provo, UT"
+                aria-label="Search alumni near a city"
+                aria-invalid={geoError ? true : undefined}
+              />
+              {geoError ? (
+                <p className="mt-1.5 text-xs text-danger-600">{geoError}</p>
+              ) : null}
+            </div>
+            <Button type="submit" disabled={searching || pending}>
+              {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Search
+            </Button>
+          </form>
+
+          <div className="mt-2.5 flex items-center justify-between gap-2">
+            <p className="min-w-0 truncate text-xs text-gray-500">
+              {radius.place
+                ? `Center: ${radius.place}`
+                : hasCenter
+                  ? "Center: pinned location"
+                  : "Click the map to drop a pin."}
+            </p>
+            {filters}
+          </div>
+        </Card>
+
+        {/* Radius distance control — its own compact floating Card under search. */}
+        <Card className="mt-3 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-medium text-gray-700">Radius</span>
+            <span className="text-sm font-semibold tabular-nums text-gray-900">
+              {miles} mi
+            </span>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {RADIUS_PRESETS.map((p) => (
+              <Chip
+                key={p}
+                type="button"
+                active={miles === p}
+                aria-pressed={miles === p}
+                onClick={() => {
+                  setMiles(p);
+                  applyMiles(p);
+                }}
+              >
+                {p} mi
+              </Chip>
+            ))}
+          </div>
+          <input
+            type="range"
+            min={MIN_MILES}
+            max={MAX_MILES}
+            value={miles}
+            onChange={(e) => onSlider(Number(e.target.value))}
+            aria-label="Search radius in miles"
+            className={cn(
+              "mt-3 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-gray-200 accent-brand-blue-600",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
+            )}
+          />
+        </Card>
       </div>
 
-      {/* Big map — click to drop a pin, scroll to zoom, drag to pan. */}
-      <Card className="flex min-h-0 flex-1 flex-col p-4">
-        <p className="mb-2 shrink-0 text-xs text-gray-500">
-          Click the map to drop a pin, or search a city above.{" "}
-          {radius.place
-            ? `Center: ${radius.place}`
-            : hasCenter
-              ? "Center: pinned location"
-              : "No center yet."}
-        </p>
-        <div className="relative min-h-0 flex-1">
-          <UsGeoMap mode="radius" counts={counts} center={center} onPick={onPick} />
-          {pending ? (
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-white/40">
-              <Loader2
-                className="h-5 w-5 animate-spin text-brand-blue-600"
+      {/* Bottom-right: radius results, floating + scrollable + collapsible. Only
+          when a center is set — otherwise the map stays fully clear. */}
+      {hasCenterProp ? (
+        <div className="absolute bottom-4 right-4 z-20 w-[min(40rem,calc(100%-2rem))]">
+          <Card className="flex max-h-[min(70vh,32rem)] flex-col overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setResultsOpen((o) => !o)}
+              aria-expanded={resultsOpen}
+              className="flex shrink-0 items-center justify-between gap-2 border-b border-gray-200 px-4 py-2.5 text-left hover:bg-gray-50"
+            >
+              <span className="text-sm font-semibold text-gray-900">
+                Results near {radius.place || "this point"}
+              </span>
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 shrink-0 text-gray-500 transition-transform",
+                  resultsOpen ? "rotate-180" : "",
+                )}
                 aria-hidden="true"
               />
-            </div>
-          ) : null}
+            </button>
+            {resultsOpen ? (
+              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+                {results}
+              </div>
+            ) : null}
+          </Card>
         </div>
-      </Card>
-
-      {results}
+      ) : null}
     </div>
   );
 }

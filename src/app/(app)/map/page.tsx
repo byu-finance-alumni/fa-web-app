@@ -118,12 +118,7 @@ export default async function GeographyPage({
             the center or radius.
           </p>
         </Card>
-      ) : !hasCenter ? (
-        <Card className="p-6 text-center text-sm text-gray-500">
-          Search from a city, or click the map to drop a pin, to find alumni
-          within a radius.
-        </Card>
-      ) : (
+      ) : !hasCenter ? null : (
         <>
           <Card className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <div className="flex items-center gap-2">
@@ -166,15 +161,18 @@ export default async function GeographyPage({
       <Topbar title="Alumni Map">
         <TopbarSearch />
       </Topbar>
-      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-6">
+      <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {notProvisioned ? (
-          <Card className="p-4 text-sm text-gray-700">
-            Your account is authenticated but not yet provisioned. Ask a Super
-            Admin to grant your account a role to see data.
-          </Card>
+          <div className="p-6">
+            <Card className="p-4 text-sm text-gray-700">
+              Your account is authenticated but not yet provisioned. Ask a Super
+              Admin to grant your account a role to see data.
+            </Card>
+          </div>
         ) : (
           <GeographyExplorer
             counts={counts}
+            hasCenter={hasCenter || forbidden || loadError}
             radius={{
               lat,
               lng,

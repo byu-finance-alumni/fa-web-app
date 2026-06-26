@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { geoAlbersUsa, geoPath } from "d3-geo";
+import { geoAlbersUsa, geoPath, type GeoProjection } from "d3-geo";
 import { feature } from "topojson-client";
 import type { FeatureCollection, Geometry } from "geojson";
 import type { Topology } from "topojson-specification";
 import statesTopo from "us-atlas/states-10m.json";
+import majorCities from "@/lib/geo/major-cities.json";
 import { FIPS_TO_USPS } from "./state-fips";
 
 /**
@@ -18,14 +19,22 @@ import { FIPS_TO_USPS } from "./state-fips";
  *  - "radius":  clicking the map emits `onPick(lat, lng)` via `projection.invert`
  *    and the current `center` is marked with a pin.
  *
- * Scroll to zoom toward the cursor; drag to pan. Choropleth palette + absolute
- * buckets are ported verbatim from the old `UsStateMap`.
+ * Scroll to zoom toward the cursor; drag to pan. As you zoom in, more geographic
+ * detail appears: county outlines fade in past `COUNTY_ZOOM` (lazily loaded so
+ * the ~800KB counties topojson never ships in the initial bundle) and major-city
+ * dots + labels appear past `CITY_ZOOM` (only for cities inside the visible view,
+ * so labels never crowd the map). Choropleth palette + buckets are ported from
+ * the old `UsStateMap`.
  */
 
 const WIDTH = 960;
 const HEIGHT = 600;
 const MIN_K = 1;
 const MAX_K = 12;
+/** Zoom level at which county outlines start rendering. */
+const COUNTY_ZOOM = 3;
+/** Zoom level at which major-city dots + labels start rendering. */
+const CITY_ZOOM = 4;
 
 const BUCKETS: { min: number; fill: string; label: string }[] = [
   { min: 100, fill: "#1C2E54", label: "100+" },
@@ -40,6 +49,23 @@ function fillFor(count: number): string {
     .fill;
 }
 
+type City = { name: string; state: string; lat: number; lng: number };
+
+// Module-level cache so the counties topojson is fetched/parsed at most once for
+// the lifetime of the page, no matter how many times we cross the zoom threshold.
+let countiesTopoCache: Topology | null = null;
+let countiesPromise: Promise<Topology> | null = null;
+function loadCounties(): Promise<Topology> {
+  if (countiesTopoCache) return Promise.resolve(countiesTopoCache);
+  if (!countiesPromise) {
+    countiesPromise = import("us-atlas/counties-10m.json").then((m) => {
+      countiesTopoCache = (m.default ?? m) as unknown as Topology;
+      return countiesTopoCache;
+    });
+  }
+  return countiesPromise;
+}
+
 export interface UsGeoMapProps {
   mode: "explore" | "radius";
   counts: Record<string, number>;
@@ -49,6 +75,7 @@ export interface UsGeoMapProps {
 }
 
 type StatePath = { id: string; usps: string; name: string; d: string };
+type ProjectedCity = City & { x: number; y: number };
 
 export function UsGeoMap({
   mode,
@@ -99,8 +126,57 @@ export function UsGeoMap({
         };
       })
       .filter((p): p is StatePath => !!p.d);
-    return { paths: ds, projection: proj };
+    return { paths: ds, projection: proj as GeoProjection };
   }, []);
+
+  // --- Counties (lazy, zoom-gated) -------------------------------------------
+  // Built once with the SAME projection; only rendered when zoomed in. We load
+  // the topojson the first time we cross COUNTY_ZOOM and keep the paths around.
+  const [countyPaths, setCountyPaths] = useState<string[] | null>(null);
+  const showCounties = view.k >= COUNTY_ZOOM;
+  useEffect(() => {
+    if (!showCounties || countyPaths) return;
+    let cancelled = false;
+    loadCounties().then((topo) => {
+      if (cancelled) return;
+      const fc = feature(
+        topo,
+        topo.objects.counties,
+      ) as unknown as FeatureCollection<Geometry>;
+      const path = geoPath(projection);
+      const ds = fc.features
+        .map((f) => path(f))
+        .filter((d): d is string => !!d);
+      setCountyPaths(ds);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [showCounties, countyPaths, projection]);
+
+  // --- City labels (zoom-gated, viewport-culled) ------------------------------
+  // Project every city once; cull to the current visible view at render time so
+  // labels never crowd the map.
+  const projectedCities = useMemo<ProjectedCity[]>(() => {
+    return (majorCities as City[])
+      .map((c) => {
+        const pt = projection([c.lng, c.lat]);
+        return pt ? { ...c, x: pt[0], y: pt[1] } : null;
+      })
+      .filter((c): c is ProjectedCity => c !== null);
+  }, [projection]);
+
+  const visibleCities = useMemo<ProjectedCity[]>(() => {
+    if (view.k < CITY_ZOOM) return [];
+    // The visible window in g-space (undo the zoom transform on the viewBox).
+    const x0 = (0 - view.x) / view.k;
+    const y0 = (0 - view.y) / view.k;
+    const x1 = (WIDTH - view.x) / view.k;
+    const y1 = (HEIGHT - view.y) / view.k;
+    return projectedCities.filter(
+      (c) => c.x >= x0 && c.x <= x1 && c.y >= y0 && c.y <= y1,
+    );
+  }, [projectedCities, view]);
 
   // Pin in outer viewBox coords (projection point, then the zoom transform), so
   // it stays a constant on-screen size regardless of zoom.
@@ -201,129 +277,187 @@ export function UsGeoMap({
   const isExplore = mode === "explore";
 
   return (
-    <div ref={wrapRef} className="relative flex h-full w-full flex-col">
-      <div className="relative min-h-0 flex-1 overflow-hidden">
-        <svg
-          ref={svgRef}
-          viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-          preserveAspectRatio="xMidYMid meet"
-          className={`absolute inset-0 h-full w-full touch-none select-none ${
-            view.k > 1 ? "cursor-grab" : mode === "radius" ? "cursor-crosshair" : ""
-          }`}
-          role="img"
-          aria-label={
-            isExplore
-              ? "US alumni distribution by state. Scroll to zoom, drag to pan."
-              : "Click the map to set the search center. Scroll to zoom, drag to pan."
-          }
-          onClick={handleSvgClick}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-        >
-          <g transform={`translate(${view.x}, ${view.y}) scale(${view.k})`}>
-            {paths.map((p) => {
-              const count = counts[p.usps] ?? 0;
-              const interactive = isExplore && !!p.usps;
-              return (
-                <path
-                  key={p.id}
-                  d={p.d}
-                  fill={fillFor(count)}
-                  stroke="#FFFFFF"
-                  strokeWidth={0.75}
-                  vectorEffect="non-scaling-stroke"
-                  className={
-                    interactive
-                      ? "cursor-pointer outline-none transition-[fill,opacity] hover:opacity-80"
-                      : "transition-[fill] hover:opacity-90"
-                  }
-                  tabIndex={interactive ? 0 : undefined}
-                  role={interactive ? "button" : undefined}
-                  aria-label={p.name ? `${p.name}: ${count} alumni` : undefined}
-                  onMouseEnter={(e) => moveHover(e, p.name, count)}
-                  onMouseMove={(e) => moveHover(e, p.name, count)}
-                  onMouseLeave={() => setHover(null)}
-                  onClick={
-                    interactive
-                      ? (e) => {
-                          e.stopPropagation();
-                          if (drag.current.moved) {
-                            drag.current.moved = false;
-                            return;
-                          }
+    <div ref={wrapRef} className="relative h-full w-full overflow-hidden">
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+        preserveAspectRatio="xMidYMid slice"
+        className={`absolute inset-0 h-full w-full touch-none select-none ${
+          view.k > 1 ? "cursor-grab" : mode === "radius" ? "cursor-crosshair" : ""
+        }`}
+        role="img"
+        aria-label={
+          isExplore
+            ? "US alumni distribution by state. Scroll to zoom, drag to pan."
+            : "Click the map to set the search center. Scroll to zoom, drag to pan."
+        }
+        onClick={handleSvgClick}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+      >
+        <g transform={`translate(${view.x}, ${view.y}) scale(${view.k})`}>
+          {paths.map((p) => {
+            const count = counts[p.usps] ?? 0;
+            const interactive = isExplore && !!p.usps;
+            return (
+              <path
+                key={p.id}
+                d={p.d}
+                fill={fillFor(count)}
+                stroke="#FFFFFF"
+                strokeWidth={0.75}
+                vectorEffect="non-scaling-stroke"
+                className={
+                  interactive
+                    ? "cursor-pointer outline-none transition-[fill,opacity] hover:opacity-80"
+                    : "transition-[fill] hover:opacity-90"
+                }
+                tabIndex={interactive ? 0 : undefined}
+                role={interactive ? "button" : undefined}
+                aria-label={p.name ? `${p.name}: ${count} alumni` : undefined}
+                onMouseEnter={(e) => moveHover(e, p.name, count)}
+                onMouseMove={(e) => moveHover(e, p.name, count)}
+                onMouseLeave={() => setHover(null)}
+                onClick={
+                  interactive
+                    ? (e) => {
+                        e.stopPropagation();
+                        if (drag.current.moved) {
+                          drag.current.moved = false;
+                          return;
+                        }
+                        onStateClick?.(p.usps);
+                      }
+                    : undefined
+                }
+                onKeyDown={
+                  interactive
+                    ? (e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
                           onStateClick?.(p.usps);
                         }
-                      : undefined
-                  }
-                  onKeyDown={
-                    interactive
-                      ? (e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            onStateClick?.(p.usps);
-                          }
-                        }
-                      : undefined
-                  }
+                      }
+                    : undefined
+                }
+              />
+            );
+          })}
+
+          {/* County outlines — thin light strokes UNDER the state borders, only
+              when zoomed in. pointer-events-none so map click/pin still works. */}
+          {showCounties && countyPaths ? (
+            <g
+              className="pointer-events-none"
+              fill="none"
+              stroke="#FFFFFF"
+              strokeOpacity={0.55}
+              strokeWidth={0.4}
+              vectorEffect="non-scaling-stroke"
+            >
+              {countyPaths.map((d, i) => (
+                <path key={i} d={d} vectorEffect="non-scaling-stroke" />
+              ))}
+            </g>
+          ) : null}
+
+          {/* State borders re-stroked ON TOP of counties so they stay crisp. */}
+          {showCounties ? (
+            <g
+              className="pointer-events-none"
+              fill="none"
+              stroke="#FFFFFF"
+              strokeWidth={0.9}
+              vectorEffect="non-scaling-stroke"
+            >
+              {paths.map((p) => (
+                <path key={p.id} d={p.d} vectorEffect="non-scaling-stroke" />
+              ))}
+            </g>
+          ) : null}
+
+          {/* City dots — drawn in g-space so they pan/zoom with the map. The dot
+              radius is divided by the zoom so it stays a constant on-screen size. */}
+          {visibleCities.length > 0 ? (
+            <g className="pointer-events-none">
+              {visibleCities.map((c) => (
+                <circle
+                  key={`${c.name}-${c.state}`}
+                  cx={c.x}
+                  cy={c.y}
+                  r={2.2 / view.k}
+                  fill="#2E4A86"
+                  stroke="#FFFFFF"
+                  strokeWidth={0.8 / view.k}
                 />
+              ))}
+            </g>
+          ) : null}
+        </g>
+
+        {/* City labels — drawn in OUTER viewBox space (after the zoom transform)
+            so the text stays a constant on-screen size and never scales huge.
+            pointer-events-none so the map click/pin still fires under them. */}
+        {visibleCities.length > 0 ? (
+          <g className="pointer-events-none" aria-hidden="true">
+            {visibleCities.map((c) => {
+              const sx = view.x + view.k * c.x;
+              const sy = view.y + view.k * c.y;
+              return (
+                <text
+                  key={`${c.name}-${c.state}-label`}
+                  x={sx + 4}
+                  y={sy - 3}
+                  fontSize={10}
+                  fontWeight={600}
+                  fill="#1C2E54"
+                  stroke="#FFFFFF"
+                  strokeWidth={2.5}
+                  paintOrder="stroke"
+                  strokeLinejoin="round"
+                >
+                  {c.name}
+                </text>
               );
             })}
           </g>
-
-          {pin ? (
-            <g
-              className="pointer-events-none"
-              transform={`translate(${pin.x}, ${pin.y})`}
-              aria-label="Selected center"
-            >
-              <circle r={11} fill="#2E4A86" opacity={0.12} />
-              <circle r={6} fill="#FFFFFF" />
-              <circle r={4.5} fill="#2E4A86" />
-            </g>
-          ) : null}
-        </svg>
-
-        {hover && hover.name ? (
-          <div
-            className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full rounded-lg bg-navy-900 px-2.5 py-1.5 text-xs text-white shadow-lg"
-            style={{ left: hover.x, top: hover.y - 10 }}
-          >
-            <p className="font-semibold">{hover.name}</p>
-            <p className="tabular-nums text-brand-blue-300">
-              {hover.count.toLocaleString()} alumni
-            </p>
-          </div>
         ) : null}
 
-        {view.k > 1 ? (
-          <button
-            type="button"
-            onClick={() => setView({ k: 1, x: 0, y: 0 })}
-            className="absolute right-2 top-2 z-10 rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 shadow-card hover:bg-gray-50"
+        {pin ? (
+          <g
+            className="pointer-events-none"
+            transform={`translate(${pin.x}, ${pin.y})`}
+            aria-label="Selected center"
           >
-            Reset zoom
-          </button>
+            <circle r={11} fill="#2E4A86" opacity={0.12} />
+            <circle r={6} fill="#FFFFFF" />
+            <circle r={4.5} fill="#2E4A86" />
+          </g>
         ) : null}
-      </div>
+      </svg>
 
-      <div className="mt-2 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
-        <span className="font-medium text-gray-600">Alumni per state</span>
-        {[...BUCKETS].reverse().map((b) => (
-          <span
-            key={b.label}
-            title={`${b.label} alumni`}
-            className="flex cursor-default items-center gap-1.5 tabular-nums"
-          >
-            <span
-              className="h-3 w-5 rounded-sm ring-1 ring-inset ring-gray-200"
-              style={{ backgroundColor: b.fill }}
-            />
-            {b.label}
-          </span>
-        ))}
-        <span className="text-gray-400">· scroll to zoom, drag to pan</span>
-      </div>
+      {hover && hover.name ? (
+        <div
+          className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full rounded-lg bg-navy-900 px-2.5 py-1.5 text-xs text-white shadow-lg"
+          style={{ left: hover.x, top: hover.y - 10 }}
+        >
+          <p className="font-semibold">{hover.name}</p>
+          <p className="tabular-nums text-brand-blue-300">
+            {hover.count.toLocaleString()} alumni
+          </p>
+        </div>
+      ) : null}
+
+      {view.k > 1 ? (
+        <button
+          type="button"
+          onClick={() => setView({ k: 1, x: 0, y: 0 })}
+          className="absolute right-3 top-3 z-10 rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 shadow-card hover:bg-gray-50"
+        >
+          Reset zoom
+        </button>
+      ) : null}
     </div>
   );
 }
