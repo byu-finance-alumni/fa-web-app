@@ -1537,6 +1537,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/geography/counties": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Counties
+         * @description Per-county alumni counts (5-digit FIPS) for the national county choropleth.
+         *
+         *     Aggregate counts only (no PII), so view-accessible like ``/states``.
+         */
+        get: operations["counties_geography_counties_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/geography/breakdown": {
         parameters: {
             query?: never;
@@ -2537,6 +2559,19 @@ export interface components {
             country: string | null;
             /** Region */
             region: string | null;
+        };
+        /**
+         * CountyCount
+         * @description Per-county alumni count for the national county choropleth.
+         *
+         *     ``county_fips`` is the 5-digit FIPS code (matching the us-atlas county ids
+         *     the map renders).
+         */
+        CountyCount: {
+            /** County Fips */
+            county_fips: string;
+            /** Count */
+            count: number;
         };
         /**
          * CreateUserRequest
@@ -6053,6 +6088,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StateCount"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    counties_geography_counties_get: {
+        parameters: {
+            query?: {
+                employer?: string | null;
+                industry?: string | null;
+                year?: number | null;
+                region?: string | null;
+                tag?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CountyCount"][];
                 };
             };
             /** @description Validation Error */

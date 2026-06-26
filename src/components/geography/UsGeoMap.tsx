@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { geoAlbersUsa, geoContains, geoPath, type GeoProjection } from "d3-geo";
 import type { Feature } from "geojson";
-import { feature } from "topojson-client";
+import { feature, mesh } from "topojson-client";
 import type { FeatureCollection, Geometry } from "geojson";
-import type { Topology } from "topojson-specification";
+import type { GeometryCollection, Topology } from "topojson-specification";
 import statesTopo from "us-atlas/states-10m.json";
 import majorCities from "@/lib/geo/major-cities.json";
 import { FIPS_TO_USPS } from "./state-fips";
@@ -20,12 +20,15 @@ import { FIPS_TO_USPS } from "./state-fips";
  *  - "radius":  clicking the map emits `onPick(lat, lng)` via `projection.invert`
  *    and the current `center` is marked with a pin.
  *
- * Scroll to zoom toward the cursor; drag to pan. As you zoom in, more geographic
- * detail appears: county outlines fade in past `COUNTY_ZOOM` (lazily loaded so
- * the ~800KB counties topojson never ships in the initial bundle) and major-city
- * dots + labels appear past `CITY_ZOOM` (only for cities inside the visible view,
- * so labels never crowd the map). Choropleth palette + buckets are ported from
- * the old `UsStateMap`.
+ * Scroll to zoom toward the cursor; drag to pan. County borders are always drawn
+ * at the same weight/color as the state borders (lazily loaded as a single mesh
+ * path so the ~800KB counties topojson never ships in the initial bundle).
+ * Alumni density is a COUNTY-level choropleth (`countyCounts`): only the counties
+ * where alumni work are shaded; states render as a neutral base. A radius search
+ * additionally rings the result counties (`matchCounties`). Major-city dots +
+ * labels appear past `CITY_ZOOM` (only for cities inside the visible view, so
+ * labels never crowd the map). Choropleth palette + buckets are ported from the
+ * old `UsStateMap`.
  */
 
 const WIDTH = 960;
@@ -48,6 +51,11 @@ function fillFor(count: number): string {
     .fill;
 }
 
+// States are no longer choropleth-shaded — alumni density is shown at the COUNTY
+// level (see `countyCounts`). States render as a neutral base so only the
+// counties where people actually work carry color.
+const NEUTRAL_STATE = "#F8FAFC";
+
 type City = { name: string; state: string; lat: number; lng: number };
 
 // Module-level cache so the counties topojson is fetched/parsed at most once for
@@ -67,13 +75,16 @@ function loadCounties(): Promise<Topology> {
 
 export interface UsGeoMapProps {
   mode: "explore" | "radius";
+  /** Per-state alumni totals — used for the state hover tooltip (not shading). */
   counts: Record<string, number>;
+  /** Per-county alumni counts (5-digit FIPS → count) — the choropleth shading. */
+  countyCounts?: Record<string, number>;
   center?: { lat: number; lng: number } | null;
   onStateClick?: (code: string) => void;
   onPick?: (lat: number, lng: number) => void;
   /** Clear the current radius center/pin (renders a "Reset pin" button). */
   onResetCenter?: () => void;
-  /** 5-digit county FIPS that contain a matched alumnus — outlined at all zooms. */
+  /** 5-digit county FIPS that contain a matched alumnus — ringed at all zooms. */
   matchCounties?: string[];
 }
 
@@ -83,6 +94,7 @@ type ProjectedCity = City & { x: number; y: number };
 export function UsGeoMap({
   mode,
   counts,
+  countyCounts,
   center = null,
   onStateClick,
   onPick,
@@ -172,6 +184,73 @@ export function UsGeoMap({
       cancelled = true;
     };
   }, [matchKey, projection]);
+
+  // --- County borders (lazy) --------------------------------------------------
+  // Every county outline, always shown at the same weight/color as the state
+  // borders. We render them as ONE mesh path (all interior county-county borders)
+  // rather than thousands of polygons, so it stays cheap. The ~800KB counties
+  // topojson is dynamically imported (never in the initial bundle).
+  const [countyMesh, setCountyMesh] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    loadCounties().then((topo) => {
+      if (cancelled) return;
+      const path = geoPath(projection);
+      const borders = mesh(
+        topo,
+        topo.objects.counties as GeometryCollection,
+        (a, b) => a !== b,
+      );
+      setCountyMesh(path(borders) || null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [projection]);
+
+  // --- County choropleth fills (lazy) -----------------------------------------
+  // Shade ONLY the counties where alumni work, by `countyCounts` (5-digit FIPS →
+  // count), using the same absolute bucket palette the old state choropleth used.
+  // Counties with no alumni get no fill (the neutral state base shows through).
+  const [countyFills, setCountyFills] = useState<
+    { d: string; count: number }[] | null
+  >(null);
+  const countyCountsKey = useMemo(() => {
+    const cc = countyCounts ?? {};
+    return Object.keys(cc)
+      .sort()
+      .map((k) => `${k}:${cc[k]}`)
+      .join(",");
+  }, [countyCounts]);
+  useEffect(() => {
+    if (!countyCountsKey) {
+      setCountyFills(null);
+      return;
+    }
+    let cancelled = false;
+    const cc = countyCounts ?? {};
+    loadCounties().then((topo) => {
+      if (cancelled) return;
+      const fc = feature(
+        topo,
+        topo.objects.counties,
+      ) as unknown as FeatureCollection<Geometry>;
+      const path = geoPath(projection);
+      const ds = fc.features
+        .map((f) => {
+          const fips = String(f.id ?? "").padStart(5, "0");
+          const count = cc[fips];
+          if (!count) return null;
+          const d = path(f);
+          return d ? { d, count } : null;
+        })
+        .filter((x): x is { d: string; count: number } => x !== null);
+      setCountyFills(ds);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [countyCountsKey, countyCounts, projection]);
 
   // --- City labels (zoom-gated, viewport-culled) ------------------------------
   // Project every city once; cull to the current visible view at render time so
@@ -326,7 +405,7 @@ export function UsGeoMap({
               <path
                 key={p.id}
                 d={p.d}
-                fill={fillFor(count)}
+                fill={NEUTRAL_STATE}
                 stroke="#9CA3AF"
                 strokeWidth={1}
                 vectorEffect="non-scaling-stroke"
@@ -367,16 +446,38 @@ export function UsGeoMap({
             );
           })}
 
-          {/* Matched counties — only the counties that contain a matched
-              alumnus, highlighted (brand-blue tint + outline) at every zoom.
-              pointer-events-none so map click/pin still works underneath. */}
+          {/* County choropleth — shade ONLY the counties where alumni work,
+              by alumni count. pointer-events-none so the map click/pin still
+              works underneath. */}
+          {countyFills ? (
+            <g className="pointer-events-none">
+              {countyFills.map((c, i) => (
+                <path key={i} d={c.d} fill={fillFor(c.count)} />
+              ))}
+            </g>
+          ) : null}
+
+          {/* All county borders — drawn at the same weight/color as the state
+              borders, on top of the shading so every county reads uniformly. */}
+          {countyMesh ? (
+            <path
+              className="pointer-events-none"
+              d={countyMesh}
+              fill="none"
+              stroke="#9CA3AF"
+              strokeWidth={1}
+              vectorEffect="non-scaling-stroke"
+            />
+          ) : null}
+
+          {/* Matched counties (radius search) — ring the counties that contain a
+              result so the current search stands out over the choropleth. */}
           {matchCountyPaths ? (
             <g
               className="pointer-events-none"
-              fill="#2E4A86"
-              fillOpacity={0.22}
-              stroke="#2E4A86"
-              strokeWidth={1.25}
+              fill="none"
+              stroke="#1C2E54"
+              strokeWidth={1.75}
               vectorEffect="non-scaling-stroke"
             >
               {matchCountyPaths.map((d, i) => (
