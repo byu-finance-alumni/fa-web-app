@@ -7,6 +7,7 @@ import { MapFilters } from "@/components/geography/MapFilters";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { lookupCityGeo } from "@/lib/geo/counties-data";
 import type { GeoSummary, StateCount } from "@/types/geography";
 import type { components } from "@/types/api.gen";
 
@@ -95,6 +96,20 @@ export default async function GeographyPage({
   const items = page?.items ?? [];
   const total = page?.total ?? 0;
 
+  // The counties that contain a matched alumnus (via the city -> county/FIPS
+  // crosswalk) — the map outlines just these.
+  const matchCounties = Array.from(
+    new Set(
+      items
+        .map((it) =>
+          it.city && it.state
+            ? lookupCityGeo(it.city, it.state)?.countyFips
+            : undefined,
+        )
+        .filter((f): f is string => !!f),
+    ),
+  );
+
   // Build a link into the alumni list filtered to the matched cities/states (so
   // it shows ~the same people) plus whichever geography filters were applied.
   // year maps to the alumni list's ymin/ymax (it accepts `year` for both).
@@ -180,6 +195,7 @@ export default async function GeographyPage({
           <GeographyExplorer
             counts={counts}
             hasCenter={hasCenter || forbidden || loadError}
+            matchCounties={matchCounties}
             radius={{
               lat,
               lng,

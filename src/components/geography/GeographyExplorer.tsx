@@ -52,6 +52,7 @@ export function GeographyExplorer({
   filters,
   results,
   hasCenter: hasCenterProp,
+  matchCounties,
 }: {
   counts: Record<string, number>;
   radius: RadiusState;
@@ -61,6 +62,8 @@ export function GeographyExplorer({
   results: ReactNode;
   /** Whether a valid radius center is set (drives the floating results panel). */
   hasCenter: boolean;
+  /** County FIPS that contain a matched alumnus — outlined on the map. */
+  matchCounties?: string[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -185,6 +188,7 @@ export function GeographyExplorer({
           center={center}
           onPick={onPick}
           onResetCenter={resetCenter}
+          matchCounties={matchCounties}
         />
       </div>
 

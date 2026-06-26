@@ -32,8 +32,6 @@ const WIDTH = 960;
 const HEIGHT = 600;
 const MIN_K = 1;
 const MAX_K = 12;
-/** Zoom level at which county outlines start rendering. */
-const COUNTY_ZOOM = 3;
 /** Zoom level at which major-city dots + labels start rendering. */
 const CITY_ZOOM = 4;
 
@@ -75,6 +73,8 @@ export interface UsGeoMapProps {
   onPick?: (lat: number, lng: number) => void;
   /** Clear the current radius center/pin (renders a "Reset pin" button). */
   onResetCenter?: () => void;
+  /** 5-digit county FIPS that contain a matched alumnus — outlined at all zooms. */
+  matchCounties?: string[];
 }
 
 type StatePath = { id: string; usps: string; name: string; d: string };
@@ -87,6 +87,7 @@ export function UsGeoMap({
   onStateClick,
   onPick,
   onResetCenter,
+  matchCounties,
 }: UsGeoMapProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -139,14 +140,21 @@ export function UsGeoMap({
     };
   }, []);
 
-  // --- Counties (lazy, zoom-gated) -------------------------------------------
-  // Built once with the SAME projection; only rendered when zoomed in. We load
-  // the topojson the first time we cross COUNTY_ZOOM and keep the paths around.
-  const [countyPaths, setCountyPaths] = useState<string[] | null>(null);
-  const showCounties = view.k >= COUNTY_ZOOM;
+  // --- Matched counties (lazy) ------------------------------------------------
+  // Only the counties that contain a matched alumnus are outlined — shown at
+  // EVERY zoom level (not just when zoomed in). We lazily load the ~800KB
+  // counties topojson the first time there's a match, then keep only the wanted
+  // county geometries (by 5-digit FIPS).
+  const [matchCountyPaths, setMatchCountyPaths] = useState<string[] | null>(null);
+  const matchKey =
+    matchCounties && matchCounties.length ? [...matchCounties].sort().join(",") : "";
   useEffect(() => {
-    if (!showCounties || countyPaths) return;
+    if (!matchKey) {
+      setMatchCountyPaths(null);
+      return;
+    }
     let cancelled = false;
+    const want = new Set(matchKey.split(","));
     loadCounties().then((topo) => {
       if (cancelled) return;
       const fc = feature(
@@ -155,14 +163,15 @@ export function UsGeoMap({
       ) as unknown as FeatureCollection<Geometry>;
       const path = geoPath(projection);
       const ds = fc.features
+        .filter((f) => want.has(String(f.id ?? "").padStart(5, "0")))
         .map((f) => path(f))
         .filter((d): d is string => !!d);
-      setCountyPaths(ds);
+      setMatchCountyPaths(ds);
     });
     return () => {
       cancelled = true;
     };
-  }, [showCounties, countyPaths, projection]);
+  }, [matchKey, projection]);
 
   // --- City labels (zoom-gated, viewport-culled) ------------------------------
   // Project every city once; cull to the current visible view at render time so
@@ -358,33 +367,20 @@ export function UsGeoMap({
             );
           })}
 
-          {/* County outlines — thin light strokes UNDER the state borders, only
-              when zoomed in. pointer-events-none so map click/pin still works. */}
-          {showCounties && countyPaths ? (
+          {/* Matched counties — only the counties that contain a matched
+              alumnus, highlighted (brand-blue tint + outline) at every zoom.
+              pointer-events-none so map click/pin still works underneath. */}
+          {matchCountyPaths ? (
             <g
               className="pointer-events-none"
-              fill="none"
-              stroke="#9CA3AF"
-              strokeWidth={0.7}
+              fill="#2E4A86"
+              fillOpacity={0.22}
+              stroke="#2E4A86"
+              strokeWidth={1.25}
               vectorEffect="non-scaling-stroke"
             >
-              {countyPaths.map((d, i) => (
+              {matchCountyPaths.map((d, i) => (
                 <path key={i} d={d} vectorEffect="non-scaling-stroke" />
-              ))}
-            </g>
-          ) : null}
-
-          {/* State borders re-stroked ON TOP of counties so they stay crisp. */}
-          {showCounties ? (
-            <g
-              className="pointer-events-none"
-              fill="none"
-              stroke="#9CA3AF"
-              strokeWidth={1}
-              vectorEffect="non-scaling-stroke"
-            >
-              {paths.map((p) => (
-                <path key={p.id} d={p.d} vectorEffect="non-scaling-stroke" />
               ))}
             </g>
           ) : null}
