@@ -7,6 +7,7 @@ import { MetricCard } from "@/components/shared/MetricCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 
 interface DataQuality {
   total_alumni: number;
@@ -67,6 +68,27 @@ export default async function DataQualityPage() {
 
   const issueTotal = alerts.reduce((sum, a) => sum + a.count, 0);
 
+  // Coverage gauges — share of active alumni MISSING a field. Real counts only
+  // (missing / total); duplicates aren't a per-alumnus "missing" measure so
+  // they're surfaced as an alert, not a coverage bar.
+  const total = dq?.total_alumni ?? 0;
+  const pctMissing = (count: number) =>
+    total > 0 ? (count / total) * 100 : 0;
+  const coverage = dq
+    ? [
+        {
+          label: "Email on file",
+          missing: dq.missing_email,
+          href: "/alumni?missing_email=1",
+        },
+        {
+          label: "Employer on file",
+          missing: dq.missing_employer,
+          href: "/alumni?missing_employer=1",
+        },
+      ]
+    : [];
+
   return (
     <>
       <Topbar title="Data quality">
@@ -109,6 +131,75 @@ export default async function DataQualityPage() {
                 />
               ))}
             </div>
+
+            {/* Field coverage — visualizes the share of active alumni missing
+                each key field as a bar (missing % on the right). Each row deep-
+                links to that filtered alumni list for a quick fix. */}
+            {dq && total > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Field coverage</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-4">
+                    {coverage.map((c) => {
+                      const pct = pctMissing(c.missing);
+                      const present = total - c.missing;
+                      return (
+                        <li key={c.label}>
+                          <div className="flex items-baseline justify-between gap-3">
+                            <span className="text-sm font-medium text-gray-900">
+                              {c.label}
+                            </span>
+                            <span className="text-xs tabular-nums text-gray-500">
+                              <span className="font-semibold text-gray-900">
+                                {present.toLocaleString()}
+                              </span>{" "}
+                              / {total.toLocaleString()} ·{" "}
+                              <span
+                                className={
+                                  c.missing > 0
+                                    ? "font-semibold text-warning-600"
+                                    : "font-semibold text-success-600"
+                                }
+                              >
+                                {pct.toFixed(1)}% missing
+                              </span>
+                            </span>
+                          </div>
+                          {/* Bar fills with the MISSING share (the problem),
+                              tinted warning. */}
+                          <Progress
+                            value={pct}
+                            className="mt-2"
+                            barClassName={
+                              c.missing > 0
+                                ? "bg-warning-600"
+                                : "bg-success-600"
+                            }
+                            aria-label={`${c.label}: ${pct.toFixed(
+                              1,
+                            )}% of active alumni missing`}
+                          />
+                          {c.missing > 0 && (
+                            <div className="mt-1.5">
+                              <Button asChild variant="link" size="sm">
+                                <Link
+                                  href={c.href}
+                                  aria-label={`Review the ${c.missing.toLocaleString()} alumni missing ${c.label.toLowerCase()}`}
+                                >
+                                  Review {c.missing.toLocaleString()} missing
+                                </Link>
+                              </Button>
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
 
             {issueTotal === 0 ? (
               <Card className="p-10 text-center">

@@ -7,6 +7,7 @@ import { Loader2, Plus, Search, SlidersHorizontal, X } from "lucide-react";
 import { MultiSelect } from "@/components/alumni/MultiSelect";
 import { ExportAlumniButton } from "@/components/alumni/ExportAlumniButton";
 import { toExportFilters } from "@/lib/exportFilters";
+import { parseAlumniQuery } from "@/lib/alumniQueryParser";
 import type { FilterOptions } from "@/types/filters";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -241,6 +242,22 @@ export function AlumniFilters({
     value: AlumniFilterState[K],
   ) => setF((prev) => ({ ...prev, [key]: value }));
 
+  // Natural-language submit: on Enter / the search button, map a full sentence
+  // (e.g. "alumni in investment banking near Seattle") onto the real filter
+  // params via the same parser the dashboard search hero uses, then deep-link to
+  // the parsed /alumni URL. Live keystroke URL-sync (set("q", …)) stays intact;
+  // this only fires on explicit submit. Guarded to the main list so the
+  // /needs-surveying view (its own basePath) keeps its route-owned scoping and
+  // never bounces over to /alumni mid-search.
+  const onSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (basePath === "/alumni") {
+      startTransition(() => {
+        router.push(parseAlumniQuery(f.q));
+      });
+    }
+  };
+
   const facetCount = FACETS.reduce(
     (n, facet) => n + (f[facet.key] as string[]).length,
     0,
@@ -307,23 +324,6 @@ export function AlumniFilters({
       remove: () => set("deceased", ""),
     });
 
-  // Quick-filter toggle: a one-click pill in the toolbar for the most common
-  // designation filters (CFA / CPA). Mirrors the boolean state used everywhere
-  // else; active = brand-blue solid, inactive = secondary (white + gray border).
-  const quickToggle = (key: "cfa" | "cpa", label: string) => {
-    const active = f[key];
-    return (
-      <Button
-        type="button"
-        variant={active ? "primary" : "secondary"}
-        onClick={() => set(key, !active)}
-        aria-pressed={active}
-      >
-        {label}
-      </Button>
-    );
-  };
-
   const checkboxRow = (
     key: "attended" | "donor" | "mentor" | "speaker" | "cfa" | "cpa" | "archived" | "neverContacted" | "missingEmail" | "missingEmployer" | "duplicate",
     label: string,
@@ -351,12 +351,17 @@ export function AlumniFilters({
           </Button>
         ) : null}
 
-        <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 focus-within:border-brand-blue-600 focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1">
+        <form
+          onSubmit={onSearchSubmit}
+          role="search"
+          aria-label="Search alumni"
+          className="flex min-w-[220px] flex-1 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 focus-within:border-brand-blue-600 focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1"
+        >
           <Search className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
           <input
             value={f.q}
             onChange={(e) => set("q", e.target.value)}
-            placeholder="Search name, BYU ID, or Net ID"
+            placeholder="Search a name, BYU ID, or a plain-English question"
             aria-label="Search alumni"
             className="h-9 w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
           />
@@ -373,7 +378,7 @@ export function AlumniFilters({
               <X className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           )}
-        </div>
+        </form>
 
         <Select
           value={f.sort}
@@ -395,9 +400,6 @@ export function AlumniFilters({
             </Badge>
           )}
         </Button>
-
-        {quickToggle("cfa", "CFA")}
-        {quickToggle("cpa", "CPA")}
 
         {canExport ? (
           <ExportAlumniButton

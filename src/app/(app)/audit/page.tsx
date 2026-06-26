@@ -1,9 +1,17 @@
 import Link from "next/link";
+import {
+  Eye,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  type LucideIcon,
+} from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
 import { humanize } from "@/lib/format";
 import { Topbar } from "@/components/shell/Topbar";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   AuditToolbar,
@@ -33,6 +41,39 @@ function entityHref(entityType: string, entityId: number | null): string | null 
   if (entityId == null) return null;
   if (entityType === "alumni") return `/alumni/${entityId}`;
   return null;
+}
+
+/**
+ * Classify an audit action by impact so high-impact writes (delete/edit/create)
+ * read as danger/warning with a distinct icon, while reads/searches stay
+ * neutral. Matching is substring-based on the action type so verb variants
+ * (e.g. "soft_delete", "bulk_update", "search_export") are covered. Presentation
+ * only — every audit row is still rendered; this just colors and icons it.
+ */
+function classifyAction(action: string): {
+  variant: BadgeProps["variant"];
+  Icon: LucideIcon;
+} {
+  const a = action.toLowerCase();
+  if (a.includes("delete") || a.includes("remove") || a.includes("archive"))
+    return { variant: "danger", Icon: Trash2 };
+  if (a.includes("update") || a.includes("edit") || a.includes("rename"))
+    return { variant: "warning", Icon: Pencil };
+  if (a.includes("create") || a.includes("add") || a.includes("import"))
+    return { variant: "success", Icon: Plus };
+  if (a.includes("search") || a.includes("export"))
+    return { variant: "neutral", Icon: Search };
+  return { variant: "neutral", Icon: Eye };
+}
+
+function ActionBadge({ action }: { action: string }) {
+  const { variant, Icon } = classifyAction(action);
+  return (
+    <Badge variant={variant}>
+      <Icon className="h-3 w-3" aria-hidden="true" />
+      {humanize(action)}
+    </Badge>
+  );
 }
 
 function formatDateTime(d: string | null): string {
@@ -203,7 +244,7 @@ export default async function AuditPage({
               {rows!.map((r) => (
                 <Card key={r.audit_log_id} className="p-3">
                   <div className="flex items-center justify-between gap-2">
-                    <Badge variant="neutral">{humanize(r.action_type)}</Badge>
+                    <ActionBadge action={r.action_type} />
                     <span className="text-xs">
                       <EntityRef r={r} />
                     </span>
@@ -249,7 +290,7 @@ export default async function AuditPage({
                       </td>
                       <td className="px-4 py-3 text-gray-700">{r.user ?? "—"}</td>
                       <td className="px-4 py-3">
-                        <Badge variant="neutral">{humanize(r.action_type)}</Badge>
+                        <ActionBadge action={r.action_type} />
                       </td>
                       <td className="px-4 py-3">
                         <EntityRef r={r} />

@@ -190,13 +190,19 @@ export function UsStateMap({
         </div>
       ) : null}
 
-      {/* Heatmap legend (absolute thresholds) */}
+      {/* Heatmap legend (absolute thresholds). Each swatch carries a `title`
+          with the exact alumni range so hovering spells it out; the label text
+          shows the same range inline. Palette/buckets are unchanged. */}
       <div
         className={`flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 ${fit ? "mt-2 shrink-0" : "mt-3"}`}
       >
-        <span className="font-medium">Alumni</span>
+        <span className="font-medium text-gray-600">Alumni per state</span>
         {[...BUCKETS].reverse().map((b) => (
-          <span key={b.label} className="flex items-center gap-1.5">
+          <span
+            key={b.label}
+            title={`${b.label} alumni`}
+            className="flex cursor-default items-center gap-1.5 tabular-nums"
+          >
             <span
               className="h-3 w-5 rounded-sm ring-1 ring-inset ring-gray-200"
               style={{ backgroundColor: b.fill }}

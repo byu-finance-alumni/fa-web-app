@@ -13,8 +13,12 @@ import { Button } from "@/components/ui/button";
  * (industry, location, intents) onto the alumni list's existing filter params
  * and deep-links there; anything it can't structure becomes a plain search.
  * The alumni list stays the single source of truth for results.
+ *
+ * The optional `greeting` (a time-of-day + first-name salutation resolved by the
+ * server component from the auth context) renders as the page's lead-in above
+ * the search field, so the field itself stays the focal call to action.
  */
-export function SearchHero() {
+export function SearchHero({ greeting }: { greeting?: string }) {
   const router = useRouter();
   const [q, setQ] = useState("");
 
@@ -25,6 +29,11 @@ export function SearchHero() {
 
   return (
     <div>
+      {greeting ? (
+        <h1 className="mb-3 text-xl font-semibold tracking-tight text-gray-900">
+          {greeting}
+        </h1>
+      ) : null}
       <form
         onSubmit={submit}
         role="search"

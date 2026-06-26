@@ -6,6 +6,7 @@ import { SearchHero } from "@/components/dashboard/SearchHero";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DATA_VIZ_PALETTE } from "@/constants/chart";
 import type { GeoSummary } from "@/types/geography";
+import type { UserContext } from "@/types/alumni";
 
 /**
  * `/dashboard/summary` has no `response_model` on the backend, so it isn't in
@@ -66,6 +67,28 @@ function isoMonthEnd(): string {
 
 const THIS_YEAR = new Date().getFullYear();
 
+/** "Good morning/afternoon/evening" for the current (server) local hour. */
+function timeOfDayGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+/** A clean first name from the auth context, or null if there's nothing usable.
+ *  Falls back to the local-part of the email (title-cased) when no name field is
+ *  set — never a fabricated name. */
+function resolveFirstName(ctx: UserContext | null): string | null {
+  const name = ctx?.first_name?.trim();
+  if (name) return name;
+  const local = ctx?.email?.split("@")[0]?.trim();
+  if (!local) return null;
+  // "marcus.young" / "marcus_young" -> "Marcus"
+  const first = local.split(/[._-]/)[0];
+  if (!first || /\d/.test(first)) return null;
+  return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
+}
+
 /* -------------------------------------------------------------- presentation -- */
 
 function Panel({
@@ -124,13 +147,19 @@ function BarList({
             {r.href ? (
               <Link
                 href={r.href}
-                aria-label={`View ${r.label} in alumni list`}
+                aria-label={`View ${r.label} (${r.count}) in alumni list`}
+                title={`${r.label}: ${r.count}`}
                 className="-mx-2 flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1 transition hover:bg-brand-blue-50/40"
               >
                 {row}
               </Link>
             ) : (
-              <div className="flex items-center gap-3">{row}</div>
+              <div
+                className="flex items-center gap-3"
+                title={`${r.label}: ${r.count}`}
+              >
+                {row}
+              </div>
             )}
           </li>
         );
@@ -182,6 +211,7 @@ function DonutChart({
           ) : (
             rows.map((r, i) => {
               const arc = (r.count / total) * circumference;
+              const pct = Math.round((r.count / total) * 100);
               const seg = (
                 <circle
                   key={r.label}
@@ -193,7 +223,11 @@ function DonutChart({
                   strokeWidth={stroke}
                   strokeDasharray={`${arc} ${circumference - arc}`}
                   strokeDashoffset={-acc}
-                />
+                >
+                  {/* Native SVG tooltip on hover — exact count + its share of the
+                      charted total (a real proportion, not a trend metric). */}
+                  <title>{`${r.label}: ${r.count} (${pct}%)`}</title>
+                </circle>
               );
               acc += arc;
               return seg;
@@ -234,13 +268,19 @@ function DonutChart({
               {r.href ? (
                 <Link
                   href={r.href}
-                  aria-label={`View ${r.label} in alumni list`}
+                  aria-label={`View ${r.label} (${r.count}) in alumni list`}
+                  title={`${r.label}: ${r.count}`}
                   className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-1.5 transition hover:bg-brand-blue-50/40"
                 >
                   {body}
                 </Link>
               ) : (
-                <div className="flex items-center gap-3 px-2 py-1.5">{body}</div>
+                <div
+                  className="flex items-center gap-3 px-2 py-1.5"
+                  title={`${r.label}: ${r.count}`}
+                >
+                  {body}
+                </div>
               )}
             </li>
           );
@@ -259,8 +299,6 @@ function QuickFilters({ rows }: { rows: { label: string; href: string }[] }) {
       <CardHeader>
         <CardTitle>Quick filters</CardTitle>
       </CardHeader>
-      {/* Rows share the remaining card height evenly so the list fills the
-          column the same way the Top employers panel does across from it. */}
       <ul className="flex flex-1 flex-col">
         {rows.map((r) => (
           <li key={r.label} className="flex flex-1 border-t border-gray-100">
@@ -316,9 +354,10 @@ export default async function DashboardPage() {
 
   let s: Summary | null = null;
   let geoSum: GeoSummary | null = null;
+  let ctx: UserContext | null = null;
   let notProvisioned = false;
   try {
-    [s, geoSum] = await Promise.all([
+    [s, geoSum, ctx] = await Promise.all([
       apiGet<Summary>("/dashboard/summary", {
         revalidate: 60,
         tags: ["dashboard"],
@@ -327,10 +366,20 @@ export default async function DashboardPage() {
         revalidate: 60,
         tags: ["geography"],
       }),
+      // Per-user, not cacheable — used only to greet the signed-in user by name.
+      // Tolerated separately below so a context hiccup never blanks the page.
+      apiGet<UserContext>("/auth/context").catch(() => null),
     ]);
   } catch (e) {
     if (e instanceof ApiError && e.status === 403) notProvisioned = true;
   }
+
+  // "Good afternoon, Marcus" — name from the auth context (or a first name
+  // derived from the email), with a no-name fallback. Never a fabricated name.
+  const firstName = resolveFirstName(ctx);
+  const greeting = firstName
+    ? `${timeOfDayGreeting()}, ${firstName}`
+    : timeOfDayGreeting();
 
   // Derived counts for the Browse stat tiles.
   const utahCount = s?.by_state?.find((r) => r.state === "UT")?.count;
@@ -373,9 +422,9 @@ export default async function DashboardPage() {
           /* Two columns that stretch to fill the viewport: quick-search
              features on the left half, KPIs + the two charts on the right. */
           <div className="flex min-h-full flex-col gap-5 lg:flex-row lg:items-stretch">
-            {/* LEFT — search, quick filters, browse */}
+            {/* LEFT — greeting + search, quick filters, browse */}
             <div className="flex flex-1 flex-col gap-5">
-              <SearchHero />
+              <SearchHero greeting={greeting} />
               <QuickFilters rows={quickFilters} />
               <Card className="flex flex-1 flex-col">
                 <CardHeader>

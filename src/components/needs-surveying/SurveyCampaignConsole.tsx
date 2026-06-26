@@ -7,6 +7,7 @@ import { Mail, PackageCheck, Send, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
 import type { Alumni } from "@/types/alumni";
 
@@ -61,6 +62,13 @@ export function SurveyCampaignConsole({
   const grab = () => setBatch(items);
   const clearBatch = () => setBatch(null);
 
+  // How many emails the (future) send would target — the staged batch if one is
+  // grabbed, otherwise this page's recipients. Real counts only.
+  const sendCount = batch?.length ?? pageCount;
+  // Campaign progress: how much of the total due set is staged in this batch.
+  // Real numbers only ("this batch vs total due") — no completion data exists.
+  const batchPct = dueCount > 0 ? ((batch?.length ?? 0) / dueCount) * 100 : 0;
+
   return (
     <>
       {/* Campaign header card — distinct navy console identity, not a roster
@@ -81,6 +89,24 @@ export function SurveyCampaignConsole({
               whose last completed survey is more than two years old. Grab the
               due list into a send batch, then send the verify-your-info request.
             </p>
+
+            {/* Campaign progress — how much of the total due set is staged in
+                the current send batch. Uses real counts only (batch vs total
+                due); there's no sent/completed signal to show yet. */}
+            <div className="mt-4 max-w-xl">
+              <div className="flex items-center justify-between text-xs text-white/80">
+                <span>Staged for this batch</span>
+                <span className="tabular-nums">
+                  {(batch?.length ?? 0).toLocaleString()} of{" "}
+                  {dueCount.toLocaleString()} due
+                </span>
+              </div>
+              <Progress
+                value={batchPct}
+                className="mt-1.5 bg-white/20"
+                barClassName="bg-brand-blue-300"
+              />
+            </div>
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
@@ -94,16 +120,21 @@ export function SurveyCampaignConsole({
               {batch ? "Re-grab surveys" : "Grab surveys"}
             </button>
             {/* Placeholder — the verify-your-info email flow is not built yet.
-                Disabled and explicitly labeled; never calls an API. */}
+                Disabled and explicitly labeled; never calls an API. The count
+                reflects the real recipients a send would target (staged batch,
+                else this page). */}
             <button
               type="button"
               disabled
               aria-disabled="true"
-              title="Coming soon — will email the verify-your-info link"
+              title={`Coming soon — will email the verify-your-info link to ${sendCount.toLocaleString()} ${
+                sendCount === 1 ? "alum" : "alumni"
+              }`}
               className="inline-flex h-9 cursor-not-allowed items-center gap-1.5 rounded-md border border-white/30 px-4 text-sm font-semibold text-white/60"
             >
               <Send className="h-4 w-4" aria-hidden="true" />
-              Send surveys
+              Send {sendCount.toLocaleString()}{" "}
+              {sendCount === 1 ? "survey" : "surveys"}
             </button>
           </div>
         </div>

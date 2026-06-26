@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Download, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/button";
 import { exportProfile } from "@/app/(app)/alumni/actions";
@@ -68,9 +68,7 @@ export function ExportProfileButton({
     >
       {pending ? (
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-      ) : (
-        <Download className="h-4 w-4" aria-hidden="true" />
-      )}
+      ) : null}
       {pending ? "Exporting…" : "Export"}
     </Button>
   );

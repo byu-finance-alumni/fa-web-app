@@ -159,7 +159,7 @@ export default async function StateMapPage({
               </div>
             </Card>
 
-            {/* Ranking rail (right) — same boxes/place as the main map */}
+            {/* Ranking rail (right) — two boxes split the full height to match the map. */}
             <div className="flex min-h-0 flex-col gap-3">
               <RankBox
                 title="Top cities"
@@ -168,20 +168,6 @@ export default async function StateMapPage({
               <RankBox
                 title="Top employers"
                 rows={(detail?.employers ?? []).map((e) => [e.employer, e.count])}
-              />
-              <RankBox
-                title="Top industries"
-                rows={(detail?.industries ?? []).map((i) => [
-                  i.industry,
-                  i.count,
-                ])}
-              />
-              <RankBox
-                title="By graduation year"
-                rows={(detail?.by_graduation_year ?? []).map((y) => [
-                  String(y.year),
-                  y.count,
-                ])}
               />
             </div>
           </div>
@@ -193,26 +179,36 @@ export default async function StateMapPage({
 
 /* ------------------------------------------------------------------ helpers */
 
-/** Mirrors the RankBox used on the /map explorer so the rail looks identical. */
+/** Mirrors the RankBox used on the /map explorer so the rail looks identical:
+ *  a compact label, an inline mini-bar showing relative magnitude, and a
+ *  right-aligned tabular count. Presentation only — no map scale math here. */
 function RankBox({ title, rows }: { title: string; rows: [string, number][] }) {
-  const shown = rows.slice(0, 5);
+  const shown = rows.slice(0, 10);
+  const max = Math.max(1, ...shown.map(([, count]) => count));
   return (
-    <Card className="flex flex-col p-3">
+    <Card className="flex min-h-0 flex-1 flex-col p-3">
       <h3 className="mb-1 text-sm font-semibold text-gray-900">{title}</h3>
       {rows.length === 0 ? (
         <p className="py-1.5 text-sm text-gray-400">No data yet.</p>
       ) : (
-        <ul>
+        <ul className="space-y-0.5">
           {shown.map(([label, count], i) => (
             <li
               key={`${label}-${i}`}
-              className="flex items-center justify-between gap-2 py-0.5"
+              title={`${label}: ${count.toLocaleString()} alumni`}
+              className="flex items-center gap-2.5 px-1.5 py-1"
             >
-              <span className="min-w-0 flex-1 truncate text-sm text-gray-700">
+              <span className="w-24 shrink-0 truncate text-sm text-gray-700">
                 {label}
               </span>
-              <span className="shrink-0 text-right text-xs font-medium tabular-nums text-gray-900">
-                {count}
+              <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-100">
+                <span
+                  className="block h-full rounded-full bg-brand-blue-500"
+                  style={{ width: `${Math.round((count / max) * 100)}%` }}
+                />
+              </span>
+              <span className="w-9 shrink-0 text-right text-xs font-semibold tabular-nums text-gray-900">
+                {count.toLocaleString()}
               </span>
             </li>
           ))}

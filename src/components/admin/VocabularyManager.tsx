@@ -10,6 +10,7 @@ import {
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import type { VocabTerm } from "@/app/(app)/admin/vocabulary/page";
 
 /**
@@ -30,6 +31,11 @@ export function VocabularyManager({
   const [newValue, setNewValue] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editValue, setEditValue] = useState("");
+  // Inline rename validation: the error message (if any) for the row being
+  // edited. A duplicate is rejected client-side before we ever call the action.
+  const [editError, setEditError] = useState<string | null>(null);
+  // The term queued for hide confirmation; null when the confirm dialog is shut.
+  const [hideTarget, setHideTarget] = useState<VocabTerm | null>(null);
 
   const run = (fn: () => Promise<{ error?: string } | null>, ok: string) =>
     startTransition(async () => {
@@ -37,6 +43,15 @@ export function VocabularyManager({
       if (res?.error) toast.error(res.error);
       else toast.success(ok);
     });
+
+  // Case-insensitive duplicate check against the existing list, ignoring `self`
+  // (so a rename that only changes casing of its own value isn't flagged).
+  const isDuplicate = (value: string, selfId: number | null) => {
+    const needle = value.trim().toLowerCase();
+    return terms.some(
+      (t) => t.term_id !== selfId && t.value.trim().toLowerCase() === needle,
+    );
+  };
 
   const add = () => {
     const v = newValue.trim();
@@ -47,9 +62,26 @@ export function VocabularyManager({
 
   const saveRename = (term: VocabTerm) => {
     const v = editValue.trim();
+    if (!v || v === term.value) {
+      setEditingId(null);
+      setEditError(null);
+      return;
+    }
+    // Client-side duplicate guard (the backend remains the source of truth).
+    if (isDuplicate(v, term.term_id)) {
+      setEditError(`“${v}” already exists in this list.`);
+      return;
+    }
     setEditingId(null);
-    if (!v || v === term.value) return;
+    setEditError(null);
     run(() => renameVocabTerm(term.term_id, v), "Renamed.");
+  };
+
+  const confirmHide = () => {
+    if (!hideTarget) return;
+    const t = hideTarget;
+    setHideTarget(null);
+    run(() => setVocabTermActive(t.term_id, false), `“${t.value}” hidden.`);
   };
 
   return (
@@ -58,39 +90,56 @@ export function VocabularyManager({
         {terms.map((t) => (
           <li key={t.term_id} className="flex items-center gap-2 py-1.5">
             {editingId === t.term_id ? (
-              <>
-                <Input
-                  autoFocus
-                  value={editValue}
-                  disabled={pending}
-                  onChange={(e) => setEditValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") saveRename(t);
-                    if (e.key === "Escape") setEditingId(null);
-                  }}
-                  className="h-8 flex-1"
-                  style={{ colorScheme: "light" }}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={pending}
-                  onClick={() => saveRename(t)}
-                  className="text-brand-blue-600 hover:bg-brand-blue-50 hover:text-brand-blue-600"
-                >
-                  <Check className="h-3.5 w-3.5" aria-hidden /> Save
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={pending}
-                  onClick={() => setEditingId(null)}
-                >
-                  Cancel
-                </Button>
-              </>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <Input
+                    autoFocus
+                    value={editValue}
+                    disabled={pending}
+                    aria-invalid={editError ? true : undefined}
+                    onChange={(e) => {
+                      setEditValue(e.target.value);
+                      if (editError) setEditError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveRename(t);
+                      if (e.key === "Escape") {
+                        setEditingId(null);
+                        setEditError(null);
+                      }
+                    }}
+                    className={`h-8 flex-1 ${
+                      editError ? "border-danger-600 focus-visible:ring-danger-500" : ""
+                    }`}
+                    style={{ colorScheme: "light" }}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={pending}
+                    onClick={() => saveRename(t)}
+                    className="text-brand-blue-600 hover:bg-brand-blue-50 hover:text-brand-blue-600"
+                  >
+                    <Check className="h-3.5 w-3.5" aria-hidden /> Save
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={pending}
+                    onClick={() => {
+                      setEditingId(null);
+                      setEditError(null);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+                {editError ? (
+                  <p className="mt-1 text-xs text-danger-600">{editError}</p>
+                ) : null}
+              </div>
             ) : (
               <>
                 <span
@@ -116,6 +165,7 @@ export function VocabularyManager({
                       onClick={() => {
                         setEditingId(t.term_id);
                         setEditValue(t.value);
+                        setEditError(null);
                       }}
                       className="text-gray-500"
                     >
@@ -127,12 +177,7 @@ export function VocabularyManager({
                       size="sm"
                       disabled={pending}
                       title="Hide from new entries"
-                      onClick={() =>
-                        run(
-                          () => setVocabTermActive(t.term_id, false),
-                          `“${t.value}” hidden.`,
-                        )
-                      }
+                      onClick={() => setHideTarget(t)}
                       className="text-danger-600 hover:bg-danger-50 hover:text-danger-600"
                     >
                       <X className="h-3.5 w-3.5" aria-hidden /> Hide
@@ -188,6 +233,40 @@ export function VocabularyManager({
           />
         ) : null}
       </div>
+
+      <Dialog
+        open={hideTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setHideTarget(null);
+        }}
+      >
+        <DialogContent
+          title="Hide this option?"
+          description={
+            hideTarget
+              ? `“${hideTarget.value}” will no longer be offered for new entries. Existing records that already use it keep it — you can restore it later.`
+              : undefined
+          }
+        >
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setHideTarget(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={pending}
+              onClick={confirmHide}
+            >
+              Hide option
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,4 +1,15 @@
 import Link from "next/link";
+import {
+  Activity as ActivityIcon,
+  Calendar,
+  FileText,
+  Mail,
+  MessageSquare,
+  Phone,
+  StickyNote,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
 import { humanize } from "@/lib/format";
 import { Topbar } from "@/components/shell/Topbar";
@@ -9,6 +20,25 @@ import {
   ActivityToolbar,
   type ActivityFilterState,
 } from "@/components/activity/ActivityToolbar";
+
+/**
+ * Map an interaction type to a Lucide icon. Matching is loose (substring,
+ * case-insensitive) so backend label variants ("Phone call", "phone_call",
+ * "Call") all resolve. Falls back to a generic activity glyph so every row
+ * carries a leading icon.
+ */
+function iconForType(type: string | null): LucideIcon {
+  const t = (type ?? "").toLowerCase();
+  if (t.includes("phone") || t.includes("call")) return Phone;
+  if (t.includes("meet") || t.includes("visit")) return Users;
+  if (t.includes("email") || t.includes("mail")) return Mail;
+  if (t.includes("event")) return Calendar;
+  if (t.includes("note")) return StickyNote;
+  if (t.includes("text") || t.includes("sms") || t.includes("message"))
+    return MessageSquare;
+  if (t.includes("linkedin") || t.includes("social")) return FileText;
+  return ActivityIcon;
+}
 
 const LIMIT = 50;
 
@@ -203,6 +233,42 @@ export default async function ActivityPage({
           </Card>
         ) : (
           <>
+            {/* Summary stats — only counts already present in the feed response
+                (no fabricated "calls this month"): total matching interactions,
+                how many are on this page, and the number of distinct types. */}
+            <div className="mx-auto mb-4 grid max-w-3xl grid-cols-3 gap-3">
+              <Card className="px-4 py-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                  {filters.q ||
+                  filters.type ||
+                  filters.from ||
+                  filters.to ||
+                  filters.mine
+                    ? "Matching interactions"
+                    : "Total interactions"}
+                </p>
+                <p className="mt-1 text-xl font-semibold tabular-nums text-gray-900">
+                  {data!.total.toLocaleString()}
+                </p>
+              </Card>
+              <Card className="px-4 py-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Shown on this page
+                </p>
+                <p className="mt-1 text-xl font-semibold tabular-nums text-gray-900">
+                  {data!.items.length.toLocaleString()}
+                </p>
+              </Card>
+              <Card className="px-4 py-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Interaction types
+                </p>
+                <p className="mt-1 text-xl font-semibold tabular-nums text-gray-900">
+                  {data!.types.length.toLocaleString()}
+                </p>
+              </Card>
+            </div>
+
             {/* Chronological log feed — grouped by day, newest first within a
                 group (server-sorted). A fixed left rail holds the time so every
                 line aligns; the alumnus, action chip, and muted actor read as a
@@ -214,7 +280,9 @@ export default async function ActivityPage({
                     {g.label}
                   </h2>
                   <ul>
-                    {g.rows.map((r) => (
+                    {g.rows.map((r) => {
+                      const TypeIcon = iconForType(r.type);
+                      return (
                       <li
                         key={r.interaction_id}
                         className="flex items-baseline gap-3 border-b border-gray-200 px-4 py-2.5 last:border-0 hover:bg-brand-blue-50/40"
@@ -222,6 +290,10 @@ export default async function ActivityPage({
                         <time className="w-14 shrink-0 text-xs tabular-nums text-gray-500">
                           {fmtTime(r.when)}
                         </time>
+                        <TypeIcon
+                          className="mt-0.5 h-4 w-4 shrink-0 self-start text-gray-400"
+                          aria-hidden="true"
+                        />
                         <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-1">
                           <Link
                             href={`/alumni/${r.alumni_id}`}
@@ -239,7 +311,8 @@ export default async function ActivityPage({
                           </span>
                         ) : null}
                       </li>
-                    ))}
+                      );
+                    })}
                   </ul>
                 </section>
               ))}

@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import animate from "tailwindcss-animate";
 
 // Brand tokens are the single source of truth in UX-UI.md.
 // Reference these by name in components — never hardcode hex values in JSX.
@@ -48,7 +49,7 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  plugins: [animate],
 };
 
 export default config;

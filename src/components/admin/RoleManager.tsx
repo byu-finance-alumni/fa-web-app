@@ -10,8 +10,19 @@ import { Select } from "@/components/ui/select";
 import { ASSIGNABLE_ROLES, ROLE, roleLabel } from "@/constants/roles";
 
 const labelOf = roleLabel;
-// The top roles get a highlighted chip so they stand out in the user table.
-const TOP_ROLES = new Set<string>([ROLE.ENGINEER, ROLE.SUPER_ADMIN]);
+// Distinct badge color per role so roles are scannable at a glance in the user
+// table. Presentation only — the backend enforces what each role can do.
+const ROLE_BADGE: Record<
+  string,
+  "solid" | "tag" | "success" | "warning" | "neutral"
+> = {
+  [ROLE.ENGINEER]: "solid",
+  [ROLE.SUPER_ADMIN]: "tag",
+  [ROLE.FULL_ACCESS]: "success",
+  [ROLE.STUDENT]: "warning",
+  [ROLE.VIEW_ONLY]: "neutral",
+};
+const roleBadgeVariant = (role: string) => ROLE_BADGE[role] ?? "neutral";
 
 /**
  * Super-admin role editor for an existing user: removable role chips + an
@@ -46,7 +57,7 @@ export function RoleManager({
     <div className="flex flex-wrap items-center gap-1.5">
       {roles.length ? (
         roles.map((r) => (
-          <Badge key={r} variant={TOP_ROLES.has(r) ? "tag" : "neutral"}>
+          <Badge key={r} variant={roleBadgeVariant(r)}>
             {labelOf(r)}
             {r === ROLE.ENGINEER && !canAssignEngineer ? null : (
               <button
@@ -65,7 +76,7 @@ export function RoleManager({
                     }
                   })
                 }
-                className="text-gray-400 hover:text-danger-600 disabled:opacity-50"
+                className="text-current opacity-60 hover:text-danger-600 hover:opacity-100 disabled:opacity-50"
               >
                 <X className="h-3 w-3" aria-hidden="true" />
               </button>

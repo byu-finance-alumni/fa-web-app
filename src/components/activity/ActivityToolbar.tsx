@@ -13,7 +13,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Chip } from "@/components/ui/chip";
 import { Select } from "@/components/ui/select";
+import { humanize } from "@/lib/format";
 
 /** Everything the backend GET /dashboard/activity supports, mirrored in the URL. */
 export interface ActivityFilterState {
@@ -129,7 +131,11 @@ export function ActivityToolbar({
 
   const isDirty = serialized !== "";
 
+  // Toggle a type chip: clicking the active type clears it (back to "All").
+  const toggleType = (t: string) => set("type", f.type === t ? "" : t);
+
   return (
+    <>
     <Card className="mb-4 flex flex-wrap items-center gap-2 p-3">
       <div className="flex h-9 min-w-[220px] flex-1 items-center gap-2 rounded-md border border-gray-300 bg-gray-50 px-3 focus-within:border-brand-blue-600 focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1">
         <Search className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
@@ -256,5 +262,32 @@ export function ActivityToolbar({
         )}
       </div>
     </Card>
+
+      {/* Type filter chips — a quick, always-visible complement to the
+          Interaction-type dropdown in the Filters menu. Both write the same
+          `type` state, so they stay in sync and share the URL. "All" clears it. */}
+      {types.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <Chip
+            type="button"
+            active={!f.type}
+            onClick={() => set("type", "")}
+          >
+            All
+          </Chip>
+          {types.map((t) => (
+            <Chip
+              key={t}
+              type="button"
+              active={f.type === t}
+              aria-pressed={f.type === t}
+              onClick={() => toggleType(t)}
+            >
+              {humanize(t)}
+            </Chip>
+          ))}
+        </div>
+      )}
+    </>
   );
 }

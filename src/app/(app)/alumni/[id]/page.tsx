@@ -35,6 +35,7 @@ import {
   TaskCheckbox,
 } from "@/components/alumni/ProfileDialogs";
 import { InteractionTimeline } from "@/components/alumni/InteractionTimeline";
+import { AlumniProfileTabs } from "@/components/alumni/AlumniProfileTabs";
 import { ProfileNotes } from "@/components/alumni/ProfileNotes";
 import type { Note } from "@/types/notes";
 import { ExportProfileButton } from "@/components/alumni/ExportProfileButton";
@@ -44,6 +45,7 @@ import { Avatar } from "@/components/shared/Avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 
 /* ----------------------------------------------------------------- helpers */
 
@@ -288,43 +290,17 @@ export default async function AlumniProfilePage({
   const completeCount = checks.filter((x) => x.ok).length;
   const completeness = Math.round((completeCount / checks.length) * 100);
   const missing = checks.filter((x) => !x.ok);
-
-  // Shared chip content for Engagement & tags — rendered in the panel and in
-  // its "View all" right-side drawer.
-  const engagementContent = (
-    <div className="space-y-3">
-      {profile.tags.length ? (
-        <ChipRow label="Tags">
-          {profile.tags.map((t) => (
-            <EngagementChip
-              key={t}
-              tone={t.toLowerCase().includes("engaged") ? "warning" : "tag"}
-            >
-              {t}
-            </EngagementChip>
-          ))}
-        </ChipRow>
-      ) : null}
-      {profile.status_labels.length ? (
-        <ChipRow label="Status">
-          {profile.status_labels.map((s) => (
-            <EngagementChip key={s} tone="neutral">
-              {s}
-            </EngagementChip>
-          ))}
-        </ChipRow>
-      ) : null}
-      {profile.program_engagement ? (
-        <ChipRow label="Program">
-          {programChips(profile.program_engagement).map((label) => (
-            <EngagementChip key={label} tone="success">
-              {label}
-            </EngagementChip>
-          ))}
-        </ChipRow>
-      ) : null}
-    </div>
-  );
+  // Completeness badge — derived purely from the real filled/total field count
+  // above (never a fabricated score). Tone pairs with a text label so we never
+  // rely on color alone.
+  const completenessTone: "success" | "warning" | "danger" =
+    completeness >= 80 ? "success" : completeness >= 50 ? "warning" : "danger";
+  const completenessLabel =
+    completeness >= 80
+      ? "Complete"
+      : completeness >= 50
+        ? "Needs detail"
+        : "Sparse";
 
   return (
     <>
@@ -357,12 +333,12 @@ export default async function AlumniProfilePage({
                         Goes by “{a.preferred_first_name}”
                       </EngagementChip>
                     ) : null}
-                    <Badge variant={recordStatus === "Active" ? "success" : "muted"}>
-                      <span
-                        className={`h-1.5 w-1.5 rounded-full ${recordStatus === "Active" ? "bg-success-600" : "bg-gray-400"}`}
-                      />
-                      {recordStatus}
-                    </Badge>
+                    {recordStatus !== "Active" ? (
+                      <Badge variant="muted">
+                        <span className="h-1.5 w-1.5 rounded-full bg-gray-400" />
+                        {recordStatus}
+                      </Badge>
+                    ) : null}
                   </div>
                   <p className="mt-1 text-base text-gray-500">
                     {[
@@ -402,7 +378,7 @@ export default async function AlumniProfilePage({
                       (view_only) get — gated on canAdd. Every other control
                       below stays on canEdit so professors never gain edits to
                       the alumni record, tasks, exports, or archive state. */}
-                  <AddInteractionButton alumniId={aid} label="+ Add interaction" />
+                  <AddInteractionButton alumniId={aid} label="Add interaction" />
                   {canEdit ? (
                     <>
                       <AddTaskButton alumniId={aid} label="Create task" />
@@ -475,11 +451,17 @@ export default async function AlumniProfilePage({
             />
           </div>
 
-          {/* Paired-row body */}
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            {/* Main column (wider). Flex column with the last panel growing so
-                both columns end at the same point (equal length). */}
-            <div className="flex flex-col gap-4 lg:col-span-2 lg:[&>:last-child]:flex-1">
+          {/* Secondary-nav tabs organize the long profile into Overview /
+              Interactions / Education / Tasks. Every panel below is built on the
+              server with the already-fetched data and handed to the client tab
+              island as props — no fetching, gating, or business logic moves to
+              the client. */}
+          <AlumniProfileTabs
+            overview={
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                  {/* Main column (wider). */}
+                  <div className="flex flex-col gap-4 lg:col-span-2">
               {/* Career snapshot — lead with what they do (before contact info) */}
               <Panel
                 title="Career snapshot"
@@ -565,193 +547,6 @@ export default async function AlumniProfilePage({
                   </p>
                 )}
               </Panel>
-
-              {/* Employment history */}
-              <Panel
-                title="Employment history"
-                action={canEdit ? <AddRoleButton alumniId={aid} /> : undefined}
-              >
-                {profile.employment_history.length ? (
-                  <DrawerList
-                    title="Employment history"
-                    ordered
-                    collapsed={3}
-                    listClassName="space-y-1"
-                    action={
-                      canEdit ? <AddRoleButton alumniId={aid} /> : undefined
-                    }
-                  >
-                    {profile.employment_history.map((e) => (
-                      <li
-                        key={e.employment_history_id}
-                        className="flex gap-3 border-b border-gray-100 py-3 last:border-0"
-                      >
-                        <span
-                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white ${avatarColor(e.employer_name ?? "?")}`}
-                        >
-                          {(e.employer_name ?? "?")[0]?.toUpperCase()}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm font-semibold text-gray-900">
-                              {e.employer_name ?? "—"}
-                              {e.is_current ? (
-                                <Badge variant="success" className="ml-2">
-                                  Current
-                                </Badge>
-                              ) : null}
-                            </p>
-                            <div className="flex shrink-0 items-center gap-2">
-                              <span className="text-xs tabular-nums text-gray-500">
-                                {e.start_year ?? "—"} –{" "}
-                                {e.is_current ? "Present" : (e.end_year ?? "—")}
-                              </span>
-                              {canEdit ? (
-                                <EmploymentRowActions alumniId={aid} row={e} />
-                              ) : null}
-                            </div>
-                          </div>
-                          <p className="text-sm text-gray-600">
-                            {e.employment_title ?? "—"}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {[e.employment_industry, place(e.city, e.state)]
-                              .filter(Boolean)
-                              .join(" · ")}
-                          </p>
-                        </div>
-                      </li>
-                    ))}
-                  </DrawerList>
-                ) : (
-                  <p className="py-6 text-center text-sm text-gray-500">
-                    No employment history recorded yet.
-                  </p>
-                )}
-              </Panel>
-
-              {/* Education */}
-              {profile.education.length || canEdit ? (
-                <Panel
-                  title="Education"
-                  action={
-                    canEdit ? <AddEducationButton alumniId={aid} /> : undefined
-                  }
-                >
-                  {profile.education.length ? (
-                    <DrawerList
-                      title="Education"
-                      collapsed={3}
-                      listClassName="space-y-1"
-                      action={
-                        canEdit ? (
-                          <AddEducationButton alumniId={aid} />
-                        ) : undefined
-                      }
-                    >
-                      {profile.education.map((ed) => (
-                        <li
-                          key={ed.education_id}
-                          className="flex gap-3 border-b border-gray-100 py-3 last:border-0"
-                        >
-                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500">
-                            <GraduationCap className="h-4 w-4" aria-hidden="true" />
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-start justify-between gap-2">
-                              <p className="text-sm font-semibold text-gray-900">
-                                {ed.university ?? "—"}
-                              </p>
-                              <div className="flex shrink-0 items-center gap-2">
-                                <span className="text-xs tabular-nums text-gray-500">
-                                  {ed.degree_year ?? "—"}
-                                </span>
-                                {canEdit ? (
-                                  <EducationRowActions
-                                    alumniId={aid}
-                                    row={ed}
-                                  />
-                                ) : null}
-                              </div>
-                            </div>
-                            <p className="text-sm text-gray-600">
-                              {[ed.degree, ed.major]
-                                .filter(Boolean)
-                                .join(" · ") || "—"}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {[ed.college, ed.department, ed.degree_status]
-                                .filter(Boolean)
-                                .join(" · ")}
-                            </p>
-                          </div>
-                        </li>
-                      ))}
-                    </DrawerList>
-                  ) : (
-                    <p className="py-6 text-center text-sm text-gray-500">
-                      No education on file yet.
-                    </p>
-                  )}
-                </Panel>
-              ) : null}
-
-              {/* Recent events */}
-              {profile.events.length || canEdit ? (
-                <Panel
-                  title="Recent events"
-                  action={canEdit ? <AddEventButton alumniId={aid} /> : undefined}
-                >
-                  {profile.events.length ? (
-                  <DrawerList
-                    title="Recent events"
-                    collapsed={3}
-                    listClassName="space-y-1"
-                    action={
-                      canEdit ? <AddEventButton alumniId={aid} /> : undefined
-                    }
-                  >
-                    {profile.events.map((ev) => {
-                      const md = monthDay(ev.event_date);
-                      return (
-                        <li
-                          key={ev.event_id}
-                          className="flex items-center gap-3 border-b border-gray-100 py-2.5 last:border-0"
-                        >
-                          <span className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-lg bg-gray-100 text-center">
-                            <span className="text-[9px] font-semibold uppercase text-gray-500">
-                              {md?.mon ?? "—"}
-                            </span>
-                            <span className="text-sm font-semibold tabular-nums text-gray-900">
-                              {md?.day ?? "--"}
-                            </span>
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-gray-900">
-                              {ev.event_name}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {[ev.event_location, ev.event_type]
-                                .filter(Boolean)
-                                .join(" · ")}
-                            </p>
-                          </div>
-                          {ev.attendance_status ? (
-                            <EngagementChip tone="neutral">
-                              {ev.attendance_status}
-                            </EngagementChip>
-                          ) : null}
-                        </li>
-                      );
-                    })}
-                  </DrawerList>
-                  ) : (
-                    <p className="py-6 text-center text-sm text-gray-500">
-                      No events attended yet.
-                    </p>
-                  )}
-                </Panel>
-              ) : null}
 
               {/* Unified notes (#39): free-text notes on this alumnus. Visible to
                   every role; writing is full_access (canArchive), re-enforced and
@@ -868,113 +663,6 @@ export default async function AlumniProfilePage({
                 </div>
               </Panel>
 
-              {/* Finance Society leadership */}
-              {profile.leadership.length || canEdit ? (
-                <Panel
-                  title="Finance Society leadership"
-                  action={
-                    canEdit ? <AddLeadershipButton alumniId={aid} /> : undefined
-                  }
-                >
-                  {profile.leadership.length ? (
-                    <DrawerList
-                      title="Finance Society leadership"
-                      collapsed={3}
-                      listClassName="space-y-1"
-                      action={
-                        canEdit ? (
-                          <AddLeadershipButton alumniId={aid} />
-                        ) : undefined
-                      }
-                    >
-                      {profile.leadership.map((le) => (
-                        <li
-                          key={le.finance_society_leadership_id}
-                          className="flex items-center gap-3 border-b border-gray-100 py-2.5 last:border-0"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-gray-900">
-                              {le.leadership_role}
-                            </p>
-                          </div>
-                          <div className="flex shrink-0 items-center gap-2">
-                            <span className="text-xs tabular-nums text-gray-500">
-                              {le.role_year ?? "—"}
-                            </span>
-                            {canEdit ? (
-                              <LeadershipRowActions alumniId={aid} row={le} />
-                            ) : null}
-                          </div>
-                        </li>
-                      ))}
-                    </DrawerList>
-                  ) : (
-                    <p className="py-6 text-center text-sm text-gray-500">
-                      No leadership roles recorded yet.
-                    </p>
-                  )}
-                </Panel>
-              ) : null}
-
-              {/* Open tasks — visible to admins (full_access / super_admin) only. */}
-              {canEdit ? (
-              <Panel
-                title={`Open tasks (${openTasks.length})`}
-                action={canEdit ? <AddTaskButton alumniId={aid} label="+ New task" /> : undefined}
-              >
-                {openTasks.length ? (
-                  <DrawerList
-                    title="Open tasks"
-                    collapsed={2}
-                    listClassName="space-y-3"
-                    action={
-                      canEdit ? (
-                        <AddTaskButton alumniId={aid} label="+ New task" />
-                      ) : undefined
-                    }
-                  >
-                    {openTasks.map((t) => {
-                      const overdue =
-                        t.due_date && new Date(t.due_date) < new Date();
-                      return (
-                        <li key={t.follow_up_task_id} className="flex gap-3">
-                          <TaskCheckbox
-                            alumniId={aid}
-                            taskId={t.follow_up_task_id}
-                            completed={t.completed}
-                            disabled={!canEdit}
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-start justify-between gap-2">
-                              <p className="text-sm font-medium text-gray-900">
-                                {t.task_title ?? "Untitled task"}
-                              </p>
-                              <Badge
-                                variant={overdue ? "warning" : "neutral"}
-                                className="shrink-0"
-                              >
-                                {overdue ? "Overdue · " : ""}
-                                {t.due_date ? fmtDate(t.due_date) : "No date"}
-                              </Badge>
-                            </div>
-                            {t.assigned_to ? (
-                              <p className="text-xs text-gray-500">
-                                Assigned to {t.assigned_to}
-                              </p>
-                            ) : null}
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </DrawerList>
-                ) : (
-                  <p className="py-4 text-center text-sm text-gray-500">
-                    No open tasks.
-                  </p>
-                )}
-              </Panel>
-              ) : null}
-
               {/* Profile completeness — admin tool, hidden for view_only. */}
               {canEdit ? (
               <Panel title="Profile completeness">
@@ -982,13 +670,19 @@ export default async function AlumniProfilePage({
                   <span className="text-3xl font-semibold tabular-nums text-gray-900">
                     {completeness}%
                   </span>
+                  <Badge variant={completenessTone}>{completenessLabel}</Badge>
                 </div>
-                <div className="mb-4 h-2 overflow-hidden rounded-full bg-gray-100">
-                  <div
-                    className="h-full rounded-full bg-brand-blue-600"
-                    style={{ width: `${completeness}%` }}
-                  />
-                </div>
+                <Progress
+                  value={completeness}
+                  className="mb-4"
+                  barClassName={
+                    completenessTone === "success"
+                      ? "bg-success-600"
+                      : completenessTone === "warning"
+                        ? "bg-warning-600"
+                        : "bg-danger-600"
+                  }
+                />
                 <ul className="space-y-2">
                   {checks.map((ck) => (
                     <li
@@ -1019,59 +713,348 @@ export default async function AlumniProfilePage({
               </Panel>
               ) : null}
 
-              {/* Engagement & tags */}
-              {profile.tags.length ||
-              profile.status_labels.length ||
-              profile.program_engagement ||
+                  </div>
+                </div>
+              </div>
+            }
+            engagement={
+              // Engagement & tags is an editor tool — the tab only renders for
+              // users who can edit (AlumniProfileTabs omits a tab whose node is
+              // undefined), so view-only roles never see it.
               canEdit ? (
                 <Panel title="Engagement & tags">
-                  {canEdit ? (
-                    // Editors get the inline tag + status-label manager as a
-                    // first-class section (#41) — removable chips + add-from-
-                    // vocab — instead of it being buried in a drawer.
-                    <div className="space-y-5">
-                      <TagStatusManager
-                        alumniId={aid}
-                        tags={profile.tags}
-                        statusLabels={profile.status_labels}
-                      />
-                      {profile.program_engagement ? (
-                        <ChipRow label="Program">
-                          {programChips(profile.program_engagement).map(
-                            (label) => (
-                              <EngagementChip key={label} tone="success">
-                                {label}
-                              </EngagementChip>
-                            ),
-                          )}
-                        </ChipRow>
-                      ) : null}
-                    </div>
-                  ) : profile.tags.length ||
-                    profile.status_labels.length ||
-                    profile.program_engagement ? (
-                    // view_only: read-only chips, no edit affordances.
-                    engagementContent
+                  <div className="space-y-5">
+                    <TagStatusManager
+                      alumniId={aid}
+                      tags={profile.tags}
+                      statusLabels={profile.status_labels}
+                    />
+                    {profile.program_engagement ? (
+                      <ChipRow label="Program">
+                        {programChips(profile.program_engagement).map((label) => (
+                          <EngagementChip key={label} tone="success">
+                            {label}
+                          </EngagementChip>
+                        ))}
+                      </ChipRow>
+                    ) : null}
+                  </div>
+                </Panel>
+              ) : undefined
+            }
+            interactions={
+              /* Interactions timeline (full width) — dedicated #38 deliverable.
+                 Interactions only (NOT merged with audit). */
+              <InteractionTimeline
+                alumniId={aid}
+                items={profile.interactions}
+                canAdd={canAdd}
+                canEdit={canEdit}
+                canWriteNotes={canArchive}
+              />
+            }
+            education={
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                {/* Employment history */}
+                <Panel
+                  title="Employment history"
+                  action={canEdit ? <AddRoleButton alumniId={aid} /> : undefined}
+                >
+                  {profile.employment_history.length ? (
+                    <DrawerList
+                      title="Employment history"
+                      ordered
+                      collapsed={3}
+                      listClassName="space-y-1"
+                      action={
+                        canEdit ? <AddRoleButton alumniId={aid} /> : undefined
+                      }
+                    >
+                      {profile.employment_history.map((e) => (
+                        <li
+                          key={e.employment_history_id}
+                          className="flex gap-3 border-b border-gray-100 py-3 last:border-0"
+                        >
+                          <span
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white ${avatarColor(e.employer_name ?? "?")}`}
+                          >
+                            {(e.employer_name ?? "?")[0]?.toUpperCase()}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-sm font-semibold text-gray-900">
+                                {e.employer_name ?? "—"}
+                                {e.is_current ? (
+                                  <Badge variant="success" className="ml-2">
+                                    Current
+                                  </Badge>
+                                ) : null}
+                              </p>
+                              <div className="flex shrink-0 items-center gap-2">
+                                <span className="text-xs tabular-nums text-gray-500">
+                                  {e.start_year ?? "—"} –{" "}
+                                  {e.is_current
+                                    ? "Present"
+                                    : (e.end_year ?? "—")}
+                                </span>
+                                {canEdit ? (
+                                  <EmploymentRowActions alumniId={aid} row={e} />
+                                ) : null}
+                              </div>
+                            </div>
+                            <p className="text-sm text-gray-600">
+                              {e.employment_title ?? "—"}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {[e.employment_industry, place(e.city, e.state)]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </p>
+                          </div>
+                        </li>
+                      ))}
+                    </DrawerList>
                   ) : (
                     <p className="py-6 text-center text-sm text-gray-500">
-                      No tags or status labels yet.
+                      No employment history recorded yet.
                     </p>
                   )}
                 </Panel>
-              ) : null}
 
-            </div>
-          </div>
+                {/* Education */}
+                {profile.education.length || canEdit ? (
+                  <Panel
+                    title="Education"
+                    action={
+                      canEdit ? <AddEducationButton alumniId={aid} /> : undefined
+                    }
+                  >
+                    {profile.education.length ? (
+                      <DrawerList
+                        title="Education"
+                        collapsed={3}
+                        listClassName="space-y-1"
+                        action={
+                          canEdit ? (
+                            <AddEducationButton alumniId={aid} />
+                          ) : undefined
+                        }
+                      >
+                        {profile.education.map((ed) => (
+                          <li
+                            key={ed.education_id}
+                            className="flex gap-3 border-b border-gray-100 py-3 last:border-0"
+                          >
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500">
+                              <GraduationCap
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="text-sm font-semibold text-gray-900">
+                                  {ed.university ?? "—"}
+                                </p>
+                                <div className="flex shrink-0 items-center gap-2">
+                                  <span className="text-xs tabular-nums text-gray-500">
+                                    {ed.degree_year ?? "—"}
+                                  </span>
+                                  {canEdit ? (
+                                    <EducationRowActions
+                                      alumniId={aid}
+                                      row={ed}
+                                    />
+                                  ) : null}
+                                </div>
+                              </div>
+                              <p className="text-sm text-gray-600">
+                                {[ed.degree, ed.major]
+                                  .filter(Boolean)
+                                  .join(" · ") || "—"}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {[ed.college, ed.department, ed.degree_status]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </p>
+                            </div>
+                          </li>
+                        ))}
+                      </DrawerList>
+                    ) : (
+                      <p className="py-6 text-center text-sm text-gray-500">
+                        No education on file yet.
+                      </p>
+                    )}
+                  </Panel>
+                ) : null}
 
-          {/* Interactions timeline (full width) — dedicated #38 deliverable.
-              Interactions only (NOT merged with audit); the merged feed's audit
-              still surfaces via the "Recent activity" panel above. */}
-          <InteractionTimeline
-            alumniId={aid}
-            items={profile.interactions}
-            canAdd={canAdd}
-            canEdit={canEdit}
-            canWriteNotes={canArchive}
+                {/* Recent events */}
+                {profile.events.length || canEdit ? (
+                  <Panel
+                    title="Recent events"
+                    action={
+                      canEdit ? <AddEventButton alumniId={aid} /> : undefined
+                    }
+                  >
+                    {profile.events.length ? (
+                      <DrawerList
+                        title="Recent events"
+                        collapsed={3}
+                        listClassName="space-y-1"
+                        action={
+                          canEdit ? <AddEventButton alumniId={aid} /> : undefined
+                        }
+                      >
+                        {profile.events.map((ev) => {
+                          const md = monthDay(ev.event_date);
+                          return (
+                            <li
+                              key={ev.event_id}
+                              className="flex items-center gap-3 border-b border-gray-100 py-2.5 last:border-0"
+                            >
+                              <span className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-lg bg-gray-100 text-center">
+                                <span className="text-[9px] font-semibold uppercase text-gray-500">
+                                  {md?.mon ?? "—"}
+                                </span>
+                                <span className="text-sm font-semibold tabular-nums text-gray-900">
+                                  {md?.day ?? "--"}
+                                </span>
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium text-gray-900">
+                                  {ev.event_name}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {[ev.event_location, ev.event_type]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                </p>
+                              </div>
+                              {ev.attendance_status ? (
+                                <EngagementChip tone="neutral">
+                                  {ev.attendance_status}
+                                </EngagementChip>
+                              ) : null}
+                            </li>
+                          );
+                        })}
+                      </DrawerList>
+                    ) : (
+                      <p className="py-6 text-center text-sm text-gray-500">
+                        No events attended yet.
+                      </p>
+                    )}
+                  </Panel>
+                ) : null}
+
+                {/* Finance Society leadership */}
+                {profile.leadership.length || canEdit ? (
+                  <Panel
+                    title="Finance Society leadership"
+                    action={
+                      canEdit ? (
+                        <AddLeadershipButton alumniId={aid} />
+                      ) : undefined
+                    }
+                  >
+                    {profile.leadership.length ? (
+                      <DrawerList
+                        title="Finance Society leadership"
+                        collapsed={3}
+                        listClassName="space-y-1"
+                        action={
+                          canEdit ? (
+                            <AddLeadershipButton alumniId={aid} />
+                          ) : undefined
+                        }
+                      >
+                        {profile.leadership.map((le) => (
+                          <li
+                            key={le.finance_society_leadership_id}
+                            className="flex items-center gap-3 border-b border-gray-100 py-2.5 last:border-0"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-gray-900">
+                                {le.leadership_role}
+                              </p>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-2">
+                              <span className="text-xs tabular-nums text-gray-500">
+                                {le.role_year ?? "—"}
+                              </span>
+                              {canEdit ? (
+                                <LeadershipRowActions alumniId={aid} row={le} />
+                              ) : null}
+                            </div>
+                          </li>
+                        ))}
+                      </DrawerList>
+                    ) : (
+                      <p className="py-6 text-center text-sm text-gray-500">
+                        No leadership roles recorded yet.
+                      </p>
+                    )}
+                  </Panel>
+                ) : null}
+              </div>
+            }
+            tasks={
+              /* Open tasks — visible to admins (full_access / super_admin) only.
+                 Rendered only when canEdit so the Tasks tab itself is omitted for
+                 view-only roles (the island skips a tab with no node). */
+              canEdit ? (
+                <Panel
+                  title={`Open tasks (${openTasks.length})`}
+                  action={
+                    <AddTaskButton alumniId={aid} label="+ New task" />
+                  }
+                >
+                  {openTasks.length ? (
+                    <ul className="space-y-3">
+                      {openTasks.map((t) => {
+                        const overdue =
+                          t.due_date && new Date(t.due_date) < new Date();
+                        return (
+                          <li key={t.follow_up_task_id} className="flex gap-3">
+                            <TaskCheckbox
+                              alumniId={aid}
+                              taskId={t.follow_up_task_id}
+                              completed={t.completed}
+                              disabled={!canEdit}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="text-sm font-medium text-gray-900">
+                                  {t.task_title ?? "Untitled task"}
+                                </p>
+                                <Badge
+                                  variant={overdue ? "warning" : "neutral"}
+                                  className="shrink-0"
+                                >
+                                  {overdue ? "Overdue · " : ""}
+                                  {t.due_date ? fmtDate(t.due_date) : "No date"}
+                                </Badge>
+                              </div>
+                              {t.assigned_to ? (
+                                <p className="text-xs text-gray-500">
+                                  Assigned to {t.assigned_to}
+                                </p>
+                              ) : null}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <p className="py-6 text-center text-sm text-gray-500">
+                      No open tasks.
+                    </p>
+                  )}
+                </Panel>
+              ) : undefined
+            }
           />
         </div>
       </main>

@@ -3,15 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Archive,
-  ArchiveRestore,
-  Check,
-  Pencil,
-  Plus,
-  Trash2,
-  X,
-} from "lucide-react";
+import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import {
   addEducation,
   addEmploymentRole,
@@ -249,13 +241,27 @@ export function AddInteractionButton({
   alumniId,
   label = "Add interaction",
   primary = false,
+  open: openProp,
+  onOpenChange,
 }: {
   alumniId: number;
   label?: string;
   primary?: boolean;
+  /** Controlled-open mode. When provided, the default trigger button is hidden
+   *  and the modal's visibility follows this prop — lets a parent (e.g. the
+   *  alumni-list row action menu) drive the same logging dialog without
+   *  duplicating the form or its server action. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const { toast } = useToast();
-  const [open, setOpen] = useState(false);
+  const controlled = openProp !== undefined;
+  const [openState, setOpenState] = useState(false);
+  const open = controlled ? openProp : openState;
+  const setOpen = (next: boolean) => {
+    if (!controlled) setOpenState(next);
+    onOpenChange?.(next);
+  };
   const [state, formAction, pending] = useActionState(
     addInteraction.bind(null, alumniId),
     null,
@@ -272,14 +278,15 @@ export function AddInteractionButton({
 
   return (
     <>
-      <Button
-        type="button"
-        variant={primary ? "primary" : "secondary"}
-        size="sm"
-        onClick={() => setOpen(true)}
-      >
-        {label}
-      </Button>
+      {controlled ? null : (
+        <Button
+          type="button"
+          variant={primary ? "primary" : "secondary"}
+          onClick={() => setOpen(true)}
+        >
+          {label}
+        </Button>
+      )}
       {open ? (
         <Modal title="Log interaction" onClose={() => setOpen(false)}>
           <form action={formAction}>
@@ -400,12 +407,7 @@ export function AddTaskButton({
 
   return (
     <>
-      <Button
-        type="button"
-        variant="secondary"
-        size="sm"
-        onClick={() => setOpen(true)}
-      >
+      <Button type="button" variant="secondary" onClick={() => setOpen(true)}>
         {label}
       </Button>
       {open ? (
@@ -494,7 +496,6 @@ export function ArchiveControls({
             "border-success-600 text-success-600 hover:bg-success-50",
           )}
         >
-          <ArchiveRestore className="h-4 w-4" aria-hidden="true" />
           {pending ? "Restoring…" : "Unarchive"}
         </Button>
         {error ? <p className="text-xs text-danger-600">{error}</p> : null}
@@ -513,7 +514,6 @@ export function ArchiveControls({
         }}
         className={cn("text-danger-600 hover:bg-danger-50")}
       >
-        <Archive className="h-4 w-4" aria-hidden="true" />
         Archive
       </Button>
       {confirming ? (
@@ -554,7 +554,6 @@ export function ArchiveControls({
                 })
               }
             >
-              <Archive className="h-4 w-4" aria-hidden="true" />
               {pending ? "Archiving…" : "Archive record"}
             </Button>
           </div>

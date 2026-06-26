@@ -7,6 +7,7 @@ import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { addAttendee, removeAttendee } from "@/app/(app)/events/actions";
 import type { Alumni, AlumniPage } from "@/types/alumni";
 
@@ -35,7 +36,15 @@ function displayName(a: Alumni): string {
  * through the addAttendee/removeAttendee server actions; success/failure is
  * surfaced via the shared toast.
  */
-export function AttendeeManager({ eventId }: { eventId: number }) {
+export function AttendeeManager({
+  eventId,
+  className = "mt-8",
+}: {
+  eventId: number;
+  /** Wrapper Card classes. Defaults to the edit-page spacing (`mt-8`); the
+   *  event detail sheet passes its own so the manager sits flush in its tab. */
+  className?: string;
+}) {
   const { toast } = useToast();
 
   const [attendees, setAttendees] = useState<Attendee[]>([]);
@@ -167,7 +176,7 @@ export function AttendeeManager({ eventId }: { eventId: number }) {
   const alreadyAdded = new Set(attendees.map((a) => a.alumni_id));
 
   return (
-    <Card className="mt-8">
+    <Card className={cn(className)}>
       <CardContent className="pt-5">
         <div className="mb-4 flex items-center gap-2">
           <h3 className="text-sm font-semibold text-gray-900">Attendees</h3>

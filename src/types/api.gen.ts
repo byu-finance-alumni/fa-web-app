@@ -1601,6 +1601,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/geography/radius": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Radius Alumni
+         * @description Alumni within ``miles`` of (lat, lng), nearest first.
+         *
+         *     Distance is city-level (an alumnus's location is their city's coordinates,
+         *     via the city_geo crosswalk — the only geographic signal stored). FERPA: this
+         *     lists the individual alumni behind a location, so it is gated to full_access
+         *     (view_only gets 403) and the disclosure is audited.
+         */
+        get: operations["radius_alumni_geography_radius_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/geography/cities": {
         parameters: {
             query?: never;
@@ -3367,6 +3392,42 @@ export interface components {
             cpa_designation: boolean;
             /** Engagement Notes */
             engagement_notes: string | null;
+        };
+        /** RadiusAlumniRow */
+        RadiusAlumniRow: {
+            /** Alumni Id */
+            alumni_id: number;
+            /** Name */
+            name: string;
+            /** City */
+            city: string | null;
+            /** State */
+            state: string | null;
+            /** Graduation Year */
+            graduation_year: number | null;
+            /** Current Employer */
+            current_employer: string | null;
+            /** Current Title */
+            current_title: string | null;
+            /** Distance Miles */
+            distance_miles: number;
+        };
+        /** RadiusPage */
+        RadiusPage: {
+            /** Items */
+            items: components["schemas"]["RadiusAlumniRow"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Center Lat */
+            center_lat: number;
+            /** Center Lng */
+            center_lng: number;
+            /** Radius Miles */
+            radius_miles: number;
         };
         /**
          * ResetPasswordResponse
@@ -6105,6 +6166,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GeoAlumniPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    radius_alumni_geography_radius_get: {
+        parameters: {
+            query: {
+                lat: number;
+                lng: number;
+                miles: number;
+                limit?: number;
+                offset?: number;
+                employer?: string | null;
+                industry?: string | null;
+                year?: number | null;
+                region?: string | null;
+                tag?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RadiusPage"];
                 };
             };
             /** @description Validation Error */

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { apiGet, apiGetWithRetry, ApiError } from "@/lib/api";
 import type { Alumni, AlumniPage, UserContext } from "@/types/alumni";
 import type { FilterOptions } from "@/types/filters";
-import { hasFullAccess } from "@/constants/roles";
+import { hasFullAccess, canEditAlumni, canAddInteraction } from "@/constants/roles";
 import { Topbar } from "@/components/shell/Topbar";
 import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
 import { AlumniFilters, type AlumniFilterState } from "@/components/alumni/AlumniFilters";
@@ -183,8 +183,13 @@ export default async function AlumniListPage({
   if (optionsResult.status === "fulfilled") {
     options = optionsResult.value;
   }
-  const canCreate =
-    ctxResult.status === "fulfilled" && hasFullAccess(ctxResult.value.roles);
+  const roles =
+    ctxResult.status === "fulfilled" ? ctxResult.value.roles : null;
+  const canCreate = hasFullAccess(roles);
+  // Same predicates the profile page uses to gate its controls, so the per-row
+  // action menu only ever offers actions the backend will accept.
+  const canEditRows = canEditAlumni(roles);
+  const canAddInteractionRows = canAddInteraction(roles);
 
   const from = data && data.total > 0 ? offset + 1 : 0;
   const to = data ? Math.min(offset + LIMIT, data.total) : 0;
@@ -262,7 +267,11 @@ export default async function AlumniListPage({
             </div>
 
             {/* Desktop: dense table (whole row navigates to the profile) */}
-            <AlumniTable items={data!.items} />
+            <AlumniTable
+              items={data!.items}
+              canEdit={canEditRows}
+              canAdd={canAddInteractionRows}
+            />
 
             <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
               <span>
