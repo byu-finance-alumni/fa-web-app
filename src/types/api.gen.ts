@@ -1073,6 +1073,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/dashboard/presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Dashboard Presets
+         * @description The quick-filter presets to show on the dashboard (ordered).
+         */
+        get: operations["list_dashboard_presets_dashboard_presets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/dashboard-presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Dashboard Presets Admin
+         * @description Same list, behind the admin gate, for the editor UI.
+         */
+        get: operations["list_dashboard_presets_admin_admin_dashboard_presets_get"];
+        put?: never;
+        /**
+         * Create Dashboard Preset
+         * @description Add a quick-filter preset (engineer / super_admin).
+         */
+        post: operations["create_dashboard_preset_admin_dashboard_presets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/dashboard-presets/{preset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Dashboard Preset
+         * @description Remove a quick-filter preset (engineer / super_admin). 404 if missing.
+         */
+        delete: operations["delete_dashboard_preset_admin_dashboard_presets__preset_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Dashboard Preset
+         * @description Edit a quick-filter preset (engineer / super_admin). 404 if missing.
+         */
+        patch: operations["update_dashboard_preset_admin_dashboard_presets__preset_id__patch"];
+        trace?: never;
+    };
     "/admin/users": {
         parameters: {
             query?: never;
@@ -2649,6 +2717,44 @@ export interface components {
             database: string;
         };
         /**
+         * DashboardPresetCreate
+         * @description Add a quick-filter preset (engineer / super_admin).
+         */
+        DashboardPresetCreate: {
+            /** Label */
+            label: string;
+            /** Href */
+            href: string;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+        };
+        /** DashboardPresetRead */
+        DashboardPresetRead: {
+            /** Dashboard Preset Id */
+            dashboard_preset_id: number;
+            /** Label */
+            label: string;
+            /** Href */
+            href: string;
+            /** Sort Order */
+            sort_order: number;
+        };
+        /**
+         * DashboardPresetUpdate
+         * @description Edit a quick-filter preset. Only fields present are applied.
+         */
+        DashboardPresetUpdate: {
+            /** Label */
+            label?: string | null;
+            /** Href */
+            href?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+        };
+        /**
          * DeleteUserResponse
          * @description Confirmation of a permanent user deletion (the row is gone, so there is
          *     nothing left to serialize). The deleted user's id + email are echoed back so
@@ -4019,6 +4125,16 @@ export interface operations {
             query?: {
                 /** @description Search names and external ids (case-insensitive). */
                 q?: string | null;
+                /** @description Net ID — case-insensitive partial match. */
+                net_id?: string | null;
+                /** @description First name — case-insensitive partial match. */
+                first_name?: string | null;
+                /** @description Last name — case-insensitive partial match. */
+                last_name?: string | null;
+                /** @description Preferred first name — case-insensitive partial match. */
+                preferred_name?: string | null;
+                /** @description Email (personal or work) — case-insensitive partial match. */
+                email?: string | null;
                 graduation_year?: number | null;
                 grad_year_min?: number | null;
                 grad_year_max?: number | null;
@@ -5382,6 +5498,145 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     }[];
+                };
+            };
+        };
+    };
+    list_dashboard_presets_dashboard_presets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardPresetRead"][];
+                };
+            };
+        };
+    };
+    list_dashboard_presets_admin_admin_dashboard_presets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardPresetRead"][];
+                };
+            };
+        };
+    };
+    create_dashboard_preset_admin_dashboard_presets_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DashboardPresetCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardPresetRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_dashboard_preset_admin_dashboard_presets__preset_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                preset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardPresetRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_dashboard_preset_admin_dashboard_presets__preset_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                preset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DashboardPresetUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardPresetRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

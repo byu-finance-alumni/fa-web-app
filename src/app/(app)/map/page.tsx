@@ -45,10 +45,9 @@ export default async function GeographyPage({
   // counties where alumni actually work).
   let summary: GeoSummary | null = null;
   let states: StateCount[] = [];
-  let counties: CountyCount[] = [];
   let notProvisioned = false;
   try {
-    [summary, states, counties] = await Promise.all([
+    [summary, states] = await Promise.all([
       apiGet<GeoSummary>(`/geography/summary?${qs}`, {
         revalidate: 60,
         tags: ["geography"],
@@ -57,13 +56,24 @@ export default async function GeographyPage({
         revalidate: 60,
         tags: ["geography"],
       }),
-      apiGet<CountyCount[]>(`/geography/counties?${qs}`, {
-        revalidate: 60,
-        tags: ["geography"],
-      }),
     ]);
   } catch (e) {
     if (e instanceof ApiError && e.status === 403) notProvisioned = true;
+  }
+
+  // County choropleth (zoomed-in detail). Fetched tolerantly on its own so an
+  // API without /geography/counties (e.g. prod before this ships) just disables
+  // county shading rather than blanking the whole map.
+  let counties: CountyCount[] = [];
+  if (!notProvisioned) {
+    try {
+      counties = await apiGet<CountyCount[]>(`/geography/counties?${qs}`, {
+        revalidate: 60,
+        tags: ["geography"],
+      });
+    } catch {
+      counties = [];
+    }
   }
 
   const counts: Record<string, number> = {};

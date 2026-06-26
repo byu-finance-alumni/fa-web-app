@@ -20,11 +20,13 @@ import { FIPS_TO_USPS } from "./state-fips";
  *  - "radius":  clicking the map emits `onPick(lat, lng)` via `projection.invert`
  *    and the current `center` is marked with a pin.
  *
- * Scroll to zoom toward the cursor; drag to pan. County borders are always drawn
- * at the same weight/color as the state borders (lazily loaded as a single mesh
- * path so the ~800KB counties topojson never ships in the initial bundle).
- * Alumni density is a COUNTY-level choropleth (`countyCounts`): only the counties
- * where alumni work are shaded; states render as a neutral base. A radius search
+ * Scroll to zoom toward the cursor; drag to pan. The map is level-of-detail:
+ * zoomed out (below `COUNTY_ZOOM`) it shades whole STATES by `counts`; zoom in a
+ * little and it switches to a COUNTY choropleth (`countyCounts`) — only the
+ * counties where alumni work are shaded, states drop to a neutral base, and
+ * every county border draws at the same weight/color as the state borders. The
+ * ~800KB counties topojson (mesh + fills) is lazily loaded only once you cross
+ * into county detail, so it never ships in the initial bundle. A radius search
  * additionally rings the result counties (`matchCounties`). Major-city dots +
  * labels appear past `CITY_ZOOM` (only for cities inside the visible view, so
  * labels never crowd the map). Choropleth palette + buckets are ported from the
@@ -35,6 +37,9 @@ const WIDTH = 960;
 const HEIGHT = 600;
 const MIN_K = 1;
 const MAX_K = 12;
+/** Zoom level at which the map switches from state shading to COUNTY shading
+ *  (zoomed out = shaded states only; zoom in a little = shaded counties). */
+const COUNTY_ZOOM = 2;
 /** Zoom level at which major-city dots + labels start rendering. */
 const CITY_ZOOM = 4;
 
@@ -117,6 +122,10 @@ export function UsGeoMap({
     { active: false, ox: 0, oy: 0, moved: false },
   );
 
+  // Level-of-detail: shaded STATES when zoomed out, shaded COUNTIES once you
+  // zoom in past COUNTY_ZOOM. Gates both the county-topojson load and rendering.
+  const showCounties = view.k >= COUNTY_ZOOM;
+
   const { paths, projection, features } = useMemo(() => {
     const topo = statesTopo as unknown as Topology;
     const fc = feature(
@@ -153,15 +162,15 @@ export function UsGeoMap({
   }, []);
 
   // --- Matched counties (lazy) ------------------------------------------------
-  // Only the counties that contain a matched alumnus are outlined — shown at
-  // EVERY zoom level (not just when zoomed in). We lazily load the ~800KB
-  // counties topojson the first time there's a match, then keep only the wanted
-  // county geometries (by 5-digit FIPS).
+  // The counties that contain a matched alumnus, ringed at the county detail
+  // level (zoomed in past COUNTY_ZOOM). We lazily load the ~800KB counties
+  // topojson the first time there's a match while zoomed in, then keep only the
+  // wanted county geometries (by 5-digit FIPS).
   const [matchCountyPaths, setMatchCountyPaths] = useState<string[] | null>(null);
   const matchKey =
     matchCounties && matchCounties.length ? [...matchCounties].sort().join(",") : "";
   useEffect(() => {
-    if (!matchKey) {
+    if (!showCounties || !matchKey) {
       setMatchCountyPaths(null);
       return;
     }
@@ -183,7 +192,7 @@ export function UsGeoMap({
     return () => {
       cancelled = true;
     };
-  }, [matchKey, projection]);
+  }, [matchKey, projection, showCounties]);
 
   // --- County borders (lazy) --------------------------------------------------
   // Every county outline, always shown at the same weight/color as the state
@@ -192,6 +201,7 @@ export function UsGeoMap({
   // topojson is dynamically imported (never in the initial bundle).
   const [countyMesh, setCountyMesh] = useState<string | null>(null);
   useEffect(() => {
+    if (!showCounties) return;
     let cancelled = false;
     loadCounties().then((topo) => {
       if (cancelled) return;
@@ -206,7 +216,7 @@ export function UsGeoMap({
     return () => {
       cancelled = true;
     };
-  }, [projection]);
+  }, [projection, showCounties]);
 
   // --- County choropleth fills (lazy) -----------------------------------------
   // Shade ONLY the counties where alumni work, by `countyCounts` (5-digit FIPS →
@@ -223,7 +233,7 @@ export function UsGeoMap({
       .join(",");
   }, [countyCounts]);
   useEffect(() => {
-    if (!countyCountsKey) {
+    if (!showCounties || !countyCountsKey) {
       setCountyFills(null);
       return;
     }
@@ -250,7 +260,7 @@ export function UsGeoMap({
     return () => {
       cancelled = true;
     };
-  }, [countyCountsKey, countyCounts, projection]);
+  }, [countyCountsKey, countyCounts, projection, showCounties]);
 
   // --- City labels (zoom-gated, viewport-culled) ------------------------------
   // Project every city once; cull to the current visible view at render time so
@@ -405,7 +415,7 @@ export function UsGeoMap({
               <path
                 key={p.id}
                 d={p.d}
-                fill={NEUTRAL_STATE}
+                fill={showCounties ? NEUTRAL_STATE : fillFor(count)}
                 stroke="#9CA3AF"
                 strokeWidth={1}
                 vectorEffect="non-scaling-stroke"
@@ -447,9 +457,10 @@ export function UsGeoMap({
           })}
 
           {/* County choropleth — shade ONLY the counties where alumni work,
-              by alumni count. pointer-events-none so the map click/pin still
-              works underneath. */}
-          {countyFills ? (
+              by alumni count. Only once zoomed in past COUNTY_ZOOM (zoomed out
+              shows shaded states instead). pointer-events-none so the map
+              click/pin still works underneath. */}
+          {showCounties && countyFills ? (
             <g className="pointer-events-none">
               {countyFills.map((c, i) => (
                 <path key={i} d={c.d} fill={fillFor(c.count)} />
@@ -458,8 +469,9 @@ export function UsGeoMap({
           ) : null}
 
           {/* All county borders — drawn at the same weight/color as the state
-              borders, on top of the shading so every county reads uniformly. */}
-          {countyMesh ? (
+              borders, on top of the shading so every county reads uniformly.
+              Only once zoomed in (zoomed out is state outlines only). */}
+          {showCounties && countyMesh ? (
             <path
               className="pointer-events-none"
               d={countyMesh}
@@ -471,8 +483,9 @@ export function UsGeoMap({
           ) : null}
 
           {/* Matched counties (radius search) — ring the counties that contain a
-              result so the current search stands out over the choropleth. */}
-          {matchCountyPaths ? (
+              result so the current search stands out over the choropleth (county
+              detail level only). */}
+          {showCounties && matchCountyPaths ? (
             <g
               className="pointer-events-none"
               fill="none"
@@ -559,12 +572,12 @@ export function UsGeoMap({
       ) : null}
 
       {(center && onResetCenter) || view.k > 1 ? (
-        <div className="absolute right-3 top-3 z-10 flex gap-2">
+        <div className="absolute right-4 top-4 z-10 flex gap-3">
           {center && onResetCenter ? (
             <button
               type="button"
               onClick={onResetCenter}
-              className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 shadow-card hover:bg-gray-50"
+              className="rounded-lg border border-gray-200 bg-white px-5 py-3 text-base font-semibold text-gray-700 shadow-card hover:bg-gray-50"
             >
               Reset pin
             </button>
@@ -573,7 +586,7 @@ export function UsGeoMap({
             <button
               type="button"
               onClick={() => setView({ k: 1, x: 0, y: 0 })}
-              className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 shadow-card hover:bg-gray-50"
+              className="rounded-lg border border-gray-200 bg-white px-5 py-3 text-base font-semibold text-gray-700 shadow-card hover:bg-gray-50"
             >
               Reset zoom
             </button>

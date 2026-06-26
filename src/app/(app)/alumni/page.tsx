@@ -121,6 +121,20 @@ export default async function AlumniListPage({
   // (/alumni?employer=<v>), so forward it straight to the backend, the same way
   // the spoke_after/spoke_before window params below are handled.
   appendAll("employer", arr(sp.employer));
+  // Per-field search (from the dashboard Quick/Advanced search) — pass-through
+  // deep-link params, forwarded straight to the backend GET /alumni. Each is a
+  // case-insensitive partial match; blanks are skipped so an empty box never
+  // filters.
+  for (const field of [
+    "net_id",
+    "first_name",
+    "last_name",
+    "preferred_name",
+    "email",
+  ] as const) {
+    const v = one(sp[field]).trim();
+    if (v) params.set(field, v);
+  }
   appendAll("past_employer", filters.pastEmployer);
   appendAll("industry", filters.industry);
   appendAll("title", filters.title);

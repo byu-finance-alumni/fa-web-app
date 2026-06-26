@@ -47,6 +47,11 @@ const NAV: NavItem[] = [
         label: "Vocabulary",
         engineerOnly: true,
       },
+      {
+        href: "/admin/quick-filters",
+        label: "Quick filters",
+        superAdminOnly: true,
+      },
       { href: "/audit", label: "Audit", superAdminOnly: true },
       { href: "/admin/logins", label: "Logins", engineerOnly: true },
       {
