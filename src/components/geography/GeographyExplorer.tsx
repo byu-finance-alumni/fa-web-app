@@ -99,7 +99,7 @@ function RankBox({
   moreLabel: string;
   moreHref: string;
 }) {
-  const shown = rows.slice(0, 5);
+  const shown = rows.slice(0, 10);
   // Relative magnitude for the inline mini-bars (presentation only — mirrors the
   // dashboard BarList; does not touch the map's color-scale buckets).
   const max = Math.max(1, ...shown.map((r) => r.count));

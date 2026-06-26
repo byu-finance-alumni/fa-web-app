@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { Download } from "lucide-react";
 import { exportAlumni, getExportColumns } from "@/app/(app)/alumni/actions";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/button";
@@ -135,7 +134,7 @@ export function ExportAlumniButton({
         variant="secondary"
         onClick={() => void openDialog()}
       >
-        <Download className="h-4 w-4" aria-hidden="true" /> Export CSV
+        Export CSV
       </Button>
 
       {open ? (

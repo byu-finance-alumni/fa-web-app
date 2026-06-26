@@ -183,7 +183,7 @@ export default async function StateMapPage({
  *  a compact label, an inline mini-bar showing relative magnitude, and a
  *  right-aligned tabular count. Presentation only — no map scale math here. */
 function RankBox({ title, rows }: { title: string; rows: [string, number][] }) {
-  const shown = rows.slice(0, 5);
+  const shown = rows.slice(0, 10);
   const max = Math.max(1, ...shown.map(([, count]) => count));
   return (
     <Card className="flex min-h-0 flex-1 flex-col p-3">

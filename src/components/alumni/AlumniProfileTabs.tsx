@@ -1,7 +1,6 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { LayoutGrid, MessageSquare, GraduationCap, ListChecks } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 /**
@@ -19,42 +18,37 @@ export function AlumniProfileTabs({
   overview,
   interactions,
   education,
+  engagement,
   tasks,
 }: {
   overview: ReactNode;
   interactions: ReactNode;
   education?: ReactNode;
+  /** Editor-only — pass undefined for view-only roles and the tab is hidden. */
+  engagement?: ReactNode;
   tasks?: ReactNode;
 }) {
   return (
     <Tabs defaultValue="overview" className="w-full">
-      <TabsList className="w-full overflow-x-auto">
-        <TabsTrigger value="overview">
-          <LayoutGrid aria-hidden="true" className="h-4 w-4" />
-          Overview
-        </TabsTrigger>
-        <TabsTrigger value="interactions">
-          <MessageSquare aria-hidden="true" className="h-4 w-4" />
-          Interactions
-        </TabsTrigger>
+      <TabsList className="w-full">
+        <TabsTrigger value="overview">Overview</TabsTrigger>
+        <TabsTrigger value="interactions">Interactions</TabsTrigger>
         {education ? (
-          <TabsTrigger value="education">
-            <GraduationCap aria-hidden="true" className="h-4 w-4" />
-            Education
-          </TabsTrigger>
+          <TabsTrigger value="education">Education</TabsTrigger>
         ) : null}
-        {tasks ? (
-          <TabsTrigger value="tasks">
-            <ListChecks aria-hidden="true" className="h-4 w-4" />
-            Tasks
-          </TabsTrigger>
+        {engagement ? (
+          <TabsTrigger value="engagement">Engagement</TabsTrigger>
         ) : null}
+        {tasks ? <TabsTrigger value="tasks">Tasks</TabsTrigger> : null}
       </TabsList>
 
       <TabsContent value="overview">{overview}</TabsContent>
       <TabsContent value="interactions">{interactions}</TabsContent>
       {education ? (
         <TabsContent value="education">{education}</TabsContent>
+      ) : null}
+      {engagement ? (
+        <TabsContent value="engagement">{engagement}</TabsContent>
       ) : null}
       {tasks ? <TabsContent value="tasks">{tasks}</TabsContent> : null}
     </Tabs>

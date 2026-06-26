@@ -11,8 +11,6 @@ import {
   Flag,
   CircleAlert,
   Check,
-  MessageSquare,
-  CalendarClock,
   type LucideIcon,
 } from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
@@ -247,21 +245,6 @@ export default async function AlumniProfilePage({
 
   // KPI derivations
   const openTasks = profile.tasks.filter((t) => !t.completed);
-  // Overview highlights — reuse already-fetched data, no new requests.
-  // Most-recent interactions (the list arrives newest-first from the backend).
-  const recentInteractions = profile.interactions.slice(0, 3);
-  // Upcoming tasks: open tasks ordered by due date (dated first, soonest first;
-  // undated last), capped so the highlight stays glanceable.
-  const upcomingTasks = [...openTasks]
-    .sort((x, y) => {
-      const dx = x.due_date ?? "";
-      const dy = y.due_date ?? "";
-      if (dx && dy) return dx.localeCompare(dy);
-      if (dx) return -1;
-      if (dy) return 1;
-      return 0;
-    })
-    .slice(0, 3);
   // Most recent completed survey → "Last surveyed" KPI.
   const lastSurveyedIso =
     [...profile.surveys]
@@ -319,160 +302,6 @@ export default async function AlumniProfilePage({
         ? "Needs detail"
         : "Sparse";
 
-  // Shared chip content for Engagement & tags — rendered in the panel and in
-  // its "View all" right-side drawer.
-  const engagementContent = (
-    <div className="space-y-3">
-      {profile.tags.length ? (
-        <ChipRow label="Tags">
-          {profile.tags.map((t) => (
-            <EngagementChip
-              key={t}
-              tone={t.toLowerCase().includes("engaged") ? "warning" : "tag"}
-            >
-              {t}
-            </EngagementChip>
-          ))}
-        </ChipRow>
-      ) : null}
-      {profile.status_labels.length ? (
-        <ChipRow label="Status">
-          {profile.status_labels.map((s) => (
-            <EngagementChip key={s} tone="neutral">
-              {s}
-            </EngagementChip>
-          ))}
-        </ChipRow>
-      ) : null}
-      {profile.program_engagement ? (
-        <ChipRow label="Program">
-          {programChips(profile.program_engagement).map((label) => (
-            <EngagementChip key={label} tone="success">
-              {label}
-            </EngagementChip>
-          ))}
-        </ChipRow>
-      ) : null}
-    </div>
-  );
-
-  /* ---------------------------------------------------- overview highlights -- */
-  // A glanceable header for the Overview tab: the most recent interactions and
-  // the soonest upcoming tasks, both drawn from data already fetched above. The
-  // tasks column is admin-only (same gate as the Open tasks panel); the
-  // interactions column shows for every role.
-  const highlights = (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <Panel
-        title="Recent interactions"
-        action={
-          canAdd ? (
-            <AddInteractionButton alumniId={aid} label="+ Add interaction" />
-          ) : undefined
-        }
-      >
-        {recentInteractions.length ? (
-          <ul className="space-y-3">
-            {recentInteractions.map((it) => (
-              <li
-                key={it.interaction_id}
-                className="flex gap-3 border-b border-gray-100 pb-3 last:border-0 last:pb-0"
-              >
-                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-500">
-                  <MessageSquare className="h-4 w-4" aria-hidden="true" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-medium text-gray-900">
-                      {it.interaction_type ?? "Interaction"}
-                    </p>
-                    <span className="shrink-0 text-xs text-gray-500">
-                      {daysAgo(it.interaction_date_time)}
-                    </span>
-                  </div>
-                  {it.interaction_notes ? (
-                    <p className="mt-0.5 line-clamp-2 text-sm text-gray-600">
-                      {it.interaction_notes}
-                    </p>
-                  ) : null}
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="py-6 text-center text-sm text-gray-500">
-            No interactions logged yet.
-          </p>
-        )}
-      </Panel>
-
-      {canEdit ? (
-        <Panel
-          title="Upcoming tasks"
-          action={<AddTaskButton alumniId={aid} label="+ New task" />}
-        >
-          {upcomingTasks.length ? (
-            <ul className="space-y-3">
-              {upcomingTasks.map((t) => {
-                const overdue =
-                  t.due_date && new Date(t.due_date) < new Date();
-                return (
-                  <li key={t.follow_up_task_id} className="flex gap-3">
-                    <TaskCheckbox
-                      alumniId={aid}
-                      taskId={t.follow_up_task_id}
-                      completed={t.completed}
-                      disabled={!canEdit}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm font-medium text-gray-900">
-                          {t.task_title ?? "Untitled task"}
-                        </p>
-                        <Badge
-                          variant={overdue ? "warning" : "neutral"}
-                          className="shrink-0"
-                        >
-                          {overdue ? "Overdue · " : ""}
-                          {t.due_date ? fmtDate(t.due_date) : "No date"}
-                        </Badge>
-                      </div>
-                      {t.assigned_to ? (
-                        <p className="text-xs text-gray-500">
-                          Assigned to {t.assigned_to}
-                        </p>
-                      ) : null}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <p className="py-6 text-center text-sm text-gray-500">
-              No open tasks.
-            </p>
-          )}
-        </Panel>
-      ) : (
-        <Panel title="Engagement at a glance">
-          <div className="flex items-center gap-3">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-500">
-              <CalendarClock className="h-4 w-4" aria-hidden="true" />
-            </span>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                Last contacted
-              </p>
-              <p className="text-sm font-medium text-gray-900">
-                {daysAgo(lastContactedIso)}
-              </p>
-            </div>
-          </div>
-        </Panel>
-      )}
-    </div>
-  );
-
   return (
     <>
       {/* Top bar (fixed; only the content below scrolls) */}
@@ -504,12 +333,12 @@ export default async function AlumniProfilePage({
                         Goes by “{a.preferred_first_name}”
                       </EngagementChip>
                     ) : null}
-                    <Badge variant={recordStatus === "Active" ? "success" : "muted"}>
-                      <span
-                        className={`h-1.5 w-1.5 rounded-full ${recordStatus === "Active" ? "bg-success-600" : "bg-gray-400"}`}
-                      />
-                      {recordStatus}
-                    </Badge>
+                    {recordStatus !== "Active" ? (
+                      <Badge variant="muted">
+                        <span className="h-1.5 w-1.5 rounded-full bg-gray-400" />
+                        {recordStatus}
+                      </Badge>
+                    ) : null}
                   </div>
                   <p className="mt-1 text-base text-gray-500">
                     {[
@@ -549,7 +378,7 @@ export default async function AlumniProfilePage({
                       (view_only) get — gated on canAdd. Every other control
                       below stays on canEdit so professors never gain edits to
                       the alumni record, tasks, exports, or archive state. */}
-                  <AddInteractionButton alumniId={aid} label="+ Add interaction" />
+                  <AddInteractionButton alumniId={aid} label="Add interaction" />
                   {canEdit ? (
                     <>
                       <AddTaskButton alumniId={aid} label="Create task" />
@@ -630,7 +459,6 @@ export default async function AlumniProfilePage({
           <AlumniProfileTabs
             overview={
               <div className="space-y-4">
-                {highlights}
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
                   {/* Main column (wider). */}
                   <div className="flex flex-col gap-4 lg:col-span-2">
@@ -885,50 +713,34 @@ export default async function AlumniProfilePage({
               </Panel>
               ) : null}
 
-              {/* Engagement & tags */}
-              {profile.tags.length ||
-              profile.status_labels.length ||
-              profile.program_engagement ||
-              canEdit ? (
-                <Panel title="Engagement & tags">
-                  {canEdit ? (
-                    // Editors get the inline tag + status-label manager as a
-                    // first-class section (#41) — removable chips + add-from-
-                    // vocab — instead of it being buried in a drawer.
-                    <div className="space-y-5">
-                      <TagStatusManager
-                        alumniId={aid}
-                        tags={profile.tags}
-                        statusLabels={profile.status_labels}
-                      />
-                      {profile.program_engagement ? (
-                        <ChipRow label="Program">
-                          {programChips(profile.program_engagement).map(
-                            (label) => (
-                              <EngagementChip key={label} tone="success">
-                                {label}
-                              </EngagementChip>
-                            ),
-                          )}
-                        </ChipRow>
-                      ) : null}
-                    </div>
-                  ) : profile.tags.length ||
-                    profile.status_labels.length ||
-                    profile.program_engagement ? (
-                    // view_only: read-only chips, no edit affordances.
-                    engagementContent
-                  ) : (
-                    <p className="py-6 text-center text-sm text-gray-500">
-                      No tags or status labels yet.
-                    </p>
-                  )}
-                </Panel>
-              ) : null}
-
                   </div>
                 </div>
               </div>
+            }
+            engagement={
+              // Engagement & tags is an editor tool — the tab only renders for
+              // users who can edit (AlumniProfileTabs omits a tab whose node is
+              // undefined), so view-only roles never see it.
+              canEdit ? (
+                <Panel title="Engagement & tags">
+                  <div className="space-y-5">
+                    <TagStatusManager
+                      alumniId={aid}
+                      tags={profile.tags}
+                      statusLabels={profile.status_labels}
+                    />
+                    {profile.program_engagement ? (
+                      <ChipRow label="Program">
+                        {programChips(profile.program_engagement).map((label) => (
+                          <EngagementChip key={label} tone="success">
+                            {label}
+                          </EngagementChip>
+                        ))}
+                      </ChipRow>
+                    ) : null}
+                  </div>
+                </Panel>
+              ) : undefined
             }
             interactions={
               /* Interactions timeline (full width) — dedicated #38 deliverable.

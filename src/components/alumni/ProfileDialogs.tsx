@@ -3,15 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Archive,
-  ArchiveRestore,
-  Check,
-  Pencil,
-  Plus,
-  Trash2,
-  X,
-} from "lucide-react";
+import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import {
   addEducation,
   addEmploymentRole,
@@ -290,7 +282,6 @@ export function AddInteractionButton({
         <Button
           type="button"
           variant={primary ? "primary" : "secondary"}
-          size="sm"
           onClick={() => setOpen(true)}
         >
           {label}
@@ -416,12 +407,7 @@ export function AddTaskButton({
 
   return (
     <>
-      <Button
-        type="button"
-        variant="secondary"
-        size="sm"
-        onClick={() => setOpen(true)}
-      >
+      <Button type="button" variant="secondary" onClick={() => setOpen(true)}>
         {label}
       </Button>
       {open ? (
@@ -510,7 +496,6 @@ export function ArchiveControls({
             "border-success-600 text-success-600 hover:bg-success-50",
           )}
         >
-          <ArchiveRestore className="h-4 w-4" aria-hidden="true" />
           {pending ? "Restoring…" : "Unarchive"}
         </Button>
         {error ? <p className="text-xs text-danger-600">{error}</p> : null}
@@ -529,7 +514,6 @@ export function ArchiveControls({
         }}
         className={cn("text-danger-600 hover:bg-danger-50")}
       >
-        <Archive className="h-4 w-4" aria-hidden="true" />
         Archive
       </Button>
       {confirming ? (
@@ -570,7 +554,6 @@ export function ArchiveControls({
                 })
               }
             >
-              <Archive className="h-4 w-4" aria-hidden="true" />
               {pending ? "Archiving…" : "Archive record"}
             </Button>
           </div>
