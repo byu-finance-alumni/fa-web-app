@@ -1,150 +1,394 @@
 "use client";
 
-import { type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { UsStateMap } from "./UsStateMap";
+import { Compass, Crosshair, Loader2, Search } from "lucide-react";
+import { geocodePlace } from "@/app/(app)/map/actions";
+import { UsGeoMap } from "./UsGeoMap";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import type { GeoSummary, StateCount } from "@/types/geography";
+import { Chip } from "@/components/ui/chip";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
-type Row = { key: string; label: string; count: number };
+type Mode = "explore" | "radius";
 
+const RADIUS_PRESETS = [10, 25, 50, 100] as const;
+const MIN_MILES = 1;
+const MAX_MILES = 250;
+
+/** The geography filters carried through every navigation so they're preserved. */
+const FILTER_KEYS = ["employer", "industry", "year", "region", "tag"] as const;
+
+export interface RadiusState {
+  lat?: string;
+  lng?: string;
+  miles: number;
+  place?: string;
+  employer?: string;
+  industry?: string;
+  year?: string;
+  region?: string;
+  tag?: string;
+}
+
+/**
+ * The map workspace: a mode toggle over one big geo-projected US map.
+ *
+ *  - Explore: states shaded by alumni density; clicking a state drills into
+ *    `/map/state/{CODE}` (filters preserved).
+ *  - Radius: clicking the map drops a pin (center) and runs the radius search;
+ *    plus a type-a-city box and radius presets/slider. Both write the URL so the
+ *    server fetches and renders results below the map (passed as `children`).
+ *
+ * Filters (rendered above the map) apply to BOTH the shading and the radius
+ * search, since the page re-fetches both from the same searchParams.
+ */
 export function GeographyExplorer({
   counts,
-  topStates,
-  topCities,
+  mode,
+  radius,
   filterQuery,
   filters,
+  results,
 }: {
   counts: Record<string, number>;
-  topStates: StateCount[];
-  topCities: GeoSummary["top_cities"];
+  mode: Mode;
+  radius: RadiusState;
   filterQuery: string;
   filters: ReactNode;
+  /** Radius results (count badge + table + export), rendered by the server. */
+  results: ReactNode;
 }) {
   const router = useRouter();
-  // Total located alumni = sum across states (matches the per-state page count).
+  const [pending, startTransition] = useTransition();
+
   const totalAlumni = Object.values(counts).reduce((a, b) => a + b, 0);
 
-  // State clicks (map + the "Top states"/"Top cities" rank rows) now open the
-  // dedicated centered-map state page, preserving active filters.
+  const hasCenter = !!radius.lat && !!radius.lng;
+  const center = hasCenter
+    ? { lat: Number(radius.lat), lng: Number(radius.lng) }
+    : null;
+
+  // Local mirror of the radius so the slider/chips feel instant while the URL
+  // (and thus the server fetch) updates debounced.
+  const [miles, setMiles] = useState(radius.miles);
+  useEffect(() => setMiles(radius.miles), [radius.miles]);
+
+  const [placeInput, setPlaceInput] = useState(radius.place ?? "");
+  const [geoError, setGeoError] = useState<string | null>(null);
+  const [searching, setSearching] = useState(false);
+
+  // ---- Explore: state click -> drill into the state detail page --------------
   function openState(code: string) {
-    router.push(`/map/state/${code.toUpperCase()}?${filterQuery}`.replace(/\?$/, ""));
+    router.push(
+      `/map/state/${code.toUpperCase()}?${filterQuery}`.replace(/\?$/, ""),
+    );
   }
-  const breakdownHref = (dim: string) =>
-    `/map/breakdown/${dim}${filterQuery ? `?${filterQuery}` : ""}`;
+
+  // ---- Mode toggle (segmented control) ---------------------------------------
+  function switchMode(next: Mode) {
+    if (next === mode) return;
+    const p = new URLSearchParams();
+    for (const k of FILTER_KEYS) if (radius[k]) p.set(k, radius[k]!);
+    if (next === "radius") {
+      p.set("mode", "radius");
+      if (radius.lat) p.set("lat", radius.lat);
+      if (radius.lng) p.set("lng", radius.lng);
+      if (radius.place) p.set("place", radius.place);
+      p.set("miles", String(radius.miles));
+    }
+    const qs = p.toString();
+    startTransition(() => router.push(qs ? `/map?${qs}` : "/map"));
+  }
+
+  // ---- Radius: build a /map?mode=radius URL preserving center + filters ------
+  const buildRadiusUrl = useCallback(
+    (over: Partial<RadiusState>) => {
+      const merged = { ...radius, ...over };
+      const p = new URLSearchParams();
+      p.set("mode", "radius");
+      if (merged.lat) p.set("lat", String(merged.lat));
+      if (merged.lng) p.set("lng", String(merged.lng));
+      if (merged.place) p.set("place", merged.place);
+      p.set("miles", String(merged.miles));
+      for (const k of FILTER_KEYS) {
+        const v = merged[k];
+        if (v) p.set(k, v);
+      }
+      return `/map?${p.toString()}`;
+    },
+    [radius],
+  );
+
+  // ---- Typed city -> geocode -> navigate -------------------------------------
+  async function onSearchPlace(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const query = placeInput.trim();
+    if (!query) {
+      setGeoError("Enter a city to search.");
+      return;
+    }
+    setGeoError(null);
+    setSearching(true);
+    try {
+      const res = await geocodePlace(query);
+      if (!res.ok) {
+        setGeoError(res.error);
+        return;
+      }
+      startTransition(() => {
+        router.push(
+          buildRadiusUrl({
+            lat: String(res.lat),
+            lng: String(res.lng),
+            place: res.label,
+          }),
+        );
+      });
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  // ---- Radius value (chips immediate; slider debounced) ----------------------
+  function applyMiles(next: number) {
+    const clamped = Math.min(MAX_MILES, Math.max(MIN_MILES, Math.round(next)));
+    startTransition(() => router.push(buildRadiusUrl({ miles: clamped })));
+  }
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function onSlider(next: number) {
+    setMiles(next);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => applyMiles(next), 350);
+  }
+  useEffect(
+    () => () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    },
+    [],
+  );
+
+  // ---- Pin drop -> navigate --------------------------------------------------
+  function onPick(lat: number, lng: number) {
+    setGeoError(null);
+    startTransition(() => {
+      router.push(
+        buildRadiusUrl({
+          lat: lat.toFixed(5),
+          lng: lng.toFixed(5),
+          place: "Pinned location",
+        }),
+      );
+    });
+  }
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-4 lg:grid-rows-1">
-      {/* Map (left, dominant) — filters live in this card */}
-      <Card className="flex min-h-0 flex-col p-4 lg:col-span-3">
-        <div className="mb-2 flex flex-wrap items-end justify-between gap-x-3 gap-y-2">
-          {filters}
-          <span className="mr-3 shrink-0 self-start text-xl font-semibold text-gray-900">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      {/* Mode toggle */}
+      <div className="flex shrink-0 items-center justify-between gap-3">
+        <div
+          role="tablist"
+          aria-label="Map mode"
+          className="inline-flex gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1"
+        >
+          <ModeTab
+            active={mode === "explore"}
+            onClick={() => switchMode("explore")}
+            icon={<Compass className="h-4 w-4" aria-hidden="true" />}
+            label="Explore"
+          />
+          <ModeTab
+            active={mode === "radius"}
+            onClick={() => switchMode("radius")}
+            icon={<Crosshair className="h-4 w-4" aria-hidden="true" />}
+            label="Radius"
+          />
+        </div>
+        {mode === "explore" ? (
+          <span className="text-xl font-semibold text-gray-900">
             {totalAlumni.toLocaleString()} alumni
           </span>
+        ) : null}
+      </div>
+
+      {/* Big map card — filters live in this card's header (apply to both modes) */}
+      <Card className="flex min-h-0 flex-1 flex-col p-4">
+        <div className="mb-3 flex flex-wrap items-end gap-x-3 gap-y-2">
+          {filters}
         </div>
-        <div className="min-h-0 flex-1">
-          <UsStateMap
-            fit
+
+        {mode === "radius" ? (
+          <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            {/* Type-a-city */}
+            <form
+              onSubmit={onSearchPlace}
+              className="flex w-full max-w-md items-start gap-2"
+            >
+              <div className="flex-1">
+                <Label htmlFor="radius-place" className="mb-1.5">
+                  Search from a city
+                </Label>
+                <div className="flex items-start gap-2">
+                  <div className="flex-1">
+                    <Input
+                      id="radius-place"
+                      value={placeInput}
+                      onChange={(e) => {
+                        setPlaceInput(e.target.value);
+                        if (geoError) setGeoError(null);
+                      }}
+                      placeholder="City, ST (e.g. Provo, UT)"
+                      aria-invalid={geoError ? true : undefined}
+                      aria-describedby={
+                        geoError ? "radius-place-error" : undefined
+                      }
+                    />
+                    {geoError ? (
+                      <p
+                        id="radius-place-error"
+                        className="mt-1.5 text-xs text-danger-600"
+                      >
+                        {geoError}
+                      </p>
+                    ) : null}
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={searching || pending}
+                    className={cn(
+                      "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-brand-blue-600 px-3 text-sm font-medium text-white transition-colors hover:bg-brand-blue-500 disabled:pointer-events-none disabled:opacity-50",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
+                    )}
+                  >
+                    {searching ? (
+                      <Loader2
+                        className="h-4 w-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <Search className="h-4 w-4" aria-hidden="true" />
+                    )}
+                    <span>Search</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+
+            {/* Radius presets + slider */}
+            <div className="w-full max-w-xs">
+              <div className="mb-1.5 flex items-baseline justify-between">
+                <Label className="mb-0">Radius</Label>
+                <span className="text-sm font-semibold tabular-nums text-gray-900">
+                  {miles} mi
+                </span>
+              </div>
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {RADIUS_PRESETS.map((p) => (
+                  <Chip
+                    key={p}
+                    type="button"
+                    active={miles === p}
+                    onClick={() => {
+                      setMiles(p);
+                      applyMiles(p);
+                    }}
+                    aria-pressed={miles === p}
+                  >
+                    {p} mi
+                  </Chip>
+                ))}
+              </div>
+              <input
+                type="range"
+                min={MIN_MILES}
+                max={MAX_MILES}
+                value={miles}
+                onChange={(e) => onSlider(Number(e.target.value))}
+                aria-label="Search radius in miles"
+                className={cn(
+                  "h-1.5 w-full cursor-pointer appearance-none rounded-full bg-gray-200 accent-brand-blue-600",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
+                )}
+              />
+            </div>
+          </div>
+        ) : null}
+
+        {mode === "radius" ? (
+          <p className="mb-2 shrink-0 text-xs text-gray-500">
+            Click the map to drop a pin, or search a city.{" "}
+            {radius.place
+              ? `Center: ${radius.place}`
+              : hasCenter
+                ? "Center: pinned location"
+                : "No center yet."}
+          </p>
+        ) : null}
+
+        <div className="relative min-h-0 flex-1">
+          <UsGeoMap
+            mode={mode}
             counts={counts}
-            selected={null}
-            onSelect={openState}
+            center={center}
+            onStateClick={openState}
+            onPick={onPick}
           />
+          {pending ? (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-white/40">
+              <Loader2
+                className="h-5 w-5 animate-spin text-brand-blue-600"
+                aria-hidden="true"
+              />
+            </div>
+          ) : null}
         </div>
       </Card>
 
-      {/* Ranking rail (right) — two boxes split the full height to match the map. */}
-      <div className="flex min-h-0 flex-col gap-3">
-        <RankBox
-          title="Top states"
-          rows={topStates.map((s) => ({
-            key: s.state,
-            label: s.state_name,
-            count: s.alumni_count,
-          }))}
-          onRow={(key) => openState(key)}
-          moreLabel="View all states"
-          moreHref={breakdownHref("states")}
-        />
-        <RankBox
-          title="Top cities"
-          rows={topCities.map((c) => ({
-            key: c.state,
-            label: `${c.city}, ${c.state}`,
-            count: c.count,
-          }))}
-          onRow={(key) => openState(key)}
-          moreLabel="View all cities"
-          moreHref={breakdownHref("cities")}
-        />
-      </div>
+      {/* Radius results (server-rendered): count badge + table + CSV export. */}
+      {mode === "radius" ? results : null}
     </div>
   );
 }
 
-/* --------------------------------------------------------------- rank box -- */
+/* ----------------------------------------------------------------- mode tab -- */
 
-function RankBox({
-  title,
-  rows,
-  onRow,
-  moreLabel,
-  moreHref,
+function ModeTab({
+  active,
+  onClick,
+  icon,
+  label,
 }: {
-  title: string;
-  rows: Row[];
-  onRow: (key: string) => void;
-  moreLabel: string;
-  moreHref: string;
+  active: boolean;
+  onClick: () => void;
+  icon: ReactNode;
+  label: string;
 }) {
-  const shown = rows.slice(0, 10);
-  // Relative magnitude for the inline mini-bars (presentation only — mirrors the
-  // dashboard BarList; does not touch the map's color-scale buckets).
-  const max = Math.max(1, ...shown.map((r) => r.count));
   return (
-    <Card className="flex min-h-0 flex-1 flex-col p-3">
-      <h3 className="mb-1 text-sm font-semibold text-gray-900">{title}</h3>
-      {rows.length === 0 ? (
-        <p className="py-1.5 text-sm text-gray-400">No data yet.</p>
-      ) : (
-        <ul className="space-y-0.5">
-          {shown.map((r, i) => (
-            <li key={`${r.key}-${i}`}>
-              <button
-                type="button"
-                onClick={() => onRow(r.key)}
-                aria-label={`${r.label}: ${r.count.toLocaleString()} alumni`}
-                className="group flex w-full items-center gap-2.5 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-brand-blue-50/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
-              >
-                <span className="w-24 shrink-0 truncate text-sm text-gray-700 group-hover:text-brand-blue-700">
-                  {r.label}
-                </span>
-                <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-100">
-                  <span
-                    className="block h-full rounded-full bg-brand-blue-500 transition-colors group-hover:bg-brand-blue-600"
-                    style={{ width: `${Math.round((r.count / max) * 100)}%` }}
-                  />
-                </span>
-                <span className="w-9 shrink-0 text-right text-xs font-semibold tabular-nums text-gray-900">
-                  {r.count.toLocaleString()}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
+        active
+          ? "bg-white text-brand-blue-700 shadow-card"
+          : "text-gray-600 hover:text-gray-900",
       )}
-      {rows.length > 0 ? (
-        <Button
-          asChild
-          variant="link"
-          size="sm"
-          className="mt-2 h-auto self-start px-0"
-        >
-          <Link href={moreHref}>{moreLabel}</Link>
-        </Button>
-      ) : null}
-    </Card>
+    >
+      {icon}
+      {label}
+    </button>
   );
 }

@@ -38,6 +38,7 @@ export function MapFilters({
   values,
   hasFilters,
   basePath = "/map",
+  extraParams,
 }: {
   options: FilterOptions;
   values: FilterValues;
@@ -45,9 +46,20 @@ export function MapFilters({
   /** Route the filters navigate to. Defaults to the 50-state map; the per-state
    * page passes `/map/state/{CODE}` so applying a filter stays on that state. */
   basePath?: string;
+  /** Non-filter params to PRESERVE on apply/clear (e.g. the map's radius mode +
+   * center) so changing a filter re-runs the radius search instead of bouncing
+   * back to explore mode. */
+  extraParams?: Record<string, string | undefined>;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+
+  function withExtras(params: URLSearchParams): URLSearchParams {
+    if (extraParams) {
+      for (const [k, v] of Object.entries(extraParams)) if (v) params.set(k, v);
+    }
+    return params;
+  }
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -57,6 +69,7 @@ export function MapFilters({
       const v = form.get(k);
       if (typeof v === "string" && v) params.set(k, v);
     }
+    withExtras(params);
     const qs = params.toString();
     startTransition(() => {
       router.push(qs ? `${basePath}?${qs}` : basePath);
@@ -96,7 +109,14 @@ export function MapFilters({
       </Button>
       {hasFilters ? (
         <Button variant="secondary" asChild>
-          <Link href={basePath}>Clear</Link>
+          <Link
+            href={(() => {
+              const qs = withExtras(new URLSearchParams()).toString();
+              return qs ? `${basePath}?${qs}` : basePath;
+            })()}
+          >
+            Clear
+          </Link>
         </Button>
       ) : null}
     </form>
