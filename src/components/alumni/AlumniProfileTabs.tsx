@@ -20,6 +20,7 @@ export function AlumniProfileTabs({
   education,
   engagement,
   tasks,
+  payItForward,
 }: {
   overview: ReactNode;
   interactions: ReactNode;
@@ -27,6 +28,9 @@ export function AlumniProfileTabs({
   /** Editor-only — pass undefined for view-only roles and the tab is hidden. */
   engagement?: ReactNode;
   tasks?: ReactNode;
+  /** Pay It Forward giving — pass undefined when the alumnus has no donations,
+   *  and the tab is hidden. Shown to every role when present (amounts gated). */
+  payItForward?: ReactNode;
 }) {
   return (
     <Tabs defaultValue="overview" className="w-full">
@@ -40,6 +44,9 @@ export function AlumniProfileTabs({
           <TabsTrigger value="engagement">Engagement</TabsTrigger>
         ) : null}
         {tasks ? <TabsTrigger value="tasks">Tasks</TabsTrigger> : null}
+        {payItForward ? (
+          <TabsTrigger value="pay-it-forward">Pay it forward</TabsTrigger>
+        ) : null}
       </TabsList>
 
       <TabsContent value="overview">{overview}</TabsContent>
@@ -51,6 +58,9 @@ export function AlumniProfileTabs({
         <TabsContent value="engagement">{engagement}</TabsContent>
       ) : null}
       {tasks ? <TabsContent value="tasks">{tasks}</TabsContent> : null}
+      {payItForward ? (
+        <TabsContent value="pay-it-forward">{payItForward}</TabsContent>
+      ) : null}
     </Tabs>
   );
 }

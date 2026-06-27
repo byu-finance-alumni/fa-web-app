@@ -6,12 +6,12 @@ import {
   createVocabTerm,
   renameVocabTerm,
   setVocabTermActive,
-} from "@/app/(app)/engineer/vocabulary/actions";
+} from "@/app/(app)/vocabulary/actions";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
-import type { VocabTerm } from "@/app/(app)/engineer/vocabulary/page";
+import type { VocabTerm } from "@/app/(app)/vocabulary/page";
 
 /**
  * Manage one vocabulary category: add a term, rename an active term, hide
