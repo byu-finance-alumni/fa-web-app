@@ -3,6 +3,7 @@ import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
 import { VocabularyManager } from "@/components/admin/VocabularyManager";
 import { Card } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import type { UserContext } from "@/types/alumni";
 
 export interface VocabTerm {
@@ -93,21 +94,30 @@ export default async function VocabularyAdminPage() {
             <p className="mt-1 text-sm text-gray-500">{error.message}</p>
           </Card>
         ) : (
-          <div className="mx-auto max-w-3xl space-y-6">
+          <div className="mx-auto max-w-3xl space-y-4">
             <p className="text-sm text-gray-500">
               Add, rename, or hide the options that appear in the app’s
               dropdowns. Hiding a value keeps it valid on existing records — it
               just won’t be offered for new entries.
             </p>
-            {groups!.map((g) => (
-              <Card key={g.key} className="p-5">
-                <h2 className="text-sm font-semibold text-gray-900">
-                  {g.label}
-                </h2>
-                <p className="mb-3 text-xs text-gray-500">{g.help}</p>
-                <VocabularyManager category={g.key} terms={g.terms} />
-              </Card>
-            ))}
+            {/* One tab per category instead of a long stacked list. */}
+            <Tabs defaultValue={groups![0].key} className="w-full">
+              <TabsList className="w-full">
+                {groups!.map((g) => (
+                  <TabsTrigger key={g.key} value={g.key}>
+                    {g.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              {groups!.map((g) => (
+                <TabsContent key={g.key} value={g.key}>
+                  <Card className="p-5">
+                    <p className="mb-3 text-xs text-gray-500">{g.help}</p>
+                    <VocabularyManager category={g.key} terms={g.terms} />
+                  </Card>
+                </TabsContent>
+              ))}
+            </Tabs>
           </div>
         )}
       </main>
