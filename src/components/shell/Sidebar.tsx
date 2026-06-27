@@ -59,7 +59,6 @@ const NAV: NavItem[] = [
     label: "Engineer",
     engineerOnly: true,
     children: [
-      { href: "/engineer", label: "Console", engineerOnly: true },
       { href: "/engineer/permissions", label: "Permissions", engineerOnly: true },
       { href: "/engineer/preview", label: "Preview as role", engineerOnly: true },
       // Vocabulary is capability-gated, not engineer-only, so a super_admin (or
