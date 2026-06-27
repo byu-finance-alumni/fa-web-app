@@ -6,14 +6,15 @@ import { apiPost, apiPatch, apiDelete, ApiError } from "@/lib/api";
 type Result = { error?: string } | null;
 
 /**
- * Vocabulary admin actions (engineer / super_admin — the backend re-enforces via
- * RequireVocabAdmin). Each mutation revalidates the admin page and the
- * "vocabulary" cache tag so the app's dropdowns (e.g. event types) pick up the
- * change.
+ * Vocabulary admin actions. Gated by the `vocab_admin` capability — held by the
+ * engineer and by any role an engineer grants it in the permission editor (e.g.
+ * super_admin); the backend re-enforces via RequireVocabAdmin. Each mutation
+ * revalidates the vocabulary page and the "vocabulary" cache tag so the app's
+ * dropdowns (e.g. event types) pick up the change.
  */
 
 function revalidate() {
-  revalidatePath("/engineer/vocabulary");
+  revalidatePath("/vocabulary");
   revalidateTag("vocabulary");
 }
 

@@ -28,10 +28,10 @@ const TOOLS: Tool[] = [
       "See the app the way a given role sees it — navigation and access — without leaving your own account. Read-only.",
   },
   {
-    href: "/engineer/vocabulary",
+    href: "/vocabulary",
     title: "Vocabulary",
     description:
-      "Add, rename, or hide the controlled-vocabulary options that populate the app's dropdowns.",
+      "Add, rename, or hide the controlled-vocabulary options that populate the app's dropdowns. Also available to any role granted the vocab capability.",
   },
   {
     href: "/engineer/logins",

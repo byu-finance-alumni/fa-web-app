@@ -14,6 +14,10 @@ type NavLeaf = {
   fullAccessOnly?: boolean;
   /** Visible to the engineer role only (e.g. support-contact management). */
   engineerOnly?: boolean;
+  /** Visible to anyone holding the `vocab_admin` capability — the engineer plus
+   *  any role an engineer grants it in the permission editor (e.g. super_admin).
+   *  Capability-driven so a grant actually takes effect, unlike role flags. */
+  vocabOnly?: boolean;
   /** Hidden from view_only ("Professor"). Use for tabs that only error for
    *  unprovisioned/read-only users (e.g. Activity) — still shown to student and
    *  every higher tier. */
@@ -43,11 +47,6 @@ const NAV: NavItem[] = [
     label: "Admin",
     children: [
       { href: "/admin", label: "Users", superAdminOnly: true },
-      {
-        href: "/admin/quick-filters",
-        label: "Quick filters",
-        superAdminOnly: true,
-      },
       { href: "/audit", label: "Audit", superAdminOnly: true },
       { href: "/admin/import", label: "Import CSV", fullAccessOnly: true },
     ],
@@ -60,10 +59,13 @@ const NAV: NavItem[] = [
     label: "Engineer",
     engineerOnly: true,
     children: [
-      { href: "/engineer", label: "Console", engineerOnly: true },
       { href: "/engineer/permissions", label: "Permissions", engineerOnly: true },
       { href: "/engineer/preview", label: "Preview as role", engineerOnly: true },
-      { href: "/engineer/vocabulary", label: "Vocabulary", engineerOnly: true },
+      // Vocabulary is capability-gated, not engineer-only, so a super_admin (or
+      // any role) granted the vocab capability sees and can open it here.
+      { href: "/vocabulary", label: "Vocabulary", vocabOnly: true },
+      // Quick filters moved here from Admin — engineer-only.
+      { href: "/admin/quick-filters", label: "Quick filters", engineerOnly: true },
       { href: "/engineer/logins", label: "Logins", engineerOnly: true },
       {
         href: "/engineer/support-contacts",
@@ -77,7 +79,17 @@ const NAV: NavItem[] = [
 const isActivePath = (pathname: string, href: string) =>
   pathname === href || pathname.startsWith(`${href}/`);
 
-export function Sidebar({ email, role }: { email: string; role: string }) {
+export function Sidebar({
+  email,
+  role,
+  canVocab = false,
+}: {
+  email: string;
+  role: string;
+  /** Holds the `vocab_admin` capability (engineer, or any granted role). Drives
+   *  the capability-gated Vocabulary item independently of the role string. */
+  canVocab?: boolean;
+}) {
   const pathname = usePathname();
   // engineer is the top role and satisfies both gates. User/audit admin =
   // engineer or super_admin; full_access tooling (e.g. Tasks) also includes
@@ -100,11 +112,13 @@ export function Sidebar({ email, role }: { email: string; role: string }) {
     superAdminOnly?: boolean;
     fullAccessOnly?: boolean;
     engineerOnly?: boolean;
+    vocabOnly?: boolean;
     hideViewOnly?: boolean;
   }) =>
     (!n.superAdminOnly || isSuperAdmin) &&
     (!n.fullAccessOnly || hasFullAccess) &&
     (!n.engineerOnly || isEngineer) &&
+    (!n.vocabOnly || canVocab) &&
     (!n.hideViewOnly || !isViewOnly);
 
   // Role-filtered nav. A group (e.g. Admin) keeps only the children the user may

@@ -36,6 +36,8 @@ import {
 } from "@/components/alumni/ProfileDialogs";
 import { InteractionTimeline } from "@/components/alumni/InteractionTimeline";
 import { AlumniProfileTabs } from "@/components/alumni/AlumniProfileTabs";
+import { AlumniPayItForwardPanel } from "@/components/donations/AlumniPayItForwardPanel";
+import type { AlumniDonations } from "@/types/donations";
 import { ProfileNotes } from "@/components/alumni/ProfileNotes";
 import type { Note } from "@/types/notes";
 import { ExportProfileButton } from "@/components/alumni/ExportProfileButton";
@@ -197,6 +199,17 @@ export default async function AlumniProfilePage({
     );
   } catch {
     /* notes unavailable — render the card empty rather than 500 the page */
+  }
+
+  // Pay It Forward giving (#161): only surfaces a tab when this alumnus actually
+  // has donations. Readable by every role; dollar amounts arrive pre-gated from
+  // the backend (null for non-full-access). A failure just omits the tab.
+  let donations: AlumniDonations | null = null;
+  try {
+    const d = await apiGet<AlumniDonations>(`/donations/alumni/${id}`);
+    if (d.donation_count > 0) donations = d;
+  } catch {
+    /* no donations / endpoint error — the tab is simply not shown */
   }
 
   // `canEdit` covers editing the EXISTING record + nested data — students get
@@ -1053,6 +1066,13 @@ export default async function AlumniProfilePage({
                     </p>
                   )}
                 </Panel>
+              ) : undefined
+            }
+            payItForward={
+              // Only present when the alumnus has donations; shown to every role
+              // (amounts gated server-side). The tab is omitted otherwise.
+              donations ? (
+                <AlumniPayItForwardPanel data={donations} />
               ) : undefined
             }
           />

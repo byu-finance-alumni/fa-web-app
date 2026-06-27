@@ -39,6 +39,7 @@ export default async function AppLayout({
   let role = "";
   let mustChangePassword = false;
   let userIsEngineer = false;
+  let canVocabReal = false;
   try {
     const ctx = await apiGet<UserContext>("/auth/context");
     mustChangePassword = ctx.must_change_password === true;
@@ -46,6 +47,10 @@ export default async function AppLayout({
     // the top of the ladder). See @/constants/roles.
     role = highestRole(ctx.roles);
     userIsEngineer = isEngineer(ctx.roles);
+    // Capability-driven access for the vocabulary editor: true for the engineer
+    // and for any role granted `vocab_admin` in the permission editor. Read from
+    // the effective capabilities the backend resolves on /auth/context.
+    canVocabReal = (ctx.capabilities ?? []).includes("vocab_admin");
   } catch {
     // 403 = authenticated but not yet provisioned in the users table.
   }
@@ -58,6 +63,11 @@ export default async function AppLayout({
     ? asPreviewRole(cookieStore.get(PREVIEW_COOKIE)?.value)
     : null;
   const effectiveRole = previewRole ?? role;
+  // While previewing a lower role we can't know that role's granted capabilities
+  // (the context carries the engineer's own), so hide the capability-gated
+  // Vocabulary item during preview rather than leak it. A real sign-in by a
+  // granted role still resolves its own capabilities and shows the item.
+  const canVocab = previewRole ? false : canVocabReal;
 
   // Force a temp-password user to set a new password before they can use any
   // app screen. `/set-password` lives OUTSIDE this `(app)` route group, so it
@@ -73,7 +83,7 @@ export default async function AppLayout({
       <div className="flex h-screen overflow-hidden bg-canvas">
         {/* While previewing, the sidebar reflects the previewed role (engineer
             tools disappear); the engineer exits via the always-visible banner. */}
-        <Sidebar email={user.email ?? ""} role={effectiveRole} />
+        <Sidebar email={user.email ?? ""} role={effectiveRole} canVocab={canVocab} />
         {/* min-h-0 lets the inner <main className="flex-1 overflow-auto"> on each
             page actually cap its height and scroll. A flex child defaults to
             min-height:auto, so without this a page whose content is taller than

@@ -37,6 +37,25 @@ export interface DonationsSummary {
   }[];
 }
 
+/** One donation entry (GET /donations/alumni/{id}). `amount`/`notes` are null
+ *  when the caller may not see amounts (gated server-side). */
+export interface DonationEntry {
+  donation_id: number;
+  year: number;
+  month: number | null;
+  amount: number | null;
+  notes: string | null;
+}
+
+/** A single alumnus's donation history (GET /donations/alumni/{id}). */
+export interface AlumniDonations {
+  alumni_id: number;
+  name: string;
+  donation_count: number;
+  lifetime_total: number | null;
+  donations: DonationEntry[];
+}
+
 export interface DonationImportRow {
   row: number;
   net_id: string;

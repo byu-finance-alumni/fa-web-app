@@ -151,16 +151,16 @@ function Shortcuts({ items }: { items: Shortcut[] }) {
   if (items.length === 0) return null;
   return (
     <div className="border-t border-gray-100 pt-4">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+      <p className="mb-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
         Quick filters
       </p>
-      {/* One preset per line — each is a common compound search. */}
-      <div className="flex flex-col gap-2">
+      {/* One preset per line, centered — each is a common compound search. */}
+      <div className="flex flex-col items-center gap-2">
         {items.map((s) => (
           <Link
             key={s.label}
             href={s.href}
-            className="flex items-center rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:border-brand-blue-300 hover:bg-brand-blue-50/40 hover:text-brand-blue-600"
+            className="flex w-full items-center justify-center rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-center text-sm font-medium text-gray-700 transition-colors hover:border-brand-blue-300 hover:bg-brand-blue-50/40 hover:text-brand-blue-600"
           >
             {s.label}
           </Link>
