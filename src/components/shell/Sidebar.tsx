@@ -48,6 +48,9 @@ const NAV: NavItem[] = [
     children: [
       { href: "/admin", label: "Users", superAdminOnly: true },
       { href: "/audit", label: "Audit", superAdminOnly: true },
+      // Vocabulary is capability-gated (not role-locked), so a super_admin (or
+      // any role) granted the vocab capability sees and can open it here.
+      { href: "/vocabulary", label: "Vocabulary", vocabOnly: true },
       { href: "/admin/import", label: "Import CSV", fullAccessOnly: true },
     ],
   },
@@ -61,10 +64,8 @@ const NAV: NavItem[] = [
     children: [
       { href: "/engineer/permissions", label: "Permissions", engineerOnly: true },
       { href: "/engineer/preview", label: "Preview as role", engineerOnly: true },
-      // Vocabulary is capability-gated, not engineer-only, so a super_admin (or
-      // any role) granted the vocab capability sees and can open it here.
-      { href: "/vocabulary", label: "Vocabulary", vocabOnly: true },
-      // Quick filters moved here from Admin — engineer-only.
+      // Quick filters lives here (engineer-only). Vocabulary is in the Admin
+      // dropdown since it's capability-gated and reachable by super_admin.
       { href: "/admin/quick-filters", label: "Quick filters", engineerOnly: true },
       { href: "/engineer/logins", label: "Logins", engineerOnly: true },
       {
