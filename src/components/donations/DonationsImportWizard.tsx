@@ -130,8 +130,15 @@ export function DonationsImportWizard() {
 
   const onDownloadRejects = () => {
     if (!result || result.rejects.length === 0) return;
-    const esc = (v: string) =>
-      `"${String(v).replace(/^[=+\-@\t\r]+/, "").replace(/"/g, '""')}"`;
+    const esc = (v: string) => {
+      let s = String(v);
+      // CSV-injection defence: if the value (ignoring leading whitespace) starts
+      // with a spreadsheet formula trigger, prefix a single quote so Excel/Sheets
+      // treats it as text. Prepending is robust to the leading-whitespace bypass
+      // a leading-only strip misses (e.g. " =cmd").
+      if (/^\s*[=+\-@\t\r]/.test(s)) s = "'" + s;
+      return `"${s.replace(/"/g, '""')}"`;
+    };
     const lines = [
       "row,name,reason",
       ...result.rejects.map((r) =>

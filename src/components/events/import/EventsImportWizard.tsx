@@ -124,9 +124,14 @@ export function EventsImportWizard() {
 
   const onDownloadRejects = () => {
     if (!result || result.rejects.length === 0) return;
-    // Strip leading formula characters before quoting (CSV injection defence).
-    const esc = (v: string) =>
-      `"${String(v).replace(/^[=+\-@\t\r]+/, "").replace(/"/g, '""')}"`;
+    // CSV-injection defence: prefix a single quote when the value (ignoring
+    // leading whitespace) starts with a spreadsheet formula trigger, so it's
+    // treated as text. Robust to the leading-whitespace bypass a strip misses.
+    const esc = (v: string) => {
+      let s = String(v);
+      if (/^\s*[=+\-@\t\r]/.test(s)) s = "'" + s;
+      return `"${s.replace(/"/g, '""')}"`;
+    };
     const lines = [
       "event,date,reason",
       ...result.rejects.map((r) =>
