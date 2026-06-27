@@ -3,13 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
-import {
-  ChevronDown,
-  Loader2,
-  Plus,
-  Search,
-  SlidersHorizontal,
-} from "lucide-react";
+import { ChevronDown, Loader2, Search, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
@@ -132,16 +126,9 @@ export function EventsToolbar({
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white p-3 shadow-card">
       {canManageEvents ? (
-        <>
-          <Button asChild className="shrink-0">
-            <Link href="/events/new">
-              <Plus className="h-4 w-4" /> Add event
-            </Link>
-          </Button>
-          <Button asChild variant="secondary" className="shrink-0">
-            <Link href="/events/import">Import CSV</Link>
-          </Button>
-        </>
+        <Button asChild className="shrink-0">
+          <Link href="/events/import">Add event</Link>
+        </Button>
       ) : null}
 
       <div className="flex h-9 min-w-[220px] flex-1 items-center gap-2 rounded-md border border-gray-300 bg-gray-50 px-3 focus-within:border-brand-blue-600 focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1">
