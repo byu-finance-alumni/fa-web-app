@@ -43,23 +43,32 @@ const NAV: NavItem[] = [
     children: [
       { href: "/admin", label: "Users", superAdminOnly: true },
       {
-        href: "/admin/vocabulary",
-        label: "Vocabulary",
-        engineerOnly: true,
-      },
-      {
         href: "/admin/quick-filters",
         label: "Quick filters",
         superAdminOnly: true,
       },
       { href: "/audit", label: "Audit", superAdminOnly: true },
-      { href: "/admin/logins", label: "Logins", engineerOnly: true },
+      { href: "/admin/import", label: "Import CSV", fullAccessOnly: true },
+    ],
+  },
+  // Engineer console — its own home for every engineer-only tool (#162). The
+  // whole group (and each child) is engineerOnly, so it's invisible to everyone
+  // below engineer; the backend re-enforces each route.
+  {
+    href: "/engineer",
+    label: "Engineer",
+    engineerOnly: true,
+    children: [
+      { href: "/engineer", label: "Console", engineerOnly: true },
+      { href: "/engineer/permissions", label: "Permissions", engineerOnly: true },
+      { href: "/engineer/preview", label: "Preview as role", engineerOnly: true },
+      { href: "/engineer/vocabulary", label: "Vocabulary", engineerOnly: true },
+      { href: "/engineer/logins", label: "Logins", engineerOnly: true },
       {
-        href: "/admin/support-contacts",
+        href: "/engineer/support-contacts",
         label: "Support contacts",
         engineerOnly: true,
       },
-      { href: "/admin/import", label: "Import CSV", fullAccessOnly: true },
     ],
   },
 ];

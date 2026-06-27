@@ -3,8 +3,10 @@ import { Topbar } from "@/components/shell/Topbar";
 import { TopbarSearch } from "@/components/shared/TopbarSearch";
 import { CreateUserDialog } from "@/components/admin/CreateUserDialog";
 import { UsersAdmin, type AdminUser } from "@/components/admin/UsersAdmin";
+import { RoleCapabilitiesTable } from "@/components/admin/RoleCapabilitiesTable";
 import { Card } from "@/components/ui/card";
 import type { UserContext } from "@/types/alumni";
+import type { PermissionMatrix } from "@/types/permissions";
 import { ROLE } from "@/constants/roles";
 
 export default async function AdminPage() {
@@ -35,6 +37,16 @@ export default async function AdminPage() {
     error = e instanceof ApiError ? e : new ApiError(0, "Failed to load users.");
   }
 
+  // The live role-capabilities config for the expandable table (#163). Best
+  // effort: if it can't load, the table is simply omitted — it's supplementary
+  // to the user list, not load-bearing.
+  let capabilities: PermissionMatrix | null = null;
+  try {
+    capabilities = await apiGet<PermissionMatrix>("/admin/role-capabilities");
+  } catch {
+    capabilities = null;
+  }
+
   return (
     <>
       <Topbar title="User administration">
@@ -52,6 +64,7 @@ export default async function AdminPage() {
           </Card>
         ) : users && users.length === 0 ? (
           <>
+            {capabilities && <RoleCapabilitiesTable matrix={capabilities} />}
             <div className="mb-4 flex items-center justify-end">
               <CreateUserDialog />
             </div>
@@ -60,11 +73,14 @@ export default async function AdminPage() {
             </Card>
           </>
         ) : (
-          <UsersAdmin
-            users={users!}
-            currentUserId={currentUserId}
-            canAssignEngineer={canAssignEngineer}
-          />
+          <>
+            {capabilities && <RoleCapabilitiesTable matrix={capabilities} />}
+            <UsersAdmin
+              users={users!}
+              currentUserId={currentUserId}
+              canAssignEngineer={canAssignEngineer}
+            />
+          </>
         )}
       </main>
     </>
