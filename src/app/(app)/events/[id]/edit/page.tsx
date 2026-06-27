@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { Topbar } from "@/components/shell/Topbar";
 import { EventForm } from "@/components/events/EventForm";
 import { AttendeeManager } from "@/components/events/AttendeeManager";
+import { DeleteEventButton } from "@/components/events/DeleteEventButton";
 import { apiGet, ApiError } from "@/lib/api";
 import { hasFullAccess } from "@/constants/roles";
 import type { UserContext } from "@/types/alumni";
@@ -83,6 +84,19 @@ export default async function EditEventPage({
           }}
         />
         <AttendeeManager eventId={event.event_id} />
+
+        <div className="mt-8 border-t border-gray-200 pt-6">
+          <h2 className="text-sm font-semibold text-gray-900">Danger zone</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Deleting this event also removes its attendance records.
+          </p>
+          <div className="mt-3">
+            <DeleteEventButton
+              eventId={event.event_id}
+              eventName={event.event_name}
+            />
+          </div>
+        </div>
       </main>
     </>
   );

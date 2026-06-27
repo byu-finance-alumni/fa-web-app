@@ -1518,6 +1518,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/events/import/template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Events Import Template
+         * @description Download the events bulk-import CSV template (full_access): the exact
+         *     columns plus a few example rows (two attendees share one event to show how
+         *     rows group into a single event).
+         */
+        get: operations["events_import_template_events_import_template_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/import/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Import Events
+         * @description Dry-run an events bulk CSV import (full_access, NO writes).
+         *
+         *     Groups attendee rows into events, resolves attendees by Net ID, and flags
+         *     unmatched Net IDs, bad dates, and duplicate events. A bad header set surfaces
+         *     as ``columns_ok: false`` with ``header_errors``.
+         */
+        post: operations["preview_import_events_events_import_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Events Commit
+         * @description Commit an events bulk CSV import (full_access). Re-evaluates and inserts
+         *     every importable event + its matched attendees in one transaction (audit
+         *     logging fires per event and attendee); rejected events are skipped and
+         *     reported. A bad header set imports nothing.
+         */
+        post: operations["import_events_commit_events_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/events/{event_id}": {
         parameters: {
             query?: never;
@@ -1529,7 +1598,13 @@ export interface paths {
         get: operations["get_event_events__event_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Event
+         * @description Delete an event (full_access). Cascades to its attendance rows (and any
+         *     attached notes) via the FK ``ON DELETE CASCADE``. 404 if the event is
+         *     unknown. Audits the write (entity_type "event", action "delete").
+         */
+        delete: operations["delete_event_events__event_id__delete"];
         options?: never;
         head?: never;
         /**
@@ -1592,6 +1667,167 @@ export interface paths {
          *     "remove_attendee", entity_id event_id, old_value the alumni id).
          */
         delete: operations["remove_event_attendee_events__event_id__attendees__alumni_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/donations/donors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Donors
+         * @description List donors with per-year and lifetime roll-ups (view access).
+         *
+         *     Everyone sees who gave and in which years; ``lifetime_total`` and each
+         *     ``per_year.total`` are non-null only for amount-viewers (full_access+).
+         */
+        get: operations["list_donors_donations_donors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/donations/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Donations Summary
+         * @description Fund totals (view access). Donor / donation COUNTS are public; the dollar
+         *     ``total_raised`` and each ``per_year.total`` are gated to amount-viewers.
+         */
+        get: operations["donations_summary_donations_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/donations/alumni/{alumni_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Alumni Donations
+         * @description A single donor's donation history (view access). 404 if the alumnus is
+         *     unknown. Each entry's ``amount`` and ``notes`` are gated to amount-viewers.
+         */
+        get: operations["list_alumni_donations_donations_alumni__alumni_id__get"];
+        put?: never;
+        /**
+         * Add Donation
+         * @description Add a donation to an alumnus (super_admin). 404 if the alumnus is unknown
+         *     or archived. Audits the write (entity_type "donation", action "create").
+         */
+        post: operations["add_donation_donations_alumni__alumni_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/donations/{donation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Donation
+         * @description Delete a donation (super_admin). 404 if unknown. Audits the write
+         *     (entity_type "donation", action "delete").
+         */
+        delete: operations["delete_donation_donations__donation_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Donation
+         * @description Partially update a donation (super_admin). Only fields present in the body
+         *     are applied; each change is audited. 404 if the donation is unknown.
+         */
+        patch: operations["update_donation_donations__donation_id__patch"];
+        trace?: never;
+    };
+    "/donations/import/template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Donations Import Template
+         * @description Download the donations bulk-import CSV template (super_admin): columns
+         *     Net ID, Name, Month, Year, Amount plus a couple of example rows.
+         */
+        get: operations["donations_import_template_donations_import_template_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/donations/import/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Import Donations
+         * @description Dry-run a donations bulk CSV import (super_admin, NO writes). Matches
+         *     donors by Net ID and flags unmatched Net IDs, bad month/year, and non-numeric
+         *     amounts. A bad header set surfaces as ``columns_ok: false``.
+         */
+        post: operations["preview_import_donations_donations_import_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/donations/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Donations Commit
+         * @description Commit a donations bulk CSV import (super_admin). Re-evaluates and inserts
+         *     every importable donation in one transaction (audited per row); rejected rows
+         *     are skipped and reported. A bad header set imports nothing.
+         */
+        post: operations["import_donations_commit_donations_import_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -2576,8 +2812,28 @@ export interface components {
             /** File */
             file: string;
         };
+        /** Body_import_donations_commit_donations_import_post */
+        Body_import_donations_commit_donations_import_post: {
+            /** File */
+            file: string;
+        };
+        /** Body_import_events_commit_events_import_post */
+        Body_import_events_commit_events_import_post: {
+            /** File */
+            file: string;
+        };
         /** Body_preview_import_alumni_alumni_import_preview_post */
         Body_preview_import_alumni_alumni_import_preview_post: {
+            /** File */
+            file: string;
+        };
+        /** Body_preview_import_donations_donations_import_preview_post */
+        Body_preview_import_donations_donations_import_preview_post: {
+            /** File */
+            file: string;
+        };
+        /** Body_preview_import_events_events_import_preview_post */
+        Body_preview_import_events_events_import_preview_post: {
             /** File */
             file: string;
         };
@@ -2863,6 +3119,37 @@ export interface components {
             user_id: number;
             /** Email */
             email: string;
+        };
+        /**
+         * DonationCreate
+         * @description Body for adding a donation to an alumnus (super_admin). ``extra='forbid'``
+         *     rejects unknown keys. ``amount`` is required and non-negative; ``year`` is
+         *     required; ``month`` is optional (1-12); ``notes`` is optional free text.
+         */
+        DonationCreate: {
+            /** Amount */
+            amount: number | string;
+            /** Year */
+            year: number;
+            /** Month */
+            month?: number | null;
+            /** Notes */
+            notes?: string | null;
+        };
+        /**
+         * DonationUpdate
+         * @description Partial update of a donation (super_admin). Every field optional; only the
+         *     keys sent are applied. Reuses ``DonationCreate``'s validators.
+         */
+        DonationUpdate: {
+            /** Amount */
+            amount?: number | string | null;
+            /** Year */
+            year?: number | null;
+            /** Month */
+            month?: number | null;
+            /** Notes */
+            notes?: string | null;
         };
         /** EducationRead */
         EducationRead: {
@@ -6315,7 +6602,126 @@ export interface operations {
             };
         };
     };
+    events_import_template_events_import_template_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    preview_import_events_events_import_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_preview_import_events_events_import_preview_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_events_commit_events_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_import_events_commit_events_import_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_event_events__event_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                event_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_event_events__event_id__delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -6476,6 +6882,276 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_donors_donations_donors_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
+    donations_summary_donations_summary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    list_alumni_donations_donations_alumni__alumni_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alumni_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_donation_donations_alumni__alumni_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alumni_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DonationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_donation_donations__donation_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                donation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_donation_donations__donation_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                donation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DonationUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    donations_import_template_donations_import_template_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    preview_import_donations_donations_import_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_preview_import_donations_donations_import_preview_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_donations_commit_donations_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_import_donations_commit_donations_import_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
