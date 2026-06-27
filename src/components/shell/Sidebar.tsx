@@ -29,6 +29,7 @@ const NAV: NavItem[] = [
   { href: "/alumni", label: "Alumni" },
   { href: "/map", label: "Map" },
   { href: "/events", label: "Events" },
+  { href: "/pay-it-forward", label: "Pay It Forward" },
   { href: "/activity", label: "Activity", hideViewOnly: true },
   { href: "/tasks", label: "Tasks", fullAccessOnly: true },
   {
