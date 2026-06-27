@@ -88,7 +88,9 @@ export interface paths {
          *
          *     Used by the frontend for role-aware UI. Returns 403 if the authenticated
          *     user isn't provisioned (no active `users` row). ``must_change_password``
-         *     reflects the current user's force-change flag.
+         *     reflects the current user's force-change flag. ``capabilities`` carries the
+         *     user's effective capability codes under the live permission config (#164) so
+         *     the UI can show/hide controls — the backend still re-enforces every request.
          *
          *     EXEMPT from the force-password-change gate: a flagged user must be able to
          *     read their own context (to learn they're flagged) — so this depends on the
@@ -1397,6 +1399,83 @@ export interface paths {
         patch: operations["update_user_name_admin_users__user_id__name_patch"];
         trace?: never;
     };
+    "/engineer/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Permissions
+         * @description Return the full permission matrix (engineer-only).
+         */
+        get: operations["get_permissions_engineer_permissions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Toggle Permission
+         * @description Grant or revoke one capability for one role (engineer-only, audited).
+         *
+         *     Rejects (422) toggling the engineer role (its grants are fixed) or a
+         *     non-assignable capability (the ``engineer`` console capability can never be
+         *     handed to another role). 404 if the role doesn't exist.
+         */
+        patch: operations["toggle_permission_engineer_permissions_patch"];
+        trace?: never;
+    };
+    "/engineer/preview-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Log Preview
+         * @description Record that the engineer entered preview-as-role mode for a role (#165).
+         *
+         *     Preview-as-role is a read-only frontend affordance — it never grants the
+         *     engineer access to anything they couldn't already reach — but entering it is
+         *     audited so the trail shows when the engineer was viewing the app as another
+         *     role. 422 if the role is unknown.
+         */
+        post: operations["log_preview_engineer_preview_log_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/role-capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Role Capabilities
+         * @description Read-only permission matrix for the role-capabilities table (#163).
+         *
+         *     Same data as the engineer editor but behind the user-admin gate (engineer +
+         *     super_admin), so a super_admin can SEE what each role can do without being
+         *     able to change it. The table renders the non-engineer roles.
+         */
+        get: operations["get_role_capabilities_admin_role_capabilities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/events": {
         parameters: {
             query?: never;
@@ -2522,6 +2601,23 @@ export interface components {
             /** Count */
             count: number;
         };
+        /**
+         * CapabilityInfo
+         * @description One capability row in the matrix — code plus UI-facing copy.
+         *
+         *     ``assignable`` is False for the engineer meta-capability, which the editor
+         *     renders locked to the engineer (it cannot be granted to another role).
+         */
+        CapabilityInfo: {
+            /** Code */
+            code: string;
+            /** Label */
+            label: string;
+            /** Description */
+            description: string;
+            /** Assignable */
+            assignable: boolean;
+        };
         /** CareerCreate */
         CareerCreate: {
             /** Current Employer */
@@ -3423,6 +3519,51 @@ export interface components {
             status: string;
         };
         /**
+         * PermissionMatrix
+         * @description The full permission config: every capability and every role's grants.
+         *
+         *     Ordered most → least privileged. The capabilities table (#163) renders the
+         *     non-engineer roles; the permission editor (#164) renders the full matrix and
+         *     toggles the editable cells.
+         */
+        PermissionMatrix: {
+            /** Capabilities */
+            capabilities: components["schemas"]["CapabilityInfo"][];
+            /** Roles */
+            roles: components["schemas"]["RoleGrants"][];
+        };
+        /**
+         * PermissionToggleRequest
+         * @description Grant or revoke a single capability for a single role.
+         */
+        PermissionToggleRequest: {
+            /** Role */
+            role: string;
+            /** Capability */
+            capability: string;
+            /** Granted */
+            granted: boolean;
+        };
+        /**
+         * PreviewLogRequest
+         * @description Record that the engineer entered preview-as-role mode for ``role`` (#165).
+         */
+        PreviewLogRequest: {
+            /** Role */
+            role: string;
+        };
+        /**
+         * PreviewLogResponse
+         * @description Acknowledgement that a preview-as-role entry was logged.
+         */
+        PreviewLogResponse: {
+            /**
+             * Status
+             * @default ok
+             */
+            status: string;
+        };
+        /**
          * ProfileRead
          * @description The full profile aggregate for one alumni.
          */
@@ -3585,6 +3726,23 @@ export interface components {
          */
         RoleAssign: {
             role_name: components["schemas"]["RoleName"];
+        };
+        /**
+         * RoleGrants
+         * @description A role and the capability codes it currently holds.
+         *
+         *     ``editable`` is False for the engineer (its grants are fixed — it always
+         *     holds everything). ``label`` is the display name (``view_only`` → "Professor").
+         */
+        RoleGrants: {
+            /** Role */
+            role: string;
+            /** Label */
+            label: string;
+            /** Editable */
+            editable: boolean;
+            /** Capabilities */
+            capabilities: string[];
         };
         /**
          * RoleName
@@ -3794,6 +3952,11 @@ export interface components {
              * @default []
              */
             roles: string[];
+            /**
+             * Capabilities
+             * @default []
+             */
+            capabilities: string[];
             /**
              * Must Change Password
              * @default false
@@ -5943,6 +6106,112 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_permissions_engineer_permissions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionMatrix"];
+                };
+            };
+        };
+    };
+    toggle_permission_engineer_permissions_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PermissionToggleRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionMatrix"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    log_preview_engineer_preview_log_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreviewLogRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreviewLogResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_role_capabilities_admin_role_capabilities_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionMatrix"];
                 };
             };
         };

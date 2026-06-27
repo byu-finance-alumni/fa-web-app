@@ -27,7 +27,7 @@ export async function createSupportContact(input: {
   } catch (e) {
     return { error: e instanceof ApiError ? e.message : "Failed to add contact." };
   }
-  revalidatePath("/admin/support-contacts");
+  revalidatePath("/engineer/support-contacts");
   return null;
 }
 
@@ -47,7 +47,7 @@ export async function updateSupportContact(
       error: e instanceof ApiError ? e.message : "Failed to update contact.",
     };
   }
-  revalidatePath("/admin/support-contacts");
+  revalidatePath("/engineer/support-contacts");
   return null;
 }
 
@@ -59,6 +59,6 @@ export async function deleteSupportContact(contactId: number): Promise<Result> {
       error: e instanceof ApiError ? e.message : "Failed to remove contact.",
     };
   }
-  revalidatePath("/admin/support-contacts");
+  revalidatePath("/engineer/support-contacts");
   return null;
 }

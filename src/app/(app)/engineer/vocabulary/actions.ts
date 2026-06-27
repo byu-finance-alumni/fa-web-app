@@ -13,7 +13,7 @@ type Result = { error?: string } | null;
  */
 
 function revalidate() {
-  revalidatePath("/admin/vocabulary");
+  revalidatePath("/engineer/vocabulary");
   revalidateTag("vocabulary");
 }
 
