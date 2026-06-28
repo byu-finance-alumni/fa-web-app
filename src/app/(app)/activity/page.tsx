@@ -132,24 +132,6 @@ export default async function ActivityPage({
     <>
       <Topbar title="Activity" />
       <main className="flex-1 overflow-auto p-6">
-        {/* KPI strip on top — counts straight off the feed response (no
-            fabricated metrics): total matching interactions, how many are on
-            this page, and the number of distinct types. */}
-        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <StatCard
-            label={hasFilters ? "Matching interactions" : "Total interactions"}
-            value={data ? data.total.toLocaleString() : "—"}
-          />
-          <StatCard
-            label="Shown on this page"
-            value={data ? data.items.length.toLocaleString() : "—"}
-          />
-          <StatCard
-            label="Interaction types"
-            value={data ? data.types.length.toLocaleString() : "—"}
-          />
-        </div>
-
         {/* Search + filter bar */}
         <ActivityToolbar initial={filters} types={data?.types ?? []} />
 
@@ -238,19 +220,6 @@ export default async function ActivityPage({
         )}
       </main>
     </>
-  );
-}
-
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <Card className="p-4">
-      <span className="block text-xs font-semibold uppercase tracking-wide text-gray-500">
-        {label}
-      </span>
-      <p className="mt-1.5 text-2xl font-semibold tabular-nums tracking-tight text-gray-900">
-        {value}
-      </p>
-    </Card>
   );
 }
 
