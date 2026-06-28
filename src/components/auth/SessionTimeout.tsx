@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ShieldAlert } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/button";
 
@@ -175,6 +174,8 @@ export function SessionTimeout({
 
   if (!warning) return null;
 
+  const clock = `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`;
+
   return (
     <div
       role="alertdialog"
@@ -184,22 +185,17 @@ export function SessionTimeout({
       className="fixed inset-0 z-[100] flex items-center justify-center bg-navy-900/50 p-4"
     >
       <div className="w-full max-w-sm rounded-lg border border-gray-200 bg-white p-6 shadow-lg">
-        <div className="mb-3 flex items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-warning-50 text-warning-600">
-            <ShieldAlert className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <h2
-            id="session-timeout-title"
-            className="text-lg font-semibold text-gray-900"
-          >
-            Still there?
-          </h2>
-        </div>
-        <p id="session-timeout-desc" className="text-sm text-gray-600">
-          You&apos;ve been inactive for a while. For security, you&apos;ll be
-          signed out in{" "}
+        <h2
+          id="session-timeout-title"
+          className="text-lg font-semibold text-gray-900"
+        >
+          Your session is about to expire
+        </h2>
+        <p id="session-timeout-desc" className="mt-2 text-sm text-gray-600">
+          For your security, you&apos;ll be automatically signed out due to
+          inactivity in{" "}
           <span className="font-semibold tabular-nums text-gray-900">
-            {secondsLeft}s
+            {clock}
           </span>
           .
         </p>
@@ -210,7 +206,7 @@ export function SessionTimeout({
             onClick={() => stayRef.current()}
             className="w-full"
           >
-            Click here to stay signed in
+            Stay signed in
           </Button>
           <Button
             type="button"
@@ -218,7 +214,7 @@ export function SessionTimeout({
             onClick={() => leaveRef.current()}
             className="w-full text-gray-500 hover:text-gray-700"
           >
-            Sign out now
+            Sign out
           </Button>
         </div>
       </div>
