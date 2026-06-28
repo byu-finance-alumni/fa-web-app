@@ -40,6 +40,7 @@ export default async function AppLayout({
   let mustChangePassword = false;
   let userIsEngineer = false;
   let canVocabReal = false;
+  let userName = "";
   try {
     const ctx = await apiGet<UserContext>("/auth/context");
     mustChangePassword = ctx.must_change_password === true;
@@ -51,6 +52,8 @@ export default async function AppLayout({
     // and for any role granted `vocab_admin` in the permission editor. Read from
     // the effective capabilities the backend resolves on /auth/context.
     canVocabReal = (ctx.capabilities ?? []).includes("vocab_admin");
+    // Display name for the sidebar footer (falls back to email if unset).
+    userName = [ctx.first_name, ctx.last_name].filter(Boolean).join(" ");
   } catch {
     // 403 = authenticated but not yet provisioned in the users table.
   }
@@ -83,7 +86,12 @@ export default async function AppLayout({
       <div className="flex h-screen overflow-hidden bg-canvas">
         {/* While previewing, the sidebar reflects the previewed role (engineer
             tools disappear); the engineer exits via the always-visible banner. */}
-        <Sidebar email={user.email ?? ""} role={effectiveRole} canVocab={canVocab} />
+        <Sidebar
+          email={user.email ?? ""}
+          name={userName}
+          role={effectiveRole}
+          canVocab={canVocab}
+        />
         {/* min-h-0 lets the inner <main className="flex-1 overflow-auto"> on each
             page actually cap its height and scroll. A flex child defaults to
             min-height:auto, so without this a page whose content is taller than
