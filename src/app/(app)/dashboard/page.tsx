@@ -53,14 +53,6 @@ function isoToday(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-/** "Good morning/afternoon/evening" for the current (server) local hour. */
-function timeOfDayGreeting(): string {
-  const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 18) return "Good afternoon";
-  return "Good evening";
-}
-
 /** A clean first name from the auth context, or null if there's nothing usable.
  *  Falls back to the local-part of the email (title-cased) when no name field is
  *  set — never a fabricated name. */
@@ -322,12 +314,11 @@ export default async function DashboardPage() {
     ]);
   }
 
-  // "Good afternoon, Marcus" — name from the auth context (or a first name
-  // derived from the email), with a no-name fallback. Never a fabricated name.
+  // "Welcome, Marcus" — name from the auth context (or a first name derived from
+  // the email), with a no-name fallback. A static greeting avoids the wrong
+  // time-of-day (the server renders in UTC, not the viewer's local hour).
   const firstName = resolveFirstName(ctx);
-  const greeting = firstName
-    ? `${timeOfDayGreeting()}, ${firstName}`
-    : timeOfDayGreeting();
+  const greeting = firstName ? `Welcome, ${firstName}` : "Welcome";
 
   const industries = geoSum?.top_industries ?? [];
 

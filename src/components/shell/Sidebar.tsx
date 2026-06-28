@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
-import { ROLE, ROLE_LABEL } from "@/constants/roles";
+import { ROLE } from "@/constants/roles";
 
 type NavLeaf = {
   href: string;
@@ -82,10 +82,13 @@ const isActivePath = (pathname: string, href: string) =>
 
 export function Sidebar({
   email,
+  name = "",
   role,
   canVocab = false,
 }: {
   email: string;
+  /** Display name for the footer; falls back to the email when empty. */
+  name?: string;
   role: string;
   /** Holds the `vocab_admin` capability (engineer, or any granted role). Drives
    *  the capability-gated Vocabulary item independently of the role string. */
@@ -214,16 +217,13 @@ export function Sidebar({
         Privacy
       </Link>
 
-      <div className="mt-3 flex items-center gap-2.5 border-t border-navy-700 px-2 pt-3">
-        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-blue-500 text-xs font-semibold text-white">
-          {(email[0] ?? "?").toUpperCase()}
-        </span>
-        <div className="min-w-0">
-          <p className="truncate text-[13px] font-medium text-white">{email}</p>
-          <p className="text-[11px] text-brand-blue-300">
-            {ROLE_LABEL[role] ?? "Not provisioned"}
-          </p>
-        </div>
+      <div className="mt-3 min-w-0 border-t border-navy-700 px-2 pt-3">
+        <p className="truncate text-[13px] font-medium text-white">
+          {name || email}
+        </p>
+        {name ? (
+          <p className="truncate text-[11px] text-brand-blue-300">{email}</p>
+        ) : null}
       </div>
     </aside>
   );
