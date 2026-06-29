@@ -2757,8 +2757,8 @@ export interface components {
              * Format: date-time
              */
             uploaded_at: string;
-            /** Uploaded By User Id */
-            uploaded_by_user_id: number | null;
+            /** Uploaded By */
+            uploaded_by: string | null;
         };
         /**
          * AttendeeCreate
@@ -2789,8 +2789,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
-            /** User Id */
-            user_id: number | null;
+            /** Performed By */
+            performed_by: string | null;
         };
         /**
          * AuthenticatedUser
