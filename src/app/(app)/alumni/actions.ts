@@ -101,6 +101,17 @@ function buildPayload(formData: FormData): Record<string, unknown> {
     spouse_alumni_id,
     linkedin_url: str("linkedin_url"),
     notes: str("notes"),
+    // Secondary affiliation / education fields (#47) — top-level optional
+    // fields on the alumni record (siblings of graduate_degree), so they go
+    // through the core payload rather than a nested section.
+    graduate_degree: str("graduate_degree"),
+    mba_program: str("mba_program"),
+    law_school: str("law_school"),
+    medical_school: str("medical_school"),
+    graduate_school: str("graduate_school"),
+    startup_involvement: str("startup_involvement"),
+    advisory_roles: str("advisory_roles"),
+    secondary_employment: str("secondary_employment"),
   });
 }
 

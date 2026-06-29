@@ -346,6 +346,7 @@ const STEPS = [
   "Contact",
   "Current career",
   "Education",
+  "Secondary affiliations",
   "Engagement",
   "Review",
 ];
@@ -790,6 +791,133 @@ export function AlumniForm({
             error={errors["education.degree_year"]}
           />
         </div>
+
+        {/* Additional schooling / programs — top-level alumni fields (siblings
+            of graduate_degree), so they're named plainly and flow through the
+            core payload, not the nested `education` section. */}
+        <div className="grid grid-cols-2 gap-4">
+          <Field
+            label="Graduate degree"
+            name="graduate_degree"
+            defaultValue={defaults?.graduate_degree ?? ""}
+            error={errors.graduate_degree}
+          />
+          <Field
+            label="MBA program"
+            name="mba_program"
+            defaultValue={defaults?.mba_program ?? ""}
+            error={errors.mba_program}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <Field
+            label="Law school"
+            name="law_school"
+            defaultValue={defaults?.law_school ?? ""}
+            error={errors.law_school}
+          />
+          <Field
+            label="Medical school"
+            name="medical_school"
+            defaultValue={defaults?.medical_school ?? ""}
+            error={errors.medical_school}
+          />
+        </div>
+        <Field
+          label="Graduate school"
+          name="graduate_school"
+          defaultValue={defaults?.graduate_school ?? ""}
+          error={errors.graduate_school}
+        />
+      </div>
+    </Section>
+  );
+
+  const secondaryAffiliationsSection = (
+    <Section title="Secondary affiliations">
+      <div className="space-y-4">
+        <p className="text-sm text-gray-700">
+          Optional narrative context — entrepreneurial ventures, board or
+          advisory positions, and any employment beyond the current role.
+        </p>
+        <div>
+          <FieldLabel htmlFor="startup_involvement">
+            Startup involvement
+          </FieldLabel>
+          <Textarea
+            id="startup_involvement"
+            name="startup_involvement"
+            rows={3}
+            defaultValue={defaults?.startup_involvement ?? ""}
+            aria-invalid={errors.startup_involvement ? true : undefined}
+            aria-describedby={
+              errors.startup_involvement ? "startup_involvement-error" : undefined
+            }
+            className={cn(
+              errors.startup_involvement &&
+                "border-danger-600 focus-visible:ring-danger-600",
+            )}
+          />
+          {errors.startup_involvement ? (
+            <p
+              id="startup_involvement-error"
+              className="mt-1 text-xs text-danger-600"
+            >
+              {errors.startup_involvement}
+            </p>
+          ) : null}
+        </div>
+        <div>
+          <FieldLabel htmlFor="advisory_roles">Advisory roles</FieldLabel>
+          <Textarea
+            id="advisory_roles"
+            name="advisory_roles"
+            rows={3}
+            defaultValue={defaults?.advisory_roles ?? ""}
+            aria-invalid={errors.advisory_roles ? true : undefined}
+            aria-describedby={
+              errors.advisory_roles ? "advisory_roles-error" : undefined
+            }
+            className={cn(
+              errors.advisory_roles &&
+                "border-danger-600 focus-visible:ring-danger-600",
+            )}
+          />
+          {errors.advisory_roles ? (
+            <p id="advisory_roles-error" className="mt-1 text-xs text-danger-600">
+              {errors.advisory_roles}
+            </p>
+          ) : null}
+        </div>
+        <div>
+          <FieldLabel htmlFor="secondary_employment">
+            Secondary employment
+          </FieldLabel>
+          <Textarea
+            id="secondary_employment"
+            name="secondary_employment"
+            rows={3}
+            defaultValue={defaults?.secondary_employment ?? ""}
+            aria-invalid={errors.secondary_employment ? true : undefined}
+            aria-describedby={
+              errors.secondary_employment
+                ? "secondary_employment-error"
+                : undefined
+            }
+            className={cn(
+              errors.secondary_employment &&
+                "border-danger-600 focus-visible:ring-danger-600",
+            )}
+          />
+          {errors.secondary_employment ? (
+            <p
+              id="secondary_employment-error"
+              className="mt-1 text-xs text-danger-600"
+            >
+              {errors.secondary_employment}
+            </p>
+          ) : null}
+        </div>
       </div>
     </Section>
   );
@@ -1068,6 +1196,7 @@ export function AlumniForm({
     contactSection,
     careerSection,
     educationSection,
+    secondaryAffiliationsSection,
     engagementSection,
     reviewSection,
   ];

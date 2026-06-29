@@ -903,6 +903,73 @@ export default async function AlumniProfilePage({
                   </Panel>
                 ) : null}
 
+                {/* Additional education — top-level school/program names
+                    (#47). graduate_degree stays in the Career snapshot panel;
+                    these are the new secondary-education fields. Only rendered
+                    when at least one has a value, and each row is suppressed
+                    when empty. */}
+                {[
+                  a.mba_program,
+                  a.law_school,
+                  a.medical_school,
+                  a.graduate_school,
+                ].some(Boolean) ? (
+                  <Panel title="Additional education">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      {a.mba_program ? (
+                        <Field label="MBA program" value={a.mba_program} />
+                      ) : null}
+                      {a.law_school ? (
+                        <Field label="Law school" value={a.law_school} />
+                      ) : null}
+                      {a.medical_school ? (
+                        <Field
+                          label="Medical school"
+                          value={a.medical_school}
+                        />
+                      ) : null}
+                      {a.graduate_school ? (
+                        <Field
+                          label="Graduate school"
+                          value={a.graduate_school}
+                        />
+                      ) : null}
+                    </div>
+                  </Panel>
+                ) : null}
+
+                {/* Secondary affiliations — narrative free-text (#47). Only
+                    rendered when at least one field has a value; empty fields
+                    are suppressed. */}
+                {[
+                  a.startup_involvement,
+                  a.advisory_roles,
+                  a.secondary_employment,
+                ].some(Boolean) ? (
+                  <Panel title="Secondary affiliations">
+                    <div className="space-y-4">
+                      {a.startup_involvement ? (
+                        <ProfileNote
+                          label="Startup involvement"
+                          value={a.startup_involvement}
+                        />
+                      ) : null}
+                      {a.advisory_roles ? (
+                        <ProfileNote
+                          label="Advisory roles"
+                          value={a.advisory_roles}
+                        />
+                      ) : null}
+                      {a.secondary_employment ? (
+                        <ProfileNote
+                          label="Secondary employment"
+                          value={a.secondary_employment}
+                        />
+                      ) : null}
+                    </div>
+                  </Panel>
+                ) : null}
+
                 {/* Recent events */}
                 {profile.events.length || canEdit ? (
                   <Panel
@@ -1093,6 +1160,20 @@ function Field({ label, value }: { label: string; value: string | null }) {
       <p className={`text-sm ${value ? "text-gray-900" : "text-gray-300"}`}>
         {value || "—"}
       </p>
+    </div>
+  );
+}
+
+/** Read-only display for a narrative free-text field — preserves the author's
+ * line breaks (whitespace-pre-wrap). Callers only render it when `value` is
+ * present, so there is no empty state. */
+function ProfileNote({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+        {label}
+      </p>
+      <p className="whitespace-pre-wrap text-sm text-gray-900">{value}</p>
     </div>
   );
 }
