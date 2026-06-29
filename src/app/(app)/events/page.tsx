@@ -1,7 +1,10 @@
 import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
+import { Card } from "@/components/ui/card";
 import { EventsExplorer, type EventRow } from "@/components/events/EventsExplorer";
 import { EventsToolbar } from "@/components/events/EventsToolbar";
+import { hasFullAccess } from "@/constants/roles";
+import type { UserContext } from "@/types/alumni";
 
 type SP = {
   q?: string;
@@ -72,27 +75,52 @@ export default async function EventsPage({
     types = optionsResult.value.types;
   }
 
+  // Event management (create/edit, attendance, discussion notes #39) is
+  // full_access only — mirrors backend require_full_access. Fetch the caller's
+  // role context once; default to read-only if the account isn't provisioned.
+  // Both flags resolve from the same tier today, but they're kept distinct so
+  // the gates read by intent. The backend re-enforces every write.
+  let canManageEvents = false;
+  let canWriteNotes = false;
+  try {
+    const ctx = await apiGet<UserContext>("/auth/context");
+    canManageEvents = hasFullAccess(ctx.roles);
+    canWriteNotes = hasFullAccess(ctx.roles);
+  } catch {
+    canManageEvents = false;
+    canWriteNotes = false;
+  }
+
   return (
     <>
       <Topbar title="Events" />
       <main className="flex-1 overflow-auto p-6">
-        <EventsToolbar initial={filters} types={types} />
+        <EventsToolbar
+          initial={filters}
+          types={types}
+          canManageEvents={canManageEvents}
+        />
 
         {error ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-10 text-center">
-            <p className="font-medium text-gray-900">
+          <Card className="p-10 text-center">
+            <p className="text-sm font-semibold text-gray-900">
               {error.status === 403
                 ? "Your account isn't provisioned yet"
                 : "Couldn't load events"}
             </p>
             <p className="mt-1 text-sm text-gray-500">{error.message}</p>
-          </div>
+          </Card>
         ) : events && events.length === 0 ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
+          <Card className="p-10 text-center text-sm text-gray-500">
             No events match your search.
-          </div>
+          </Card>
         ) : (
-          <EventsExplorer events={events!} initialOpenId={openId} />
+          <EventsExplorer
+            events={events!}
+            initialOpenId={openId}
+            canWriteNotes={canWriteNotes}
+            canManageEvents={canManageEvents}
+          />
         )}
       </main>
     </>

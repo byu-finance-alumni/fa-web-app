@@ -69,6 +69,8 @@ const FULL_ACCESS_ROLES = new Set<string>([
   ROLE.FULL_ACCESS,
 ]);
 const USER_ADMIN_ROLES = new Set<string>([ROLE.ENGINEER, ROLE.SUPER_ADMIN]);
+const ENGINEER_ROLES = new Set<string>([ROLE.ENGINEER]);
+const VIEW_ONLY_ROLES = new Set<string>([ROLE.VIEW_ONLY]);
 
 const hasAny = (roles: readonly string[] | null | undefined, set: Set<string>) =>
   (roles ?? []).some((r) => set.has(r));
@@ -81,6 +83,25 @@ const hasAny = (roles: readonly string[] | null | undefined, set: Set<string>) =
  */
 export const canEditAlumni = (roles: readonly string[] | null | undefined) =>
   hasAny(roles, EDIT_ALUMNI_ROLES);
+
+/**
+ * The "Professor" role (`view_only`). Surfaced for narrow, interaction-only
+ * affordances — professors can still NOT edit alumni records, employment,
+ * education, leadership, tags, tasks, etc.
+ */
+export const isViewOnly = (roles: readonly string[] | null | undefined) =>
+  hasAny(roles, VIEW_ONLY_ROLES);
+
+/**
+ * May log a NEW interaction on an alumnus. Broader than {@link canEditAlumni}:
+ * the edit tier PLUS professors (`view_only`). Mirrors the backend allowing
+ * `view_only` to POST interactions (fa-web-api#129). This predicate gates ONLY
+ * the add-interaction control — it must never be used to unlock any other edit
+ * control, or professors would gain writes they are 403'd for server-side.
+ */
+export const canAddInteraction = (
+  roles: readonly string[] | null | undefined,
+) => canEditAlumni(roles) || isViewOnly(roles);
 
 /**
  * May create new alumni, import CSV, manage events, and reach full-access
@@ -96,6 +117,14 @@ export const hasFullAccess = (roles: readonly string[] | null | undefined) =>
  */
 export const isUserAdmin = (roles: readonly string[] | null | undefined) =>
   hasAny(roles, USER_ADMIN_ROLES);
+
+/**
+ * Engineer-only tooling (e.g. the Admin → Vocabulary editor, support contacts,
+ * logins). Mirrors backend `require_engineer`: the single top role. super_admin
+ * and below never qualify.
+ */
+export const isEngineer = (roles: readonly string[] | null | undefined) =>
+  hasAny(roles, ENGINEER_ROLES);
 
 // --- Admin UI option lists ---------------------------------------------------
 

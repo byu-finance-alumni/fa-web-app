@@ -6,6 +6,13 @@ import type { FormState, PreviewState } from "@/app/(app)/alumni/actions";
 import type { Alumni, HygienePreview } from "@/types/alumni";
 import { INDUSTRY_OPTIONS } from "@/constants/dropdowns";
 import { SpousePicker } from "@/components/alumni/SpousePicker";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
 type Action = (prev: FormState, formData: FormData) => Promise<FormState>;
 
@@ -170,18 +177,7 @@ function validateAll(formData: FormData): Record<string, string> {
 
 /* --------------------------------------------------------------- field ----- */
 
-const BASE_INPUT =
-  "w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2";
-
-function inputClasses(hasError: boolean): string {
-  return `${BASE_INPUT} ${
-    hasError
-      ? "border-danger-600 focus:ring-danger-600"
-      : "border-gray-300 focus:ring-brand-blue-500"
-  }`;
-}
-
-function Label({
+function FieldLabel({
   htmlFor,
   children,
   required,
@@ -191,13 +187,10 @@ function Label({
   required?: boolean;
 }) {
   return (
-    <label
-      htmlFor={htmlFor}
-      className="mb-1.5 block text-xs font-medium text-gray-700"
-    >
+    <Label htmlFor={htmlFor} className="mb-1.5">
       {children}
       {required ? <span className="text-danger-600"> *</span> : null}
-    </label>
+    </Label>
   );
 }
 
@@ -223,19 +216,25 @@ function Field({
   const errorId = error ? `${name}-error` : undefined;
   return (
     <div>
-      <Label htmlFor={name} required={required}>
+      <FieldLabel htmlFor={name} required={required}>
         {label}
-      </Label>
-      <input
+      </FieldLabel>
+      <Input
         id={name}
         name={name}
         type={type}
         defaultValue={defaultValue}
         placeholder={placeholder}
+        // Off so the browser can't inject/duplicate autofill text into these
+        // uncontrolled fields (the only path that could render e.g. a doubled
+        // "FinanceFinance" department value; the stored data is single).
+        autoComplete="off"
         aria-invalid={error ? true : undefined}
         aria-describedby={errorId}
         onBlur={onBlur ? (e) => onBlur(name, e.target.value) : undefined}
-        className={inputClasses(!!error)}
+        className={cn(
+          error && "border-danger-600 focus-visible:ring-danger-600",
+        )}
       />
       {error ? (
         <p id={errorId} className="mt-1 text-xs text-danger-600">
@@ -262,14 +261,16 @@ function SelectField({
   const errorId = error ? `${name}-error` : undefined;
   return (
     <div>
-      <Label htmlFor={name}>{label}</Label>
-      <select
+      <FieldLabel htmlFor={name}>{label}</FieldLabel>
+      <Select
         id={name}
         name={name}
         defaultValue={defaultValue}
         aria-invalid={error ? true : undefined}
         aria-describedby={errorId}
-        className={inputClasses(!!error)}
+        className={cn(
+          error && "border-danger-600 focus-visible:ring-danger-600",
+        )}
       >
         <option value="">—</option>
         {options.map((opt) => (
@@ -277,7 +278,7 @@ function SelectField({
             {opt}
           </option>
         ))}
-      </select>
+      </Select>
       {error ? (
         <p id={errorId} className="mt-1 text-xs text-danger-600">
           {error}
@@ -318,10 +319,12 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-gray-300 bg-white p-6 shadow-sm">
-      <h2 className="mb-4 text-lg font-semibold text-gray-900">{title}</h2>
-      {children}
-    </section>
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
   );
 }
 
@@ -555,8 +558,8 @@ export function AlumniForm({
           onBlur={handleBlur}
         />
         <div>
-          <Label htmlFor="notes">Notes</Label>
-          <textarea
+          <FieldLabel htmlFor="notes">Notes</FieldLabel>
+          <Textarea
             id="notes"
             name="notes"
             rows={3}
@@ -564,7 +567,9 @@ export function AlumniForm({
             aria-invalid={errors.notes ? true : undefined}
             aria-describedby={errors.notes ? "notes-error" : undefined}
             onBlur={(e) => handleBlur("notes", e.target.value)}
-            className={inputClasses(!!errors.notes)}
+            className={cn(
+              errors.notes && "border-danger-600 focus-visible:ring-danger-600",
+            )}
           />
           {errors.notes ? (
             <p id="notes-error" className="mt-1 text-xs text-danger-600">
@@ -860,13 +865,18 @@ export function AlumniForm({
           />
         </div>
         <div>
-          <Label htmlFor="engagement.engagement_notes">Engagement notes</Label>
-          <textarea
+          <FieldLabel htmlFor="engagement.engagement_notes">
+            Engagement notes
+          </FieldLabel>
+          <Textarea
             id="engagement.engagement_notes"
             name="engagement.engagement_notes"
             rows={3}
             defaultValue={defaults?.engagement?.engagement_notes ?? ""}
-            className={inputClasses(!!errors["engagement.engagement_notes"])}
+            className={cn(
+              errors["engagement.engagement_notes"] &&
+                "border-danger-600 focus-visible:ring-danger-600",
+            )}
           />
         </div>
       </div>
@@ -906,13 +916,15 @@ export function AlumniForm({
             <p className="text-sm font-medium text-danger-600">
               {previewError}
             </p>
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="sm"
               onClick={runPreview}
-              className="mt-2 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+              className="mt-2"
             >
               Try again
-            </button>
+            </Button>
           </div>
         ) : null}
 
@@ -1039,19 +1051,12 @@ export function AlumniForm({
         {coreSection}
         {errorBanner}
         <div className="flex items-center gap-3">
-          <button
-            type="submit"
-            disabled={pending}
-            className="rounded-lg bg-brand-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-blue-500 disabled:opacity-60"
-          >
+          <Button type="submit" variant="primary" disabled={pending}>
             {pending ? "Saving…" : submitLabel}
-          </button>
-          <Link
-            href={cancelHref}
-            className="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            Cancel
-          </Link>
+          </Button>
+          <Button asChild variant="secondary">
+            <Link href={cancelHref}>Cancel</Link>
+          </Button>
         </div>
       </form>
     );
@@ -1105,52 +1110,37 @@ export function AlumniForm({
       {/* Navigation */}
       <div className="mt-6 flex items-center justify-between gap-3">
         {step > 0 ? (
-          <button
-            type="button"
-            onClick={goBack}
-            className="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
+          <Button type="button" variant="secondary" onClick={goBack}>
             Back
-          </button>
+          </Button>
         ) : (
-          <Link
-            href={cancelHref}
-            className="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            Cancel
-          </Link>
+          <Button asChild variant="secondary">
+            <Link href={cancelHref}>Cancel</Link>
+          </Button>
         )}
         {onReview ? (
           // Final step: run the EXISTING create/update submit. Disabled while a
           // blocker exists (or the preview is still running/absent).
-          <button
+          <Button
             type="submit"
+            variant="primary"
             disabled={pending || saveBlocked}
             title={
               blockers.length > 0
                 ? "Resolve the blocking issue above before saving."
                 : undefined
             }
-            className="rounded-lg bg-brand-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-blue-500 disabled:opacity-60"
           >
             {pending ? "Saving…" : submitLabel}
-          </button>
+          </Button>
         ) : step === LAST_DATA_STEP ? (
-          <button
-            type="button"
-            onClick={goNext}
-            className="rounded-lg bg-brand-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-blue-500"
-          >
+          <Button type="button" variant="primary" onClick={goNext}>
             Review &amp; save
-          </button>
+          </Button>
         ) : (
-          <button
-            type="button"
-            onClick={goNext}
-            className="rounded-lg bg-brand-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-blue-500"
-          >
+          <Button type="button" variant="primary" onClick={goNext}>
             Next
-          </button>
+          </Button>
         )}
       </div>
     </form>

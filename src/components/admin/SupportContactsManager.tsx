@@ -6,12 +6,18 @@ import {
   createSupportContact,
   updateSupportContact,
   deleteSupportContact,
-} from "@/app/(app)/admin/support-contacts/actions";
+} from "@/app/(app)/engineer/support-contacts/actions";
 import { useToast } from "@/components/ui/Toast";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import type { SupportContact } from "@/types/support";
 
-const inputCls =
-  "w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-brand-blue-600 focus:outline-none focus:ring-1 focus:ring-brand-blue-600";
+// Same shape used by CreateUserDialog — a pragmatic "looks like an email" check.
+// Client-side only; the backend remains the source of truth on save.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const isValidEmail = (v: string) => EMAIL_RE.test(v.trim());
 
 /**
  * Engineer-only editor for the support contacts shown to logged-in users on the
@@ -28,10 +34,10 @@ export function SupportContactsManager({
   return (
     <div className="space-y-3">
       {contacts.length === 0 ? (
-        <div className="rounded-xl border border-gray-300 bg-white p-6 text-center text-sm text-gray-500">
+        <Card className="p-6 text-center text-sm text-gray-500">
           No support contacts yet. Add one below — it’ll show to signed-in users
           on the error screen.
-        </div>
+        </Card>
       ) : (
         contacts.map((c) => <ContactRow key={c.support_contact_id} contact={c} />)
       )}
@@ -51,9 +57,12 @@ function ContactRow({ contact }: { contact: SupportContact }) {
     role !== contact.role_label ||
     name !== contact.name ||
     email !== contact.email;
+  // Only flag a bad email once the field is non-empty (so an in-progress edit
+  // isn't nagged immediately).
+  const emailInvalid = email.trim().length > 0 && !isValidEmail(email);
 
   function save() {
-    if (!dirty) return;
+    if (!dirty || emailInvalid) return;
     startTransition(async () => {
       const res = await updateSupportContact(contact.support_contact_id, {
         role_label: role,
@@ -74,36 +83,53 @@ function ContactRow({ contact }: { contact: SupportContact }) {
   }
 
   return (
-    <div className="rounded-xl border border-gray-300 bg-white p-4">
+    <Card className="p-4">
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="block">
-          <span className="mb-1 block text-xs font-medium text-gray-500">Role label</span>
-          <input className={inputCls} value={role} onChange={(e) => setRole(e.target.value)} />
+          <Label className="mb-1">Role label</Label>
+          <Input value={role} onChange={(e) => setRole(e.target.value)} />
         </label>
         <label className="block">
-          <span className="mb-1 block text-xs font-medium text-gray-500">Name</span>
-          <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} />
+          <Label className="mb-1">Name</Label>
+          <Input value={name} onChange={(e) => setName(e.target.value)} />
         </label>
         <label className="block">
-          <span className="mb-1 block text-xs font-medium text-gray-500">Email</span>
-          <input className={inputCls} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <Label className="mb-1">Email</Label>
+          <Input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            aria-invalid={emailInvalid || undefined}
+            className={
+              emailInvalid
+                ? "border-danger-600 focus-visible:ring-danger-500"
+                : undefined
+            }
+          />
+          {emailInvalid ? (
+            <p className="mt-1 text-xs text-danger-600">
+              Enter a valid email address.
+            </p>
+          ) : null}
         </label>
       </div>
       <div className="mt-3 flex items-center justify-end gap-2">
-        <button
+        <Button
           type="button"
+          variant="secondary"
+          size="sm"
           onClick={remove}
           disabled={pending}
-          className="inline-flex items-center gap-1.5 rounded-md border border-danger-600/40 bg-white px-3 py-1.5 text-sm font-medium text-danger-600 hover:bg-danger-50 focus:outline-none focus:ring-1 focus:ring-danger-600 disabled:opacity-50"
+          className="border-danger-600/40 text-danger-600 hover:bg-danger-50"
         >
           <Trash2 className="h-4 w-4" aria-hidden="true" />
           Remove
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          size="sm"
           onClick={save}
-          disabled={!dirty || pending}
-          className="inline-flex items-center gap-1.5 rounded-md bg-brand-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-blue-500 focus:outline-none focus:ring-1 focus:ring-brand-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={!dirty || emailInvalid || pending}
         >
           {pending ? (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -111,9 +137,9 @@ function ContactRow({ contact }: { contact: SupportContact }) {
             <Save className="h-4 w-4" aria-hidden="true" />
           )}
           Save
-        </button>
+        </Button>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -124,7 +150,8 @@ function AddContactRow() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
 
-  const ready = role.trim() && name.trim() && email.trim();
+  const emailInvalid = email.trim().length > 0 && !isValidEmail(email);
+  const ready = role.trim() && name.trim() && isValidEmail(email);
 
   function add() {
     if (!ready) return;
@@ -146,21 +173,40 @@ function AddContactRow() {
   }
 
   return (
-    <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4">
+    <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4">
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
         Add a contact
       </p>
       <div className="grid gap-3 sm:grid-cols-3">
-        <input className={inputCls} placeholder="Role (e.g. Super Admin)" value={role} onChange={(e) => setRole(e.target.value)} />
-        <input className={inputCls} placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
-        <input className={inputCls} type="email" placeholder="name@byu.edu" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <Input placeholder="Role (e.g. Super Admin)" value={role} onChange={(e) => setRole(e.target.value)} />
+        <Input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
+        <div>
+          <Input
+            type="email"
+            placeholder="name@byu.edu"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            aria-invalid={emailInvalid || undefined}
+            className={
+              emailInvalid
+                ? "border-danger-600 focus-visible:ring-danger-500"
+                : undefined
+            }
+          />
+          {emailInvalid ? (
+            <p className="mt-1 text-xs text-danger-600">
+              Enter a valid email address.
+            </p>
+          ) : null}
+        </div>
       </div>
       <div className="mt-3 flex justify-end">
-        <button
+        <Button
           type="button"
+          variant="navy"
+          size="sm"
           onClick={add}
           disabled={!ready || pending}
-          className="inline-flex items-center gap-1.5 rounded-md bg-navy-800 px-3 py-1.5 text-sm font-semibold text-white hover:bg-navy-700 focus:outline-none focus:ring-1 focus:ring-brand-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {pending ? (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -168,7 +214,7 @@ function AddContactRow() {
             <Plus className="h-4 w-4" aria-hidden="true" />
           )}
           Add contact
-        </button>
+        </Button>
       </div>
     </div>
   );

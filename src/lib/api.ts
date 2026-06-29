@@ -102,6 +102,31 @@ export async function apiGet<T>(
   );
 }
 
+/**
+ * Retry a transient server failure once. Server reads (e.g. the alumni list)
+ * can intermittently 5xx on a serverless cold start / a dropped upstream DB
+ * connection; a single immediate retry lands on a fresh connection and turns
+ * what used to be a hard "Couldn't load" into a transparent success. Only 5xx
+ * (and network-level ApiError status 0) are retried — never a 4xx, which is a
+ * deterministic client/auth error that a retry can't fix.
+ */
+export async function apiGetWithRetry<T>(
+  path: string,
+  cacheOpts?: ApiCacheOptions,
+  retries = 1,
+): Promise<T> {
+  try {
+    return await apiGet<T>(path, cacheOpts);
+  } catch (e) {
+    const transient =
+      e instanceof ApiError && (e.status === 0 || e.status >= 500);
+    if (transient && retries > 0) {
+      return apiGetWithRetry<T>(path, cacheOpts, retries - 1);
+    }
+    throw e;
+  }
+}
+
 async function apiSend<T>(
   method: "POST" | "PATCH" | "DELETE",
   path: string,
@@ -165,6 +190,36 @@ export async function apiGetText(path: string): Promise<string> {
     try {
       const body = await res.json();
       message = body?.error?.message ?? message;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new ApiError(res.status, message);
+  }
+  return res.text();
+}
+
+/**
+ * Server-side JSON POST that returns the raw response body as TEXT (not JSON) —
+ * used for the alumni CSV export, where the request carries the column + filter
+ * selection but the response is a CSV file the client turns into a Blob
+ * download. Auth header is attached; an error body's JSON message is surfaced.
+ */
+export async function apiPostText(path: string, body: unknown): Promise<string> {
+  if (!API_URL) throw new ApiError(0, "API URL is not configured.");
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "POST",
+    headers: {
+      ...(await authHeaders()),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    let message = res.statusText;
+    try {
+      const errBody = await res.json();
+      message = errBody?.error?.message ?? message;
     } catch {
       /* non-JSON error body */
     }

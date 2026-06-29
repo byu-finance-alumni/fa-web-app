@@ -2,7 +2,18 @@
 
 import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
-import { apiPost, apiPatch, apiDelete, ApiError } from "@/lib/api";
+import {
+  apiPost,
+  apiPatch,
+  apiDelete,
+  apiPostForm,
+  apiGetText,
+  ApiError,
+} from "@/lib/api";
+import type {
+  EventImportPreview,
+  EventImportResult,
+} from "@/types/events-import";
 
 /**
  * Result of an event form server action.
@@ -134,4 +145,95 @@ export async function removeAttendee(
   }
   revalidatePath("/events");
   return { ok: true };
+}
+
+/**
+ * Delete an event (full_access). Cascades to its attendance rows server-side.
+ * `ok` lets the caller redirect / toast; `error` is a human message on failure.
+ */
+export async function deleteEvent(
+  eventId: number,
+): Promise<AttendeeActionResult> {
+  try {
+    await apiDelete(`/events/${eventId}`);
+  } catch (e) {
+    if (e instanceof ApiError) return { ok: false, error: e.message };
+    return { ok: false, error: "Failed to delete event." };
+  }
+  revalidatePath("/events");
+  revalidateTag("events");
+  return { ok: true };
+}
+
+/* ------------------------------------------------------- CSV bulk import ----- */
+
+export type EventImportPreviewState =
+  | { ok: true; data: EventImportPreview }
+  | { ok: false; error: string };
+
+export type EventImportResultState =
+  | { ok: true; data: EventImportResult }
+  | { ok: false; error: string };
+
+/** Pull the single `file` out of the submitted FormData (re-named to `file`). */
+function importFormData(formData: FormData): FormData | null {
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return null;
+  const fd = new FormData();
+  fd.append("file", file, file.name);
+  return fd;
+}
+
+/** Dry-run an events CSV against POST /events/import/preview (full_access). */
+export async function previewEventsImport(
+  formData: FormData,
+): Promise<EventImportPreviewState> {
+  const fd = importFormData(formData);
+  if (!fd) return { ok: false, error: "Choose a .csv file to check." };
+  try {
+    const data = await apiPostForm<EventImportPreview>(
+      "/events/import/preview",
+      fd,
+    );
+    return { ok: true, data };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Couldn't read the file — try again.",
+    };
+  }
+}
+
+/** Commit the events import via POST /events/import — the SAME validated file. */
+export async function commitEventsImport(
+  formData: FormData,
+): Promise<EventImportResultState> {
+  const fd = importFormData(formData);
+  if (!fd) return { ok: false, error: "Choose a .csv file to import." };
+  try {
+    const data = await apiPostForm<EventImportResult>("/events/import", fd);
+    revalidatePath("/events");
+    revalidateTag("events");
+    return { ok: true, data };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Import failed — try again.",
+    };
+  }
+}
+
+/** Fetch the events import CSV template (GET /events/import/template) as text. */
+export async function downloadEventsTemplate(): Promise<
+  { ok: true; csv: string } | { ok: false; error: string }
+> {
+  try {
+    const csv = await apiGetText("/events/import/template");
+    return { ok: true, csv };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Couldn't download the template.",
+    };
+  }
 }

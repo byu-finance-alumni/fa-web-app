@@ -7,7 +7,13 @@ import {
   Loader2,
   Search,
   SlidersHorizontal,
+  UserCheck,
 } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Select } from "@/components/ui/select";
 
 /** Everything the backend GET /dashboard/activity supports, mirrored in the URL. */
 export interface ActivityFilterState {
@@ -19,6 +25,8 @@ export interface ActivityFilterState {
   to: string;
   /** Feed sort order. */
   sort: "recent" | "oldest";
+  /** "Interacted by me" — restrict to rows the current user is the actor of. */
+  mine: boolean;
 }
 
 export const EMPTY_FILTERS: ActivityFilterState = {
@@ -27,6 +35,7 @@ export const EMPTY_FILTERS: ActivityFilterState = {
   from: "",
   to: "",
   sort: "recent",
+  mine: false,
 };
 
 /** Serialize filter state to the canonical /activity query string. */
@@ -37,6 +46,7 @@ function toQs(f: ActivityFilterState): string {
   if (f.from.trim()) p.set("from", f.from.trim());
   if (f.to.trim()) p.set("to", f.to.trim());
   if (f.sort && f.sort !== "recent") p.set("sort", f.sort);
+  if (f.mine) p.set("mine", "1");
   return p.toString();
 }
 
@@ -74,12 +84,17 @@ export function ActivityToolbar({
   // resets pagination by dropping the offset (we never carry it forward here).
   useEffect(() => {
     if (serialized === lastPushedRef.current) return;
-    const timer = setTimeout(() => {
+    const navigate = () => {
       lastPushedRef.current = serialized;
       startTransition(() => {
-        router.push(serialized ? `/activity?${serialized}` : "/activity");
+        router.replace(serialized ? `/activity?${serialized}` : "/activity");
       });
-    }, 300);
+    };
+    if (serialized === "") {
+      navigate();
+      return;
+    }
+    const timer = setTimeout(navigate, 300);
     return () => clearTimeout(timer);
   }, [serialized, router]);
 
@@ -115,15 +130,15 @@ export function ActivityToolbar({
   const isDirty = serialized !== "";
 
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-gray-300 bg-white p-3">
-      <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 focus-within:border-brand-blue-600 focus-within:ring-1 focus-within:ring-brand-blue-600">
+    <Card className="mb-4 flex flex-wrap items-center gap-2 p-3">
+      <div className="flex h-9 min-w-[220px] flex-1 items-center gap-2 rounded-md border border-gray-300 bg-gray-50 px-3 focus-within:border-brand-blue-600 focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1">
         <Search className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
         <input
           value={f.q}
           onChange={(e) => set("q", e.target.value)}
           placeholder="Search by name or interaction type"
           aria-label="Search activity"
-          className="w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none"
+          className="w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
         />
         {isPending && (
           <Loader2
@@ -133,56 +148,60 @@ export function ActivityToolbar({
         )}
       </div>
 
-      <div className="relative shrink-0">
-        <select
-          value={f.sort}
-          onChange={(e) =>
-            set("sort", e.target.value as ActivityFilterState["sort"])
-          }
-          aria-label="Sort activity"
-          className="appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-9 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus:outline-none"
-          style={{ colorScheme: "light" }}
-        >
-          <option value="recent">Sort: Most recent</option>
-          <option value="oldest">Sort: Oldest</option>
-        </select>
-        <ChevronDown
-          className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500"
-          aria-hidden="true"
-        />
-      </div>
+      {/* "Interacted by me" quick toggle — a prominent pill next to the search
+          box (not buried in Filters). Active = filled brand-blue; aria-pressed
+          conveys state to assistive tech, not color alone. */}
+      <Button
+        type="button"
+        variant={f.mine ? "primary" : "secondary"}
+        onClick={() => set("mine", !f.mine)}
+        aria-pressed={f.mine}
+      >
+        <UserCheck className="h-4 w-4" aria-hidden="true" />
+        Interacted by me
+      </Button>
+
+      <Select
+        value={f.sort}
+        onChange={(e) =>
+          set("sort", e.target.value as ActivityFilterState["sort"])
+        }
+        aria-label="Sort activity"
+        className="w-auto font-semibold text-gray-700"
+      >
+        <option value="recent">Sort: Most recent</option>
+        <option value="oldest">Sort: Oldest</option>
+      </Select>
 
       <div ref={menuRef} className="relative shrink-0">
-        <button
+        <Button
           type="button"
+          variant="secondary"
           onClick={() => setMenuOpen((o) => !o)}
           aria-expanded={menuOpen}
           aria-haspopup="true"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
         >
           <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
           Filters
           {activeCount > 0 && (
-            <span className="rounded-full bg-brand-blue-600 px-1.5 py-0.5 text-xs font-semibold leading-none text-white">
+            <Badge variant="solid" size="sm" className="rounded-full">
               {activeCount}
-            </span>
+            </Badge>
           )}
           <ChevronDown className="h-4 w-4 text-gray-500" aria-hidden="true" />
-        </button>
+        </Button>
 
         {menuOpen && (
-          <div className="absolute right-0 top-full z-50 mt-1 w-80 rounded-lg border border-gray-300 bg-white p-4 shadow-lg">
+          <Card className="absolute right-0 top-full z-50 mt-1 w-80 p-4">
             <div className="space-y-4">
               <div>
                 <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Interaction type
                 </p>
-                <select
+                <Select
                   value={f.type}
                   onChange={(e) => set("type", e.target.value)}
                   aria-label="Interaction type"
-                  className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 focus:outline-none"
-                  style={{ colorScheme: "light" }}
                 >
                   <option value="">All</option>
                   {types.map((o) => (
@@ -194,7 +213,7 @@ export function ActivityToolbar({
                   {f.type && !types.includes(f.type) && (
                     <option value={f.type}>{f.type}</option>
                   )}
-                </select>
+                </Select>
               </div>
 
               <div>
@@ -209,7 +228,7 @@ export function ActivityToolbar({
                     value={f.from}
                     onChange={(e) => set("from", e.target.value)}
                     aria-label="Date from"
-                    className="w-full min-w-0 rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900 focus:outline-none"
+                    className="h-9 w-full min-w-0 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-900 focus-visible:border-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
                     style={{ colorScheme: "light" }}
                   />
                   <input
@@ -217,24 +236,25 @@ export function ActivityToolbar({
                     value={f.to}
                     onChange={(e) => set("to", e.target.value)}
                     aria-label="Date to"
-                    className="w-full min-w-0 rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900 focus:outline-none"
+                    className="h-9 w-full min-w-0 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-900 focus-visible:border-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
                     style={{ colorScheme: "light" }}
                   />
                 </div>
               </div>
 
-              <button
+              <Button
                 type="button"
+                variant="secondary"
                 onClick={() => setF(EMPTY_FILTERS)}
                 disabled={!isDirty}
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 enabled:hover:bg-gray-50 disabled:text-gray-300"
+                className="w-full"
               >
                 Clear all filters
-              </button>
+              </Button>
             </div>
-          </div>
+          </Card>
         )}
       </div>
-    </div>
+    </Card>
   );
 }

@@ -1,8 +1,11 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Topbar } from "@/components/shell/Topbar";
 import { EventForm } from "@/components/events/EventForm";
 import { AttendeeManager } from "@/components/events/AttendeeManager";
+import { DeleteEventButton } from "@/components/events/DeleteEventButton";
 import { apiGet, ApiError } from "@/lib/api";
+import { hasFullAccess } from "@/constants/roles";
+import type { UserContext } from "@/types/alumni";
 import { getEventTypeOptions } from "../../vocab";
 import { updateEvent } from "../../actions";
 
@@ -24,6 +27,23 @@ export default async function EditEventPage({
 }) {
   const { id } = await params;
   const { created } = await searchParams;
+
+  // Event management (edit + attendance) requires full_access — mirrors backend
+  // require_full_access on PUT /events/{id} and the attendee endpoints. view_only
+  // ("Professor") users who land here directly are sent back to the read-only
+  // events list rather than shown a form/attendee controls the backend would
+  // 403 on submit. Resolve the flag inside try/catch, then redirect OUTSIDE it —
+  // redirect() throws a control-flow signal a catch would otherwise swallow
+  // (same pattern as /alumni/{id}/edit). Backend stays the source of truth.
+  let canManageEvents = false;
+  try {
+    const ctx = await apiGet<UserContext>("/auth/context");
+    canManageEvents = hasFullAccess(ctx.roles);
+  } catch {
+    /* not provisioned / context error → treat as no manage access */
+  }
+  if (!canManageEvents) redirect("/events");
+
   let event: EventDetail;
   try {
     event = await apiGet<EventDetail>(`/events/${id}`);
@@ -64,6 +84,19 @@ export default async function EditEventPage({
           }}
         />
         <AttendeeManager eventId={event.event_id} />
+
+        <div className="mt-8 border-t border-gray-200 pt-6">
+          <h2 className="text-sm font-semibold text-gray-900">Danger zone</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Deleting this event also removes its attendance records.
+          </p>
+          <div className="mt-3">
+            <DeleteEventButton
+              eventId={event.event_id}
+              eventName={event.event_name}
+            />
+          </div>
+        </div>
       </main>
     </>
   );

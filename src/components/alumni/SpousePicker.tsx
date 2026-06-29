@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
 import { clientGet, ApiClientError } from "@/lib/api-client";
+import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import type { AlumniPage, Alumni } from "@/types/alumni";
 
 /**
@@ -18,17 +22,6 @@ import type { AlumniPage, Alumni } from "@/types/alumni";
  * but they carry the same `name` attributes the rest of the uncontrolled form
  * uses, so they serialize into the same FormData on submit.
  */
-
-const BASE_INPUT =
-  "w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2";
-
-function inputClasses(hasError: boolean): string {
-  return `${BASE_INPUT} ${
-    hasError
-      ? "border-danger-600 focus:ring-danger-600"
-      : "border-gray-300 focus:ring-brand-blue-500"
-  }`;
-}
 
 function displayName(a: Pick<Alumni, "preferred_first_name" | "first_name" | "last_name">): string {
   const first = a.preferred_first_name || a.first_name || "";
@@ -125,10 +118,8 @@ export function SpousePicker({
     setLinkedName("");
   }
 
-  const labelCls = "mb-1.5 block text-xs font-medium text-gray-700";
-
   return (
-    <div className="space-y-4 rounded-xl border border-gray-200 bg-gray-50/60 p-4">
+    <div className="space-y-4 rounded-lg border border-gray-200 bg-gray-50/60 p-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-gray-900">Spouse</h3>
         {linkedId !== null ? (
@@ -140,7 +131,7 @@ export function SpousePicker({
               className="text-brand-blue-700 hover:text-brand-blue-900"
               aria-label="Unlink spouse"
             >
-              ✕
+              <X className="h-3 w-3" />
             </button>
           </span>
         ) : null}
@@ -151,16 +142,19 @@ export function SpousePicker({
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label htmlFor="spouse_first_name" className={labelCls}>
+          <Label htmlFor="spouse_first_name" className="mb-1.5">
             Spouse first name
-          </label>
-          <input
+          </Label>
+          <Input
             id="spouse_first_name"
             name="spouse_first_name"
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
             aria-invalid={errors?.spouse_first_name ? true : undefined}
-            className={inputClasses(!!errors?.spouse_first_name)}
+            className={cn(
+              errors?.spouse_first_name &&
+                "border-danger-600 focus-visible:ring-danger-600",
+            )}
           />
           {errors?.spouse_first_name ? (
             <p className="mt-1 text-xs text-danger-600">
@@ -169,16 +163,19 @@ export function SpousePicker({
           ) : null}
         </div>
         <div>
-          <label htmlFor="spouse_last_name" className={labelCls}>
+          <Label htmlFor="spouse_last_name" className="mb-1.5">
             Spouse last name
-          </label>
-          <input
+          </Label>
+          <Input
             id="spouse_last_name"
             name="spouse_last_name"
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
             aria-invalid={errors?.spouse_last_name ? true : undefined}
-            className={inputClasses(!!errors?.spouse_last_name)}
+            className={cn(
+              errors?.spouse_last_name &&
+                "border-danger-600 focus-visible:ring-danger-600",
+            )}
           />
           {errors?.spouse_last_name ? (
             <p className="mt-1 text-xs text-danger-600">
@@ -189,16 +186,34 @@ export function SpousePicker({
       </div>
 
       <div>
-        <label htmlFor="spouse_birth_date" className={labelCls}>
+        <Label htmlFor="spouse_birth_date" className="mb-1.5">
           Spouse birthday
-        </label>
-        <input
+        </Label>
+        <Input
           id="spouse_birth_date"
           name="spouse_birth_date"
           type="date"
           defaultValue={defaults?.spouse_birth_date ?? ""}
           aria-invalid={errors?.spouse_birth_date ? true : undefined}
-          className={inputClasses(!!errors?.spouse_birth_date)}
+          // Open the native date picker on a click anywhere in the field, not
+          // just the small calendar glyph — clicking the body otherwise does
+          // nothing in some browsers (QA: picker didn't open reliably).
+          // showPicker() throws if unsupported / outside a user gesture, so guard it.
+          onClick={(e) => {
+            const el = e.currentTarget as HTMLInputElement & {
+              showPicker?: () => void;
+            };
+            try {
+              el.showPicker?.();
+            } catch {
+              /* unsupported or blocked — native click behaviour still applies */
+            }
+          }}
+          style={{ colorScheme: "light" }}
+          className={cn(
+            errors?.spouse_birth_date &&
+              "border-danger-600 focus-visible:ring-danger-600",
+          )}
         />
         {errors?.spouse_birth_date ? (
           <p className="mt-1 text-xs text-danger-600">
@@ -209,10 +224,10 @@ export function SpousePicker({
 
       {/* Link-to-alumnus search */}
       <div ref={boxRef} className="relative">
-        <label htmlFor="spouse-search" className={labelCls}>
+        <Label htmlFor="spouse-search" className="mb-1.5">
           Spouse is also an alumnus? Search to link their record
-        </label>
-        <input
+        </Label>
+        <Input
           id="spouse-search"
           type="text"
           autoComplete="off"
@@ -220,7 +235,6 @@ export function SpousePicker({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => results.length > 0 && setOpen(true)}
-          className={inputClasses(false)}
         />
         {open && (loading || results.length > 0) ? (
           <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg">

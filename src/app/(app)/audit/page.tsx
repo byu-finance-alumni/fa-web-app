@@ -1,7 +1,18 @@
 import Link from "next/link";
+import {
+  Eye,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  type LucideIcon,
+} from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
 import { humanize } from "@/lib/format";
 import { Topbar } from "@/components/shell/Topbar";
+import { Card } from "@/components/ui/card";
+import { Badge, type BadgeProps } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   AuditToolbar,
   type AuditFilterState,
@@ -30,6 +41,39 @@ function entityHref(entityType: string, entityId: number | null): string | null 
   if (entityId == null) return null;
   if (entityType === "alumni") return `/alumni/${entityId}`;
   return null;
+}
+
+/**
+ * Classify an audit action by impact so high-impact writes (delete/edit/create)
+ * read as danger/warning with a distinct icon, while reads/searches stay
+ * neutral. Matching is substring-based on the action type so verb variants
+ * (e.g. "soft_delete", "bulk_update", "search_export") are covered. Presentation
+ * only — every audit row is still rendered; this just colors and icons it.
+ */
+function classifyAction(action: string): {
+  variant: BadgeProps["variant"];
+  Icon: LucideIcon;
+} {
+  const a = action.toLowerCase();
+  if (a.includes("delete") || a.includes("remove") || a.includes("archive"))
+    return { variant: "danger", Icon: Trash2 };
+  if (a.includes("update") || a.includes("edit") || a.includes("rename"))
+    return { variant: "warning", Icon: Pencil };
+  if (a.includes("create") || a.includes("add") || a.includes("import"))
+    return { variant: "success", Icon: Plus };
+  if (a.includes("search") || a.includes("export"))
+    return { variant: "neutral", Icon: Search };
+  return { variant: "neutral", Icon: Eye };
+}
+
+function ActionBadge({ action }: { action: string }) {
+  const { variant, Icon } = classifyAction(action);
+  return (
+    <Badge variant={variant}>
+      <Icon className="h-3 w-3" aria-hidden="true" />
+      {humanize(action)}
+    </Badge>
+  );
 }
 
 function formatDateTime(d: string | null): string {
@@ -175,8 +219,8 @@ export default async function AuditPage({
         />
 
         {error ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-10 text-center">
-            <p className="font-medium text-gray-900">
+          <Card className="p-10 text-center">
+            <p className="text-sm font-semibold text-gray-900">
               {error.status === 403
                 ? "Super admin access required"
                 : "Couldn't load the audit log"}
@@ -186,26 +230,21 @@ export default async function AuditPage({
                 ? "The audit trail can contain sensitive record history, so it's restricted to super admins."
                 : error.message}
             </p>
-          </div>
+          </Card>
         ) : rows && rows.length === 0 ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
+          <Card className="p-10 text-center text-sm text-gray-500">
             {qs
               ? "No audit events match your filters."
               : "No audit events recorded yet. Record edits, imports, and role changes will appear here. (Sign-in and auth events are kept in the security logs, not the audit trail.)"}
-          </div>
+          </Card>
         ) : (
           <>
             {/* Mobile: stacked cards */}
             <div className="space-y-2 md:hidden">
               {rows!.map((r) => (
-                <div
-                  key={r.audit_log_id}
-                  className="rounded-xl border border-gray-300 bg-white p-3"
-                >
+                <Card key={r.audit_log_id} className="p-3">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-                      {humanize(r.action_type)}
-                    </span>
+                    <ActionBadge action={r.action_type} />
                     <span className="text-xs">
                       <EntityRef r={r} />
                     </span>
@@ -219,20 +258,20 @@ export default async function AuditPage({
                       <summary className="cursor-pointer rounded text-xs font-medium text-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500">
                         Details
                       </summary>
-                      <div className="mt-2 rounded-lg bg-gray-50 p-2">
+                      <div className="mt-2 rounded-md bg-gray-50 p-2">
                         <ChangeDetail r={r} />
                       </div>
                     </details>
                   ) : null}
-                </div>
+                </Card>
               ))}
             </div>
 
             {/* Desktop: table */}
-            <div className="hidden overflow-hidden rounded-xl border border-gray-300 bg-white md:block">
+            <Card className="hidden overflow-hidden p-0 md:block">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-300 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-500">
                     <th className="w-48 px-4 py-3">Date / time</th>
                     <th className="w-44 px-4 py-3">User</th>
                     <th className="w-40 px-4 py-3">Action</th>
@@ -244,16 +283,14 @@ export default async function AuditPage({
                   {rows!.map((r) => (
                     <tr
                       key={r.audit_log_id}
-                      className="border-b border-gray-300 align-top last:border-0"
+                      className="border-b border-gray-200 align-top last:border-0 hover:bg-gray-50"
                     >
                       <td className="px-4 py-3 text-gray-700">
                         {formatDateTime(r.created_at)}
                       </td>
                       <td className="px-4 py-3 text-gray-700">{r.user ?? "—"}</td>
                       <td className="px-4 py-3">
-                        <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-                          {humanize(r.action_type)}
-                        </span>
+                        <ActionBadge action={r.action_type} />
                       </td>
                       <td className="px-4 py-3">
                         <EntityRef r={r} />
@@ -264,7 +301,7 @@ export default async function AuditPage({
                             <summary className="cursor-pointer rounded text-xs font-medium text-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500">
                               View
                             </summary>
-                            <div className="mt-2 rounded-lg bg-gray-50 p-2">
+                            <div className="mt-2 rounded-md bg-gray-50 p-2">
                               <ChangeDetail r={r} />
                             </div>
                           </details>
@@ -276,10 +313,10 @@ export default async function AuditPage({
                   ))}
                 </tbody>
               </table>
-            </div>
+            </Card>
 
             <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
-              <span>
+              <span className="tabular-nums">
                 Showing {from}–{to} of {data!.total}
               </span>
               <div className="flex gap-2">
@@ -311,13 +348,13 @@ function PageLink({
   enabled: boolean;
   label: string;
 }) {
-  const cls =
-    "rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium";
   return enabled ? (
-    <Link href={href} className={`${cls} bg-white text-gray-700 hover:bg-gray-50`}>
-      {label}
-    </Link>
+    <Button asChild variant="secondary">
+      <Link href={href}>{label}</Link>
+    </Button>
   ) : (
-    <span className={`${cls} bg-gray-50 text-gray-300`}>{label}</span>
+    <Button variant="secondary" disabled>
+      {label}
+    </Button>
   );
 }

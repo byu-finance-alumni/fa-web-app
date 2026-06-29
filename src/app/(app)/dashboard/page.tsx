@@ -2,13 +2,23 @@ import Link from "next/link";
 import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
 import { MetricCard } from "@/components/shared/MetricCard";
-import { TopbarSearch } from "@/components/shared/TopbarSearch";
-import { DashboardSearchBar } from "@/components/dashboard/DashboardSearchBar";
-import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
-import { UsStateMap } from "@/components/geography/UsStateMap";
+import { SearchHero } from "@/components/dashboard/SearchHero";
+import { DashboardSearch } from "@/components/dashboard/DashboardSearch";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DATA_VIZ_PALETTE } from "@/constants/chart";
-import type { StateCount, GeoSummary } from "@/types/geography";
+import type { GeoSummary } from "@/types/geography";
+import type { UserContext } from "@/types/alumni";
+import type { FilterOptions } from "@/types/filters";
+import type { components } from "@/types/api.gen";
 
+type DashboardPreset = components["schemas"]["DashboardPresetRead"];
+
+/**
+ * `/dashboard/summary` has no `response_model` on the backend, so it isn't in
+ * the generated OpenAPI types — keep this hand-written shape in sync with the
+ * API. Everything the redesigned launchpad reads comes from here + the geography
+ * summary (top industries).
+ */
 interface Summary {
   total_alumni: number;
   archived: number;
@@ -21,63 +31,63 @@ interface Summary {
   attended_event_this_month: number;
   upcoming_events: number;
   willing_mentors: number;
-  /** NEW (parallel backend task) — events held in the current month. */
   events_this_month: number;
-  /** NEW (parallel backend task) — alumni who guest-spoke this month. */
   guest_speakers_this_month: number;
   by_graduation_year: { year: number; count: number }[];
   top_employers: { employer: string; count: number }[];
   by_state: { state: string; count: number }[];
 }
 
-/** A birthday row from GET /dashboard/birthdays (ordered by day asc). */
-interface Birthday {
-  id: number;
-  first_name: string;
-  last_name: string;
-  current_employer: string | null;
-  graduation_year: number | null;
-  /** Recurring month/day only — the API never returns the birth year (FERPA
-   *  data minimization). */
-  birth_month: number | null;
-  birth_day: number | null;
+/* ------------------------------------------------------------- date helpers -- */
+
+/** YYYY-MM-DD for a date `days` before today (UTC) — matches the rolling
+ *  30-day KPI windows so a tile's count and its deep-linked list agree. */
+function isoDaysAgo(days: number): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - days);
+  return d.toISOString().slice(0, 10);
 }
 
-/** Compact month + day for a birthday, e.g. "Jun 14". Only month/day are sent —
- *  birthdays recur and the year is withheld — so render those directly. */
-function formatBirthday(month: number | null, day: number | null): string {
-  if (!month || !day) return "";
-  // Fixed year; only the month/day are rendered.
-  return new Date(2000, month - 1, day).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
+/** Today as YYYY-MM-DD (UTC). */
+function isoToday(): string {
+  return new Date().toISOString().slice(0, 10);
 }
+
+/** A clean first name from the auth context, or null if there's nothing usable.
+ *  Falls back to the local-part of the email (title-cased) when no name field is
+ *  set — never a fabricated name. */
+function resolveFirstName(ctx: UserContext | null): string | null {
+  const name = ctx?.first_name?.trim();
+  if (name) return name;
+  const local = ctx?.email?.split("@")[0]?.trim();
+  if (!local) return null;
+  // "marcus.young" / "marcus_young" -> "Marcus"
+  const first = local.split(/[._-]/)[0];
+  if (!first || /\d/.test(first)) return null;
+  return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
+}
+
+/* -------------------------------------------------------------- presentation -- */
 
 function Panel({
   title,
   action,
-  className,
   children,
 }: {
   title: string;
   action?: React.ReactNode;
-  /** Extra classes on the card (e.g. `flex h-full flex-col` for full-height). */
-  className?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section
-      className={`rounded-xl border border-gray-300 bg-white p-5${
-        className ? ` ${className}` : ""
-      }`}
-    >
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+    <Card className="flex flex-1 flex-col">
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
         {action}
-      </div>
-      {children}
-    </section>
+      </CardHeader>
+      <CardContent className="flex flex-1 flex-col justify-center">
+        {children}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -92,20 +102,20 @@ function BarList({
     return <p className="py-4 text-sm text-gray-400">{emptyLabel}</p>;
   const max = Math.max(1, ...rows.map((r) => r.count));
   return (
-    <ul className="space-y-3">
+    <ul className="space-y-3.5">
       {rows.map((r) => {
         const row = (
           <>
-            <span className="w-28 shrink-0 truncate text-sm text-gray-700">
+            <span className="w-36 shrink-0 truncate text-sm font-medium text-gray-700">
               {r.label}
             </span>
-            <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
+            <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-gray-100">
               <div
                 className="h-full rounded-full bg-brand-blue-600"
                 style={{ width: `${Math.round((r.count / max) * 100)}%` }}
               />
             </div>
-            <span className="w-6 shrink-0 text-right text-sm font-medium tabular-nums text-gray-900">
+            <span className="w-8 shrink-0 text-right text-sm font-semibold tabular-nums text-gray-900">
               {r.count}
             </span>
           </>
@@ -115,13 +125,19 @@ function BarList({
             {r.href ? (
               <Link
                 href={r.href}
-                aria-label={`View ${r.label} in alumni list`}
+                aria-label={`View ${r.label} (${r.count}) in alumni list`}
+                title={`${r.label}: ${r.count}`}
                 className="-mx-2 flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1 transition hover:bg-brand-blue-50/40"
               >
                 {row}
               </Link>
             ) : (
-              <div className="flex items-center gap-3">{row}</div>
+              <div
+                className="flex items-center gap-3"
+                title={`${r.label}: ${r.count}`}
+              >
+                {row}
+              </div>
             )}
           </li>
         );
@@ -132,7 +148,7 @@ function BarList({
 
 /** Hand-built SVG donut + legend. Slice colors come from the UX-UI.md data-viz
  *  palette (chart-only use). Center shows the total; each legend row links to
- *  the filtered alumni list. Distinct from the bar lists for visual variety. */
+ *  the filtered alumni list. */
 function DonutChart({
   rows,
   emptyLabel,
@@ -144,14 +160,14 @@ function DonutChart({
     return <p className="py-4 text-sm text-gray-400">{emptyLabel}</p>;
 
   const total = rows.reduce((sum, r) => sum + r.count, 0);
-  const size = 128;
-  const stroke = 20;
+  const size = 184;
+  const stroke = 30;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   let acc = 0;
 
   return (
-    <div className="flex items-center gap-5">
+    <div className="flex w-full items-center gap-6">
       <svg
         width={size}
         height={size}
@@ -173,6 +189,7 @@ function DonutChart({
           ) : (
             rows.map((r, i) => {
               const arc = (r.count / total) * circumference;
+              const pct = Math.round((r.count / total) * 100);
               const seg = (
                 <circle
                   key={r.label}
@@ -184,7 +201,11 @@ function DonutChart({
                   strokeWidth={stroke}
                   strokeDasharray={`${arc} ${circumference - arc}`}
                   strokeDashoffset={-acc}
-                />
+                >
+                  {/* Native SVG tooltip on hover — exact count + its share of the
+                      charted total (a real proportion, not a trend metric). */}
+                  <title>{`${r.label}: ${r.count} (${pct}%)`}</title>
+                </circle>
               );
               acc += arc;
               return seg;
@@ -196,26 +217,26 @@ function DonutChart({
           y="50%"
           textAnchor="middle"
           dominantBaseline="central"
-          className="fill-gray-900 text-lg font-semibold tabular-nums"
+          className="fill-gray-900 text-3xl font-semibold tabular-nums"
         >
           {total}
         </text>
       </svg>
-      <ul className="min-w-0 flex-1 space-y-1.5">
+      <ul className="min-w-0 flex-1 space-y-3">
         {rows.map((r, i) => {
           const body = (
             <>
               <span
-                className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                className="h-3 w-3 shrink-0 rounded-sm"
                 style={{
                   backgroundColor: DATA_VIZ_PALETTE[i % DATA_VIZ_PALETTE.length],
                 }}
                 aria-hidden="true"
               />
-              <span className="min-w-0 flex-1 truncate text-sm text-gray-700">
+              <span className="min-w-0 flex-1 truncate text-base text-gray-700">
                 {r.label}
               </span>
-              <span className="shrink-0 text-sm font-medium tabular-nums text-gray-900">
+              <span className="shrink-0 text-base font-medium tabular-nums text-gray-900">
                 {r.count}
               </span>
             </>
@@ -225,13 +246,19 @@ function DonutChart({
               {r.href ? (
                 <Link
                   href={r.href}
-                  aria-label={`View ${r.label} in alumni list`}
-                  className="-mx-2 flex items-center gap-2.5 rounded-lg px-2 py-1 transition hover:bg-brand-blue-50/40"
+                  aria-label={`View ${r.label} (${r.count}) in alumni list`}
+                  title={`${r.label}: ${r.count}`}
+                  className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-1.5 transition hover:bg-brand-blue-50/40"
                 >
                   {body}
                 </Link>
               ) : (
-                <div className="flex items-center gap-2.5 px-2 py-1">{body}</div>
+                <div
+                  className="flex items-center gap-3 px-2 py-1.5"
+                  title={`${r.label}: ${r.count}`}
+                >
+                  {body}
+                </div>
               )}
             </li>
           );
@@ -241,170 +268,133 @@ function DonutChart({
   );
 }
 
-/** "Birthdays this month" list. Each row: an initials avatar, the alumnus's
- *  name (links to their profile), an "<employer> · Class of <year>" subtitle,
- *  and a right-aligned "Jun 14" date. Rows arrive ordered by day ascending.
- *  Fills the panel height and scrolls internally when there are many. */
-function BirthdayList({ rows }: { rows: Birthday[] }) {
-  if (rows.length === 0)
-    return (
-      <div className="flex flex-1 items-center justify-center">
-        <p className="text-sm text-gray-400">No birthdays this month.</p>
-      </div>
-    );
-
-  return (
-    <ul className="-mx-2 flex min-h-0 flex-1 flex-col gap-0.5 overflow-auto px-2">
-      {rows.map((b) => {
-        const name =
-          [b.first_name, b.last_name].filter(Boolean).join(" ") || "—";
-        const subtitle =
-          [
-            b.current_employer,
-            b.graduation_year ? `Class of ${b.graduation_year}` : null,
-          ]
-            .filter(Boolean)
-            .join(" · ") || "—";
-        return (
-          <li key={b.id}>
-            <Link
-              href={`/alumni/${b.id}`}
-              aria-label={`View ${name}'s profile — birthday ${formatBirthday(
-                b.birth_month,
-                b.birth_day,
-              )}`}
-              className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-1.5 transition hover:bg-brand-blue-50/40"
-            >
-              <InitialsAvatar name={name} size="md" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-gray-900">
-                  {name}
-                </p>
-                <p className="truncate text-xs text-gray-500">{subtitle}</p>
-              </div>
-              <span className="shrink-0 text-sm font-medium tabular-nums text-gray-700">
-                {formatBirthday(b.birth_month, b.birth_day)}
-              </span>
-            </Link>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
+/* --------------------------------------------------------------------- page -- */
 
 export default async function DashboardPage() {
+  const thirtyDaysAgo = isoDaysAgo(30);
+  const today = isoToday();
+
   let s: Summary | null = null;
-  let geo: StateCount[] = [];
   let geoSum: GeoSummary | null = null;
-  let birthdays: Birthday[] = [];
+  let ctx: UserContext | null = null;
   let notProvisioned = false;
   try {
-    [s, geo, geoSum, birthdays] = await Promise.all([
+    [s, geoSum, ctx] = await Promise.all([
       apiGet<Summary>("/dashboard/summary", {
         revalidate: 60,
         tags: ["dashboard"],
-      }),
-      apiGet<StateCount[]>("/geography/states", {
-        revalidate: 60,
-        tags: ["geography"],
       }),
       apiGet<GeoSummary>("/geography/summary", {
         revalidate: 60,
         tags: ["geography"],
       }),
-      // Birthdays is a brand-new endpoint shipping in parallel; until it lands
-      // a 404 (or any error) must not break the page, so swallow it to [].
-      apiGet<Birthday[]>("/dashboard/birthdays", {
-        revalidate: 60,
-        tags: ["dashboard"],
-      }).catch((e) => {
-        // A 403 still means "not provisioned" — re-throw so the outer catch
-        // shows the provisioning notice instead of a half-empty dashboard.
-        if (e instanceof ApiError && e.status === 403) throw e;
-        return [] as Birthday[];
-      }),
+      // Per-user, not cacheable — used only to greet the signed-in user by name.
+      // Tolerated separately below so a context hiccup never blanks the page.
+      apiGet<UserContext>("/auth/context").catch(() => null),
     ]);
   } catch (e) {
     if (e instanceof ApiError && e.status === 403) notProvisioned = true;
   }
-  const geoCounts: Record<string, number> = {};
-  for (const st of geo) geoCounts[st.state] = st.alumni_count;
+
+  // Search workspace data (alumni filter options for the Advanced tab). Fetched
+  // tolerantly so a hiccup just leaves the facets empty rather than blanking the
+  // dashboard.
+  let filterOptions: FilterOptions | null = null;
+  let presets: DashboardPreset[] = [];
+  if (!notProvisioned) {
+    [filterOptions, presets] = await Promise.all([
+      apiGet<FilterOptions>("/alumni/filter-options", {
+        revalidate: 300,
+        tags: ["alumni-filter-options"],
+      }).catch(() => null),
+      apiGet<DashboardPreset[]>("/dashboard/presets", {
+        revalidate: 60,
+        tags: ["dashboard-presets"],
+      }).catch(() => []),
+    ]);
+  }
+
+  // "Welcome, Marcus" — name from the auth context (or a first name derived from
+  // the email), with a no-name fallback. A static greeting avoids the wrong
+  // time-of-day (the server renders in UTC, not the viewer's local hour).
+  const firstName = resolveFirstName(ctx);
+  const greeting = firstName ? `Welcome, ${firstName}` : "Welcome";
+
+  const industries = geoSum?.top_industries ?? [];
+
+  // Quick-filter presets on the Quick search tab — engineer/super-admin-managed
+  // (GET /dashboard/presets), each a common compound search deep-linking into
+  // the alumni list. One per line.
+  const alumniShortcuts = presets.map((p) => ({ label: p.label, href: p.href }));
+
+  const EMPTY_OPTIONS: FilterOptions = {
+    employers: [],
+    past_employers: [],
+    titles: [],
+    seniority_levels: [],
+    industries: [],
+    cities: [],
+    states: [],
+    tags: [],
+    status_labels: [],
+    leadership_roles: [],
+    survey_statuses: [],
+    graduation_years: [],
+  };
 
   return (
     <>
-      <Topbar title="Dashboard">
-        <TopbarSearch />
-      </Topbar>
-      <main className="flex min-h-0 flex-1 flex-col overflow-auto p-6 lg:overflow-hidden">
+      <Topbar title="Dashboard" />
+      <main className="flex-1 overflow-auto p-6">
         {notProvisioned ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-4 text-sm text-gray-700">
+          <Card className="p-4 text-sm text-gray-700">
             Your account is authenticated but not yet provisioned. Ask a Super
             Admin to grant your account a role to see data.
-          </div>
+          </Card>
         ) : (
-          <div className="flex min-h-0 flex-1 flex-col gap-4 lg:overflow-hidden">
-            {/* Search / filter bar — find alumni fast */}
-            <DashboardSearchBar
-              employers={geoSum?.options.employers ?? []}
-              gradYears={geoSum?.options.graduation_years ?? []}
-              cities={geoSum?.options.cities ?? []}
-              tags={geoSum?.options.tags ?? []}
-            />
-
-            {/* KPI strip (6 across) */}
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-              <MetricCard
-                size="lg"
-                label="Total alumni"
-                value={s?.total_alumni ?? "—"}
-                href="/alumni"
-                linkLabel="View all alumni"
-              />
-              <MetricCard
-                size="lg"
-                label="Guest speakers this month"
-                value={s?.guest_speakers_this_month ?? "—"}
-                href="/alumni?speaker=1"
-                linkLabel="View alumni willing to guest speak"
-              />
-              <MetricCard
-                size="lg"
-                label="Willing mentors"
-                value={s?.willing_mentors ?? "—"}
-                href="/alumni?mentor=1"
-                linkLabel="View alumni willing to mentor"
-              />
-              <MetricCard
-                size="lg"
-                label="Events this month"
-                value={s?.events_this_month ?? "—"}
-                href="/events"
-                linkLabel="View events"
-              />
-              <MetricCard
-                size="lg"
-                label="Attended this month"
-                value={s?.attended_event_this_month ?? "—"}
-                href="/events"
-                linkLabel="View events"
-              />
-              <MetricCard
-                size="lg"
-                label="Contacted this month"
-                value={s?.contacted_this_month ?? "—"}
-                href="/alumni"
-                linkLabel="View alumni"
+          /* Two columns that stretch to fill the viewport: quick-search
+             features on the left half, KPIs + the two charts on the right. */
+          <div className="flex min-h-full flex-col gap-5 lg:h-full lg:flex-row lg:items-stretch">
+            {/* LEFT — natural-language search bar, then the tabbed search
+                workspace (quick / advanced) below it */}
+            <div className="flex min-h-0 flex-1 flex-col gap-5">
+              <SearchHero greeting={greeting} />
+              <DashboardSearch
+                options={filterOptions ?? EMPTY_OPTIONS}
+                alumniShortcuts={alumniShortcuts}
               />
             </div>
 
-            {/* Row A — Top employers | Top industries (equal halves) */}
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {/* RIGHT — KPI strip + the two charts */}
+            <div className="flex flex-1 flex-col gap-5">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+                <MetricCard
+                  size="lg"
+                  label="Total alumni"
+                  value={s?.total_alumni ?? "—"}
+                  href="/alumni"
+                  linkLabel="View all alumni"
+                />
+                <MetricCard
+                  size="lg"
+                  label="Contacted this month"
+                  value={s?.contacted_this_month ?? "—"}
+                  href={`/alumni?contacted_after=${thirtyDaysAgo}`}
+                  linkLabel="View alumni contacted this month"
+                />
+                <MetricCard
+                  size="lg"
+                  label="Events attended this month"
+                  value={s?.attended_event_this_month ?? "—"}
+                  href={`/events?from=${thirtyDaysAgo}&to=${today}`}
+                  linkLabel="View events held this month"
+                />
+              </div>
               <Panel
                 title="Top employers"
                 action={
                   <span className="text-xs font-medium text-gray-500">
-                    Click to filter →
+                    Click to filter
                   </span>
                 }
               >
@@ -417,65 +407,24 @@ export default async function DashboardPage() {
                   emptyLabel="No employer data yet."
                 />
               </Panel>
-
               <Panel
                 title="Top industries"
                 action={
                   <span className="text-xs font-medium text-gray-500">
-                    Click to filter →
+                    Click to filter
                   </span>
                 }
               >
-                <DonutChart
-                  rows={(geoSum?.top_industries ?? []).slice(0, 5).map((i) => ({
-                    label: i.industry,
-                    count: i.count,
-                    href: `/alumni?industry=${encodeURIComponent(i.industry)}`,
-                  }))}
-                  emptyLabel="No industry data yet."
-                />
-              </Panel>
-            </div>
-
-            {/* Row B — Map quick view (left) | Birthdays this month (right),
-                equal halves. Grows to fill the remaining viewport height on
-                lg+; stacks at natural height below lg. */}
-            <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-2">
-              <Panel
-                className="flex h-full flex-col"
-                title="Map quick view"
-                action={
-                  <Link
-                    href="/map"
-                    className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
-                  >
-                    Open full map →
-                  </Link>
-                }
-              >
-                <div className="min-h-0 flex-1">
-                  <UsStateMap
-                    counts={geoCounts}
-                    selected={null}
-                    filterQuery=""
-                    fit
+                <div className="flex w-full flex-1 items-center">
+                  <DonutChart
+                    rows={industries.slice(0, 5).map((i) => ({
+                      label: i.industry,
+                      count: i.count,
+                      href: `/alumni?industry=${encodeURIComponent(i.industry)}`,
+                    }))}
+                    emptyLabel="No industry data yet."
                   />
                 </div>
-              </Panel>
-
-              <Panel
-                className="flex h-full flex-col"
-                title="Birthdays this month"
-                action={
-                  <Link
-                    href="/alumni"
-                    className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
-                  >
-                    View all
-                  </Link>
-                }
-              >
-                <BirthdayList rows={birthdays} />
               </Panel>
             </div>
           </div>

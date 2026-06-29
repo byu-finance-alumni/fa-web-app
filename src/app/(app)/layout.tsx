@@ -4,9 +4,11 @@ import { createClient } from "@/utils/supabase/server";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { MobileNav } from "@/components/shell/MobileNav";
 import { SessionTimeout } from "@/components/auth/SessionTimeout";
+import { PreviewBanner } from "@/components/engineer/PreviewBanner";
 import { apiGet } from "@/lib/api";
 import type { UserContext } from "@/types/alumni";
-import { highestRole } from "@/constants/roles";
+import { highestRole, isEngineer, roleLabel } from "@/constants/roles";
+import { asPreviewRole, PREVIEW_COOKIE } from "@/lib/preview";
 import { ToastProvider } from "@/components/ui/Toast";
 
 /**
@@ -36,15 +38,39 @@ export default async function AppLayout({
 
   let role = "";
   let mustChangePassword = false;
+  let userIsEngineer = false;
+  let canVocabReal = false;
+  let userName = "";
   try {
     const ctx = await apiGet<UserContext>("/auth/context");
     mustChangePassword = ctx.must_change_password === true;
     // Resolve the user's single highest role for role-aware nav (engineer is
     // the top of the ladder). See @/constants/roles.
     role = highestRole(ctx.roles);
+    userIsEngineer = isEngineer(ctx.roles);
+    // Capability-driven access for the vocabulary editor: true for the engineer
+    // and for any role granted `vocab_admin` in the permission editor. Read from
+    // the effective capabilities the backend resolves on /auth/context.
+    canVocabReal = (ctx.capabilities ?? []).includes("vocab_admin");
+    // Display name for the sidebar footer (falls back to email if unset).
+    userName = [ctx.first_name, ctx.last_name].filter(Boolean).join(" ");
   } catch {
     // 403 = authenticated but not yet provisioned in the users table.
   }
+
+  // Preview-as-role (#165): only an engineer may preview, and only as a role
+  // strictly below engineer, so previewing never grants access — it just renders
+  // the shell as that lower role. The cookie is httpOnly and validated here; a
+  // persistent banner makes the state obvious with a one-click exit.
+  const previewRole = userIsEngineer
+    ? asPreviewRole(cookieStore.get(PREVIEW_COOKIE)?.value)
+    : null;
+  const effectiveRole = previewRole ?? role;
+  // While previewing a lower role we can't know that role's granted capabilities
+  // (the context carries the engineer's own), so hide the capability-gated
+  // Vocabulary item during preview rather than leak it. A real sign-in by a
+  // granted role still resolves its own capabilities and shows the item.
+  const canVocab = previewRole ? false : canVocabReal;
 
   // Force a temp-password user to set a new password before they can use any
   // app screen. `/set-password` lives OUTSIDE this `(app)` route group, so it
@@ -57,9 +83,23 @@ export default async function AppLayout({
   return (
     <ToastProvider>
       <SessionTimeout />
-      <div className="flex h-screen overflow-hidden bg-gray-100">
-        <Sidebar email={user.email ?? ""} role={role} />
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden pb-16 md:pb-0">
+      <div className="flex h-screen overflow-hidden bg-canvas">
+        {/* While previewing, the sidebar reflects the previewed role (engineer
+            tools disappear); the engineer exits via the always-visible banner. */}
+        <Sidebar
+          email={user.email ?? ""}
+          name={userName}
+          role={effectiveRole}
+          canVocab={canVocab}
+        />
+        {/* min-h-0 lets the inner <main className="flex-1 overflow-auto"> on each
+            page actually cap its height and scroll. A flex child defaults to
+            min-height:auto, so without this a page whose content is taller than
+            the viewport grows past the column and gets clipped by overflow-hidden
+            instead of scrolling (E8: vocabulary unreachable below the last
+            section). Applied here so every (app) page inherits the fix. */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-16 md:pb-0">
+          {previewRole && <PreviewBanner roleLabel={roleLabel(previewRole)} />}
           {children}
         </div>
         <MobileNav />

@@ -9,6 +9,7 @@ import {
   apiDelete,
   apiPostForm,
   apiGetText,
+  apiPostText,
   ApiError,
 } from "@/lib/api";
 import type {
@@ -16,6 +17,11 @@ import type {
   ImportPreview,
   ImportResult,
 } from "@/types/alumni";
+import type {
+  AlumniExportRequest,
+  ExportColumnCatalog,
+} from "@/types/export";
+import type { Note, NoteEntityType } from "@/types/notes";
 
 /**
  * Result of a form server action.
@@ -303,12 +309,17 @@ export async function addInteraction(
 ): Promise<FormState> {
   const type = formData.get("interaction_type");
   const notes = formData.get("interaction_notes");
+  const when = formData.get("interaction_date_time");
   if (typeof type !== "string" || type.trim() === "") {
     return { error: "Interaction type is required." };
   }
   try {
     await apiPost(`/alumni/${alumniId}/interactions`, {
       interaction_type: type.trim(),
+      interaction_date_time:
+        typeof when === "string" && when.trim() !== ""
+          ? when.trim()
+          : undefined,
       interaction_notes:
         typeof notes === "string" && notes.trim() !== ""
           ? notes.trim()
@@ -317,6 +328,50 @@ export async function addInteraction(
   } catch (e) {
     return {
       error: e instanceof ApiError ? e.message : "Failed to add interaction.",
+    };
+  }
+  revalidatePath(`/alumni/${alumniId}`);
+  revalidateTag("dashboard"); // contacted / follow-up KPIs
+  return null;
+}
+
+export async function updateInteraction(
+  alumniId: number,
+  interactionId: number,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const type = formData.get("interaction_type");
+  if (typeof type !== "string" || type.trim() === "") {
+    return { error: "Interaction type is required." };
+  }
+  try {
+    // The edit dialog always submits date + notes (prefilled), so send them
+    // explicitly — `null` when blank, so clearing a field actually clears it
+    // (compact would have dropped a blank value and silently kept the old one).
+    await apiPatch(`/alumni/${alumniId}/interactions/${interactionId}`, {
+      interaction_type: type.trim(),
+      interaction_date_time: getStr(formData, "interaction_date_time") ?? null,
+      interaction_notes: getStr(formData, "interaction_notes") ?? null,
+    });
+  } catch (e) {
+    return toFormState(e, "Failed to save interaction.");
+  }
+  revalidatePath(`/alumni/${alumniId}`);
+  revalidateTag("dashboard"); // contacted / follow-up KPIs
+  return null;
+}
+
+export async function deleteInteraction(
+  alumniId: number,
+  interactionId: number,
+): Promise<FormState> {
+  try {
+    await apiDelete(`/alumni/${alumniId}/interactions/${interactionId}`);
+  } catch (e) {
+    return {
+      error:
+        e instanceof ApiError ? e.message : "Failed to delete interaction.",
     };
   }
   revalidatePath(`/alumni/${alumniId}`);
@@ -775,6 +830,176 @@ export async function exportProfile(
       ok: false,
       error:
         e instanceof ApiError ? e.message : "Couldn't export this profile.",
+    };
+  }
+}
+
+/**
+ * The catalog of exportable columns + the default-checked selection
+ * (GET /alumni/export/columns, RequireFullAccess), for the export column picker.
+ */
+export async function getExportColumns(): Promise<
+  { ok: true; catalog: ExportColumnCatalog } | { ok: false; error: string }
+> {
+  try {
+    const catalog = await apiGet<ExportColumnCatalog>("/alumni/export/columns");
+    return { ok: true, catalog };
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof ApiError ? e.message : "Couldn't load export columns.",
+    };
+  }
+}
+
+/**
+ * Run the customizable alumni CSV export (POST /alumni/export, RequireFullAccess)
+ * for the chosen columns over the current list filters. The backend streams the
+ * CSV (and audit-logs the disclosure); we return the text so the client can turn
+ * it into a Blob download. A 413 (too many rows) surfaces as a clear message.
+ */
+export async function exportAlumni(
+  req: AlumniExportRequest,
+): Promise<{ ok: true; csv: string } | { ok: false; error: string }> {
+  try {
+    const csv = await apiPostText("/alumni/export", req);
+    return { ok: true, csv };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Export failed — try again.",
+    };
+  }
+}
+
+// --- Unified notes (#39) -----------------------------------------------------
+//
+// Profile-scoped wrappers over the generic /notes endpoints (entity_type
+// "alumni"). Write = full_access and up; the backend re-enforces it and
+// audit-logs every change. We revalidate the profile so the notes card and the
+// Audit tab refresh after a mutation.
+
+/** Add a note to an alumni profile (full_access). */
+export async function addProfileNote(
+  alumniId: number,
+  body: string,
+): Promise<{ ok: true; note: Note } | { ok: false; error: string }> {
+  const trimmed = body.trim();
+  if (!trimmed) return { ok: false, error: "Note can't be empty." };
+  try {
+    const note = await apiPost<Note>("/notes", {
+      entity_type: "alumni",
+      entity_id: alumniId,
+      body: trimmed,
+    });
+    revalidatePath(`/alumni/${alumniId}`);
+    return { ok: true, note };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Couldn't add the note.",
+    };
+  }
+}
+
+/** Edit a note's body (full_access). */
+export async function updateProfileNote(
+  alumniId: number,
+  noteId: number,
+  body: string,
+): Promise<{ ok: true; note: Note } | { ok: false; error: string }> {
+  const trimmed = body.trim();
+  if (!trimmed) return { ok: false, error: "Note can't be empty." };
+  try {
+    const note = await apiPatch<Note>(`/notes/${noteId}`, { body: trimmed });
+    revalidatePath(`/alumni/${alumniId}`);
+    return { ok: true, note };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Couldn't save the note.",
+    };
+  }
+}
+
+/** Delete a note (full_access). */
+export async function deleteProfileNote(
+  alumniId: number,
+  noteId: number,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await apiDelete(`/notes/${noteId}`);
+    revalidatePath(`/alumni/${alumniId}`);
+    return { ok: true };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Couldn't delete the note.",
+    };
+  }
+}
+
+// --- Generic notes (#39) -----------------------------------------------------
+//
+// Entity-agnostic wrappers over the generic /notes endpoints, used by the
+// reusable <EntityNotes> component (alumni / interaction / event). Write =
+// full_access and up; the backend re-enforces it and audit-logs every change.
+// Unlike the profile-scoped wrappers above we DON'T revalidate a hardcoded path
+// (the entity varies) — callers refresh via router.refresh() / onChanged.
+
+/** Add a note to any supported entity (full_access). */
+export async function addNote(
+  entityType: NoteEntityType,
+  entityId: number,
+  body: string,
+): Promise<{ ok: true; note: Note } | { ok: false; error: string }> {
+  const trimmed = body.trim();
+  if (!trimmed) return { ok: false, error: "Note can't be empty." };
+  try {
+    const note = await apiPost<Note>("/notes", {
+      entity_type: entityType,
+      entity_id: entityId,
+      body: trimmed,
+    });
+    return { ok: true, note };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Couldn't add the note.",
+    };
+  }
+}
+
+/** Edit a note's body (full_access). */
+export async function updateNote(
+  noteId: number,
+  body: string,
+): Promise<{ ok: true; note: Note } | { ok: false; error: string }> {
+  const trimmed = body.trim();
+  if (!trimmed) return { ok: false, error: "Note can't be empty." };
+  try {
+    const note = await apiPatch<Note>(`/notes/${noteId}`, { body: trimmed });
+    return { ok: true, note };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Couldn't save the note.",
+    };
+  }
+}
+
+/** Delete a note (full_access). */
+export async function deleteNote(
+  noteId: number,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await apiDelete(`/notes/${noteId}`);
+    return { ok: true };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Couldn't delete the note.",
     };
   }
 }

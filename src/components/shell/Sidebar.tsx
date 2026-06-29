@@ -3,35 +3,25 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import {
-  LayoutDashboard,
-  Users,
-  Map,
-  Calendar,
-  Activity,
-  AlertTriangle,
-  History,
-  Shield,
-  ShieldCheck,
-  UserCog,
-  ListChecks,
-  LifeBuoy,
-  LogIn,
-  Upload,
-  ChevronDown,
-  type LucideIcon,
-} from "lucide-react";
-import { ROLE, ROLE_LABEL } from "@/constants/roles";
+import { ChevronDown } from "lucide-react";
+import { ROLE } from "@/constants/roles";
 
 type NavLeaf = {
   href: string;
   label: string;
-  icon: LucideIcon;
   superAdminOnly?: boolean;
   /** Visible to full_access and super_admin only (admin tooling). */
   fullAccessOnly?: boolean;
   /** Visible to the engineer role only (e.g. support-contact management). */
   engineerOnly?: boolean;
+  /** Visible to anyone holding the `vocab_admin` capability — the engineer plus
+   *  any role an engineer grants it in the permission editor (e.g. super_admin).
+   *  Capability-driven so a grant actually takes effect, unlike role flags. */
+  vocabOnly?: boolean;
+  /** Hidden from view_only ("Professor"). Use for tabs that only error for
+   *  unprovisioned/read-only users (e.g. Activity) — still shown to student and
+   *  every higher tier. */
+  hideViewOnly?: boolean;
 };
 
 type NavItem = NavLeaf & {
@@ -39,53 +29,49 @@ type NavItem = NavLeaf & {
 };
 
 const NAV: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/alumni", label: "Alumni", icon: Users },
-  { href: "/map", label: "Map", icon: Map },
-  { href: "/events", label: "Events", icon: Calendar },
-  { href: "/activity", label: "Activity", icon: Activity },
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/alumni", label: "Alumni" },
+  { href: "/map", label: "Map" },
+  { href: "/events", label: "Events" },
+  { href: "/pay-it-forward", label: "Pay It Forward" },
+  { href: "/activity", label: "Activity", hideViewOnly: true },
+  { href: "/tasks", label: "Tasks", fullAccessOnly: true },
   {
-    href: "/tasks",
-    label: "Tasks",
-    icon: ListChecks,
+    href: "/needs-surveying",
+    label: "Needs Surveying",
     fullAccessOnly: true,
   },
-  {
-    href: "/data-quality",
-    label: "Data quality",
-    icon: AlertTriangle,
-    fullAccessOnly: true,
-  },
+  { href: "/data-quality", label: "Data quality", fullAccessOnly: true },
   {
     href: "/admin",
     label: "Admin",
-    icon: Shield,
     children: [
-      { href: "/admin", label: "Users", icon: UserCog, superAdminOnly: true },
+      { href: "/admin", label: "Users", superAdminOnly: true },
+      { href: "/audit", label: "Audit", superAdminOnly: true },
+      // Vocabulary is capability-gated (not role-locked), so a super_admin (or
+      // any role) granted the vocab capability sees and can open it here.
+      { href: "/vocabulary", label: "Vocabulary", vocabOnly: true },
+      { href: "/admin/import", label: "Import CSV", fullAccessOnly: true },
+    ],
+  },
+  // Engineer console — its own home for every engineer-only tool (#162). The
+  // whole group (and each child) is engineerOnly, so it's invisible to everyone
+  // below engineer; the backend re-enforces each route.
+  {
+    href: "/engineer",
+    label: "Engineer",
+    engineerOnly: true,
+    children: [
+      { href: "/engineer/permissions", label: "Permissions", engineerOnly: true },
+      { href: "/engineer/preview", label: "Preview as role", engineerOnly: true },
+      // Quick filters lives here (engineer-only). Vocabulary is in the Admin
+      // dropdown since it's capability-gated and reachable by super_admin.
+      { href: "/admin/quick-filters", label: "Quick filters", engineerOnly: true },
+      { href: "/engineer/logins", label: "Logins", engineerOnly: true },
       {
-        href: "/admin/vocabulary",
-        label: "Vocabulary",
-        icon: ListChecks,
-        superAdminOnly: true,
-      },
-      { href: "/audit", label: "Audit", icon: History, superAdminOnly: true },
-      {
-        href: "/admin/logins",
-        label: "Logins",
-        icon: LogIn,
-        engineerOnly: true,
-      },
-      {
-        href: "/admin/support-contacts",
+        href: "/engineer/support-contacts",
         label: "Support contacts",
-        icon: LifeBuoy,
         engineerOnly: true,
-      },
-      {
-        href: "/admin/import",
-        label: "Import CSV",
-        icon: Upload,
-        fullAccessOnly: true,
       },
     ],
   },
@@ -94,7 +80,20 @@ const NAV: NavItem[] = [
 const isActivePath = (pathname: string, href: string) =>
   pathname === href || pathname.startsWith(`${href}/`);
 
-export function Sidebar({ email, role }: { email: string; role: string }) {
+export function Sidebar({
+  email,
+  name = "",
+  role,
+  canVocab = false,
+}: {
+  email: string;
+  /** Display name for the footer; falls back to the email when empty. */
+  name?: string;
+  role: string;
+  /** Holds the `vocab_admin` capability (engineer, or any granted role). Drives
+   *  the capability-gated Vocabulary item independently of the role string. */
+  canVocab?: boolean;
+}) {
   const pathname = usePathname();
   // engineer is the top role and satisfies both gates. User/audit admin =
   // engineer or super_admin; full_access tooling (e.g. Tasks) also includes
@@ -106,6 +105,9 @@ export function Sidebar({ email, role }: { email: string; role: string }) {
     role === ROLE.ENGINEER ||
     role === ROLE.SUPER_ADMIN ||
     role === ROLE.FULL_ACCESS;
+  // view_only ("Professor") is the lowest provisioned tier; some tabs (e.g.
+  // Activity) only error for it and should be hidden.
+  const isViewOnly = role === ROLE.VIEW_ONLY;
   // Track explicit open/close toggles per group; a group with an active child
   // defaults to open.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
@@ -114,10 +116,14 @@ export function Sidebar({ email, role }: { email: string; role: string }) {
     superAdminOnly?: boolean;
     fullAccessOnly?: boolean;
     engineerOnly?: boolean;
+    vocabOnly?: boolean;
+    hideViewOnly?: boolean;
   }) =>
     (!n.superAdminOnly || isSuperAdmin) &&
     (!n.fullAccessOnly || hasFullAccess) &&
-    (!n.engineerOnly || isEngineer);
+    (!n.engineerOnly || isEngineer) &&
+    (!n.vocabOnly || canVocab) &&
+    (!n.hideViewOnly || !isViewOnly);
 
   // Role-filtered nav. A group (e.g. Admin) keeps only the children the user may
   // see and is dropped entirely if none remain — so full_access staff still see
@@ -131,8 +137,8 @@ export function Sidebar({ email, role }: { email: string; role: string }) {
   });
 
   const linkCls = (active: boolean, indent = false) =>
-    `flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition-colors ${
-      indent ? "ml-4" : ""
+    `flex items-center rounded-lg px-3 py-2.5 text-sm transition-colors ${
+      indent ? "ml-3 pl-4" : ""
     } ${
       active
         ? "bg-brand-blue-600 font-semibold text-white"
@@ -150,7 +156,7 @@ export function Sidebar({ email, role }: { email: string; role: string }) {
 
       <nav className="flex flex-col gap-1">
         {visibleNav.map((item) => {
-          const { href, label, icon: Icon, children } = item;
+          const { href, label, children } = item;
 
           if (!children) {
             return (
@@ -159,7 +165,6 @@ export function Sidebar({ email, role }: { email: string; role: string }) {
                 href={href}
                 className={linkCls(isActivePath(pathname, href))}
               >
-                <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
                 {label}
               </Link>
             );
@@ -179,10 +184,7 @@ export function Sidebar({ email, role }: { email: string; role: string }) {
                 aria-expanded={open}
                 className={`w-full ${linkCls(false)} justify-between`}
               >
-                <span className="flex items-center gap-2.5">
-                  <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
-                  {label}
-                </span>
+                {label}
                 <ChevronDown
                   className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`}
                   aria-hidden="true"
@@ -196,7 +198,6 @@ export function Sidebar({ email, role }: { email: string; role: string }) {
                       href={c.href}
                       className={linkCls(isActivePath(pathname, c.href), true)}
                     >
-                      <c.icon className="h-[18px] w-[18px]" aria-hidden="true" />
                       {c.label}
                     </Link>
                   ))}
@@ -213,20 +214,16 @@ export function Sidebar({ email, role }: { email: string; role: string }) {
         href="/privacy"
         className={`mt-auto ${linkCls(isActivePath(pathname, "/privacy"))}`}
       >
-        <ShieldCheck className="h-[18px] w-[18px]" aria-hidden="true" />
         Privacy
       </Link>
 
-      <div className="mt-3 flex items-center gap-2.5 border-t border-navy-700 px-2 pt-3">
-        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-blue-500 text-xs font-semibold text-white">
-          {(email[0] ?? "?").toUpperCase()}
-        </span>
-        <div className="min-w-0">
-          <p className="truncate text-[13px] font-medium text-white">{email}</p>
-          <p className="text-[11px] text-brand-blue-300">
-            {ROLE_LABEL[role] ?? "Not provisioned"}
-          </p>
-        </div>
+      <div className="mt-3 min-w-0 border-t border-navy-700 px-2 pt-3">
+        <p className="truncate text-[13px] font-medium text-white">
+          {name || email}
+        </p>
+        {name ? (
+          <p className="truncate text-[11px] text-brand-blue-300">{email}</p>
+        ) : null}
       </div>
     </aside>
   );

@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { setUserActive } from "@/app/(app)/admin/actions";
 import { useToast } from "@/components/ui/Toast";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 /**
  * Status badge + super_admin deactivate/reactivate control for one user row.
@@ -31,6 +34,7 @@ export function UserActiveToggle({
   name: string;
 }) {
   const { toast } = useToast();
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
 
@@ -44,21 +48,18 @@ export function UserActiveToggle({
         toast.success(
           next ? `${name} reactivated.` : `${name} deactivated.`,
         );
+        // revalidatePath alone doesn't re-render this route from a bare
+        // startTransition (PR #138) — refresh so the status badge flips.
+        router.refresh();
       }
     });
   }
 
   return (
     <div className="flex items-center gap-2">
-      <span
-        className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium ${
-          active
-            ? "bg-success-50 text-success-600"
-            : "bg-gray-100 text-gray-400"
-        }`}
-      >
+      <Badge variant={active ? "success" : "muted"} className="shrink-0">
         {active ? "Active" : "Disabled"}
-      </span>
+      </Badge>
 
       {isSelf ? (
         <span className="text-xs text-gray-400">(you)</span>
@@ -68,38 +69,38 @@ export function UserActiveToggle({
           aria-label="Saving"
         />
       ) : !active ? (
-        <button
-          type="button"
-          onClick={() => run(true)}
-          className="rounded-md border border-gray-300 bg-white px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-brand-blue-600"
-        >
+        <Button type="button" variant="secondary" size="sm" onClick={() => run(true)}>
           Reactivate
-        </button>
+        </Button>
       ) : confirming ? (
         <span className="inline-flex items-center gap-1">
-          <button
+          <Button
             type="button"
+            variant="destructive"
+            size="sm"
             onClick={() => run(false)}
-            className="rounded-md bg-danger-600 px-2 py-0.5 text-xs font-medium text-white hover:bg-danger-600/90 focus:outline-none focus:ring-1 focus:ring-danger-600"
           >
             Confirm
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="secondary"
+            size="sm"
             onClick={() => setConfirming(false)}
-            className="rounded-md border border-gray-300 bg-white px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-brand-blue-600"
           >
             Cancel
-          </button>
+          </Button>
         </span>
       ) : (
-        <button
+        <Button
           type="button"
+          variant="secondary"
+          size="sm"
           onClick={() => setConfirming(true)}
-          className="rounded-md border border-gray-300 bg-white px-2 py-0.5 text-xs font-medium text-danger-600 hover:bg-danger-50 focus:outline-none focus:ring-1 focus:ring-danger-600"
+          className="text-danger-600 hover:bg-danger-50"
         >
           Deactivate
-        </button>
+        </Button>
       )}
     </div>
   );

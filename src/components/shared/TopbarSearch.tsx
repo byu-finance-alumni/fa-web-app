@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Search } from "lucide-react";
 import { clientGet } from "@/lib/api-client";
+import { Badge } from "@/components/ui/badge";
 import type { Alumni, AlumniPage } from "@/types/alumni";
 
 // Search from the first character. The 400ms debounce (fires only after the
@@ -138,7 +139,7 @@ export function TopbarSearch({
         goToFullResults();
       }}
       role="search"
-      className={`relative items-center gap-2 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 focus-within:border-brand-blue-600 focus-within:ring-1 focus-within:ring-brand-blue-600 ${
+      className={`relative items-center gap-2 rounded-md border border-gray-300 bg-gray-50 px-3 py-2 focus-within:border-brand-blue-600 focus-within:ring-2 focus-within:ring-brand-blue-500 ${
         fullWidth
           ? "flex w-full"
           : "hidden w-80 sm:flex md:w-[30rem] lg:w-[36rem]"
@@ -175,7 +176,7 @@ export function TopbarSearch({
           id="topbar-search-listbox"
           role="listbox"
           aria-label="Alumni matches"
-          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-96 overflow-auto rounded-lg border border-gray-300 bg-white py-1 shadow-lg"
+          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-96 overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
         >
           {failed ? (
             <li className="px-3 py-2 text-sm text-gray-500">
@@ -207,9 +208,9 @@ export function TopbarSearch({
                     </span>
                     <span className="flex shrink-0 items-center gap-2 text-xs text-gray-500">
                       {a.archived && (
-                        <span className="rounded-md border border-gray-300 bg-gray-100 px-1.5 py-0.5 font-medium text-gray-700">
+                        <Badge variant="neutral" size="sm">
                           Archived
-                        </span>
+                        </Badge>
                       )}
                       {a.graduation_year ? `Class of ${a.graduation_year}` : ""}
                     </span>

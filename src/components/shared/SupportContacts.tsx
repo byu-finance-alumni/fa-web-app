@@ -26,8 +26,7 @@ export function SupportContacts({
     >
       {contacts.map((c) => (
         <li key={c.support_contact_id}>
-          <span className="font-medium text-gray-700">{c.role_label}:</span>{" "}
-          {c.name}{" "}
+          <span className="font-medium text-gray-700">{c.name}</span>{" "}
           <a
             href={`mailto:${c.email}`}
             className="font-medium text-brand-blue-600 hover:text-brand-blue-500 hover:underline"

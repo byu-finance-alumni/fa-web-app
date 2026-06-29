@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { apiGet, ApiError } from "@/lib/api";
+import { humanize } from "@/lib/format";
 import { Topbar } from "@/components/shell/Topbar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
   ActivityToolbar,
   type ActivityFilterState,
@@ -14,7 +18,9 @@ interface ActivityRow {
   alumni_name: string;
   type: string | null;
   when: string | null;
+  /** Actor display name / email (who logged the interaction). */
   by: string | null;
+  by_user_id?: string | null;
 }
 
 interface ActivityPage {
@@ -25,14 +31,29 @@ interface ActivityPage {
   offset: number;
 }
 
-const fmtDate = (iso: string | null) =>
-  iso
-    ? new Date(iso).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      })
-    : "—";
+/** Combined date + compact time for the table's When column (Mountain time),
+ *  e.g. "Jun 22, 2026 · 2:32p". */
+function fmtWhen(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const date = d.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    timeZone: "America/Denver",
+  });
+  const time = d
+    .toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: "America/Denver",
+    })
+    .toLowerCase()
+    .replace(/\s/g, "")
+    .replace(/m$/, ""); // "2:32pm" -> "2:32p"
+  return `${date} · ${time}`;
+}
 
 export default async function ActivityPage({
   searchParams,
@@ -43,6 +64,7 @@ export default async function ActivityPage({
     from?: string;
     to?: string;
     sort?: string;
+    mine?: string;
     offset?: string;
   }>;
 }) {
@@ -55,6 +77,7 @@ export default async function ActivityPage({
     from: sp.from ?? "",
     to: sp.to ?? "",
     sort: sp.sort === "oldest" ? "oldest" : "recent",
+    mine: sp.mine === "1",
   };
 
   // Forward the active filters to the API (its param names differ slightly).
@@ -66,6 +89,7 @@ export default async function ActivityPage({
   if (filters.from) apiParams.set("date_from", filters.from);
   if (filters.to) apiParams.set("date_to", filters.to);
   if (filters.sort !== "recent") apiParams.set("sort", filters.sort);
+  if (filters.mine) apiParams.set("mine", "true");
 
   let data: ActivityPage | null = null;
   let error: ApiError | null = null;
@@ -77,6 +101,14 @@ export default async function ActivityPage({
     error =
       e instanceof ApiError ? e : new ApiError(0, "Failed to load activity.");
   }
+
+  const hasFilters = !!(
+    filters.q ||
+    filters.type ||
+    filters.from ||
+    filters.to ||
+    filters.mine
+  );
 
   const from = data && data.total > 0 ? offset + 1 : 0;
   const to = data ? Math.min(offset + LIMIT, data.total) : 0;
@@ -90,6 +122,7 @@ export default async function ActivityPage({
     if (filters.from) p.set("from", filters.from);
     if (filters.to) p.set("to", filters.to);
     if (filters.sort !== "recent") p.set("sort", filters.sort);
+    if (filters.mine) p.set("mine", "1");
     if (newOffset > 0) p.set("offset", String(newOffset));
     const qs = p.toString();
     return qs ? `/activity?${qs}` : "/activity";
@@ -99,11 +132,12 @@ export default async function ActivityPage({
     <>
       <Topbar title="Activity" />
       <main className="flex-1 overflow-auto p-6">
+        {/* Search + filter bar */}
         <ActivityToolbar initial={filters} types={data?.types ?? []} />
 
         {error ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-10 text-center">
-            <p className="font-medium text-gray-900">
+          <Card className="p-10 text-center">
+            <p className="text-sm font-semibold text-gray-900">
               {error.status === 403
                 ? "Your account isn't provisioned yet"
                 : error.status === 401
@@ -115,44 +149,58 @@ export default async function ActivityPage({
                 ? "Ask a Super Admin to grant your account a role."
                 : error.message}
             </p>
-          </div>
+          </Card>
         ) : data && data.items.length === 0 ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
-            {filters.q || filters.type || filters.from || filters.to
+          <Card className="p-10 text-center text-sm text-gray-500">
+            {hasFilters
               ? "No interactions match your filters."
               : "No interactions logged yet."}
-          </div>
+          </Card>
         ) : (
           <>
-            <div className="rounded-xl border border-gray-300 bg-white p-5">
-              <ul className="space-y-3">
-                {data!.items.map((r) => (
-                  <li key={r.interaction_id} className="flex gap-3 text-sm">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-blue-600" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-gray-900">
+            {/* Interaction log as a table — When / Alumnus / Type / Logged by. */}
+            <Card className="overflow-hidden p-0">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <th className="px-4 py-2.5">When</th>
+                    <th className="px-4 py-2.5">Alumnus</th>
+                    <th className="px-4 py-2.5">Type</th>
+                    <th className="px-4 py-2.5">Logged by</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {data!.items.map((r) => (
+                    <tr key={r.interaction_id} className="hover:bg-gray-50">
+                      <td className="whitespace-nowrap px-4 py-2.5 tabular-nums text-gray-500">
+                        {fmtWhen(r.when)}
+                      </td>
+                      <td className="px-4 py-2.5">
                         <Link
                           href={`/alumni/${r.alumni_id}`}
-                          className="font-medium hover:text-brand-blue-600"
+                          className="font-medium text-brand-blue-600 hover:underline"
                         >
                           {r.alumni_name}
                         </Link>
+                      </td>
+                      <td className="px-4 py-2.5">
                         {r.type ? (
-                          <span className="text-gray-500"> · {r.type}</span>
-                        ) : null}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {fmtDate(r.when)}
-                        {r.by ? ` · ${r.by}` : ""}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
+                          <Badge variant="neutral">{humanize(r.type)}</Badge>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-gray-500">
+                        {r.by ?? "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
 
             <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
-              <span>
+              <span className="tabular-nums">
                 Showing {from}–{to} of {data!.total}
               </span>
               <div className="flex gap-2">
@@ -184,13 +232,13 @@ function PageLink({
   enabled: boolean;
   label: string;
 }) {
-  const cls =
-    "rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium";
   return enabled ? (
-    <Link href={href} className={`${cls} bg-white text-gray-700 hover:bg-gray-50`}>
-      {label}
-    </Link>
+    <Button asChild variant="secondary" size="sm">
+      <Link href={href}>{label}</Link>
+    </Button>
   ) : (
-    <span className={`${cls} bg-gray-50 text-gray-300`}>{label}</span>
+    <Button variant="secondary" size="sm" disabled>
+      {label}
+    </Button>
   );
 }

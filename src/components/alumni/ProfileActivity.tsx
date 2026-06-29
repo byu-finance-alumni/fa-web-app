@@ -10,6 +10,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { AddInteractionButton } from "@/components/alumni/ProfileDialogs";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 export type ActivityCategory =
   | "Meetings"
@@ -68,9 +70,9 @@ export function ProfileActivity({
     filter === "All" ? items : items.filter((i) => i.category === filter);
 
   return (
-    <section className="rounded-xl border border-gray-300 bg-white p-5">
+    <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-card">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-[15px] font-semibold text-gray-900">Activity</h3>
+        <h3 className="text-sm font-semibold text-gray-900">Activity</h3>
         {canEdit ? (
           <AddInteractionButton alumniId={alumniId} label="+ Log activity" primary />
         ) : null}
@@ -84,11 +86,12 @@ export function ProfileActivity({
               key={f}
               type="button"
               onClick={() => setFilter(f)}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+              className={cn(
+                "rounded-full px-3 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
                 active
                   ? "bg-navy-800 text-white"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              }`}
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200",
+              )}
             >
               {f}
             </button>
@@ -116,9 +119,9 @@ export function ProfileActivity({
                   <div className="flex items-start justify-between gap-3">
                     <p className="text-sm font-medium text-gray-900">
                       {i.title}
-                      <span className="ml-2 inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                      <Badge variant="neutral" className="ml-2">
                         {i.typeLabel}
-                      </span>
+                      </Badge>
                     </p>
                     <span className="shrink-0 text-xs text-gray-500">
                       {fmt(i.when)}

@@ -9,6 +9,9 @@ import { UnlockResetPassword } from "@/components/admin/UnlockResetPassword";
 import { CreateUserDialog } from "@/components/admin/CreateUserDialog";
 import { UserNameEditor } from "@/components/admin/UserNameEditor";
 import { DeleteUser } from "@/components/admin/DeleteUser";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { ROLE } from "@/constants/roles";
 
 export interface AdminUser {
@@ -42,9 +45,9 @@ const displayName = (u: AdminUser) =>
 
 function LockedBadge() {
   return (
-    <span className="shrink-0 rounded-md bg-danger-50 px-2 py-0.5 text-xs font-medium text-danger-600">
+    <Badge variant="danger" className="shrink-0">
       Locked
-    </span>
+    </Badge>
   );
 }
 
@@ -93,30 +96,27 @@ export function UsersAdmin({
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
             aria-hidden="true"
           />
-          <input
+          <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search users by name or email…"
             aria-label="Search users"
-            className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 focus:border-brand-blue-600 focus:outline-none focus:ring-1 focus:ring-brand-blue-600"
+            className="pl-9"
           />
         </div>
         <CreateUserDialog />
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-xl border border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
-          No users match “{q}”.
-        </div>
+        <Card className="p-10 text-center text-sm text-gray-500">
+          {q ? `No users match “${q}”.` : "No users match these filters."}
+        </Card>
       ) : (
         <>
           {/* Mobile: stacked cards */}
           <div className="space-y-2 md:hidden">
             {filtered.map((u) => (
-              <div
-                key={u.user_id}
-                className="rounded-xl border border-gray-300 bg-white p-3"
-              >
+              <Card key={u.user_id} className="p-3">
                 <div className="flex items-center gap-3">
                   <InitialsAvatar name={displayName(u)} size="sm" />
                   <div className="min-w-0 flex-1">
@@ -132,7 +132,7 @@ export function UsersAdmin({
                       />
                     </div>
                     <p className="truncate text-xs text-gray-500">{u.email}</p>
-                    <p className="text-[11px] text-gray-400">
+                    <p className="text-xs text-gray-400">
                       Created {fmtDate(u.created_at)}
                     </p>
                   </div>
@@ -165,15 +165,15 @@ export function UsersAdmin({
                     ) : null}
                   </div>
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
 
           {/* Desktop: table */}
-          <div className="hidden overflow-hidden rounded-xl border border-gray-300 bg-white md:block">
+          <Card className="hidden overflow-hidden p-0 md:block">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-300 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-500">
                   <th className="px-4 py-3">Name</th>
                   <th className="px-4 py-3">Email</th>
                   <th className="px-4 py-3">Role</th>
@@ -186,7 +186,7 @@ export function UsersAdmin({
                 {filtered.map((u) => (
                   <tr
                     key={u.user_id}
-                    className="border-b border-gray-300 last:border-0"
+                    className="border-b border-gray-200 last:border-0 hover:bg-gray-50"
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
@@ -245,7 +245,7 @@ export function UsersAdmin({
                 ))}
               </tbody>
             </table>
-          </div>
+          </Card>
         </>
       )}
     </>

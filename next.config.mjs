@@ -5,6 +5,13 @@
 // API. script/style allow 'unsafe-inline' for now (Next injects some inline
 // script/style); this can be tightened to nonce-based later. img allows https
 // so headshots from the storage bucket render.
+// Next.js dev mode (React Fast Refresh / HMR) evaluates strings as JavaScript,
+// so 'unsafe-eval' is required locally. Never emitted in production builds.
+const scriptSrc =
+  process.env.NODE_ENV === "production"
+    ? "script-src 'self' 'unsafe-inline'"
+    : "script-src 'self' 'unsafe-inline' 'unsafe-eval'";
+
 const csp = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -14,7 +21,7 @@ const csp = [
   "img-src 'self' data: blob: https://*.supabase.co",
   "font-src 'self' data:",
   "style-src 'self' 'unsafe-inline'",
-  "script-src 'self' 'unsafe-inline'",
+  scriptSrc,
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://fa-web-api.vercel.app https://dev-fa-web-api.vercel.app",
 ].join("; ");
 

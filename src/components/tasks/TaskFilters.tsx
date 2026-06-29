@@ -2,7 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { ChevronDown, Loader2, Search } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
+
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Select } from "@/components/ui/select";
 
 /** Sort options, mirrored 1:1 with the backend GET /tasks ``sort`` param. */
 export type TaskSort = "due" | "due_desc" | "alumni" | "created" | "status";
@@ -68,15 +73,23 @@ export function TaskFilters({
   const serialized = toQs(f);
   const initialQs = toQs(initial);
 
-  // Live navigation: debounce any state change, skip no-ops.
+  // Live navigation: search filters as you type (debounced); toggles like Overdue
+  // apply immediately. replace() (not push) so each keystroke/toggle doesn't stack
+  // a history entry — Back returns to the previous page rather than stepping back
+  // through filter states. Clearing navigates at once without the debounce.
   useEffect(() => {
     if (serialized === lastPushedRef.current) return;
-    const timer = setTimeout(() => {
+    const navigate = () => {
       lastPushedRef.current = serialized;
       startTransition(() => {
-        router.push(serialized ? `/tasks?${serialized}` : "/tasks");
+        router.replace(serialized ? `/tasks?${serialized}` : "/tasks");
       });
-    }, 300);
+    };
+    if (serialized === "") {
+      navigate();
+      return;
+    }
+    const timer = setTimeout(navigate, 300);
     return () => clearTimeout(timer);
   }, [serialized, router]);
 
@@ -102,15 +115,15 @@ export function TaskFilters({
     assignees.some((a) => a.id === f.assignee);
 
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-gray-300 bg-white p-3">
-      <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 focus-within:border-brand-blue-600 focus-within:ring-1 focus-within:ring-brand-blue-600">
+    <Card className="mb-4 flex flex-wrap items-center gap-2 p-3">
+      <div className="flex h-9 min-w-[220px] flex-1 items-center gap-2 rounded-md border border-gray-300 bg-gray-50 px-3 focus-within:border-brand-blue-600 focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1">
         <Search className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
         <input
           value={f.q}
           onChange={(e) => set("q", e.target.value)}
           placeholder="Search task or alumnus"
           aria-label="Search tasks"
-          className="w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none"
+          className="w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
         />
         {isPending && (
           <Loader2
@@ -121,89 +134,73 @@ export function TaskFilters({
       </div>
 
       {/* Open / All toggle. */}
-      <div className="inline-flex shrink-0 rounded-lg border border-gray-300 bg-white p-0.5 text-sm">
+      <div className="inline-flex h-9 shrink-0 items-center rounded-md border border-gray-300 bg-white p-0.5 text-sm">
         <button
           type="button"
           onClick={() => set("status", "")}
-          className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
+          className={cn(
+            "rounded-md px-3 py-1.5 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
             f.status === ""
               ? "bg-brand-blue-600 text-white"
-              : "text-gray-600 hover:text-gray-900"
-          }`}
+              : "text-gray-600 hover:text-gray-900",
+          )}
         >
           Open
         </button>
         <button
           type="button"
           onClick={() => set("status", "all")}
-          className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
+          className={cn(
+            "rounded-md px-3 py-1.5 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
             f.status === "all"
               ? "bg-brand-blue-600 text-white"
-              : "text-gray-600 hover:text-gray-900"
-          }`}
+              : "text-gray-600 hover:text-gray-900",
+          )}
         >
           All
         </button>
       </div>
 
       {/* Overdue toggle. */}
-      <button
+      <Button
         type="button"
+        variant={f.overdue ? "primary" : "secondary"}
         onClick={() => set("overdue", !f.overdue)}
         aria-pressed={f.overdue}
-        className={`shrink-0 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${
-          f.overdue
-            ? "border-brand-blue-600 bg-brand-blue-600 text-white"
-            : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-        }`}
       >
         Overdue
-      </button>
+      </Button>
 
       {/* Assignee dropdown. */}
-      <div className="relative shrink-0">
-        <select
-          value={f.assignee}
-          onChange={(e) => set("assignee", e.target.value)}
-          aria-label="Filter by assignee"
-          className="appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-9 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus:outline-none"
-          style={{ colorScheme: "light" }}
-        >
-          <option value="">Anyone</option>
-          <option value="unassigned">Unassigned</option>
-          {assignees.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
-          ))}
-          {!assigneeInList && <option value={f.assignee}>{f.assignee}</option>}
-        </select>
-        <ChevronDown
-          className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500"
-          aria-hidden="true"
-        />
-      </div>
+      <Select
+        value={f.assignee}
+        onChange={(e) => set("assignee", e.target.value)}
+        aria-label="Filter by assignee"
+        className="w-auto font-semibold text-gray-700"
+      >
+        <option value="">Anyone</option>
+        <option value="unassigned">Unassigned</option>
+        {assignees.map((a) => (
+          <option key={a.id} value={a.id}>
+            {a.name}
+          </option>
+        ))}
+        {!assigneeInList && <option value={f.assignee}>{f.assignee}</option>}
+      </Select>
 
       {/* Sort dropdown. */}
-      <div className="relative shrink-0">
-        <select
-          value={f.sort}
-          onChange={(e) => set("sort", e.target.value as TaskSort)}
-          aria-label="Sort tasks"
-          className="appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-9 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus:outline-none"
-          style={{ colorScheme: "light" }}
-        >
-          {SORTS.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-        <ChevronDown
-          className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500"
-          aria-hidden="true"
-        />
-      </div>
-    </div>
+      <Select
+        value={f.sort}
+        onChange={(e) => set("sort", e.target.value as TaskSort)}
+        aria-label="Sort tasks"
+        className="w-auto font-semibold text-gray-700"
+      >
+        {SORTS.map((s) => (
+          <option key={s.value} value={s.value}>
+            {s.label}
+          </option>
+        ))}
+      </Select>
+    </Card>
   );
 }

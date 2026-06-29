@@ -1,0 +1,39 @@
+# On-demand end-to-end tests (Playwright) — NOT a required check.
+#
+# Deliberately gated on workflow_dispatch only: it downloads a browser and hits a
+# live deploy, which would make the required `ci.yml` build flaky. The smoke
+# specs run without credentials; the authenticated #31 repro self-skips unless
+# E2E_USER / E2E_PASS secrets are configured and passed in.
+name: e2e
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Target base URL (defaults to the dev deploy)"
+        required: false
+        default: "https://dev-fa-web-app.vercel.app"
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    env:
+      E2E_BASE_URL: ${{ github.event.inputs.base_url }}
+      # Authenticated repro self-skips when these are empty.
+      E2E_USER: ${{ secrets.E2E_USER }}
+      E2E_PASS: ${{ secrets.E2E_PASS }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

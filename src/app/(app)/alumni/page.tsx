@@ -1,12 +1,14 @@
 import Link from "next/link";
-import { apiGet, ApiError } from "@/lib/api";
+import { apiGet, apiGetWithRetry, ApiError } from "@/lib/api";
 import type { Alumni, AlumniPage, UserContext } from "@/types/alumni";
 import type { FilterOptions } from "@/types/filters";
-import { hasFullAccess } from "@/constants/roles";
+import { hasFullAccess, canEditAlumni, canAddInteraction } from "@/constants/roles";
 import { Topbar } from "@/components/shell/Topbar";
 import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
 import { AlumniFilters, type AlumniFilterState } from "@/components/alumni/AlumniFilters";
 import { AlumniTable } from "@/components/alumni/AlumniTable";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 const LIMIT = 25;
 
@@ -36,6 +38,17 @@ const arr = (v: string | string[] | undefined): string[] =>
 const one = (v: string | string[] | undefined): string =>
   (Array.isArray(v) ? v[0] : v) ?? "";
 
+/** The grad-year sort tokens the backend GET /alumni accepts (besides "name").
+ *  newest → grad_desc (DESC, nulls last); oldest → grad_asc (ASC, nulls last). */
+const GRAD_SORTS = ["grad_desc", "grad_asc"] as const;
+
+/** Normalize the ?sort= param to a recognized token; anything else → "name". */
+function parseSort(raw: string): AlumniFilterState["sort"] {
+  return (GRAD_SORTS as readonly string[]).includes(raw)
+    ? (raw as AlumniFilterState["sort"])
+    : "name";
+}
+
 export default async function AlumniListPage({
   searchParams,
 }: {
@@ -49,7 +62,6 @@ export default async function AlumniListPage({
     q: one(sp.q),
     ymin: one(sp.ymin) || one(sp.year),
     ymax: one(sp.ymax) || one(sp.year),
-    employer: arr(sp.employer),
     pastEmployer: arr(sp.past_employer),
     industry: arr(sp.industry),
     title: arr(sp.title),
@@ -67,6 +79,8 @@ export default async function AlumniListPage({
     donor: one(sp.donor) === "1",
     mentor: one(sp.mentor) === "1",
     speaker: one(sp.speaker) === "1",
+    cfa: one(sp.cfa) === "1",
+    cpa: one(sp.cpa) === "1",
     archived: one(sp.archived) === "1",
     deceased:
       one(sp.deceased) === "1"
@@ -78,10 +92,16 @@ export default async function AlumniListPage({
     missingEmployer:
       one(sp.missing_employer) === "1" || one(sp.missing) === "employer",
     duplicate: one(sp.duplicate) === "1",
-    sort:
-      one(sp.sort) === "grad_desc" || one(sp.sort) === "grad_asc"
-        ? (one(sp.sort) as "grad_desc" | "grad_asc")
-        : "name",
+    // The main alumni roster is never scoped to the survey-due set — that's the
+    // dedicated /needs-surveying view (admin tier only).
+    needsSurvey: false,
+    // Grad-year sort. The UI offers "newest" / "oldest"; those map 1:1 to the
+    // backend's tokens — newest = grad_desc (graduation_year DESC, nulls last)
+    // and oldest = grad_asc (graduation_year ASC, nulls last). Forward only a
+    // recognized token; anything else falls back to name so a stale/legacy
+    // ?sort= value can never silently flip the order. (See AlumniFilters'
+    // dropdown + the backend GET /alumni sort enum, which stay in lockstep.)
+    sort: parseSort(one(sp.sort)),
   };
 
   // Backend query params (multi-select facets become repeated params).
@@ -95,7 +115,26 @@ export default async function AlumniListPage({
   const appendAll = (name: string, values: string[]) => {
     for (const v of values) params.append(name, v);
   };
-  appendAll("employer", filters.employer);
+  // Current-employer filter is a pass-through deep-link param only (the alumni
+  // page no longer renders an employer dropdown facet — see #153). It still
+  // arrives from dashboard "Top employers" rows and the dashboard search bar
+  // (/alumni?employer=<v>), so forward it straight to the backend, the same way
+  // the spoke_after/spoke_before window params below are handled.
+  appendAll("employer", arr(sp.employer));
+  // Per-field search (from the dashboard Quick/Advanced search) — pass-through
+  // deep-link params, forwarded straight to the backend GET /alumni. Each is a
+  // case-insensitive partial match; blanks are skipped so an empty box never
+  // filters.
+  for (const field of [
+    "net_id",
+    "first_name",
+    "last_name",
+    "preferred_name",
+    "email",
+  ] as const) {
+    const v = one(sp[field]).trim();
+    if (v) params.set(field, v);
+  }
   appendAll("past_employer", filters.pastEmployer);
   appendAll("industry", filters.industry);
   appendAll("title", filters.title);
@@ -113,6 +152,19 @@ export default async function AlumniListPage({
   if (filters.donor) params.set("donor", "true");
   if (filters.mentor) params.set("mentor_willing", "true");
   if (filters.speaker) params.set("guest_speaker_willing", "true");
+  if (filters.cfa) params.set("cfa", "true");
+  if (filters.cpa) params.set("cpa", "true");
+  // Event-speaker window deep-link (from the dashboard "Guest speakers this
+  // month" tile): alumni who served as a guest speaker at an event in the
+  // window. Forwarded straight through (no chip UI) — same pattern as the
+  // contacted_after/before deep-links — and validated as YYYY-MM-DD so a junk
+  // value can't reach the API. The backend predicate matches the KPI exactly,
+  // so the resulting list length equals the tile's count.
+  const isoDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+  const spokeAfter = one(sp.spoke_after);
+  const spokeBefore = one(sp.spoke_before);
+  if (isoDate(spokeAfter)) params.set("spoke_after", spokeAfter);
+  if (isoDate(spokeBefore)) params.set("spoke_before", spokeBefore);
   if (filters.archived) params.set("include_archived", "true");
   if (filters.deceased === "only") params.set("deceased", "true");
   if (filters.deceased === "exclude") params.set("deceased", "false");
@@ -125,7 +177,10 @@ export default async function AlumniListPage({
   let error: ApiError | null = null;
   let options: FilterOptions | null = null;
   const [listResult, optionsResult, ctxResult] = await Promise.allSettled([
-    apiGet<AlumniPage>(`/alumni?${params.toString()}`),
+    // Retry the list read once on a transient 5xx (serverless cold start /
+    // dropped DB connection) so the list loads reliably on first navigation
+    // instead of intermittently showing "Couldn't load alumni".
+    apiGetWithRetry<AlumniPage>(`/alumni?${params.toString()}`),
     apiGet<FilterOptions>("/alumni/filter-options", {
       revalidate: 300,
       tags: ["alumni-filter-options"],
@@ -142,8 +197,13 @@ export default async function AlumniListPage({
   if (optionsResult.status === "fulfilled") {
     options = optionsResult.value;
   }
-  const canCreate =
-    ctxResult.status === "fulfilled" && hasFullAccess(ctxResult.value.roles);
+  const roles =
+    ctxResult.status === "fulfilled" ? ctxResult.value.roles : null;
+  const canCreate = hasFullAccess(roles);
+  // Same predicates the profile page uses to gate its controls, so the per-row
+  // action menu only ever offers actions the backend will accept.
+  const canEditRows = canEditAlumni(roles);
+  const canAddInteractionRows = canAddInteraction(roles);
 
   const from = data && data.total > 0 ? offset + 1 : 0;
   const to = data ? Math.min(offset + LIMIT, data.total) : 0;
@@ -169,10 +229,12 @@ export default async function AlumniListPage({
           initial={filters}
           options={options ?? undefined}
           canCreate={canCreate}
+          canExport={canCreate}
+          total={data?.total ?? 0}
         />
 
         {error ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-10 text-center">
+          <Card className="p-10 text-center">
             <p className="font-medium text-gray-900">
               {error.status === 403
                 ? "Your account isn't provisioned yet"
@@ -185,11 +247,11 @@ export default async function AlumniListPage({
                 ? "Ask a Super Admin to grant your account a role."
                 : error.message}
             </p>
-          </div>
+          </Card>
         ) : data && data.items.length === 0 ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
+          <Card className="p-10 text-center text-sm text-gray-500">
             No alumni match your search.
-          </div>
+          </Card>
         ) : (
           <>
             {/* Mobile: stacked cards (dense tables collapse, never h-scroll) */}
@@ -198,7 +260,7 @@ export default async function AlumniListPage({
                 <Link
                   key={a.alumni_id}
                   href={`/alumni/${a.alumni_id}`}
-                  className="flex items-center gap-3 rounded-xl border border-gray-300 bg-white p-3"
+                  className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 shadow-card"
                 >
                   <InitialsAvatar name={avatarName(a)} size="md" />
                   <div className="min-w-0 flex-1">
@@ -219,7 +281,11 @@ export default async function AlumniListPage({
             </div>
 
             {/* Desktop: dense table (whole row navigates to the profile) */}
-            <AlumniTable items={data!.items} />
+            <AlumniTable
+              items={data!.items}
+              canEdit={canEditRows}
+              canAdd={canAddInteractionRows}
+            />
 
             <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
               <span>
@@ -254,13 +320,13 @@ function PageLink({
   enabled: boolean;
   label: string;
 }) {
-  const cls =
-    "rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium";
   return enabled ? (
-    <Link href={href} className={`${cls} bg-white text-gray-700 hover:bg-gray-50`}>
-      {label}
-    </Link>
+    <Button asChild variant="secondary">
+      <Link href={href}>{label}</Link>
+    </Button>
   ) : (
-    <span className={`${cls} bg-gray-50 text-gray-300`}>{label}</span>
+    <Button variant="secondary" disabled>
+      {label}
+    </Button>
   );
 }

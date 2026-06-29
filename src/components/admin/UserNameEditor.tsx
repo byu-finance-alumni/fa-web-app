@@ -1,9 +1,19 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Pencil } from "lucide-react";
 import { updateUserName } from "@/app/(app)/admin/actions";
 import { useToast } from "@/components/ui/Toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogBody,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 /**
  * Super-admin inline editor for a user's first/last name. A small pencil button
@@ -14,12 +24,9 @@ import { useToast } from "@/components/ui/Toast";
  *
  * Works in both the desktop table row Name cell and the mobile card. Styling
  * values come from the design system (UX-UI.md): primary = `brand-blue-600`,
- * secondary = white + `gray-300` border, errors = `danger-600`.
+ * secondary = white + `gray-300` border, errors = `danger-600`. The modal is the
+ * shared <Dialog> primitive (Radix: focus-trap, Esc-to-close, scroll-lock).
  */
-
-const labelCls = "mb-1 block text-[11px] font-medium text-gray-500";
-const fieldCls =
-  "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-brand-blue-600 focus:outline-none focus:ring-1 focus:ring-brand-blue-600";
 
 export function UserNameEditor({
   userId,
@@ -31,19 +38,12 @@ export function UserNameEditor({
   lastName: string | null;
 }) {
   const { toast } = useToast();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [first, setFirst] = useState(firstName ?? "");
   const [last, setLast] = useState(lastName ?? "");
   const [error, setError] = useState<string | null>(null);
-
-  // Esc closes the dialog.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open]);
 
   function start() {
     // Reset to the latest props each time the dialog opens.
@@ -67,59 +67,52 @@ export function UserNameEditor({
       } else {
         setOpen(false);
         toast.success("Name updated.");
+        // revalidatePath alone doesn't re-render from a bare startTransition
+        // (PR #138) — refresh so the row's display name updates immediately.
+        router.refresh();
       }
     });
   }
 
   return (
     <>
-      <button
+      <Button
         type="button"
+        variant="secondary"
+        size="icon"
         aria-label="Edit name"
         title="Edit name"
         onClick={start}
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 transition hover:border-brand-blue-600 hover:bg-gray-50 hover:text-brand-blue-600"
+        className="h-7 w-7 shrink-0 text-gray-500 hover:border-brand-blue-600 hover:text-brand-blue-600"
       >
         <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-      </button>
+      </Button>
 
-      {open ? (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-navy-900/40 p-0 sm:items-center sm:p-4"
-          onClick={() => setOpen(false)}
-        >
-          <div
-            className="w-full max-w-md rounded-t-2xl border border-gray-300 bg-white p-5 shadow-lg sm:rounded-2xl"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Edit name"
-          >
-            <h3 className="mb-4 text-base font-semibold text-gray-900">
-              Edit name
-            </h3>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent title="Edit name" className="max-w-md">
+          <DialogBody>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls} htmlFor="edit-name-first">
+                  <Label className="mb-1" htmlFor="edit-name-first">
                     First name
-                  </label>
-                  <input
+                  </Label>
+                  <Input
                     id="edit-name-first"
-                    className={fieldCls}
                     value={first}
                     onChange={(e) => setFirst(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && submit()}
                   />
                 </div>
                 <div>
-                  <label className={labelCls} htmlFor="edit-name-last">
+                  <Label className="mb-1" htmlFor="edit-name-last">
                     Last name
-                  </label>
-                  <input
+                  </Label>
+                  <Input
                     id="edit-name-last"
-                    className={fieldCls}
                     value={last}
                     onChange={(e) => setLast(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && submit()}
                   />
                 </div>
               </div>
@@ -127,26 +120,21 @@ export function UserNameEditor({
                 <p className="text-sm text-danger-600">{error}</p>
               ) : null}
             </div>
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={pending}
-                onClick={submit}
-                className="rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500 disabled:opacity-60"
-              >
-                {pending ? "Saving…" : "Save"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+          </DialogBody>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="button" disabled={pending} onClick={submit}>
+              {pending ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

@@ -3,7 +3,10 @@ import { Topbar } from "@/components/shell/Topbar";
 import { TopbarSearch } from "@/components/shared/TopbarSearch";
 import { CreateUserDialog } from "@/components/admin/CreateUserDialog";
 import { UsersAdmin, type AdminUser } from "@/components/admin/UsersAdmin";
+import { RoleCapabilitiesTable } from "@/components/admin/RoleCapabilitiesTable";
+import { Card } from "@/components/ui/card";
 import type { UserContext } from "@/types/alumni";
+import type { PermissionMatrix } from "@/types/permissions";
 import { ROLE } from "@/constants/roles";
 
 export default async function AdminPage() {
@@ -34,6 +37,16 @@ export default async function AdminPage() {
     error = e instanceof ApiError ? e : new ApiError(0, "Failed to load users.");
   }
 
+  // The live role-capabilities config for the expandable table (#163). Best
+  // effort: if it can't load, the table is simply omitted — it's supplementary
+  // to the user list, not load-bearing.
+  let capabilities: PermissionMatrix | null = null;
+  try {
+    capabilities = await apiGet<PermissionMatrix>("/admin/role-capabilities");
+  } catch {
+    capabilities = null;
+  }
+
   return (
     <>
       <Topbar title="User administration">
@@ -41,29 +54,33 @@ export default async function AdminPage() {
       </Topbar>
       <main className="flex-1 overflow-auto p-6">
         {error ? (
-          <div className="rounded-xl border border-gray-300 bg-white p-10 text-center">
-            <p className="font-medium text-gray-900">
+          <Card className="p-10 text-center">
+            <p className="text-sm font-semibold text-gray-900">
               {error.status === 403
                 ? "Super Admin access required"
                 : "Couldn't load users"}
             </p>
             <p className="mt-1 text-sm text-gray-500">{error.message}</p>
-          </div>
+          </Card>
         ) : users && users.length === 0 ? (
           <>
+            {capabilities && <RoleCapabilitiesTable matrix={capabilities} />}
             <div className="mb-4 flex items-center justify-end">
               <CreateUserDialog />
             </div>
-            <div className="rounded-xl border border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
+            <Card className="p-10 text-center text-sm text-gray-500">
               No users provisioned yet.
-            </div>
+            </Card>
           </>
         ) : (
-          <UsersAdmin
-            users={users!}
-            currentUserId={currentUserId}
-            canAssignEngineer={canAssignEngineer}
-          />
+          <>
+            {capabilities && <RoleCapabilitiesTable matrix={capabilities} />}
+            <UsersAdmin
+              users={users!}
+              currentUserId={currentUserId}
+              canAssignEngineer={canAssignEngineer}
+            />
+          </>
         )}
       </main>
     </>

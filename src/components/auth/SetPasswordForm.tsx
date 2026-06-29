@@ -8,6 +8,9 @@ import { z } from "zod";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { completePasswordChange } from "@/app/set-password/actions";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 const setPasswordSchema = z
   .object({
@@ -83,36 +86,33 @@ export function SetPasswordForm() {
       )}
 
       <div>
-        <label
-          htmlFor="new-password"
-          className="block text-sm font-medium text-gray-700"
-        >
-          New password
-        </label>
+        <Label htmlFor="new-password">New password</Label>
         <div className="mt-1.5 flex gap-2">
-          <input
+          <Input
             id="new-password"
             type={showPassword ? "text" : "password"}
             autoComplete="new-password"
             placeholder="Enter a new password"
             aria-invalid={errors.password ? "true" : "false"}
-            className="w-full flex-1 rounded-md border border-gray-300 px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-500 focus:border-brand-blue-500 focus:outline-none focus:ring-1 focus:ring-brand-blue-500"
+            className="flex-1"
             {...register("password")}
           />
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="icon"
             onClick={() => setShowPassword((v) => !v)}
             aria-label={showPassword ? "Hide password" : "Show password"}
             aria-pressed={showPassword}
             tabIndex={-1}
-            className="flex w-11 shrink-0 items-center justify-center rounded-md border border-gray-300 text-gray-500 hover:text-gray-700 focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-blue-500"
+            className="text-gray-500 hover:text-gray-700"
           >
             {showPassword ? (
-              <EyeOff className="h-4 w-4" aria-hidden="true" />
+              <EyeOff aria-hidden="true" />
             ) : (
-              <Eye className="h-4 w-4" aria-hidden="true" />
+              <Eye aria-hidden="true" />
             )}
-          </button>
+          </Button>
         </div>
         {errors.password ? (
           <p className="mt-1 text-xs text-danger-600">
@@ -126,19 +126,14 @@ export function SetPasswordForm() {
       </div>
 
       <div>
-        <label
-          htmlFor="confirm-password"
-          className="block text-sm font-medium text-gray-700"
-        >
-          Confirm new password
-        </label>
-        <input
+        <Label htmlFor="confirm-password">Confirm new password</Label>
+        <Input
           id="confirm-password"
           type={showPassword ? "text" : "password"}
           autoComplete="new-password"
           placeholder="Re-enter your new password"
           aria-invalid={errors.confirm ? "true" : "false"}
-          className="mt-1.5 w-full rounded-md border border-gray-300 px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-500 focus:border-brand-blue-500 focus:outline-none focus:ring-1 focus:ring-brand-blue-500"
+          className="mt-1.5"
           {...register("confirm")}
         />
         {errors.confirm && (
@@ -148,16 +143,17 @@ export function SetPasswordForm() {
         )}
       </div>
 
-      <button
+      <Button
         type="submit"
+        variant="navy"
         disabled={isSubmitting}
-        className="flex w-full items-center justify-center gap-2 rounded-md bg-navy-800 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-navy-700 disabled:cursor-not-allowed disabled:opacity-60"
+        className="w-full"
       >
         {isSubmitting && (
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          <Loader2 className="animate-spin" aria-hidden="true" />
         )}
         {isSubmitting ? "Saving…" : "Set password and continue"}
-      </button>
+      </Button>
     </form>
   );
 }

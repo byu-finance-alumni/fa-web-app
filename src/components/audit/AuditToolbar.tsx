@@ -4,6 +4,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { ChevronDown, Loader2, Search, SlidersHorizontal } from "lucide-react";
 import { humanize } from "@/lib/format";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 
 /** Everything the audit list route supports, mirrored in the URL. The param
  *  names match what the page has always sent so existing deep links keep
@@ -71,15 +76,23 @@ export function AuditToolbar({
   const serialized = toQs(f);
   const initialQs = toQs(initial);
 
-  // Live navigation: debounce any state change, skip no-ops.
+  // Live navigation: debounce any state change, skip no-ops. replace() (not push)
+  // so live filtering doesn't stack a history entry per keystroke — Back returns
+  // to the previous page rather than stepping through filter states. Clearing
+  // navigates immediately so the list resets without waiting out the debounce.
   useEffect(() => {
     if (serialized === lastPushedRef.current) return;
-    const timer = setTimeout(() => {
+    const navigate = () => {
       lastPushedRef.current = serialized;
       startTransition(() => {
-        router.push(serialized ? `/audit?${serialized}` : "/audit");
+        router.replace(serialized ? `/audit?${serialized}` : "/audit");
       });
-    }, 300);
+    };
+    if (serialized === "") {
+      navigate();
+      return;
+    }
+    const timer = setTimeout(navigate, 300);
     return () => clearTimeout(timer);
   }, [serialized, router]);
 
@@ -123,14 +136,11 @@ export function AuditToolbar({
     options: string[],
   ) => (
     <div>
-      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
-        {label}
-      </p>
-      <select
+      <Label className="mb-1.5">{label}</Label>
+      <Select
         value={f[key]}
         onChange={(e) => set(key, e.target.value)}
         aria-label={label}
-        className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 focus:outline-none"
         style={{ colorScheme: "light" }}
       >
         <option value="">{anyLabel}</option>
@@ -143,87 +153,86 @@ export function AuditToolbar({
         {f[key] && !options.includes(f[key]) && (
           <option value={f[key]}>{humanize(f[key])}</option>
         )}
-      </select>
+      </Select>
     </div>
   );
 
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-gray-300 bg-white p-3">
-      <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 focus-within:border-brand-blue-600 focus-within:ring-1 focus-within:ring-brand-blue-600">
-        <Search className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
+    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white p-3 shadow-card">
+      <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-md border border-gray-300 bg-gray-50 px-3 py-2 focus-within:border-brand-blue-600 focus-within:ring-1 focus-within:ring-brand-blue-600">
+        <Search className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
         <input
           value={f.user}
           onChange={(e) => set("user", e.target.value)}
           placeholder="Filter by user email"
           aria-label="Filter by user email"
-          className="w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none"
+          className="w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
         />
         {isPending && (
           <Loader2
-            className="h-4 w-4 shrink-0 animate-spin text-gray-500"
+            className="h-4 w-4 shrink-0 animate-spin text-gray-400"
             aria-hidden="true"
           />
         )}
       </div>
 
       <div ref={menuRef} className="relative shrink-0">
-        <button
+        <Button
           type="button"
+          variant="secondary"
           onClick={() => setMenuOpen((o) => !o)}
           aria-expanded={menuOpen}
           aria-haspopup="true"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
         >
           <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
           Filters
           {activeCount > 0 && (
-            <span className="rounded-full bg-brand-blue-600 px-1.5 py-0.5 text-xs font-semibold leading-none text-white">
+            <Badge variant="solid" size="sm" className="rounded-full tabular-nums">
               {activeCount}
-            </span>
+            </Badge>
           )}
-          <ChevronDown className="h-4 w-4 text-gray-500" aria-hidden="true" />
-        </button>
+          <ChevronDown className="h-4 w-4 text-gray-400" aria-hidden="true" />
+        </Button>
 
         {menuOpen && (
-          <div className="absolute right-0 top-full z-50 mt-1 w-80 rounded-lg border border-gray-300 bg-white p-4 shadow-lg">
+          <div className="absolute right-0 top-full z-50 mt-1 w-80 rounded-lg border border-gray-200 bg-white p-4 shadow-card">
             <div className="space-y-4">
               {selectRow("action_type", "Action type", "Any action", actionTypes)}
               {selectRow("entity_type", "Entity type", "Any entity", entityTypes)}
 
               <div>
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Date range
-                </p>
+                <Label className="mb-1.5">Date range</Label>
                 {/* grid + min-w-0 so the date inputs (large intrinsic min
                     width) can't overflow the w-80 panel */}
                 <div className="grid grid-cols-2 gap-2">
-                  <input
+                  <Input
                     type="date"
                     value={f.date_from}
                     onChange={(e) => set("date_from", e.target.value)}
                     aria-label="From date"
-                    className="w-full min-w-0 rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900 focus:outline-none"
+                    className="min-w-0"
                     style={{ colorScheme: "light" }}
                   />
-                  <input
+                  <Input
                     type="date"
                     value={f.date_to}
                     onChange={(e) => set("date_to", e.target.value)}
                     aria-label="To date"
-                    className="w-full min-w-0 rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900 focus:outline-none"
+                    className="min-w-0"
                     style={{ colorScheme: "light" }}
                   />
                 </div>
               </div>
 
-              <button
+              <Button
                 type="button"
+                variant="secondary"
                 onClick={() => setF(EMPTY_FILTERS)}
                 disabled={!isDirty}
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 enabled:hover:bg-gray-50 disabled:text-gray-300"
+                className="w-full"
               >
                 Clear all filters
-              </button>
+              </Button>
             </div>
           </div>
         )}

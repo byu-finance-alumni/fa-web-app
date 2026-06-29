@@ -2,20 +2,15 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useActionState } from "react";
-import {
-  Archive,
-  ArchiveRestore,
-  Check,
-  Pencil,
-  Plus,
-  Trash2,
-  X,
-} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import {
   addEducation,
   addEmploymentRole,
   addEventAttendance,
   addInteraction,
+  updateInteraction,
+  deleteInteraction,
   addLeadership,
   addStatusLabel,
   addTag,
@@ -32,7 +27,12 @@ import {
   updateEmploymentRole,
   updateLeadership,
 } from "@/app/(app)/alumni/actions";
-import type { Education, EmploymentHistory, Leadership } from "@/types/profile";
+import type {
+  Education,
+  EmploymentHistory,
+  Interaction,
+  Leadership,
+} from "@/types/profile";
 import {
   ATTENDANCE_STATUS_OPTIONS,
   INDUSTRY_OPTIONS,
@@ -41,6 +41,13 @@ import {
 } from "@/constants/dropdowns";
 import { clientGet } from "@/lib/api-client";
 import { useToast } from "@/components/ui/Toast";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 
 const INTERACTION_TYPES = [
   "Phone Call",
@@ -74,7 +81,7 @@ function Modal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-t-2xl border border-gray-300 bg-white p-5 shadow-lg sm:rounded-2xl"
+        className="w-full max-w-md rounded-t-lg border border-gray-200 bg-white p-5 shadow-lg sm:rounded-lg"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -87,10 +94,6 @@ function Modal({
   );
 }
 
-const labelCls = "mb-1 block text-[11px] font-medium text-gray-500";
-const fieldCls =
-  "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-brand-blue-600 focus:outline-none focus:ring-1 focus:ring-brand-blue-600";
-
 function FormButtons({
   pending,
   onCancel,
@@ -102,54 +105,163 @@ function FormButtons({
 }) {
   return (
     <div className="mt-5 flex justify-end gap-2">
-      <button
-        type="button"
-        onClick={onCancel}
-        className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-      >
+      <Button type="button" variant="secondary" onClick={onCancel}>
         Cancel
-      </button>
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500 disabled:opacity-60"
-      >
+      </Button>
+      <Button type="submit" variant="primary" disabled={pending}>
         {pending ? "Saving…" : submitLabel}
-      </button>
+      </Button>
     </div>
   );
 }
 
-/** Run a side effect once a submit transitions from pending to resolved. */
+/**
+ * Run a side effect once a submit transitions from pending to resolved.
+ *
+ * On success we also `router.refresh()` so the server-rendered profile (the
+ * interaction timeline, employment/education/leadership lists, etc.) re-fetches
+ * and reflects the mutation. The server actions call `revalidatePath`, but a
+ * `useActionState` form submit does NOT re-render the current route on its own —
+ * without this refresh the just-added/edited row keeps its stale data and a
+ * deleted/re-edited row 404s on the next action (QA B1/B2).
+ */
 function useOnSubmitSettled(
   pending: boolean,
   error: string | undefined,
   onSuccess: () => void,
   onError: () => void,
 ) {
+  const router = useRouter();
   const wasPending = useRef(false);
   useEffect(() => {
     if (wasPending.current && !pending) {
       if (error) onError();
-      else onSuccess();
+      else {
+        onSuccess();
+        router.refresh();
+      }
     }
     wasPending.current = pending;
-  }, [pending, error, onSuccess, onError]);
+  }, [pending, error, onSuccess, onError, router]);
 }
 
 /* -------------------------------------------------- add interaction -------- */
+
+/**
+ * Convert a stored ISO `interaction_date_time` to the `YYYY-MM-DDTHH:mm` value
+ * a `datetime-local` input expects, expressed in the viewer's local clock.
+ * Returns "" for null/unparseable so the field stays empty.
+ */
+function toDateTimeLocalValue(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  // Shift by the timezone offset so toISOString() yields the local wall-clock.
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+/** Shared field set for the add/edit interaction forms. */
+function InteractionFields({ row }: { row?: Interaction }) {
+  // Preserve a stored type that isn't one of the preset options (e.g. an
+  // older/imported value): show it as a selectable option so editing an
+  // unrelated field doesn't silently overwrite it with the first preset.
+  const current = row?.interaction_type ?? null;
+  const typeOptions: readonly string[] =
+    current && !(INTERACTION_TYPES as readonly string[]).includes(current)
+      ? [current, ...INTERACTION_TYPES]
+      : INTERACTION_TYPES;
+  // Controlled date so an explicit "Clear" reliably empties the field (the
+  // browser-native datetime-local clear is inconsistent across browsers and was
+  // reported not clearing — FA-6). The empty value submits as "", which the
+  // updateInteraction action sends as null so the cleared date persists.
+  const [when, setWhen] = useState(() =>
+    toDateTimeLocalValue(row?.interaction_date_time),
+  );
+  return (
+    <div className="space-y-3">
+      <div>
+        <Label className="mb-1" htmlFor="interaction_type">
+          Type
+        </Label>
+        <Select
+          id="interaction_type"
+          name="interaction_type"
+          style={{ colorScheme: "light" }}
+          defaultValue={current ?? INTERACTION_TYPES[0]}
+        >
+          {typeOptions.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </Select>
+      </div>
+      <div>
+        <div className="mb-1 flex items-center justify-between">
+          <Label htmlFor="interaction_date_time">Date &amp; time</Label>
+          {when ? (
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="h-auto px-0"
+              onClick={() => setWhen("")}
+            >
+              Clear
+            </Button>
+          ) : null}
+        </div>
+        <Input
+          id="interaction_date_time"
+          name="interaction_date_time"
+          type="datetime-local"
+          style={{ colorScheme: "light" }}
+          value={when}
+          onChange={(e) => setWhen(e.target.value)}
+        />
+      </div>
+      <div>
+        <Label className="mb-1" htmlFor="interaction_notes">
+          Notes
+        </Label>
+        <Textarea
+          id="interaction_notes"
+          name="interaction_notes"
+          rows={4}
+          placeholder="What was discussed?"
+          defaultValue={row?.interaction_notes ?? ""}
+        />
+      </div>
+    </div>
+  );
+}
 
 export function AddInteractionButton({
   alumniId,
   label = "Add interaction",
   primary = false,
+  open: openProp,
+  onOpenChange,
 }: {
   alumniId: number;
   label?: string;
   primary?: boolean;
+  /** Controlled-open mode. When provided, the default trigger button is hidden
+   *  and the modal's visibility follows this prop — lets a parent (e.g. the
+   *  alumni-list row action menu) drive the same logging dialog without
+   *  duplicating the form or its server action. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const { toast } = useToast();
-  const [open, setOpen] = useState(false);
+  const controlled = openProp !== undefined;
+  const [openState, setOpenState] = useState(false);
+  const open = controlled ? openProp : openState;
+  const setOpen = (next: boolean) => {
+    if (!controlled) setOpenState(next);
+    onOpenChange?.(next);
+  };
   const [state, formAction, pending] = useActionState(
     addInteraction.bind(null, alumniId),
     null,
@@ -164,53 +276,24 @@ export function AddInteractionButton({
     () => toast.error(state?.error ?? "Failed to add interaction."),
   );
 
-  const cls = primary
-    ? "rounded-lg bg-brand-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-blue-500"
-    : "rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50";
-
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className={cls}>
-        {label}
-      </button>
+      {controlled ? null : (
+        <Button
+          type="button"
+          variant={primary ? "primary" : "secondary"}
+          onClick={() => setOpen(true)}
+        >
+          {label}
+        </Button>
+      )}
       {open ? (
         <Modal title="Log interaction" onClose={() => setOpen(false)}>
           <form action={formAction}>
-            <div className="space-y-3">
-              <div>
-                <label className={labelCls} htmlFor="interaction_type">
-                  Type
-                </label>
-                <select
-                  id="interaction_type"
-                  name="interaction_type"
-                  className={`${fieldCls} bg-white`}
-                  style={{ colorScheme: "light" }}
-                  defaultValue={INTERACTION_TYPES[0]}
-                >
-                  {INTERACTION_TYPES.map((t) => (
-                    <option key={t} value={t} className="bg-white text-gray-900">
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className={labelCls} htmlFor="interaction_notes">
-                  Notes
-                </label>
-                <textarea
-                  id="interaction_notes"
-                  name="interaction_notes"
-                  rows={4}
-                  className={fieldCls}
-                  placeholder="What was discussed?"
-                />
-              </div>
-              {state?.error ? (
-                <p className="text-sm text-danger-600">{state.error}</p>
-              ) : null}
-            </div>
+            <InteractionFields />
+            {state?.error ? (
+              <p className="mt-3 text-sm text-danger-600">{state.error}</p>
+            ) : null}
             <FormButtons
               pending={pending}
               onCancel={() => setOpen(false)}
@@ -220,6 +303,80 @@ export function AddInteractionButton({
         </Modal>
       ) : null}
     </>
+  );
+}
+
+/* ------------------------------------------------------- edit interaction --- */
+
+/** Inline "Edit" control + dialog for one interaction row. */
+export function EditInteractionButton({
+  alumniId,
+  row,
+}: {
+  alumniId: number;
+  row: Interaction;
+}) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [state, formAction, pending] = useActionState(
+    updateInteraction.bind(null, alumniId, row.interaction_id),
+    null,
+  );
+  useOnSubmitSettled(
+    pending,
+    state?.error,
+    () => {
+      setOpen(false);
+      toast.success("Interaction updated.");
+    },
+    () => toast.error(state?.error ?? "Failed to save interaction."),
+  );
+
+  return (
+    <>
+      <RowIconButton
+        label="Edit interaction"
+        icon={Pencil}
+        onClick={() => setOpen(true)}
+      />
+      {open ? (
+        <Modal title="Edit interaction" onClose={() => setOpen(false)}>
+          <form action={formAction}>
+            <InteractionFields row={row} />
+            {state?.error ? (
+              <p className="mt-3 text-sm text-danger-600">{state.error}</p>
+            ) : null}
+            <FormButtons
+              pending={pending}
+              onCancel={() => setOpen(false)}
+              submitLabel="Save interaction"
+            />
+          </form>
+        </Modal>
+      ) : null}
+    </>
+  );
+}
+
+/** Per-row edit + delete controls for one interaction row. */
+export function InteractionRowActions({
+  alumniId,
+  row,
+}: {
+  alumniId: number;
+  row: Interaction;
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      <EditInteractionButton alumniId={alumniId} row={row} />
+      <DeleteRowButton
+        label="Delete interaction"
+        confirmTitle="Delete interaction"
+        confirmBody="Delete this interaction? This can't be undone."
+        successMessage="Interaction deleted."
+        onDelete={() => deleteInteraction(alumniId, row.interaction_id)}
+      />
+    </div>
   );
 }
 
@@ -250,50 +407,39 @@ export function AddTaskButton({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-      >
+      <Button type="button" variant="secondary" onClick={() => setOpen(true)}>
         {label}
-      </button>
+      </Button>
       {open ? (
         <Modal title="New follow-up task" onClose={() => setOpen(false)}>
           <form action={formAction}>
             <div className="space-y-3">
               <div>
-                <label className={labelCls} htmlFor="task_title">
+                <Label className="mb-1" htmlFor="task_title">
                   Title
-                </label>
-                <input
+                </Label>
+                <Input
                   id="task_title"
                   name="task_title"
-                  className={fieldCls}
                   placeholder="e.g. Schedule mentorship call"
                 />
               </div>
               <div>
-                <label className={labelCls} htmlFor="due_date">
+                <Label className="mb-1" htmlFor="due_date">
                   Due date
-                </label>
-                <input
+                </Label>
+                <Input
                   id="due_date"
                   name="due_date"
                   type="date"
-                  className={`${fieldCls} bg-white`}
                   style={{ colorScheme: "light" }}
                 />
               </div>
               <div>
-                <label className={labelCls} htmlFor="task_notes">
+                <Label className="mb-1" htmlFor="task_notes">
                   Notes
-                </label>
-                <textarea
-                  id="task_notes"
-                  name="task_notes"
-                  rows={3}
-                  className={fieldCls}
-                />
+                </Label>
+                <Textarea id="task_notes" name="task_notes" rows={3} />
               </div>
               {state?.error ? (
                 <p className="text-sm text-danger-600">{state.error}</p>
@@ -323,6 +469,7 @@ export function ArchiveControls({
   name: string;
 }) {
   const { toast } = useToast();
+  const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -330,22 +477,27 @@ export function ArchiveControls({
   if (archived) {
     return (
       <div className="flex flex-col items-end gap-1">
-        <button
+        <Button
           type="button"
+          variant="secondary"
           disabled={pending}
           onClick={() =>
             startTransition(async () => {
               const res = await restoreAlumni(alumniId);
               setError(res?.error ?? null);
               if (res?.error) toast.error(res.error);
-              else toast.success("Record unarchived.");
+              else {
+                toast.success("Record unarchived.");
+                router.refresh();
+              }
             })
           }
-          className="inline-flex items-center gap-2 rounded-lg border border-success-600 bg-white px-4 py-2 text-sm font-semibold text-success-600 hover:bg-success-50 disabled:opacity-60"
+          className={cn(
+            "border-success-600 text-success-600 hover:bg-success-50",
+          )}
         >
-          <ArchiveRestore className="h-4 w-4" aria-hidden="true" />
           {pending ? "Restoring…" : "Unarchive"}
-        </button>
+        </Button>
         {error ? <p className="text-xs text-danger-600">{error}</p> : null}
       </div>
     );
@@ -353,17 +505,17 @@ export function ArchiveControls({
 
   return (
     <>
-      <button
+      <Button
         type="button"
+        variant="secondary"
         onClick={() => {
           setError(null);
           setConfirming(true);
         }}
-        className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-danger-600 hover:bg-danger-50"
+        className={cn("text-danger-600 hover:bg-danger-50")}
       >
-        <Archive className="h-4 w-4" aria-hidden="true" />
         Archive
-      </button>
+      </Button>
       {confirming ? (
         <Modal title="Archive record" onClose={() => setConfirming(false)}>
           <p className="text-sm leading-relaxed text-gray-600">
@@ -376,15 +528,17 @@ export function ArchiveControls({
             <p className="mt-3 text-sm text-danger-600">{error}</p>
           ) : null}
           <div className="mt-5 flex justify-end gap-2">
-            <button
+            <Button
               type="button"
+              variant="secondary"
               onClick={() => setConfirming(false)}
-              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              disabled={pending}
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="destructive"
               disabled={pending}
               onClick={() =>
                 startTransition(async () => {
@@ -395,14 +549,13 @@ export function ArchiveControls({
                   } else {
                     setConfirming(false);
                     toast.success("Record archived.");
+                    router.refresh();
                   }
                 })
               }
-              className="inline-flex items-center gap-2 rounded-lg bg-danger-600 px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
             >
-              <Archive className="h-4 w-4" aria-hidden="true" />
               {pending ? "Archiving…" : "Archive record"}
-            </button>
+            </Button>
           </div>
         </Modal>
       ) : null}
@@ -423,6 +576,7 @@ export function TaskCheckbox({
   disabled?: boolean;
 }) {
   const { toast } = useToast();
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   return (
     <button
@@ -432,16 +586,21 @@ export function TaskCheckbox({
         startTransition(async () => {
           const res = await setTaskComplete(alumniId, taskId, !completed);
           if (res?.error) toast.error(res.error);
-          else toast.success(completed ? "Task reopened." : "Task completed.");
+          else {
+            toast.success(completed ? "Task reopened." : "Task completed.");
+            router.refresh();
+          }
         })
       }
       aria-pressed={completed}
       title={completed ? "Mark open" : "Mark completed"}
-      className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition ${
+      className={cn(
+        "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-md border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
         completed
           ? "border-success-600 bg-success-600 text-white"
-          : "border-gray-300 bg-white hover:border-brand-blue-600"
-      } ${disabled ? "cursor-not-allowed opacity-60" : ""}`}
+          : "border-gray-300 bg-white hover:border-brand-blue-600",
+        disabled && "cursor-not-allowed opacity-60",
+      )}
     >
       {completed ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
     </button>
@@ -475,13 +634,14 @@ export function AddRoleButton({
 
   return (
     <>
-      <button
+      <Button
         type="button"
+        variant="link"
+        size="sm"
         onClick={() => setOpen(true)}
-        className="text-xs font-medium text-brand-blue-600 hover:text-brand-blue-500"
       >
         {label}
-      </button>
+      </Button>
       {open ? (
         <Modal title="Add role" onClose={() => setOpen(false)}>
           <form action={formAction}>
@@ -508,100 +668,83 @@ function EmploymentFields({ row }: { row?: EmploymentHistory }) {
   return (
     <div className="space-y-3">
       <div>
-        <label className={labelCls} htmlFor="employer_name">
+        <Label className="mb-1" htmlFor="employer_name">
           Employer
-        </label>
-        <input
+        </Label>
+        <Input
           id="employer_name"
           name="employer_name"
-          className={fieldCls}
           placeholder="e.g. Goldman Sachs"
           defaultValue={row?.employer_name ?? ""}
         />
       </div>
       <div>
-        <label className={labelCls} htmlFor="employment_title">
+        <Label className="mb-1" htmlFor="employment_title">
           Title
-        </label>
-        <input
+        </Label>
+        <Input
           id="employment_title"
           name="employment_title"
-          className={fieldCls}
           placeholder="e.g. Analyst"
           defaultValue={row?.employment_title ?? ""}
         />
       </div>
       <div>
-        <label className={labelCls} htmlFor="employment_industry">
+        <Label className="mb-1" htmlFor="employment_industry">
           Industry
-        </label>
-        <select
+        </Label>
+        <Select
           id="employment_industry"
           name="employment_industry"
-          className={`${fieldCls} bg-white`}
           style={{ colorScheme: "light" }}
           defaultValue={row?.employment_industry ?? ""}
         >
-          <option value="" className="bg-white text-gray-900">
-            —
-          </option>
+          <option value="">—</option>
           {INDUSTRY_OPTIONS.map((opt) => (
-            <option key={opt} value={opt} className="bg-white text-gray-900">
+            <option key={opt} value={opt}>
               {opt}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelCls} htmlFor="city">
+          <Label className="mb-1" htmlFor="city">
             City
-          </label>
-          <input
-            id="city"
-            name="city"
-            className={fieldCls}
-            defaultValue={row?.city ?? ""}
-          />
+          </Label>
+          <Input id="city" name="city" defaultValue={row?.city ?? ""} />
         </div>
         <div>
-          <label className={labelCls} htmlFor="state">
+          <Label className="mb-1" htmlFor="state">
             State
-          </label>
-          <input
-            id="state"
-            name="state"
-            className={fieldCls}
-            defaultValue={row?.state ?? ""}
-          />
+          </Label>
+          <Input id="state" name="state" defaultValue={row?.state ?? ""} />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelCls} htmlFor="start_year">
+          <Label className="mb-1" htmlFor="start_year">
             Start year
-          </label>
-          <input
+          </Label>
+          <Input
             id="start_year"
             name="start_year"
             type="number"
             min={1900}
             max={2100}
-            className={fieldCls}
             defaultValue={row?.start_year ?? ""}
           />
         </div>
         <div>
-          <label className={labelCls} htmlFor="end_year">
+          <Label className="mb-1" htmlFor="end_year">
             End year
-          </label>
-          <input
+          </Label>
+          <Input
             id="end_year"
             name="end_year"
             type="number"
             min={1900}
             max={2100}
-            className={fieldCls}
             defaultValue={row?.end_year ?? ""}
           />
         </div>
@@ -688,6 +831,7 @@ export function DeleteRowButton({
   successMessage: string;
 }) {
   const { toast } = useToast();
+  const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -703,15 +847,17 @@ export function DeleteRowButton({
         <Modal title={confirmTitle} onClose={() => setConfirming(false)}>
           <p className="text-sm leading-relaxed text-gray-600">{confirmBody}</p>
           <div className="mt-5 flex justify-end gap-2">
-            <button
+            <Button
               type="button"
+              variant="secondary"
               onClick={() => setConfirming(false)}
-              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              disabled={pending}
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="destructive"
               disabled={pending}
               onClick={() =>
                 startTransition(async () => {
@@ -721,14 +867,17 @@ export function DeleteRowButton({
                   } else {
                     setConfirming(false);
                     toast.success(successMessage);
+                    // Re-render the server-rendered list so the deleted row
+                    // disappears; otherwise a second click on the stale row
+                    // hits the now-gone id and 404s (QA B1/B2).
+                    router.refresh();
                   }
                 })
               }
-              className="inline-flex items-center gap-2 rounded-lg bg-danger-600 px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
             >
               <Trash2 className="h-4 w-4" aria-hidden="true" />
               {pending ? "Deleting…" : "Delete"}
-            </button>
+            </Button>
           </div>
         </Modal>
       ) : null}
@@ -749,19 +898,22 @@ function RowIconButton({
   tone?: "neutral" | "danger";
 }) {
   return (
-    <button
+    <Button
       type="button"
+      variant="secondary"
+      size="icon"
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white transition hover:bg-gray-50 ${
+      className={cn(
+        "h-7 w-7",
         tone === "danger"
           ? "text-danger-600 hover:border-danger-600"
-          : "text-gray-500 hover:border-brand-blue-600 hover:text-brand-blue-600"
-      }`}
+          : "text-gray-500 hover:border-brand-blue-600 hover:text-brand-blue-600",
+      )}
     >
       <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-    </button>
+    </Button>
   );
 }
 
@@ -795,62 +947,57 @@ function EducationFields({ row }: { row?: Education }) {
   return (
     <div className="space-y-3">
       <div>
-        <label className={labelCls} htmlFor="university">
+        <Label className="mb-1" htmlFor="university">
           University
-        </label>
-        <input
+        </Label>
+        <Input
           id="university"
           name="university"
-          className={fieldCls}
           placeholder="e.g. Brigham Young University"
           defaultValue={row?.university ?? ""}
         />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelCls} htmlFor="college">
+          <Label className="mb-1" htmlFor="college">
             College
-          </label>
-          <input
+          </Label>
+          <Input
             id="college"
             name="college"
-            className={fieldCls}
             defaultValue={row?.college ?? ""}
           />
         </div>
         <div>
-          <label className={labelCls} htmlFor="department">
+          <Label className="mb-1" htmlFor="department">
             Department
-          </label>
-          <input
+          </Label>
+          <Input
             id="department"
             name="department"
-            className={fieldCls}
             defaultValue={row?.department ?? ""}
           />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelCls} htmlFor="degree">
+          <Label className="mb-1" htmlFor="degree">
             Degree
-          </label>
-          <input
+          </Label>
+          <Input
             id="degree"
             name="degree"
-            className={fieldCls}
             placeholder="e.g. BS"
             defaultValue={row?.degree ?? ""}
           />
         </div>
         <div>
-          <label className={labelCls} htmlFor="major">
+          <Label className="mb-1" htmlFor="major">
             Major
-          </label>
-          <input
+          </Label>
+          <Input
             id="major"
             name="major"
-            className={fieldCls}
             placeholder="e.g. Finance"
             defaultValue={row?.major ?? ""}
           />
@@ -858,28 +1005,26 @@ function EducationFields({ row }: { row?: Education }) {
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelCls} htmlFor="degree_status">
+          <Label className="mb-1" htmlFor="degree_status">
             Degree status
-          </label>
-          <input
+          </Label>
+          <Input
             id="degree_status"
             name="degree_status"
-            className={fieldCls}
             placeholder="e.g. Completed"
             defaultValue={row?.degree_status ?? ""}
           />
         </div>
         <div>
-          <label className={labelCls} htmlFor="degree_year">
+          <Label className="mb-1" htmlFor="degree_year">
             Degree year
-          </label>
-          <input
+          </Label>
+          <Input
             id="degree_year"
             name="degree_year"
             type="number"
             min={1900}
             max={2100}
-            className={fieldCls}
             defaultValue={row?.degree_year ?? ""}
           />
         </div>
@@ -915,13 +1060,14 @@ export function AddEducationButton({
 
   return (
     <>
-      <button
+      <Button
         type="button"
+        variant="link"
+        size="sm"
         onClick={() => setOpen(true)}
-        className="text-xs font-medium text-brand-blue-600 hover:text-brand-blue-500"
       >
         {label}
-      </button>
+      </Button>
       {open ? (
         <Modal title="Add education" onClose={() => setOpen(false)}>
           <form action={formAction}>
@@ -1020,28 +1166,26 @@ function LeadershipFields({ row }: { row?: Leadership }) {
   return (
     <div className="space-y-3">
       <div>
-        <label className={labelCls} htmlFor="leadership_role">
+        <Label className="mb-1" htmlFor="leadership_role">
           Role
-        </label>
-        <input
+        </Label>
+        <Input
           id="leadership_role"
           name="leadership_role"
-          className={fieldCls}
           placeholder="e.g. President"
           defaultValue={row?.leadership_role ?? ""}
         />
       </div>
       <div>
-        <label className={labelCls} htmlFor="role_year">
+        <Label className="mb-1" htmlFor="role_year">
           Year
-        </label>
-        <input
+        </Label>
+        <Input
           id="role_year"
           name="role_year"
           type="number"
           min={1900}
           max={2100}
-          className={fieldCls}
           defaultValue={row?.role_year ?? ""}
         />
       </div>
@@ -1076,13 +1220,14 @@ export function AddLeadershipButton({
 
   return (
     <>
-      <button
+      <Button
         type="button"
+        variant="link"
+        size="sm"
         onClick={() => setOpen(true)}
-        className="text-xs font-medium text-brand-blue-600 hover:text-brand-blue-500"
       >
         {label}
-      </button>
+      </Button>
       {open ? (
         <Modal title="Add leadership" onClose={() => setOpen(false)}>
           <form action={formAction}>
@@ -1193,6 +1338,7 @@ export function AddEventButton({
   label?: string;
 }) {
   const { toast } = useToast();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [events, setEvents] = useState<EventOption[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -1242,35 +1388,36 @@ export function AddEventButton({
       } else {
         close();
         toast.success("Event attendance added.");
+        router.refresh();
       }
     });
   }
 
   return (
     <>
-      <button
+      <Button
         type="button"
+        variant="link"
+        size="sm"
         onClick={() => setOpen(true)}
-        className="text-xs font-medium text-brand-blue-600 hover:text-brand-blue-500"
       >
         {label}
-      </button>
+      </Button>
       {open ? (
         <Modal title="Add event attendance" onClose={close}>
           <div className="space-y-3">
             <div>
-              <label className={labelCls} htmlFor="event_id">
+              <Label className="mb-1" htmlFor="event_id">
                 Event
-              </label>
-              <select
+              </Label>
+              <Select
                 id="event_id"
-                className={`${fieldCls} bg-white`}
                 style={{ colorScheme: "light" }}
                 value={eventId}
                 onChange={(e) => setEventId(e.target.value)}
                 disabled={events === null && !loadError}
               >
-                <option value="" className="bg-white text-gray-900">
+                <option value="">
                   {events === null
                     ? loadError
                       ? "Failed to load"
@@ -1278,11 +1425,7 @@ export function AddEventButton({
                     : "Choose an event…"}
                 </option>
                 {(events ?? []).map((ev) => (
-                  <option
-                    key={ev.event_id}
-                    value={ev.event_id}
-                    className="bg-white text-gray-900"
-                  >
+                  <option key={ev.event_id} value={ev.event_id}>
                     {ev.event_name}
                     {ev.event_date
                       ? ` (${new Date(ev.event_date).toLocaleDateString(
@@ -1292,48 +1435,39 @@ export function AddEventButton({
                       : ""}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div>
-              <label className={labelCls} htmlFor="attendance_status">
+              <Label className="mb-1" htmlFor="attendance_status">
                 Attendance status
-              </label>
-              <select
+              </Label>
+              <Select
                 id="attendance_status"
-                className={`${fieldCls} bg-white`}
                 style={{ colorScheme: "light" }}
                 value={statusVal}
                 onChange={(e) => setStatusVal(e.target.value)}
               >
                 {ATTENDANCE_STATUS_OPTIONS.map((opt) => (
-                  <option
-                    key={opt}
-                    value={opt}
-                    className="bg-white text-gray-900"
-                  >
+                  <option key={opt} value={opt}>
                     {opt}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
             {error ? <p className="text-sm text-danger-600">{error}</p> : null}
           </div>
           <div className="mt-5 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={close}
-              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
+            <Button type="button" variant="secondary" onClick={close}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="primary"
               disabled={pending}
               onClick={submit}
-              className="rounded-lg bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-500 disabled:opacity-60"
             >
               {pending ? "Saving…" : "Add event"}
-            </button>
+            </Button>
           </div>
         </Modal>
       ) : null}
@@ -1351,7 +1485,7 @@ function ChipManager({
   options,
   addAction,
   removeAction,
-  toneAccent,
+  toneVariant,
 }: {
   alumniId: number;
   heading: string;
@@ -1362,9 +1496,10 @@ function ChipManager({
     alumniId: number,
     value: string,
   ) => Promise<{ error?: string } | null>;
-  toneAccent: string;
+  toneVariant: "tag" | "neutral";
 }) {
   const { toast } = useToast();
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState<string | null>(null);
   const available = options.filter((o) => !current.includes(o));
@@ -1379,7 +1514,11 @@ function ChipManager({
       const res = await action(alumniId, value);
       setBusy(null);
       if (res?.error) toast.error(res.error);
-      else toast.success(okMsg);
+      else {
+        toast.success(okMsg);
+        // Refresh so the chip list reflects the add/remove immediately.
+        router.refresh();
+      }
     });
   }
 
@@ -1388,40 +1527,44 @@ function ChipManager({
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
         {heading}
       </p>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2.5">
         {current.length ? (
           current.map((v) => (
-            <span
+            <Badge
               key={v}
-              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${toneAccent}`}
+              variant={toneVariant}
+              className="min-h-[32px] gap-1 py-1 pl-3 pr-1.5"
             >
               {v}
+              {/* Remove control is its own 24x24 target, padded away from the
+                  label, so tapping it can't be mistaken for adding a chip (B3). */}
               <button
                 type="button"
                 aria-label={`Remove ${v}`}
+                title={`Remove ${v}`}
                 disabled={pending && busy === v}
                 onClick={() => run(v, removeAction, `Removed ${v}.`)}
-                className="rounded-full p-0.5 hover:bg-black/10 disabled:opacity-50"
+                className="-mr-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full hover:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 disabled:opacity-50"
               >
-                <X className="h-3 w-3" />
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
-            </span>
+            </Badge>
           ))
         ) : (
-          <span className="text-xs text-gray-400">None yet.</span>
+          <span className="text-xs text-gray-500">None yet.</span>
         )}
       </div>
       {available.length ? (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap gap-2.5">
           {available.map((v) => (
             <button
               key={v}
               type="button"
               disabled={pending && busy === v}
               onClick={() => run(v, addAction, `Added ${v}.`)}
-              className="inline-flex items-center gap-1 rounded-full border border-dashed border-gray-300 px-2.5 py-0.5 text-xs font-medium text-gray-600 hover:border-brand-blue-600 hover:text-brand-blue-600 disabled:opacity-50"
+              className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-dashed border-gray-300 px-3 py-1 text-xs font-medium text-gray-600 hover:border-brand-blue-600 hover:bg-brand-blue-50 hover:text-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 disabled:opacity-50"
             >
-              <Plus className="h-3 w-3" />
+              <Plus className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               {v}
             </button>
           ))}
@@ -1450,7 +1593,7 @@ export function TagStatusManager({
         options={TAG_OPTIONS}
         addAction={addTag}
         removeAction={removeTag}
-        toneAccent="bg-brand-blue-50 text-navy-800"
+        toneVariant="tag"
       />
       <ChipManager
         alumniId={alumniId}
@@ -1459,7 +1602,7 @@ export function TagStatusManager({
         options={STATUS_OPTIONS}
         addAction={addStatusLabel}
         removeAction={removeStatusLabel}
-        toneAccent="bg-gray-100 text-gray-700"
+        toneVariant="neutral"
       />
     </div>
   );
