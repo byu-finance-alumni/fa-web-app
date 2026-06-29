@@ -2392,6 +2392,20 @@ export interface components {
             finance_program_year: number | null;
             /** Graduate Degree */
             graduate_degree: string | null;
+            /** Mba Program */
+            mba_program: string | null;
+            /** Law School */
+            law_school: string | null;
+            /** Medical School */
+            medical_school: string | null;
+            /** Graduate School */
+            graduate_school: string | null;
+            /** Startup Involvement */
+            startup_involvement: string | null;
+            /** Advisory Roles */
+            advisory_roles: string | null;
+            /** Secondary Employment */
+            secondary_employment: string | null;
             /** Spouse First Name */
             spouse_first_name: string | null;
             /** Spouse Last Name */
@@ -2570,6 +2584,20 @@ export interface components {
             finance_program_year: number | null;
             /** Graduate Degree */
             graduate_degree: string | null;
+            /** Mba Program */
+            mba_program: string | null;
+            /** Law School */
+            law_school: string | null;
+            /** Medical School */
+            medical_school: string | null;
+            /** Graduate School */
+            graduate_school: string | null;
+            /** Startup Involvement */
+            startup_involvement: string | null;
+            /** Advisory Roles */
+            advisory_roles: string | null;
+            /** Secondary Employment */
+            secondary_employment: string | null;
             /** Spouse First Name */
             spouse_first_name: string | null;
             /** Spouse Last Name */
@@ -2653,6 +2681,20 @@ export interface components {
             finance_program_year: number | null;
             /** Graduate Degree */
             graduate_degree: string | null;
+            /** Mba Program */
+            mba_program: string | null;
+            /** Law School */
+            law_school: string | null;
+            /** Medical School */
+            medical_school: string | null;
+            /** Graduate School */
+            graduate_school: string | null;
+            /** Startup Involvement */
+            startup_involvement: string | null;
+            /** Advisory Roles */
+            advisory_roles: string | null;
+            /** Secondary Employment */
+            secondary_employment: string | null;
             /** Spouse First Name */
             spouse_first_name: string | null;
             /** Spouse Last Name */
@@ -2723,6 +2765,20 @@ export interface components {
             finance_program_year: number | null;
             /** Graduate Degree */
             graduate_degree: string | null;
+            /** Mba Program */
+            mba_program: string | null;
+            /** Law School */
+            law_school: string | null;
+            /** Medical School */
+            medical_school: string | null;
+            /** Graduate School */
+            graduate_school: string | null;
+            /** Startup Involvement */
+            startup_involvement: string | null;
+            /** Advisory Roles */
+            advisory_roles: string | null;
+            /** Secondary Employment */
+            secondary_employment: string | null;
             /** Spouse First Name */
             spouse_first_name: string | null;
             /** Spouse Last Name */
