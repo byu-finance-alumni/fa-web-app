@@ -2,16 +2,14 @@
 
 // Content-Security-Policy scoped to the origins this app actually talks to:
 // itself, the Supabase project(s) (auth + REST + realtime), and the dev/prod
-// API. script/style allow 'unsafe-inline' for now (Next injects some inline
-// script/style); this can be tightened to nonce-based later. img allows https
-// so headshots from the storage bucket render.
-// Next.js dev mode (React Fast Refresh / HMR) evaluates strings as JavaScript,
-// so 'unsafe-eval' is required locally. Never emitted in production builds.
-const scriptSrc =
-  process.env.NODE_ENV === "production"
-    ? "script-src 'self' 'unsafe-inline'"
-    : "script-src 'self' 'unsafe-inline' 'unsafe-eval'";
-
+// API. img allows https so headshots from the storage bucket render.
+//
+// NOTE: `script-src` is intentionally NOT set here. It is emitted per-request by
+// `src/middleware.ts` with a nonce + 'strict-dynamic' (issue #30), which is the
+// single source of truth for script-src so 'unsafe-inline' can be dropped. The
+// middleware sets a full Content-Security-Policy response header that overrides
+// the static one below on every matched route; this static header remains as a
+// defense-in-depth baseline for any response the middleware doesn't match.
 const csp = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -21,7 +19,6 @@ const csp = [
   "img-src 'self' data: blob: https://*.supabase.co",
   "font-src 'self' data:",
   "style-src 'self' 'unsafe-inline'",
-  scriptSrc,
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://fa-web-api.vercel.app https://dev-fa-web-api.vercel.app",
 ].join("; ");
 
