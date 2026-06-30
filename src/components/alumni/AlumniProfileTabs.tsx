@@ -41,7 +41,7 @@ export function AlumniProfileTabs({
           <TabsTrigger value="education">Education</TabsTrigger>
         ) : null}
         {engagement ? (
-          <TabsTrigger value="engagement">Engagement</TabsTrigger>
+          <TabsTrigger value="engagement">Tags</TabsTrigger>
         ) : null}
         {tasks ? <TabsTrigger value="tasks">Tasks</TabsTrigger> : null}
         {payItForward ? (

@@ -361,7 +361,7 @@ export function AlumniFilters({
           <input
             value={f.q}
             onChange={(e) => set("q", e.target.value)}
-            placeholder="Search a name, BYU ID, or a plain-English question"
+            placeholder="Search a name (incl. maiden name), BYU ID, or a plain-English question"
             aria-label="Search alumni"
             className="h-9 w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
           />
@@ -410,25 +410,25 @@ export function AlumniFilters({
         ) : null}
       </div>
 
-      {/* Active-filter chips */}
+      {/* Active-filter chips — squared, text-style controls (#225) rather than
+          rounded-full pills, for a cleaner look consistent with the toolbar. */}
       {chips.length > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-2">
           {chips.map((chip, i) => (
-            <Badge
+            <span
               key={`${chip.label}-${i}`}
-              variant="neutral"
-              className="py-1 pl-2.5 pr-1"
+              className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-gray-200 bg-gray-50 py-1 pl-2.5 pr-1 text-xs font-medium text-gray-700"
             >
               {chip.label}
               <button
                 type="button"
                 onClick={chip.remove}
                 aria-label={`Remove ${chip.label}`}
-                className="flex h-4 w-4 items-center justify-center rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
+                className="flex h-4 w-4 items-center justify-center rounded text-gray-400 hover:bg-gray-200 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
               >
                 <X className="h-3 w-3" aria-hidden="true" />
               </button>
-            </Badge>
+            </span>
           ))}
           <Button
             type="button"

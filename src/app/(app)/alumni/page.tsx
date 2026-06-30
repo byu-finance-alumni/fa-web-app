@@ -66,6 +66,14 @@ export default async function AlumniListPage({
   const sp = await searchParams;
   const offset = Math.max(0, Number(one(sp.offset) || "0") || 0);
 
+  // #218 Friends: the same roster view, scoped by the backend `kind` param.
+  // Default "alumni" keeps the page unchanged; "friend" shows non-alumni
+  // contacts (is_alumni=false), "all" shows both. Anything else falls back to
+  // alumni so a junk ?kind= can't change the scope.
+  const kindRaw = one(sp.kind);
+  const kind: "alumni" | "friend" | "all" =
+    kindRaw === "friend" || kindRaw === "all" ? kindRaw : "alumni";
+
   // Normalize the URL (incl. legacy ?year= / ?missing= deep-links) into state.
   const filters: AlumniFilterState = {
     q: one(sp.q),
@@ -117,6 +125,8 @@ export default async function AlumniListPage({
     limit: String(LIMIT),
     offset: String(offset),
   });
+  // Only send `kind` when it diverges from the backend default ("alumni").
+  if (kind !== "alumni") params.set("kind", kind);
   if (filters.q) params.set("q", filters.q);
   if (filters.ymin) params.set("grad_year_min", filters.ymin);
   if (filters.ymax) params.set("grad_year_max", filters.ymax);
@@ -184,17 +194,28 @@ export default async function AlumniListPage({
   let data: AlumniPage | null = null;
   let error: ApiError | null = null;
   let options: FilterOptions | null = null;
-  const [listResult, optionsResult, ctxResult] = await Promise.allSettled([
-    // Retry the list read once on a transient 5xx (serverless cold start /
-    // dropped DB connection) so the list loads reliably on first navigation
-    // instead of intermittently showing "Couldn't load alumni".
-    apiGetWithRetry<AlumniPage>(`/alumni?${params.toString()}`),
-    apiGet<FilterOptions>("/alumni/filter-options", {
-      revalidate: 300,
-      tags: ["alumni-filter-options"],
-    }),
-    apiGet<UserContext>("/auth/context"),
-  ]);
+  const [listResult, optionsResult, industryVocabResult, ctxResult] =
+    await Promise.allSettled([
+      // Retry the list read once on a transient 5xx (serverless cold start /
+      // dropped DB connection) so the list loads reliably on first navigation
+      // instead of intermittently showing "Couldn't load alumni".
+      apiGetWithRetry<AlumniPage>(`/alumni?${params.toString()}`),
+      apiGet<FilterOptions>("/alumni/filter-options", {
+        revalidate: 300,
+        tags: ["alumni-filter-options"],
+      }),
+      // #212: the Industry facet must reflect the LIVE controlled vocabulary the
+      // vocab admin edits — not the distinct industry values that happen to be on
+      // records (which is what /alumni/filter-options returns). Pull the active
+      // industry terms from the same source the vocab admin manages and tag the
+      // read with "vocabulary" so an admin edit (which revalidates that tag)
+      // refreshes the filter options immediately.
+      apiGet<{ category: string; values: string[] }>("/vocabulary/industry", {
+        revalidate: 300,
+        tags: ["vocabulary"],
+      }),
+      apiGet<UserContext>("/auth/context"),
+    ]);
   if (listResult.status === "fulfilled") {
     data = listResult.value;
   } else {
@@ -204,6 +225,16 @@ export default async function AlumniListPage({
   }
   if (optionsResult.status === "fulfilled") {
     options = optionsResult.value;
+  }
+  // Override the Industry options with the live vocabulary when available, so the
+  // dropdown matches the vocab admin. Falls back to the filter-options list if
+  // the vocab read failed, so the facet is never empty on a transient blip.
+  if (
+    options &&
+    industryVocabResult.status === "fulfilled" &&
+    Array.isArray(industryVocabResult.value.values)
+  ) {
+    options = { ...options, industries: industryVocabResult.value.values };
   }
   const roles =
     ctxResult.status === "fulfilled" ? ctxResult.value.roles : null;
@@ -231,7 +262,15 @@ export default async function AlumniListPage({
 
   return (
     <>
-      <Topbar title="All Alumni" />
+      <Topbar
+        title={
+          kind === "friend"
+            ? "Friends of the Program"
+            : kind === "all"
+              ? "Alumni & Friends"
+              : "All Alumni"
+        }
+      />
       <main className="flex-1 overflow-auto p-6">
         <AlumniFilters
           initial={filters}

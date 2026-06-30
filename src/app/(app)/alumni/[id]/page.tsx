@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-  GraduationCap,
   Building2,
   Mail,
   Phone,
@@ -15,7 +14,7 @@ import {
 } from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
 import { daysAgo } from "@/lib/format";
-import type { Profile } from "@/types/profile";
+import type { Contact, Profile } from "@/types/profile";
 import type { UserContext } from "@/types/alumni";
 import { canAddInteraction, canEditAlumni, hasFullAccess } from "@/constants/roles";
 import { Topbar } from "@/components/shell/Topbar";
@@ -73,6 +72,63 @@ const place = (...parts: (string | null | undefined)[]) =>
   parts.filter(Boolean).join(", ") || null;
 
 /* -------------------------------------------------------- server components */
+
+/**
+ * Compact contact strip rendered in the profile header (#223) — email, phone,
+ * and mailing address shown next to the name. Text-only (no icons) per the
+ * design rules. Email/phone are actionable links; the address is plain text.
+ * Renders nothing when no contact data is on file (the Overview panel still
+ * carries the full, field-by-field breakdown).
+ */
+function HeaderContact({
+  contact,
+  linkedinUrl,
+}: {
+  contact: Contact | null;
+  linkedinUrl: string | null;
+}) {
+  const email = contact?.personal_email || contact?.work_email || null;
+  const phone = contact?.phone || null;
+  const mailing = place(
+    place(contact?.address_line_1, contact?.address_line_2),
+    place(contact?.city, contact?.state),
+    contact?.zip,
+  );
+
+  if (!email && !phone && !mailing && !linkedinUrl) return null;
+
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
+      {email ? (
+        <a
+          href={`mailto:${email}`}
+          className="font-medium text-brand-blue-600 hover:text-brand-blue-500"
+        >
+          {email}
+        </a>
+      ) : null}
+      {phone ? (
+        <a
+          href={`tel:${phone}`}
+          className="font-medium text-brand-blue-600 hover:text-brand-blue-500"
+        >
+          {phone}
+        </a>
+      ) : null}
+      {linkedinUrl ? (
+        <a
+          href={linkedinUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-brand-blue-600 hover:text-brand-blue-500"
+        >
+          LinkedIn
+        </a>
+      ) : null}
+      {mailing ? <span className="text-gray-600">{mailing}</span> : null}
+    </div>
+  );
+}
 
 function Panel({
   title,
@@ -382,6 +438,13 @@ export default async function AlumniProfilePage({
                       </span>
                     ) : null}
                   </div>
+
+                  {/* Contact info lifted into the header (#223): email, phone,
+                      and mailing address are visible right next to the name.
+                      Text-only (no icons) per the design rules; the full
+                      breakdown still lives in the Overview "Contact
+                      information" panel. */}
+                  <HeaderContact contact={c} linkedinUrl={a.linkedin_url} />
                 </div>
               </div>
 
@@ -423,7 +486,7 @@ export default async function AlumniProfilePage({
             {(profile.tags.length || profile.status_labels.length) > 0 ? (
               <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-4">
                 <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Engagement
+                  Tags
                 </span>
                 {profile.tags.map((t) => (
                   <EngagementChip
@@ -501,6 +564,22 @@ export default async function AlumniProfilePage({
                   </p>
                 )}
               </Panel>
+
+              {/* Record note (#211): the free-text `notes` field entered on the
+                  add/edit alumni form. Distinct from the unified-notes timeline
+                  below (those are separate, audited note records). Read-only
+                  here — editing happens on the alumni edit form. Only shown when
+                  a note exists. */}
+              {a.notes ? (
+                <Panel
+                  title="Record note"
+                  action={canEdit ? <EditLink id={aid} /> : undefined}
+                >
+                  <p className="whitespace-pre-wrap text-sm text-gray-900">
+                    {a.notes}
+                  </p>
+                </Panel>
+              ) : null}
 
               {/* Contact information */}
               <Panel
@@ -735,7 +814,7 @@ export default async function AlumniProfilePage({
               // users who can edit (AlumniProfileTabs omits a tab whose node is
               // undefined), so view-only roles never see it.
               canEdit ? (
-                <Panel title="Engagement & tags">
+                <Panel title="Tags">
                   <div className="space-y-5">
                     <TagStatusManager
                       alumniId={aid}
@@ -853,26 +932,47 @@ export default async function AlumniProfilePage({
                           ) : undefined
                         }
                       >
-                        {profile.education.map((ed) => (
-                          <li
-                            key={ed.education_id}
-                            className="flex gap-3 border-b border-gray-100 py-3 last:border-0"
-                          >
-                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500">
-                              <GraduationCap
-                                className="h-4 w-4"
-                                aria-hidden="true"
-                              />
-                            </span>
-                            <div className="min-w-0 flex-1">
+                        {profile.education.map((ed) => {
+                          // Lead with the degree + major (what people scan
+                          // for); fall back to the university when no degree is
+                          // recorded so the row is never blank (#221).
+                          const degreeLine =
+                            [ed.degree, ed.major].filter(Boolean).join(" · ") ||
+                            null;
+                          const meta = [
+                            ed.college,
+                            ed.department,
+                            ed.degree_status,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ");
+                          return (
+                            <li
+                              key={ed.education_id}
+                              className="border-b border-gray-100 py-3 last:border-0"
+                            >
                               <div className="flex items-start justify-between gap-2">
-                                <p className="text-sm font-semibold text-gray-900">
-                                  {ed.university ?? "—"}
-                                </p>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-semibold text-gray-900">
+                                    {degreeLine ?? ed.university ?? "—"}
+                                  </p>
+                                  {degreeLine && ed.university ? (
+                                    <p className="text-sm text-gray-600">
+                                      {ed.university}
+                                    </p>
+                                  ) : null}
+                                  {meta ? (
+                                    <p className="mt-0.5 text-xs text-gray-500">
+                                      {meta}
+                                    </p>
+                                  ) : null}
+                                </div>
                                 <div className="flex shrink-0 items-center gap-2">
-                                  <span className="text-xs tabular-nums text-gray-500">
-                                    {ed.degree_year ?? "—"}
-                                  </span>
+                                  {ed.degree_year ? (
+                                    <Badge variant="neutral">
+                                      {ed.degree_year}
+                                    </Badge>
+                                  ) : null}
                                   {canEdit ? (
                                     <EducationRowActions
                                       alumniId={aid}
@@ -881,19 +981,9 @@ export default async function AlumniProfilePage({
                                   ) : null}
                                 </div>
                               </div>
-                              <p className="text-sm text-gray-600">
-                                {[ed.degree, ed.major]
-                                  .filter(Boolean)
-                                  .join(" · ") || "—"}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                {[ed.college, ed.department, ed.degree_status]
-                                  .filter(Boolean)
-                                  .join(" · ")}
-                              </p>
-                            </div>
-                          </li>
-                        ))}
+                            </li>
+                          );
+                        })}
                       </DrawerList>
                     ) : (
                       <p className="py-6 text-center text-sm text-gray-500">
