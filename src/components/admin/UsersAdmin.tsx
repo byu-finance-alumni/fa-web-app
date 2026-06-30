@@ -154,6 +154,7 @@ export function UsersAdmin({
                     <UnlockResetPassword
                       userId={u.user_id}
                       locked={u.locked}
+                      active={u.active}
                       name={displayName(u)}
                     />
                     {canDelete(u) ? (
@@ -230,6 +231,7 @@ export function UsersAdmin({
                         <UnlockResetPassword
                           userId={u.user_id}
                           locked={u.locked}
+                          active={u.active}
                           name={displayName(u)}
                         />
                         {canDelete(u) ? (

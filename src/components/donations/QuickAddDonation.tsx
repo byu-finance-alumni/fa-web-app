@@ -315,13 +315,14 @@ export function QuickAddDonation() {
           </DialogBody>
           <DialogFooter>
             <Button
+              type="button"
               variant="secondary"
               onClick={() => setOpen(false)}
               disabled={pending}
             >
               Cancel
             </Button>
-            <Button variant="primary" onClick={onSubmit} disabled={pending}>
+            <Button type="button" variant="primary" onClick={onSubmit} disabled={pending}>
               {pending ? "Adding…" : "Add donation"}
             </Button>
           </DialogFooter>

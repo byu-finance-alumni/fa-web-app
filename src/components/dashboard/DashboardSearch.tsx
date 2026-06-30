@@ -102,14 +102,33 @@ function IdentityGrid({
   );
 }
 
+// Plausible graduation-year window for the From/To inputs (min/max attrs +
+// submit validation). Upper bound allows next year's graduating class.
+const GRAD_YEAR_MIN = 1900;
+const GRAD_YEAR_MAX = new Date().getFullYear() + 1;
+
+/** Validate a grad-year From/To range. Returns an error message when From > To
+ *  (an inverted range that would return nothing), else null. Blank bounds are
+ *  fine — they just leave that side open. */
+function gradRangeError(y: { ymin: string; ymax: string }): string | null {
+  const from = y.ymin.trim();
+  const to = y.ymax.trim();
+  if (from && to && Number(from) > Number(to)) {
+    return "“From” year must be the same as or before the “To” year.";
+  }
+  return null;
+}
+
 function GradYearRange({
   ymin,
   ymax,
   onChange,
+  error,
 }: {
   ymin: string;
   ymax: string;
   onChange: (next: { ymin: string; ymax: string }) => void;
+  error?: string | null;
 }) {
   return (
     <div>
@@ -119,22 +138,33 @@ function GradYearRange({
       <div className="flex items-center gap-2">
         <Input
           type="number"
+          min={GRAD_YEAR_MIN}
+          max={GRAD_YEAR_MAX}
           value={ymin}
           onChange={(e) => onChange({ ymin: e.target.value, ymax })}
           placeholder="From"
           aria-label="Graduation year from"
+          aria-invalid={error ? true : undefined}
           className="w-24 tabular-nums"
         />
         <span className="text-sm text-gray-500">–</span>
         <Input
           type="number"
+          min={GRAD_YEAR_MIN}
+          max={GRAD_YEAR_MAX}
           value={ymax}
           onChange={(e) => onChange({ ymin, ymax: e.target.value })}
           placeholder="To"
           aria-label="Graduation year to"
+          aria-invalid={error ? true : undefined}
           className="w-24 tabular-nums"
         />
       </div>
+      {error ? (
+        <p role="alert" className="mt-1.5 text-xs text-danger-600">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -197,10 +227,12 @@ export function DashboardSearch({
   // --- Quick search ----------------------------------------------------------
   const [quick, setQuick] = useState<Identity>(EMPTY_IDENTITY);
   const [quickYear, setQuickYear] = useState({ ymin: "", ymax: "" });
+  const [quickYearError, setQuickYearError] = useState<string | null>(null);
 
   // --- Advanced search -------------------------------------------------------
   const [adv, setAdv] = useState<Identity>(EMPTY_IDENTITY);
   const [advYear, setAdvYear] = useState({ ymin: "", ymax: "" });
+  const [advYearError, setAdvYearError] = useState<string | null>(null);
   const [facets, setFacets] = useState<Record<string, string[]>>({});
   const [flags, setFlags] = useState<Record<string, boolean>>({});
 
@@ -217,6 +249,11 @@ export function DashboardSearch({
   }
 
   function runQuick() {
+    // Block an inverted grad-year range before navigating (it would return
+    // nothing) and surface a clear inline message instead (L5).
+    const err = gradRangeError(quickYear);
+    setQuickYearError(err);
+    if (err) return;
     const p = new URLSearchParams();
     identityParams(p, quick);
     yearParams(p, quickYear);
@@ -225,9 +262,13 @@ export function DashboardSearch({
   function resetQuick() {
     setQuick(EMPTY_IDENTITY);
     setQuickYear({ ymin: "", ymax: "" });
+    setQuickYearError(null);
   }
 
   function runAdvanced() {
+    const err = gradRangeError(advYear);
+    setAdvYearError(err);
+    if (err) return;
     const p = new URLSearchParams();
     identityParams(p, adv);
     yearParams(p, advYear);
@@ -242,6 +283,7 @@ export function DashboardSearch({
   function resetAdvanced() {
     setAdv(EMPTY_IDENTITY);
     setAdvYear({ ymin: "", ymax: "" });
+    setAdvYearError(null);
     setFacets({});
     setFlags({});
   }
@@ -264,7 +306,11 @@ export function DashboardSearch({
             <GradYearRange
               ymin={quickYear.ymin}
               ymax={quickYear.ymax}
-              onChange={setQuickYear}
+              onChange={(next) => {
+                setQuickYear(next);
+                if (quickYearError) setQuickYearError(null);
+              }}
+              error={quickYearError}
             />
             <FriendsPlaceholder />
           </div>
@@ -292,7 +338,11 @@ export function DashboardSearch({
             <GradYearRange
               ymin={advYear.ymin}
               ymax={advYear.ymax}
-              onChange={setAdvYear}
+              onChange={(next) => {
+                setAdvYear(next);
+                if (advYearError) setAdvYearError(null);
+              }}
+              error={advYearError}
             />
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {FACETS.map((facet) => (

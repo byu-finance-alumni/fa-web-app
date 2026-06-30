@@ -27,10 +27,16 @@ export function UnlockResetPassword({
   userId,
   locked,
   name,
+  active = true,
 }: {
   userId: number;
   locked: boolean;
   name: string;
+  /** Whether the account is active. A deactivated user can't sign in, so
+   *  resetting their password is a no-op until they're reactivated — we disable
+   *  the control (with an explanatory tooltip) rather than silently doing
+   *  nothing (L6). */
+  active?: boolean;
 }) {
   const { toast } = useToast();
   const router = useRouter();
@@ -46,6 +52,12 @@ export function UnlockResetPassword({
   }
 
   function run() {
+    if (!active) {
+      toast.error(
+        `${name} is deactivated — reactivate the account before resetting its password.`,
+      );
+      return;
+    }
     startTransition(async () => {
       const res = await resetUserPassword(userId);
       if ("error" in res) {
@@ -79,13 +91,19 @@ export function UnlockResetPassword({
           variant="secondary"
           size="sm"
           onClick={run}
+          disabled={!active}
+          aria-disabled={!active}
           title={
-            locked
-              ? `Unlock ${name} and reset their password`
-              : `Reset ${name}'s password`
+            !active
+              ? `${name} is deactivated — reactivate the account to reset its password`
+              : locked
+                ? `Unlock ${name} and reset their password`
+                : `Reset ${name}'s password`
           }
           className={cn(
-            locked && "border-danger-600/40 text-danger-600 hover:bg-danger-50",
+            active &&
+              locked &&
+              "border-danger-600/40 text-danger-600 hover:bg-danger-50",
           )}
         >
           <KeyRound className="h-3 w-3" aria-hidden="true" />

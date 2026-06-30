@@ -138,6 +138,7 @@ export function TaskFilters({
         <button
           type="button"
           onClick={() => set("status", "")}
+          aria-pressed={f.status === ""}
           className={cn(
             "rounded-md px-3 py-1.5 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
             f.status === ""
@@ -150,6 +151,7 @@ export function TaskFilters({
         <button
           type="button"
           onClick={() => set("status", "all")}
+          aria-pressed={f.status === "all"}
           className={cn(
             "rounded-md px-3 py-1.5 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
             f.status === "all"

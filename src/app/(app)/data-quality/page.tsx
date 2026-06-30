@@ -214,7 +214,12 @@ export default async function DataQualityPage() {
             ) : (
               <Card>
                 <CardHeader>
-                  <CardTitle>Open alerts</CardTitle>
+                  {/* Headline count sums EVERY alert category shown in the body
+                      (missing email + missing employer + duplicates), not just
+                      the first one, so it matches the rows listed below. */}
+                  <CardTitle>
+                    Open alerts ({issueTotal.toLocaleString()})
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-2">
