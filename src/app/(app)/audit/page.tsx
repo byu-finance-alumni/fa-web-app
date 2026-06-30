@@ -212,6 +212,7 @@ export default async function AuditPage({
         ]}
       />
       <main className="flex-1 overflow-auto p-6">
+        <h1 className="sr-only">Audit log</h1>
         <AuditToolbar
           initial={filters}
           actionTypes={actionTypes}

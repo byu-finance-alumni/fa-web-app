@@ -25,6 +25,7 @@ export default async function PermissionsPage() {
         breadcrumb={[{ label: "Engineer", href: "/engineer" }, { label: "Permissions" }]}
       />
       <main className="min-h-0 flex-1 overflow-auto p-6">
+        <h1 className="sr-only">Permissions</h1>
         {error ? (
           <Card className="p-10 text-center">
             <p className="text-sm font-semibold text-gray-900">

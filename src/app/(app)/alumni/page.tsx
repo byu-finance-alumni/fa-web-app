@@ -38,6 +38,15 @@ const arr = (v: string | string[] | undefined): string[] =>
 const one = (v: string | string[] | undefined): string =>
   (Array.isArray(v) ? v[0] : v) ?? "";
 
+/** Truthy boolean URL param: accepts "1" or "true" (case-insensitive). The
+ *  in-app filter UI serializes booleans as "1", while deep-links / hand-typed
+ *  URLs (and the backend) accept "true" too — so both must turn the filter on,
+ *  or `/alumni?missing_email=true` is silently ignored and no chip renders. */
+const isTrue = (v: string | string[] | undefined): boolean => {
+  const s = one(v).toLowerCase();
+  return s === "1" || s === "true";
+};
+
 /** The grad-year sort tokens the backend GET /alumni accepts (besides "name").
  *  newest → grad_desc (DESC, nulls last); oldest → grad_asc (ASC, nulls last). */
 const GRAD_SORTS = ["grad_desc", "grad_asc"] as const;
@@ -74,24 +83,23 @@ export default async function AlumniListPage({
     surveyStatus: arr(sp.survey_status),
     contactedAfter: one(sp.contacted_after),
     contactedBefore: one(sp.contacted_before),
-    neverContacted: one(sp.never_contacted) === "1",
-    attended: one(sp.attended) === "1",
-    donor: one(sp.donor) === "1",
-    mentor: one(sp.mentor) === "1",
-    speaker: one(sp.speaker) === "1",
-    cfa: one(sp.cfa) === "1",
-    cpa: one(sp.cpa) === "1",
-    archived: one(sp.archived) === "1",
-    deceased:
-      one(sp.deceased) === "1"
-        ? "only"
-        : one(sp.deceased) === "0"
-          ? "exclude"
-          : "",
-    missingEmail: one(sp.missing_email) === "1" || one(sp.missing) === "email",
+    neverContacted: isTrue(sp.never_contacted),
+    attended: isTrue(sp.attended),
+    donor: isTrue(sp.donor),
+    mentor: isTrue(sp.mentor),
+    speaker: isTrue(sp.speaker),
+    cfa: isTrue(sp.cfa),
+    cpa: isTrue(sp.cpa),
+    archived: isTrue(sp.archived),
+    deceased: isTrue(sp.deceased)
+      ? "only"
+      : one(sp.deceased) === "0" || one(sp.deceased).toLowerCase() === "false"
+        ? "exclude"
+        : "",
+    missingEmail: isTrue(sp.missing_email) || one(sp.missing) === "email",
     missingEmployer:
-      one(sp.missing_employer) === "1" || one(sp.missing) === "employer",
-    duplicate: one(sp.duplicate) === "1",
+      isTrue(sp.missing_employer) || one(sp.missing) === "employer",
+    duplicate: isTrue(sp.duplicate),
     // The main alumni roster is never scoped to the survey-due set — that's the
     // dedicated /needs-surveying view (admin tier only).
     needsSurvey: false,
