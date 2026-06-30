@@ -1754,8 +1754,14 @@ export interface paths {
         post?: never;
         /**
          * Delete Donation
-         * @description Delete a donation (super_admin). 404 if unknown. Audits the write
-         *     (entity_type "donation", action "delete").
+         * @description Delete a donation (full_access and up). 404 if unknown. Audits the write
+         *     (entity_type "donation", action "delete") with the actor's user id — the
+         *     DB trigger snapshots the actor email for the FERPA trail. Returns 204.
+         *
+         *     Gated to the ``alumni.full`` admin tier (full_access / super_admin /
+         *     engineer), matching the other destructive data-management writes (event
+         *     delete, alumni archive). Broadened from the original super_admin-only gate
+         *     during QA hardening (H4).
          */
         delete: operations["delete_donation_donations__donation_id__delete"];
         options?: never;
@@ -3450,16 +3456,24 @@ export interface components {
          * EventCreate
          * @description Client-editable fields for creating an event. ``extra='forbid'`` rejects
          *     unknown keys; ``event_name`` is required, non-empty, and at most 255 chars.
-         *     ``event_type``/``event_location`` are capped at 255 chars and ``event_notes``
-         *     at 10000 chars.
+         *     ``event_date`` is REQUIRED (M4) — a missing date is a 422, never a dateless
+         *     event. ``event_type``/``event_location`` are capped at 255 chars and
+         *     ``event_notes`` at 10000 chars.
+         *
+         *     Note: ``event_type`` stays OPTIONAL — it's free text with no enforced
+         *     controlled vocabulary at the schema layer, and bulk-imported events may
+         *     legitimately have no type; requiring it would reject valid data.
          */
         EventCreate: {
             /** Event Name */
             event_name: string;
             /** Event Type */
             event_type?: string | null;
-            /** Event Date */
-            event_date?: string | null;
+            /**
+             * Event Date
+             * Format: date
+             */
+            event_date: string;
             /** Event Location */
             event_location?: string | null;
             /** Event Notes */
@@ -3620,12 +3634,19 @@ export interface components {
         /**
          * InteractionCreate
          * @description Log an interaction against an alumni (Interactions tab).
+         *
+         *     ``interaction_type`` and ``interaction_date_time`` are both REQUIRED (H1) —
+         *     an empty payload is a 422, never a silently-defaulted record. The date/time
+         *     must not be in the future (H2).
          */
         InteractionCreate: {
             /** Interaction Type */
             interaction_type: string;
-            /** Interaction Date Time */
-            interaction_date_time?: string | null;
+            /**
+             * Interaction Date Time
+             * Format: date-time
+             */
+            interaction_date_time: string;
             /** Interaction Notes */
             interaction_notes?: string | null;
         };
@@ -7077,15 +7098,11 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            200: {
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

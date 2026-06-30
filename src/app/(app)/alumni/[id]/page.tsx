@@ -1139,7 +1139,13 @@ export default async function AlumniProfilePage({
               // Only present when the alumnus has donations; shown to every role
               // (amounts gated server-side). The tab is omitted otherwise.
               donations ? (
-                <AlumniPayItForwardPanel data={donations} />
+                // canArchive === hasFullAccess(roles); the admin tier
+                // (full_access+) gets the per-gift delete control (H4), matching
+                // the DELETE /donations/{id} gate and the event-delete gate.
+                <AlumniPayItForwardPanel
+                  data={donations}
+                  canDelete={canArchive}
+                />
               ) : undefined
             }
           />

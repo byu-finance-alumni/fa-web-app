@@ -63,14 +63,33 @@ function buildPayload(formData: FormData): Record<string, unknown> {
   return payload;
 }
 
+/**
+ * Required-field check shared by create/update. The backend now 422s on a
+ * missing event_date (M4) and has always required event_name — re-check here so
+ * the form shows inline messages without a round trip.
+ */
+function validateRequired(formData: FormData): FormState {
+  const fieldErrors: Record<string, string> = {};
+  const name = formData.get("event_name");
+  if (typeof name !== "string" || name.trim() === "") {
+    fieldErrors.event_name = "Event name is required.";
+  }
+  const date = formData.get("event_date");
+  if (typeof date !== "string" || date.trim() === "") {
+    fieldErrors.event_date = "Event date is required.";
+  }
+  if (Object.keys(fieldErrors).length > 0) {
+    return { error: "Please fix the highlighted fields.", fieldErrors };
+  }
+  return null;
+}
+
 export async function createEvent(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const name = formData.get("event_name");
-  if (typeof name !== "string" || name.trim() === "") {
-    return { error: "Event name is required." };
-  }
+  const invalid = validateRequired(formData);
+  if (invalid) return invalid;
   let created: { event_id: number };
   try {
     created = await apiPost<{ event_id: number }>(
@@ -92,10 +111,8 @@ export async function updateEvent(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const name = formData.get("event_name");
-  if (typeof name !== "string" || name.trim() === "") {
-    return { error: "Event name is required." };
-  }
+  const invalid = validateRequired(formData);
+  if (invalid) return invalid;
   try {
     await apiPatch(`/events/${id}`, buildPayload(formData));
   } catch (e) {
