@@ -1,6 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import {
+  Users,
+  Phone,
+  StickyNote,
+  CalendarDays,
+  PencilLine,
+  type LucideIcon,
+} from "lucide-react";
 import { AddInteractionButton } from "@/components/alumni/ProfileDialogs";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -30,6 +38,14 @@ const FILTERS: ("All" | ActivityCategory)[] = [
   "Events",
   "Updates",
 ];
+
+const ICONS: Record<ActivityCategory, LucideIcon> = {
+  Meetings: Users,
+  Calls: Phone,
+  Notes: StickyNote,
+  Events: CalendarDays,
+  Updates: PencilLine,
+};
 
 const fmt = (iso: string | null) =>
   iso
@@ -62,9 +78,7 @@ export function ProfileActivity({
         ) : null}
       </div>
 
-      {/* Text-style underline tabs (no pills) consistent with the design
-          system's Tabs primitive — #225. */}
-      <div className="mb-4 flex flex-wrap items-center gap-1 border-b border-gray-200">
+      <div className="mb-4 flex flex-wrap gap-1.5">
         {FILTERS.map((f) => {
           const active = f === filter;
           return (
@@ -72,12 +86,11 @@ export function ProfileActivity({
               key={f}
               type="button"
               onClick={() => setFilter(f)}
-              aria-pressed={active}
               className={cn(
-                "-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
+                "rounded-full px-3 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
                 active
-                  ? "border-brand-blue-600 font-semibold text-brand-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-900",
+                  ? "bg-navy-800 text-white"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200",
               )}
             >
               {f}
@@ -93,16 +106,15 @@ export function ProfileActivity({
       ) : (
         <ul className="space-y-1">
           {shown.map((i) => {
+            const Icon = ICONS[i.category];
             return (
               <li
                 key={i.id}
                 className="flex gap-3 border-b border-gray-100 py-3 last:border-0"
               >
-                {/* Square marker (no icon, no pill) — #225. */}
-                <span
-                  aria-hidden="true"
-                  className="mt-1.5 h-3 w-3 shrink-0 rounded-sm bg-brand-blue-600"
-                />
+                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-blue-50 text-brand-blue-600">
+                  <Icon className="h-4 w-4" aria-hidden="true" />
+                </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-3">
                     <p className="text-sm font-medium text-gray-900">
