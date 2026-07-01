@@ -31,3 +31,14 @@ option {
 body {
   @apply bg-canvas text-gray-900 antialiased;
 }
+
+/*
+ * Reserve the scrollbar gutter on the app's scrolling <main> regions so moving
+ * between short and tall views (e.g. the alumni-profile tabs) never shifts the
+ * layout horizontally as the vertical scrollbar appears and disappears. On
+ * overlay-scrollbar platforms (macOS) this is a no-op; on Windows it keeps the
+ * content width constant.
+ */
+main {
+  scrollbar-gutter: stable;
+}

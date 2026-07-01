@@ -135,11 +135,15 @@ function Panel({
   action,
   children,
   className = "",
+  contentClassName = "",
 }: {
   title: string;
   action?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  /** Extra classes on the CardContent body — e.g. to let it grow and center
+   *  its content when the card is stretched to fill a column. */
+  contentClassName?: string;
 }) {
   return (
     <Card className={className}>
@@ -147,7 +151,7 @@ function Panel({
         <CardTitle>{title}</CardTitle>
         {action}
       </CardHeader>
-      <CardContent>{children}</CardContent>
+      <CardContent className={contentClassName}>{children}</CardContent>
     </Card>
   );
 }
@@ -174,9 +178,24 @@ function ContactField({
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
           {label}
         </p>
-        <p className={`truncate text-sm ${value ? "text-gray-900" : "text-gray-300"}`}>
-          {value || "—"}
-        </p>
+        {value && href ? (
+          // The value itself is clickable (mailto:/tel:/https:), not just the
+          // Send/Call/Open action on the right.
+          <a
+            href={href}
+            target={href.startsWith("http") ? "_blank" : undefined}
+            rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
+            className="block truncate text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
+          >
+            {value}
+          </a>
+        ) : (
+          <p
+            className={`truncate text-sm ${value ? "text-gray-900" : "text-gray-300"}`}
+          >
+            {value || "—"}
+          </p>
+        )}
       </div>
       {value && href ? (
         <a
@@ -279,11 +298,19 @@ export default async function AlumniProfilePage({
   let canEdit = false;
   let canArchive = false;
   let canAdd = false;
+  // Profile-completeness tab is gated by the editable `profile.completeness`
+  // capability (default: super_admin + engineer), toggleable per role in the
+  // Engineer Console permission editor. Read the effective capability set the
+  // backend resolves under the live config.
+  let canViewCompleteness = false;
   try {
     const ctx = await apiGet<UserContext>("/auth/context");
     canEdit = canEditAlumni(ctx.roles);
     canArchive = hasFullAccess(ctx.roles);
     canAdd = canAddInteraction(ctx.roles);
+    canViewCompleteness = (ctx.capabilities ?? []).includes(
+      "profile.completeness",
+    );
   } catch {
     /* not provisioned → view-only */
   }
@@ -565,22 +592,6 @@ export default async function AlumniProfilePage({
                 )}
               </Panel>
 
-              {/* Record note (#211): the free-text `notes` field entered on the
-                  add/edit alumni form. Distinct from the unified-notes timeline
-                  below (those are separate, audited note records). Read-only
-                  here — editing happens on the alumni edit form. Only shown when
-                  a note exists. */}
-              {a.notes ? (
-                <Panel
-                  title="Record note"
-                  action={canEdit ? <EditLink id={aid} /> : undefined}
-                >
-                  <p className="whitespace-pre-wrap text-sm text-gray-900">
-                    {a.notes}
-                  </p>
-                </Panel>
-              ) : null}
-
               {/* Contact information */}
               <Panel
                 title="Contact information"
@@ -711,10 +722,15 @@ export default async function AlumniProfilePage({
                 </div>
               </Panel>
 
-              {/* Personal & family */}
+              {/* Personal & family — as the column's last child it's stretched
+                  to fill the remaining height (so the sidebar ends level with
+                  the main column); center its content vertically so the extra
+                  height isn't dead space at the bottom of the card. */}
               <Panel
                 title="Personal & family"
                 action={canEdit ? <EditLink id={aid} /> : undefined}
+                className="lg:flex lg:flex-col"
+                contentClassName="lg:flex lg:flex-1 lg:flex-col lg:justify-center"
               >
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field label="Birthday" value={fmtDate(a.birth_date)} />
@@ -744,59 +760,65 @@ export default async function AlumniProfilePage({
                 </div>
               </Panel>
 
-              {/* Profile completeness — admin tool, hidden for view_only. */}
-              {canEdit ? (
-              <Panel title="Profile completeness">
-                <div className="mb-3 flex items-end justify-between">
-                  <span className="text-3xl font-semibold tabular-nums text-gray-900">
-                    {completeness}%
-                  </span>
-                  <Badge variant={completenessTone}>{completenessLabel}</Badge>
-                </div>
-                <Progress
-                  value={completeness}
-                  className="mb-4"
-                  barClassName={
-                    completenessTone === "success"
-                      ? "bg-success-600"
-                      : completenessTone === "warning"
-                        ? "bg-warning-600"
-                        : "bg-danger-600"
-                  }
-                />
-                <ul className="space-y-2">
-                  {checks.map((ck) => (
-                    <li
-                      key={ck.label}
-                      className="flex items-center justify-between text-sm"
-                    >
-                      <span className="flex items-center gap-2 text-gray-700">
-                        {ck.ok ? (
-                          <Check className="h-4 w-4 text-success-600" />
-                        ) : (
-                          <CircleAlert className="h-4 w-4 text-warning-600" />
-                        )}
-                        {ck.label}
-                      </span>
-                      <span
-                        className={`text-xs font-medium ${ck.ok ? "text-success-600" : "text-warning-600"}`}
-                      >
-                        {ck.ok ? "Complete" : "Missing"}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                {canEdit && missing.length ? (
-                  <Button asChild variant="secondary" className="mt-4 w-full">
-                    <Link href={`/alumni/${aid}/edit`}>Add missing info</Link>
-                  </Button>
-                ) : null}
-              </Panel>
-              ) : null}
-
                   </div>
                 </div>
               </div>
+            }
+            profileCompleteness={
+              // Its own tab, gated by the editable `profile.completeness`
+              // capability (default super_admin + engineer; toggleable per role
+              // in the Engineer Console permission editor). Omitted entirely
+              // when the viewer doesn't hold the capability.
+              canViewCompleteness ? (
+                <Panel title="Profile completeness">
+                  <div className="mb-3 flex items-end justify-between">
+                    <span className="text-3xl font-semibold tabular-nums text-gray-900">
+                      {completeness}%
+                    </span>
+                    <Badge variant={completenessTone}>
+                      {completenessLabel}
+                    </Badge>
+                  </div>
+                  <Progress
+                    value={completeness}
+                    className="mb-4"
+                    barClassName={
+                      completenessTone === "success"
+                        ? "bg-success-600"
+                        : completenessTone === "warning"
+                          ? "bg-warning-600"
+                          : "bg-danger-600"
+                    }
+                  />
+                  <ul className="space-y-2">
+                    {checks.map((ck) => (
+                      <li
+                        key={ck.label}
+                        className="flex items-center justify-between text-sm"
+                      >
+                        <span className="flex items-center gap-2 text-gray-700">
+                          {ck.ok ? (
+                            <Check className="h-4 w-4 text-success-600" />
+                          ) : (
+                            <CircleAlert className="h-4 w-4 text-warning-600" />
+                          )}
+                          {ck.label}
+                        </span>
+                        <span
+                          className={`text-xs font-medium ${ck.ok ? "text-success-600" : "text-warning-600"}`}
+                        >
+                          {ck.ok ? "Complete" : "Missing"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {canEdit && missing.length ? (
+                    <Button asChild variant="secondary" className="mt-4 w-full">
+                      <Link href={`/alumni/${aid}/edit`}>Add missing info</Link>
+                    </Button>
+                  ) : null}
+                </Panel>
+              ) : undefined
             }
             engagement={
               // Engagement & tags is an editor tool — the tab only renders for
@@ -908,9 +930,9 @@ export default async function AlumniProfilePage({
                 </Panel>
               ) : undefined
             }
-            education={
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                {/* Employment history */}
+            employment={
+              <div>
+                {/* Employment history — its own tab, full width. */}
                 <Panel
                   title="Employment history"
                   action={canEdit ? <AddRoleButton alumniId={aid} /> : undefined}
@@ -975,7 +997,13 @@ export default async function AlumniProfilePage({
                     </p>
                   )}
                 </Panel>
-
+              </div>
+            }
+            education={
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+                {/* Main column fills the available width; leadership (when
+                    present) sits in a fixed right sidebar. */}
+                <div className="min-w-0 flex-1 space-y-4">
                 {/* Education */}
                 {profile.education.length || canEdit ? (
                   <Panel
@@ -1123,17 +1151,20 @@ export default async function AlumniProfilePage({
                   </Panel>
                 ) : null}
 
-                {/* Finance Society leadership */}
-                {profile.leadership.length || canEdit ? (
-                  <Panel
-                    title="Finance Society leadership"
-                    action={
-                      canEdit ? (
-                        <AddLeadershipButton alumniId={aid} />
-                      ) : undefined
-                    }
-                  >
-                    {profile.leadership.length ? (
+                </div>
+                {/* Finance Society leadership — right sidebar; hidden entirely
+                    when the alumnus has no recorded leadership (no empty-state
+                    or add-only card). */}
+                {profile.leadership.length ? (
+                  <div className="space-y-4 lg:w-80 lg:shrink-0">
+                    <Panel
+                      title="Finance Society leadership"
+                      action={
+                        canEdit ? (
+                          <AddLeadershipButton alumniId={aid} />
+                        ) : undefined
+                      }
+                    >
                       <DrawerList
                         title="Finance Society leadership"
                         collapsed={3}
@@ -1165,12 +1196,8 @@ export default async function AlumniProfilePage({
                           </li>
                         ))}
                       </DrawerList>
-                    ) : (
-                      <p className="py-6 text-center text-sm text-gray-500">
-                        No leadership roles recorded yet.
-                      </p>
-                    )}
-                  </Panel>
+                    </Panel>
+                  </div>
                 ) : null}
               </div>
             }
