@@ -657,9 +657,6 @@ export default async function AlumniProfilePage({
                 {/* Personal & family — merged into the contact box as a labeled
                     subsection so contact + personal details share one card. */}
                 <div className="mt-5 border-t border-gray-100 pt-5">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    Personal &amp; family
-                  </p>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <Field label="Birthday" value={fmtDate(a.birth_date)} />
                     <div>
