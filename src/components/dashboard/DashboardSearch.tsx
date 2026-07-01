@@ -333,7 +333,12 @@ export function DashboardSearch({
           value="advanced"
           className="flex h-[calc(100vh-22rem)] min-h-[20rem] flex-col space-y-4"
         >
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+          {/* overflow-y:auto forces overflow-x to compute to auto too, which
+              clips a focused field's ring/offset at the flush left edge (the
+              scroll-free Quick tab doesn't clip). Give the scroll box inline
+              padding so the ring has room, and cancel it with -mx so the fields
+              stay aligned with the Quick tab (no shift on tab switch). */}
+          <div className="-mx-2 min-h-0 flex-1 space-y-4 overflow-y-auto px-2">
             <IdentityGrid value={adv} onChange={setAdv} />
             <GradYearRange
               ymin={advYear.ymin}
