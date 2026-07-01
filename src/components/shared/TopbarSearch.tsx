@@ -67,8 +67,11 @@ export function TopbarSearch({
     const seq = ++seqRef.current;
     const timer = setTimeout(async () => {
       try {
+        // kind=all so the global quick search spans BOTH alumni and friends of
+        // the program (is_alumni=false); the default /alumni search would
+        // otherwise return alumni only and never surface a friend (#218).
         const page = await clientGet<AlumniPage>(
-          `/alumni?q=${encodeURIComponent(term)}&limit=${MAX_MATCHES}&offset=0`,
+          `/alumni?q=${encodeURIComponent(term)}&kind=all&limit=${MAX_MATCHES}&offset=0`,
         );
         if (seq !== seqRef.current) return;
         setMatches(page.items);
