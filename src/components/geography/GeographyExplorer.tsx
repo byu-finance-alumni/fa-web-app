@@ -25,8 +25,6 @@ import { INDUSTRY_OPTIONS } from "@/constants/dropdowns";
 import { UsGeoMap } from "./UsGeoMap";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-// (radius presets + search-dimension tabs use text-style controls, not Chips)
-import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -37,42 +35,11 @@ const MAX_MILES = 250;
 // `industry` are also map-wide filters the server applies to the choropleth.
 const FILTER_KEYS = ["industry", "employer", "year", "region", "tag"] as const;
 
-/** Dimensions the map search supports (#214). City drives the radius center;
- *  State drills into the per-state map; Industry/Company re-shade the whole map
- *  via the server filter params the geography endpoints already accept. */
-const SEARCH_DIMENSIONS = [
-  { key: "city", label: "City" },
-  { key: "state", label: "State" },
-  { key: "industry", label: "Industry" },
-  { key: "company", label: "Company" },
-] as const;
-type SearchDimension = (typeof SEARCH_DIMENSIONS)[number]["key"];
-
-function searchPlaceholder(dim: SearchDimension): string {
-  switch (dim) {
-    case "state":
-      return "Search a state — e.g. Utah or UT";
-    case "company":
-      return "Search a company — e.g. Goldman Sachs";
-    case "industry":
-      return "Search an industry";
-    default:
-      return "Search a city — e.g. Provo, UT";
-  }
-}
-
-function searchDimLabel(dim: SearchDimension): string {
-  switch (dim) {
-    case "state":
-      return "a state";
-    case "company":
-      return "a company";
-    case "industry":
-      return "an industry";
-    default:
-      return "a city";
-  }
-}
+// The map search box is unified (#214): one field resolves whatever you type,
+// in this order — a US state (full name or 2-letter code) drills into that
+// state; a term matching a known industry re-shades the map by industry; a
+// place geocodes to a radius center; anything else is treated as a company
+// (employer) filter. See onSearch for the logic.
 
 export interface RadiusState {
   lat?: string;
@@ -136,14 +103,10 @@ export function GeographyExplorer({
   // world view is wired behind a `WorldGeoMap` that loads a world topojson when
   // the asset is present (see note in that component).
   const [mapView, setMapView] = useState<"us" | "world">("us");
-  // Which dimension the search box targets (#214): City (radius center), State
-  // (drill-down), Industry / Company (server map filters). Seed the box with the
-  // active employer/industry filter or the resolved place so it reflects the URL.
-  const [searchDim, setSearchDim] = useState<SearchDimension>(
-    radius.employer ? "company" : "city",
-  );
+  // Seed the box with the active employer/industry filter or the resolved place
+  // so it reflects the current URL state.
   const [searchInput, setSearchInput] = useState(
-    radius.employer ?? radius.place ?? "",
+    radius.employer ?? radius.industry ?? radius.place ?? "",
   );
   // Results panel starts open whenever there's a center; collapsible to reveal
   // the map underneath, Marketplace-style.
@@ -188,68 +151,85 @@ export function GeographyExplorer({
     [radius],
   );
 
-  // Unified search across the four dimensions (#214). City geocodes to a radius
-  // center; State drills into the per-state map; Industry / Company apply a
-  // server-side map filter that re-shades the whole choropleth.
+  // Clear BOTH map-wide filters (industry + employer) while keeping the radius
+  // center and other filters — used when the unified search box is submitted
+  // empty (reset the shading).
+  const buildClearFiltersUrl = useCallback(() => {
+    const merged: RadiusState = {
+      ...radius,
+      industry: undefined,
+      employer: undefined,
+    };
+    const p = new URLSearchParams();
+    if (merged.lat) p.set("lat", String(merged.lat));
+    if (merged.lng) p.set("lng", String(merged.lng));
+    if (merged.place) p.set("place", merged.place);
+    p.set("miles", String(merged.miles));
+    for (const k of FILTER_KEYS) {
+      const v = merged[k];
+      if (v) p.set(k, v);
+    }
+    return `/map?${p.toString()}`;
+  }, [radius]);
+
+  // Unified map search (#214): one box, resolved in priority order — US state
+  // (name/code) → known industry → city (geocode → radius center) → otherwise a
+  // company (employer) filter. An empty submit clears the industry/employer
+  // shading.
   async function onSearch(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const query = searchInput.trim();
     setGeoError(null);
     setGeoNote(null);
 
-    // Industry is a Select — an empty value means "All industries" (clear the
-    // filter) rather than an error.
-    if (searchDim === "industry") {
-      startTransition(() =>
-        router.push(buildFilterUrl("industry", query || undefined)),
-      );
-      return;
-    }
-
     if (!query) {
-      setGeoError(`Enter ${searchDimLabel(searchDim)} to search.`);
-      return;
-    }
-
-    if (searchDim === "company") {
-      startTransition(() => router.push(buildFilterUrl("employer", query)));
+      startTransition(() => router.push(buildClearFiltersUrl()));
       return;
     }
 
     setSearching(true);
     try {
-      if (searchDim === "state") {
-        const res = await resolveState(query);
-        if (!res.ok) {
-          setGeoError(res.error);
-          return;
-        }
-        startTransition(() => router.push(`/map/state/${res.code}`));
+      // 1) A US state (full name or 2-letter code) → drill into its map.
+      const state = await resolveState(query);
+      if (state.ok) {
+        startTransition(() => router.push(`/map/state/${state.code}`));
         return;
       }
 
-      // City — geocode to a radius center.
-      const res = await geocodePlace(query);
-      if (!res.ok) {
-        setGeoError(res.error);
+      // 2) A known industry (controlled vocabulary, case-insensitive) →
+      //    re-shade the whole map by that industry.
+      const industry = INDUSTRY_OPTIONS.find(
+        (o) => o.toLowerCase() === query.toLowerCase(),
+      );
+      if (industry) {
+        startTransition(() => router.push(buildFilterUrl("industry", industry)));
         return;
       }
-      if (res.spannedStates && res.spannedStates.length) {
-        const shown = res.spannedStates.slice(0, 5).join(", ");
-        const more = res.spannedStates.length > 5 ? ", …" : "";
-        setGeoNote(
-          `"${res.label.split(",")[0]}" is also in ${shown}${more}. Showing ${res.label} — add a state to pick another.`,
+
+      // 3) A place → geocode to a radius center.
+      const geo = await geocodePlace(query);
+      if (geo.ok) {
+        if (geo.spannedStates && geo.spannedStates.length) {
+          const shown = geo.spannedStates.slice(0, 5).join(", ");
+          const more = geo.spannedStates.length > 5 ? ", …" : "";
+          setGeoNote(
+            `"${geo.label.split(",")[0]}" is also in ${shown}${more}. Showing ${geo.label} — add a state to pick another.`,
+          );
+        }
+        startTransition(() =>
+          router.push(
+            buildRadiusUrl({
+              lat: String(geo.lat),
+              lng: String(geo.lng),
+              place: geo.label,
+            }),
+          ),
         );
+        return;
       }
-      startTransition(() =>
-        router.push(
-          buildRadiusUrl({
-            lat: String(res.lat),
-            lng: String(res.lng),
-            place: res.label,
-          }),
-        ),
-      );
+
+      // 4) Otherwise treat it as a company (employer) filter.
+      startTransition(() => router.push(buildFilterUrl("employer", query)));
     } finally {
       setSearching(false);
     }
@@ -278,7 +258,6 @@ export function GeographyExplorer({
     // Reverse-geocode the pin to the nearest city so the label reads as a place.
     const name = await reverseGeocode(lat, lng).catch(() => null);
     if (name) {
-      setSearchDim("city");
       setSearchInput(name);
     }
     startTransition(() =>
@@ -376,73 +355,18 @@ export function GeographyExplorer({
       <div className="absolute left-4 top-4 z-20 w-[min(24rem,calc(100%-2rem))]">
         <Card className="p-3">
           <form onSubmit={onSearch} className="space-y-2">
-            {/* Dimension selector — text-style segmented control (no icons). */}
-            <div className="flex flex-wrap gap-1" role="tablist" aria-label="Search by">
-              {SEARCH_DIMENSIONS.map((d) => {
-                const active = searchDim === d.key;
-                return (
-                  <button
-                    key={d.key}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => {
-                      setSearchDim(d.key);
-                      setGeoError(null);
-                      setGeoNote(null);
-                      // Seed the box with the active filter for that dimension so
-                      // it reflects the current map state.
-                      if (d.key === "company") setSearchInput(radius.employer ?? "");
-                      else if (d.key === "industry")
-                        setSearchInput(radius.industry ?? "");
-                      else if (d.key === "city")
-                        setSearchInput(radius.place ?? "");
-                      else setSearchInput("");
-                    }}
-                    className={cn(
-                      "rounded-md px-2.5 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
-                      active
-                        ? "bg-brand-blue-600 text-white"
-                        : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
-                    )}
-                  >
-                    {d.label}
-                  </button>
-                );
-              })}
-            </div>
-
             <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1">
-                {searchDim === "industry" ? (
-                  <Select
-                    value={searchInput}
-                    onChange={(e) => {
-                      setSearchInput(e.target.value);
-                      if (geoError) setGeoError(null);
-                    }}
-                    aria-label="Search alumni by industry"
-                    style={{ colorScheme: "light" }}
-                  >
-                    <option value="">All industries</option>
-                    {INDUSTRY_OPTIONS.map((o) => (
-                      <option key={o} value={o}>
-                        {o}
-                      </option>
-                    ))}
-                  </Select>
-                ) : (
-                  <Input
-                    value={searchInput}
-                    onChange={(e) => {
-                      setSearchInput(e.target.value);
-                      if (geoError) setGeoError(null);
-                    }}
-                    placeholder={searchPlaceholder(searchDim)}
-                    aria-label={`Search alumni by ${searchDim}`}
-                    aria-invalid={geoError ? true : undefined}
-                  />
-                )}
+                <Input
+                  value={searchInput}
+                  onChange={(e) => {
+                    setSearchInput(e.target.value);
+                    if (geoError) setGeoError(null);
+                  }}
+                  placeholder="Search a city, state, industry, or company"
+                  aria-label="Search the map by city, state, industry, or company"
+                  aria-invalid={geoError ? true : undefined}
+                />
                 {geoError ? (
                   <p className="mt-1.5 text-xs text-danger-600">{geoError}</p>
                 ) : null}
