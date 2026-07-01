@@ -652,6 +652,42 @@ export default async function AlumniProfilePage({
                     No contact information on file yet.
                   </p>
                 )}
+
+                {/* Personal & family — merged into the contact box as a labeled
+                    subsection so contact + personal details share one card. */}
+                <div className="mt-5 border-t border-gray-100 pt-5">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Personal &amp; family
+                  </p>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <Field label="Birthday" value={fmtDate(a.birth_date)} />
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Spouse
+                      </p>
+                      {spouseLinkLabel ? (
+                        a.spouse_alumni_id ? (
+                          <Link
+                            href={`/alumni/${a.spouse_alumni_id}`}
+                            className="text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
+                          >
+                            {spouseLinkLabel} ↗
+                          </Link>
+                        ) : (
+                          <p className="text-sm text-gray-900">
+                            {spouseLinkLabel}
+                          </p>
+                        )
+                      ) : (
+                        <p className="text-sm text-gray-300">—</p>
+                      )}
+                    </div>
+                    <Field
+                      label="Spouse birthday"
+                      value={fmtDate(a.spouse_birth_date)}
+                    />
+                  </div>
+                </div>
               </Panel>
 
               {/* Engagement summary — right column, spanning both left-column
@@ -719,41 +755,6 @@ export default async function AlumniProfilePage({
                       </ChipRow>
                     </div>
                   ) : null}
-                </div>
-              </Panel>
-
-              {/* Personal & family — full-width bottom section, spanning all
-                  three columns beneath the other panels. */}
-              <Panel
-                title="Personal & family"
-                className="lg:col-span-3"
-                action={canEdit ? <EditLink id={aid} /> : undefined}
-              >
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  <Field label="Birthday" value={fmtDate(a.birth_date)} />
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      Spouse
-                    </p>
-                    {spouseLinkLabel ? (
-                      a.spouse_alumni_id ? (
-                        <Link
-                          href={`/alumni/${a.spouse_alumni_id}`}
-                          className="text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
-                        >
-                          {spouseLinkLabel} ↗
-                        </Link>
-                      ) : (
-                        <p className="text-sm text-gray-900">{spouseLinkLabel}</p>
-                      )
-                    ) : (
-                      <p className="text-sm text-gray-300">—</p>
-                    )}
-                  </div>
-                  <Field
-                    label="Spouse birthday"
-                    value={fmtDate(a.spouse_birth_date)}
-                  />
                 </div>
               </Panel>
 
