@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-  GraduationCap,
   Building2,
   Mail,
   Phone,
@@ -15,7 +14,7 @@ import {
 } from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
 import { daysAgo } from "@/lib/format";
-import type { Profile } from "@/types/profile";
+import type { Contact, Profile } from "@/types/profile";
 import type { UserContext } from "@/types/alumni";
 import { canAddInteraction, canEditAlumni, hasFullAccess } from "@/constants/roles";
 import { Topbar } from "@/components/shell/Topbar";
@@ -74,6 +73,63 @@ const place = (...parts: (string | null | undefined)[]) =>
 
 /* -------------------------------------------------------- server components */
 
+/**
+ * Compact contact strip rendered in the profile header (#223) — email, phone,
+ * and mailing address shown next to the name. Text-only (no icons) per the
+ * design rules. Email/phone are actionable links; the address is plain text.
+ * Renders nothing when no contact data is on file (the Overview panel still
+ * carries the full, field-by-field breakdown).
+ */
+function HeaderContact({
+  contact,
+  linkedinUrl,
+}: {
+  contact: Contact | null;
+  linkedinUrl: string | null;
+}) {
+  const email = contact?.personal_email || contact?.work_email || null;
+  const phone = contact?.phone || null;
+  const mailing = place(
+    place(contact?.address_line_1, contact?.address_line_2),
+    place(contact?.city, contact?.state),
+    contact?.zip,
+  );
+
+  if (!email && !phone && !mailing && !linkedinUrl) return null;
+
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
+      {email ? (
+        <a
+          href={`mailto:${email}`}
+          className="font-medium text-brand-blue-600 hover:text-brand-blue-500"
+        >
+          {email}
+        </a>
+      ) : null}
+      {phone ? (
+        <a
+          href={`tel:${phone}`}
+          className="font-medium text-brand-blue-600 hover:text-brand-blue-500"
+        >
+          {phone}
+        </a>
+      ) : null}
+      {linkedinUrl ? (
+        <a
+          href={linkedinUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-brand-blue-600 hover:text-brand-blue-500"
+        >
+          LinkedIn
+        </a>
+      ) : null}
+      {mailing ? <span className="text-gray-600">{mailing}</span> : null}
+    </div>
+  );
+}
+
 function Panel({
   title,
   action,
@@ -118,9 +174,24 @@ function ContactField({
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
           {label}
         </p>
-        <p className={`truncate text-sm ${value ? "text-gray-900" : "text-gray-300"}`}>
-          {value || "—"}
-        </p>
+        {value && href ? (
+          // The value itself is clickable (mailto:/tel:/https:), not just the
+          // Send/Call/Open action on the right.
+          <a
+            href={href}
+            target={href.startsWith("http") ? "_blank" : undefined}
+            rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
+            className="block truncate text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
+          >
+            {value}
+          </a>
+        ) : (
+          <p
+            className={`truncate text-sm ${value ? "text-gray-900" : "text-gray-300"}`}
+          >
+            {value || "—"}
+          </p>
+        )}
       </div>
       {value && href ? (
         <a
@@ -223,11 +294,19 @@ export default async function AlumniProfilePage({
   let canEdit = false;
   let canArchive = false;
   let canAdd = false;
+  // Profile-completeness tab is gated by the editable `profile.completeness`
+  // capability (default: super_admin + engineer), toggleable per role in the
+  // Engineer Console permission editor. Read the effective capability set the
+  // backend resolves under the live config.
+  let canViewCompleteness = false;
   try {
     const ctx = await apiGet<UserContext>("/auth/context");
     canEdit = canEditAlumni(ctx.roles);
     canArchive = hasFullAccess(ctx.roles);
     canAdd = canAddInteraction(ctx.roles);
+    canViewCompleteness = (ctx.capabilities ?? []).includes(
+      "profile.completeness",
+    );
   } catch {
     /* not provisioned → view-only */
   }
@@ -382,6 +461,13 @@ export default async function AlumniProfilePage({
                       </span>
                     ) : null}
                   </div>
+
+                  {/* Contact info lifted into the header (#223): email, phone,
+                      and mailing address are visible right next to the name.
+                      Text-only (no icons) per the design rules; the full
+                      breakdown still lives in the Overview "Contact
+                      information" panel. */}
+                  <HeaderContact contact={c} linkedinUrl={a.linkedin_url} />
                 </div>
               </div>
 
@@ -423,7 +509,7 @@ export default async function AlumniProfilePage({
             {(profile.tags.length || profile.status_labels.length) > 0 ? (
               <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-4">
                 <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Engagement
+                  Tags
                 </span>
                 {profile.tags.map((t) => (
                   <EngagementChip
@@ -472,12 +558,17 @@ export default async function AlumniProfilePage({
           <AlumniProfileTabs
             overview={
               <div className="space-y-4">
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                  {/* Main column (wider). */}
-                  <div className="flex flex-col gap-4 lg:col-span-2">
+                {/* 2x2 grid: each right-column box (Engagement summary /
+                    Personal & family) shares a row with a left-column box
+                    (Career snapshot / Contact information) so the paired boxes
+                    stretch to the same height. Dense flow keeps the DOM order
+                    while slotting the narrow right cards beside the wide left
+                    ones. */}
+                <div className="grid grid-cols-1 gap-4 lg:grid-flow-row-dense lg:grid-cols-3 lg:items-stretch">
               {/* Career snapshot — lead with what they do (before contact info) */}
               <Panel
                 title="Career snapshot"
+                className="lg:col-span-2"
                 action={canEdit ? <EditLink id={aid} /> : undefined}
               >
                 {career ? (
@@ -502,9 +593,12 @@ export default async function AlumniProfilePage({
                 )}
               </Panel>
 
-              {/* Contact information */}
+              {/* Contact information (+ the Personal & family subsection) —
+                  full-width bottom section, taking over the space beneath
+                  Career snapshot and Engagement summary. */}
               <Panel
                 title="Contact information"
+                className="lg:col-span-3"
                 action={canEdit ? <EditLink id={aid} /> : undefined}
               >
                 {c ? (
@@ -559,25 +653,43 @@ export default async function AlumniProfilePage({
                     No contact information on file yet.
                   </p>
                 )}
+
+                {/* Personal & family — merged into the contact box as a labeled
+                    subsection so contact + personal details share one card. */}
+                <div className="mt-5 border-t border-gray-100 pt-5">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <Field label="Birthday" value={fmtDate(a.birth_date)} />
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Spouse
+                      </p>
+                      {spouseLinkLabel ? (
+                        a.spouse_alumni_id ? (
+                          <Link
+                            href={`/alumni/${a.spouse_alumni_id}`}
+                            className="text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
+                          >
+                            {spouseLinkLabel} ↗
+                          </Link>
+                        ) : (
+                          <p className="text-sm text-gray-900">
+                            {spouseLinkLabel}
+                          </p>
+                        )
+                      ) : (
+                        <p className="text-sm text-gray-300">—</p>
+                      )}
+                    </div>
+                    <Field
+                      label="Spouse birthday"
+                      value={fmtDate(a.spouse_birth_date)}
+                    />
+                  </div>
+                </div>
               </Panel>
 
-              {/* Unified notes (#39): free-text notes on this alumnus. Visible to
-                  every role; writing is full_access (canArchive), re-enforced and
-                  audit-logged server-side. */}
-              <Panel title="Notes">
-                <ProfileNotes
-                  alumniId={aid}
-                  notes={notes}
-                  canWrite={canArchive}
-                />
-              </Panel>
-
-            </div>
-
-            {/* Right sidebar (narrower). Same flex-column treatment so it ends
-                level with the main column. */}
-            <div className="flex flex-col gap-4 lg:[&>:last-child]:flex-1">
-              {/* Engagement summary — non-sensitive metrics + tags + derived
+              {/* Engagement summary — right column, row 1 (beside Career
+                  snapshot). Non-sensitive metrics + tags + derived
                   last-contacted. Shown for all roles (same gating posture as
                   "Engagement & tags"). Last-contacted comes from the newest
                   interaction, not a backend score. */}
@@ -643,99 +755,71 @@ export default async function AlumniProfilePage({
                 </div>
               </Panel>
 
-              {/* Personal & family */}
-              <Panel
-                title="Personal & family"
-                action={canEdit ? <EditLink id={aid} /> : undefined}
-              >
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Field label="Birthday" value={fmtDate(a.birth_date)} />
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      Spouse
-                    </p>
-                    {spouseLinkLabel ? (
-                      a.spouse_alumni_id ? (
-                        <Link
-                          href={`/alumni/${a.spouse_alumni_id}`}
-                          className="text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
-                        >
-                          {spouseLinkLabel} ↗
-                        </Link>
-                      ) : (
-                        <p className="text-sm text-gray-900">{spouseLinkLabel}</p>
-                      )
-                    ) : (
-                      <p className="text-sm text-gray-300">—</p>
-                    )}
-                  </div>
-                  <Field
-                    label="Spouse birthday"
-                    value={fmtDate(a.spouse_birth_date)}
-                  />
-                </div>
-              </Panel>
-
-              {/* Profile completeness — admin tool, hidden for view_only. */}
-              {canEdit ? (
-              <Panel title="Profile completeness">
-                <div className="mb-3 flex items-end justify-between">
-                  <span className="text-3xl font-semibold tabular-nums text-gray-900">
-                    {completeness}%
-                  </span>
-                  <Badge variant={completenessTone}>{completenessLabel}</Badge>
-                </div>
-                <Progress
-                  value={completeness}
-                  className="mb-4"
-                  barClassName={
-                    completenessTone === "success"
-                      ? "bg-success-600"
-                      : completenessTone === "warning"
-                        ? "bg-warning-600"
-                        : "bg-danger-600"
-                  }
-                />
-                <ul className="space-y-2">
-                  {checks.map((ck) => (
-                    <li
-                      key={ck.label}
-                      className="flex items-center justify-between text-sm"
-                    >
-                      <span className="flex items-center gap-2 text-gray-700">
-                        {ck.ok ? (
-                          <Check className="h-4 w-4 text-success-600" />
-                        ) : (
-                          <CircleAlert className="h-4 w-4 text-warning-600" />
-                        )}
-                        {ck.label}
-                      </span>
-                      <span
-                        className={`text-xs font-medium ${ck.ok ? "text-success-600" : "text-warning-600"}`}
-                      >
-                        {ck.ok ? "Complete" : "Missing"}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                {canEdit && missing.length ? (
-                  <Button asChild variant="secondary" className="mt-4 w-full">
-                    <Link href={`/alumni/${aid}/edit`}>Add missing info</Link>
-                  </Button>
-                ) : null}
-              </Panel>
-              ) : null}
-
-                  </div>
                 </div>
               </div>
+            }
+            profileCompleteness={
+              // Its own tab, gated by the editable `profile.completeness`
+              // capability (default super_admin + engineer; toggleable per role
+              // in the Engineer Console permission editor). Omitted entirely
+              // when the viewer doesn't hold the capability.
+              canViewCompleteness ? (
+                <Panel title="Profile completeness">
+                  <div className="mb-3 flex items-end justify-between">
+                    <span className="text-3xl font-semibold tabular-nums text-gray-900">
+                      {completeness}%
+                    </span>
+                    <Badge variant={completenessTone}>
+                      {completenessLabel}
+                    </Badge>
+                  </div>
+                  <Progress
+                    value={completeness}
+                    className="mb-4"
+                    barClassName={
+                      completenessTone === "success"
+                        ? "bg-success-600"
+                        : completenessTone === "warning"
+                          ? "bg-warning-600"
+                          : "bg-danger-600"
+                    }
+                  />
+                  <ul className="space-y-2">
+                    {checks.map((ck) => (
+                      <li
+                        key={ck.label}
+                        className="flex items-center justify-between text-sm"
+                      >
+                        <span className="flex items-center gap-2 text-gray-700">
+                          {ck.ok ? (
+                            <Check className="h-4 w-4 text-success-600" />
+                          ) : (
+                            <CircleAlert className="h-4 w-4 text-warning-600" />
+                          )}
+                          {ck.label}
+                        </span>
+                        <span
+                          className={`text-xs font-medium ${ck.ok ? "text-success-600" : "text-warning-600"}`}
+                        >
+                          {ck.ok ? "Complete" : "Missing"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {canEdit && missing.length ? (
+                    <Button asChild variant="secondary" className="mt-4 w-full">
+                      <Link href={`/alumni/${aid}/edit`}>Add missing info</Link>
+                    </Button>
+                  ) : null}
+                </Panel>
+              ) : undefined
             }
             engagement={
               // Engagement & tags is an editor tool — the tab only renders for
               // users who can edit (AlumniProfileTabs omits a tab whose node is
               // undefined), so view-only roles never see it.
               canEdit ? (
-                <Panel title="Engagement & tags">
+                <Panel title="Tags">
                   <div className="space-y-5">
                     <TagStatusManager
                       alumniId={aid}
@@ -766,9 +850,83 @@ export default async function AlumniProfilePage({
                 canWriteNotes={canArchive}
               />
             }
-            education={
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                {/* Employment history */}
+            notes={
+              /* Unified notes (#39) in their own tab. Visible to every role;
+                 writing is full_access (canArchive), re-enforced + audit-logged
+                 server-side. ProfileNotes renders its own empty state. */
+              <Panel title="Notes">
+                <ProfileNotes
+                  alumniId={aid}
+                  notes={notes}
+                  canWrite={canArchive}
+                />
+              </Panel>
+            }
+            events={
+              /* Recent events / attendance in their own tab (moved off Education).
+                 Rendered only when the alumnus has events or the viewer can add
+                 them, otherwise the island omits the tab. */
+              profile.events.length || canEdit ? (
+                <Panel
+                  title="Recent events"
+                  action={
+                    canEdit ? <AddEventButton alumniId={aid} /> : undefined
+                  }
+                >
+                  {profile.events.length ? (
+                    <DrawerList
+                      title="Recent events"
+                      collapsed={5}
+                      listClassName="space-y-1"
+                      action={
+                        canEdit ? <AddEventButton alumniId={aid} /> : undefined
+                      }
+                    >
+                      {profile.events.map((ev) => {
+                        const md = monthDay(ev.event_date);
+                        return (
+                          <li
+                            key={ev.event_id}
+                            className="flex items-center gap-3 border-b border-gray-100 py-2.5 last:border-0"
+                          >
+                            <span className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-lg bg-gray-100 text-center">
+                              <span className="text-[9px] font-semibold uppercase text-gray-500">
+                                {md?.mon ?? "—"}
+                              </span>
+                              <span className="text-sm font-semibold tabular-nums text-gray-900">
+                                {md?.day ?? "--"}
+                              </span>
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-gray-900">
+                                {ev.event_name}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {[ev.event_location, ev.event_type]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </p>
+                            </div>
+                            {ev.attendance_status ? (
+                              <EngagementChip tone="neutral">
+                                {ev.attendance_status}
+                              </EngagementChip>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                    </DrawerList>
+                  ) : (
+                    <p className="py-6 text-center text-sm text-gray-500">
+                      No events attended yet.
+                    </p>
+                  )}
+                </Panel>
+              ) : undefined
+            }
+            employment={
+              <div>
+                {/* Employment history — its own tab, full width. */}
                 <Panel
                   title="Employment history"
                   action={canEdit ? <AddRoleButton alumniId={aid} /> : undefined}
@@ -833,7 +991,13 @@ export default async function AlumniProfilePage({
                     </p>
                   )}
                 </Panel>
-
+              </div>
+            }
+            education={
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+                {/* Main column fills the available width; leadership (when
+                    present) sits in a fixed right sidebar. */}
+                <div className="min-w-0 flex-1 space-y-4">
                 {/* Education */}
                 {profile.education.length || canEdit ? (
                   <Panel
@@ -853,26 +1017,47 @@ export default async function AlumniProfilePage({
                           ) : undefined
                         }
                       >
-                        {profile.education.map((ed) => (
-                          <li
-                            key={ed.education_id}
-                            className="flex gap-3 border-b border-gray-100 py-3 last:border-0"
-                          >
-                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500">
-                              <GraduationCap
-                                className="h-4 w-4"
-                                aria-hidden="true"
-                              />
-                            </span>
-                            <div className="min-w-0 flex-1">
+                        {profile.education.map((ed) => {
+                          // Lead with the degree + major (what people scan
+                          // for); fall back to the university when no degree is
+                          // recorded so the row is never blank (#221).
+                          const degreeLine =
+                            [ed.degree, ed.major].filter(Boolean).join(" · ") ||
+                            null;
+                          const meta = [
+                            ed.college,
+                            ed.department,
+                            ed.degree_status,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ");
+                          return (
+                            <li
+                              key={ed.education_id}
+                              className="border-b border-gray-100 py-3 last:border-0"
+                            >
                               <div className="flex items-start justify-between gap-2">
-                                <p className="text-sm font-semibold text-gray-900">
-                                  {ed.university ?? "—"}
-                                </p>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-semibold text-gray-900">
+                                    {degreeLine ?? ed.university ?? "—"}
+                                  </p>
+                                  {degreeLine && ed.university ? (
+                                    <p className="text-sm text-gray-600">
+                                      {ed.university}
+                                    </p>
+                                  ) : null}
+                                  {meta ? (
+                                    <p className="mt-0.5 text-xs text-gray-500">
+                                      {meta}
+                                    </p>
+                                  ) : null}
+                                </div>
                                 <div className="flex shrink-0 items-center gap-2">
-                                  <span className="text-xs tabular-nums text-gray-500">
-                                    {ed.degree_year ?? "—"}
-                                  </span>
+                                  {ed.degree_year ? (
+                                    <Badge variant="neutral">
+                                      {ed.degree_year}
+                                    </Badge>
+                                  ) : null}
                                   {canEdit ? (
                                     <EducationRowActions
                                       alumniId={aid}
@@ -881,19 +1066,9 @@ export default async function AlumniProfilePage({
                                   ) : null}
                                 </div>
                               </div>
-                              <p className="text-sm text-gray-600">
-                                {[ed.degree, ed.major]
-                                  .filter(Boolean)
-                                  .join(" · ") || "—"}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                {[ed.college, ed.department, ed.degree_status]
-                                  .filter(Boolean)
-                                  .join(" · ")}
-                              </p>
-                            </div>
-                          </li>
-                        ))}
+                            </li>
+                          );
+                        })}
                       </DrawerList>
                     ) : (
                       <p className="py-6 text-center text-sm text-gray-500">
@@ -970,76 +1145,20 @@ export default async function AlumniProfilePage({
                   </Panel>
                 ) : null}
 
-                {/* Recent events */}
-                {profile.events.length || canEdit ? (
-                  <Panel
-                    title="Recent events"
-                    action={
-                      canEdit ? <AddEventButton alumniId={aid} /> : undefined
-                    }
-                  >
-                    {profile.events.length ? (
-                      <DrawerList
-                        title="Recent events"
-                        collapsed={3}
-                        listClassName="space-y-1"
-                        action={
-                          canEdit ? <AddEventButton alumniId={aid} /> : undefined
-                        }
-                      >
-                        {profile.events.map((ev) => {
-                          const md = monthDay(ev.event_date);
-                          return (
-                            <li
-                              key={ev.event_id}
-                              className="flex items-center gap-3 border-b border-gray-100 py-2.5 last:border-0"
-                            >
-                              <span className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-lg bg-gray-100 text-center">
-                                <span className="text-[9px] font-semibold uppercase text-gray-500">
-                                  {md?.mon ?? "—"}
-                                </span>
-                                <span className="text-sm font-semibold tabular-nums text-gray-900">
-                                  {md?.day ?? "--"}
-                                </span>
-                              </span>
-                              <div className="min-w-0 flex-1">
-                                <p className="text-sm font-medium text-gray-900">
-                                  {ev.event_name}
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                  {[ev.event_location, ev.event_type]
-                                    .filter(Boolean)
-                                    .join(" · ")}
-                                </p>
-                              </div>
-                              {ev.attendance_status ? (
-                                <EngagementChip tone="neutral">
-                                  {ev.attendance_status}
-                                </EngagementChip>
-                              ) : null}
-                            </li>
-                          );
-                        })}
-                      </DrawerList>
-                    ) : (
-                      <p className="py-6 text-center text-sm text-gray-500">
-                        No events attended yet.
-                      </p>
-                    )}
-                  </Panel>
-                ) : null}
-
-                {/* Finance Society leadership */}
-                {profile.leadership.length || canEdit ? (
-                  <Panel
-                    title="Finance Society leadership"
-                    action={
-                      canEdit ? (
-                        <AddLeadershipButton alumniId={aid} />
-                      ) : undefined
-                    }
-                  >
-                    {profile.leadership.length ? (
+                </div>
+                {/* Finance Society leadership — right sidebar; hidden entirely
+                    when the alumnus has no recorded leadership (no empty-state
+                    or add-only card). */}
+                {profile.leadership.length ? (
+                  <div className="space-y-4 lg:w-80 lg:shrink-0">
+                    <Panel
+                      title="Finance Society leadership"
+                      action={
+                        canEdit ? (
+                          <AddLeadershipButton alumniId={aid} />
+                        ) : undefined
+                      }
+                    >
                       <DrawerList
                         title="Finance Society leadership"
                         collapsed={3}
@@ -1071,12 +1190,8 @@ export default async function AlumniProfilePage({
                           </li>
                         ))}
                       </DrawerList>
-                    ) : (
-                      <p className="py-6 text-center text-sm text-gray-500">
-                        No leadership roles recorded yet.
-                      </p>
-                    )}
-                  </Panel>
+                    </Panel>
+                  </div>
                 ) : null}
               </div>
             }

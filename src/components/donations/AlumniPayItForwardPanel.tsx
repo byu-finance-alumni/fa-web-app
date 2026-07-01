@@ -57,6 +57,9 @@ export function AlumniPayItForwardPanel({
     byYear.set(d.year, cur);
   }
   const years = [...byYear.entries()].sort((a, b) => b[0] - a[0]);
+  // #220: surface the latest year a gift was given (max year) and how many
+  // gifts in total, replacing the old "Years given" (distinct-year count).
+  const mostRecentYear = years.length ? years[0][0] : null;
 
   return (
     <div className="space-y-4">
@@ -75,18 +78,18 @@ export function AlumniPayItForwardPanel({
         </Card>
         <Card className="p-4">
           <span className="block text-xs font-semibold uppercase tracking-wide text-gray-500">
-            Gifts
+            Most recent year
           </span>
           <p className="mt-1.5 text-2xl font-semibold tabular-nums text-gray-900">
-            {data.donation_count}
+            {mostRecentYear ?? "—"}
           </p>
         </Card>
         <Card className="p-4">
           <span className="block text-xs font-semibold uppercase tracking-wide text-gray-500">
-            Years given
+            Times given
           </span>
           <p className="mt-1.5 text-2xl font-semibold tabular-nums text-gray-900">
-            {years.length}
+            {data.donation_count}
           </p>
         </Card>
       </div>

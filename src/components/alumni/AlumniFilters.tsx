@@ -169,6 +169,7 @@ export function AlumniFilters({
   canExport = false,
   total,
   basePath = "/alumni",
+  isFriend = false,
 }: {
   initial: AlumniFilterState;
   options?: FilterOptions;
@@ -177,9 +178,12 @@ export function AlumniFilters({
   /** Filtered alumni total (= export row count, since exports reuse these filters). */
   total?: number;
   /** Route the live filtering navigates within. Defaults to the main alumni list;
-   *  the /needs-surveying view passes its own path so narrowing the due set stays
-   *  on that page (and keeps the route-owned needs_survey flag in effect). */
+   *  /friends and /needs-surveying pass their own path so filtering stays on that
+   *  route (and keeps any route-owned scope in effect). */
   basePath?: string;
+  /** Friends roster (#218): switches the Add control to create a friend. The
+   *  roster scope itself is fixed by the route (basePath), not a query param. */
+  isFriend?: boolean;
 }) {
   const router = useRouter();
   const [f, setF] = useState<AlumniFilterState>(initial);
@@ -345,8 +349,8 @@ export function AlumniFilters({
       <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white p-3 shadow-card">
         {canCreate ? (
           <Button asChild>
-            <Link href="/alumni/new">
-              <Plus className="h-4 w-4" /> Add alumni
+            <Link href={isFriend ? "/alumni/new?kind=friend" : "/alumni/new"}>
+              <Plus className="h-4 w-4" /> {isFriend ? "Add friend" : "Add alumni"}
             </Link>
           </Button>
         ) : null}
@@ -361,7 +365,7 @@ export function AlumniFilters({
           <input
             value={f.q}
             onChange={(e) => set("q", e.target.value)}
-            placeholder="Search a name, BYU ID, or a plain-English question"
+            placeholder="Search a name (incl. maiden name), BYU ID, or a plain-English question"
             aria-label="Search alumni"
             className="h-9 w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
           />
@@ -410,25 +414,25 @@ export function AlumniFilters({
         ) : null}
       </div>
 
-      {/* Active-filter chips */}
+      {/* Active-filter chips — squared, text-style controls (#225) rather than
+          rounded-full pills, for a cleaner look consistent with the toolbar. */}
       {chips.length > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-2">
           {chips.map((chip, i) => (
-            <Badge
+            <span
               key={`${chip.label}-${i}`}
-              variant="neutral"
-              className="py-1 pl-2.5 pr-1"
+              className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-gray-200 bg-gray-50 py-1 pl-2.5 pr-1 text-xs font-medium text-gray-700"
             >
               {chip.label}
               <button
                 type="button"
                 onClick={chip.remove}
                 aria-label={`Remove ${chip.label}`}
-                className="flex h-4 w-4 items-center justify-center rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
+                className="flex h-4 w-4 items-center justify-center rounded text-gray-400 hover:bg-gray-200 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
               >
                 <X className="h-3 w-3" aria-hidden="true" />
               </button>
-            </Badge>
+            </span>
           ))}
           <Button
             type="button"

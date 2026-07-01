@@ -2422,6 +2422,8 @@ export interface components {
             spouse_alumni_id: number | null;
             /** Deceased */
             deceased: boolean | null;
+            /** Is Alumni */
+            is_alumni: boolean | null;
             /** Linkedin Url */
             linkedin_url: string | null;
             /** Notes */
@@ -2530,6 +2532,8 @@ export interface components {
              * @default false
              */
             duplicate: boolean;
+            /** Is Alumni */
+            is_alumni: boolean | null;
             /**
              * Include Archived
              * @default false
@@ -2554,8 +2558,10 @@ export interface components {
         /**
          * AlumniListItem
          * @description List-row variant: adds the alumnus's current employer + industry (joined
-         *     from ``current_employment``) for the alumni table. Single-record reads use
-         *     plain ``AlumniRead``, which omits these.
+         *     from ``current_employment``) and current city + state (from
+         *     ``alumni_contact_info`` — the SAME source the geography map shades by, so the
+         *     list and the map agree on a record's location) for the alumni table.
+         *     Single-record reads use plain ``AlumniRead``, which omits these.
          */
         AlumniListItem: {
             /** Alumni Id */
@@ -2614,6 +2620,11 @@ export interface components {
             spouse_alumni_id: number | null;
             /** Deceased */
             deceased: boolean;
+            /**
+             * Is Alumni
+             * @default true
+             */
+            is_alumni: boolean;
             /** Linkedin Url */
             linkedin_url: string | null;
             /** Notes */
@@ -2638,6 +2649,10 @@ export interface components {
             current_employer: string | null;
             /** Current Industry */
             current_industry: string | null;
+            /** Current City */
+            current_city: string | null;
+            /** Current State */
+            current_state: string | null;
         };
         /**
          * AlumniPage
@@ -2711,6 +2726,11 @@ export interface components {
             spouse_alumni_id: number | null;
             /** Deceased */
             deceased: boolean;
+            /**
+             * Is Alumni
+             * @default true
+             */
+            is_alumni: boolean;
             /** Linkedin Url */
             linkedin_url: string | null;
             /** Notes */
@@ -2795,6 +2815,8 @@ export interface components {
             spouse_alumni_id: number | null;
             /** Deceased */
             deceased: boolean | null;
+            /** Is Alumni */
+            is_alumni: boolean | null;
             /** Linkedin Url */
             linkedin_url: string | null;
             /** Notes */
@@ -4720,6 +4742,8 @@ export interface operations {
                 /** @description Only alumni flagged as duplicate candidates. */
                 duplicate?: boolean;
                 include_archived?: boolean;
+                /** @description Which records to return (#218): 'alumni' (default) — only graduates (is_alumni=true); 'friend' — only friends of the program (is_alumni=false); 'all' — both. Defaults to 'alumni' so the Alumni page is unchanged. */
+                kind?: "alumni" | "friend" | "all";
                 /** @description Sort order: name | grad_desc | grad_asc. */
                 sort?: string;
                 limit?: number;

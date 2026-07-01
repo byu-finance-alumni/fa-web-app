@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { geoAlbersUsa, geoContains, geoPath, type GeoProjection } from "d3-geo";
+import {
+  geoAlbersUsa,
+  geoCircle,
+  geoContains,
+  geoPath,
+  type GeoProjection,
+} from "d3-geo";
 import type { Feature } from "geojson";
 import { feature, mesh } from "topojson-client";
 import type { FeatureCollection, Geometry } from "geojson";
@@ -85,6 +91,9 @@ export interface UsGeoMapProps {
   /** Per-county alumni counts (5-digit FIPS → count) — the choropleth shading. */
   countyCounts?: Record<string, number>;
   center?: { lat: number; lng: number } | null;
+  /** Radius distance in miles — when a `center` is set, the search area is drawn
+   *  as a geodesic circle around it. */
+  miles?: number;
   onStateClick?: (code: string) => void;
   onPick?: (lat: number, lng: number) => void;
   /** Clear the current radius center/pin (renders a "Reset pin" button). */
@@ -101,6 +110,7 @@ export function UsGeoMap({
   counts,
   countyCounts,
   center = null,
+  miles,
   onStateClick,
   onPick,
   onResetCenter,
@@ -285,6 +295,19 @@ export function UsGeoMap({
       (c) => c.x >= x0 && c.x <= x1 && c.y >= y0 && c.y <= y1,
     );
   }, [projectedCities, view]);
+
+  // Radius search area — a true geodesic circle around the center, projected
+  // through the same Albers projection so it's drawn as a proper (warped) area
+  // on the map rather than a screen-space oval. Radius is converted from miles
+  // to degrees (~69 mi/deg). Drawn in g-space so it pans/zooms with the map; the
+  // stroke uses vectorEffect="non-scaling-stroke" so it stays a constant weight.
+  const radiusPath = useMemo(() => {
+    if (!center || !miles || miles <= 0) return null;
+    const circle = geoCircle()
+      .center([center.lng, center.lat])
+      .radius(miles / 69)();
+    return geoPath(projection)(circle) || null;
+  }, [center, miles, projection]);
 
   // Pin in outer viewBox coords (projection point, then the zoom transform), so
   // it stays a constant on-screen size regardless of zoom.
@@ -497,6 +520,23 @@ export function UsGeoMap({
                 <path key={i} d={d} vectorEffect="non-scaling-stroke" />
               ))}
             </g>
+          ) : null}
+
+          {/* Radius search area — the geodesic circle around the center, in
+              g-space so it pans/zooms with the map. A translucent fill makes the
+              covered area read clearly; the ring is a constant on-screen weight.
+              pointer-events-none so the map click/pin still fires underneath. */}
+          {radiusPath ? (
+            <path
+              className="pointer-events-none"
+              d={radiusPath}
+              fill="#2E4A86"
+              fillOpacity={0.1}
+              stroke="#2E4A86"
+              strokeWidth={1.75}
+              strokeOpacity={0.9}
+              vectorEffect="non-scaling-stroke"
+            />
           ) : null}
 
           {/* City dots — drawn in g-space so they pan/zoom with the map. The dot

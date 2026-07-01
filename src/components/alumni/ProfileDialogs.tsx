@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Check, Pencil, Trash2, X } from "lucide-react";
 import {
   addEducation,
   addEmploymentRole,
@@ -1691,10 +1691,9 @@ function ChipManager({
               type="button"
               disabled={pending && busy === v}
               onClick={() => run(v, addAction, `Added ${v}.`)}
-              className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-dashed border-gray-300 px-3 py-1 text-xs font-medium text-gray-600 hover:border-brand-blue-600 hover:bg-brand-blue-50 hover:text-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 disabled:opacity-50"
+              className="inline-flex min-h-[32px] items-center rounded-md border border-dashed border-gray-300 px-3 py-1 text-xs font-medium text-gray-600 hover:border-brand-blue-600 hover:bg-brand-blue-50 hover:text-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 disabled:opacity-50"
             >
-              <Plus className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              {v}
+              + {v}
             </button>
           ))}
         </div>

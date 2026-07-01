@@ -17,6 +17,10 @@ export function toExportFilters(f: AlumniFilterState): AlumniExportFilters {
     grad_year_min: f.ymin.trim() ? Number(f.ymin) : null,
     grad_year_max: f.ymax.trim() ? Number(f.ymax) : null,
     deceased: f.deceased === "only" ? true : f.deceased === "exclude" ? false : null,
+    // The alumni-filter UI has no friends/alumni toggle, so an export mirrors the
+    // list's default scope (alumni only): null lets the backend builder apply its
+    // is_alumni=true default. (#218)
+    is_alumni: null,
     // The alumni page no longer exposes a current-employer facet (#153), so the
     // export — which mirrors the visible list — never filters by employer.
     employer: null,

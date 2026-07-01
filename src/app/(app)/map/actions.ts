@@ -1,14 +1,24 @@
 "use server";
 
 import cityCrosswalk from "@/lib/geo/city-crosswalk.json";
+import majorCities from "@/lib/geo/major-cities.json";
 import { lookupCityGeo, STATE_FIPS } from "@/lib/geo/counties-data";
 
 /**
  * Result of geocoding a typed "City, ST" (or bare "City") string to a center
  * point for the radius search. `label` is a tidy "City, ST" for display.
+ *
+ * `spannedStates` (optional) lists the OTHER states a bare city name also
+ * matched, so the UI can note the search spans states while still resolving.
  */
 export type GeocodeResult =
-  | { ok: true; lat: number; lng: number; label: string }
+  | {
+      ok: true;
+      lat: number;
+      lng: number;
+      label: string;
+      spannedStates?: string[];
+    }
   | { ok: false; error: string };
 
 /** The compact generated crosswalk, keyed "<cityLowercased>|<ST>". Server-only. */
@@ -18,6 +28,21 @@ const CROSSWALK = cityCrosswalk as unknown as Record<
 >;
 
 const VALID_STATES = new Set(Object.keys(STATE_FIPS));
+
+/**
+ * Population-rank proxy for tie-breaking a bare city name across states. The
+ * major-cities list is ordered most-populous-first; map "<city>|<ST>" → its
+ * index so a smaller rank wins. Cities absent from the list share the worst
+ * rank (Infinity) and fall back to deterministic (alphabetical-state) order.
+ */
+const MAJOR_CITY_RANK: Record<string, number> = (() => {
+  const rank: Record<string, number> = {};
+  (majorCities as { name: string; state: string }[]).forEach((c, i) => {
+    const key = `${c.name.toLowerCase()}|${c.state.toUpperCase()}`;
+    if (!(key in rank)) rank[key] = i;
+  });
+  return rank;
+})();
 
 /** Title-case a city for display ("salt lake city" → "Salt Lake City"). */
 function titleCase(s: string): string {
@@ -69,13 +94,20 @@ export async function geocodePlace(place: string): Promise<GeocodeResult> {
     };
   }
 
-  // Bare "City" — resolve only if unambiguous across states.
+  // Bare "City" — resolve even when the name spans several states (#210). We no
+  // longer fail on ambiguity: pick the most prominent match (major-city
+  // population rank, then alphabetical state as a stable fallback) and report
+  // the other states so the UI can note the search spans states.
   const city = parts[0];
   const cityKey = city.toLowerCase();
-  const matches: { state: string; lat: number; lng: number }[] = [];
+  const matches: { state: string; lat: number; lng: number; rank: number }[] =
+    [];
   for (const state of VALID_STATES) {
     const row = CROSSWALK[`${cityKey}|${state}`];
-    if (row) matches.push({ state, lat: row[1], lng: row[2] });
+    if (row) {
+      const rank = MAJOR_CITY_RANK[`${cityKey}|${state}`] ?? Infinity;
+      matches.push({ state, lat: row[1], lng: row[2], rank });
+    }
   }
 
   if (matches.length === 0) {
@@ -84,26 +116,103 @@ export async function geocodePlace(place: string): Promise<GeocodeResult> {
       error: `Couldn't find "${titleCase(city)}". Try "City, ST" (e.g. Provo, UT), or drop a pin on the map.`,
     };
   }
-  if (matches.length > 1) {
-    const states = matches
-      .map((m) => m.state)
-      .sort()
-      .slice(0, 6)
-      .join(", ");
-    return {
-      ok: false,
-      error: `"${titleCase(city)}" exists in several states (${states}${
-        matches.length > 6 ? ", …" : ""
-      }). Add a state — e.g. "${titleCase(city)}, ${matches[0].state}".`,
-    };
-  }
 
-  const only = matches[0];
+  // Best match: lowest population rank wins; ties (and unranked) break by state
+  // alphabetically so the result is deterministic.
+  matches.sort((a, b) => a.rank - b.rank || a.state.localeCompare(b.state));
+  const best = matches[0];
+  const otherStates = matches
+    .slice(1)
+    .map((m) => m.state)
+    .sort();
+
+  // Apply the curated overrides (e.g. New York → Manhattan) for the chosen match
+  // so a bare city resolves to the same point "City, ST" would.
+  const geo = lookupCityGeo(city, best.state);
   return {
     ok: true,
-    lat: only.lat,
-    lng: only.lng,
-    label: `${titleCase(city)}, ${only.state}`,
+    lat: geo?.lat ?? best.lat,
+    lng: geo?.lng ?? best.lng,
+    label: `${titleCase(city)}, ${best.state}`,
+    ...(otherStates.length ? { spannedStates: otherStates } : {}),
+  };
+}
+
+/** Full state name → USPS abbreviation, for the map's State search (#214). DC
+ *  included so the typed search covers the same 51 the crosswalk does. */
+const STATE_NAME_TO_USPS: Record<string, string> = {
+  alabama: "AL",
+  alaska: "AK",
+  arizona: "AZ",
+  arkansas: "AR",
+  california: "CA",
+  colorado: "CO",
+  connecticut: "CT",
+  delaware: "DE",
+  "district of columbia": "DC",
+  "washington dc": "DC",
+  "washington d.c.": "DC",
+  florida: "FL",
+  georgia: "GA",
+  hawaii: "HI",
+  idaho: "ID",
+  illinois: "IL",
+  indiana: "IN",
+  iowa: "IA",
+  kansas: "KS",
+  kentucky: "KY",
+  louisiana: "LA",
+  maine: "ME",
+  maryland: "MD",
+  massachusetts: "MA",
+  michigan: "MI",
+  minnesota: "MN",
+  mississippi: "MS",
+  missouri: "MO",
+  montana: "MT",
+  nebraska: "NE",
+  nevada: "NV",
+  "new hampshire": "NH",
+  "new jersey": "NJ",
+  "new mexico": "NM",
+  "new york": "NY",
+  "north carolina": "NC",
+  "north dakota": "ND",
+  ohio: "OH",
+  oklahoma: "OK",
+  oregon: "OR",
+  pennsylvania: "PA",
+  "rhode island": "RI",
+  "south carolina": "SC",
+  "south dakota": "SD",
+  tennessee: "TN",
+  texas: "TX",
+  utah: "UT",
+  vermont: "VT",
+  virginia: "VA",
+  washington: "WA",
+  "west virginia": "WV",
+  wisconsin: "WI",
+  wyoming: "WY",
+};
+
+/**
+ * Resolve a typed state (a 2-letter USPS code OR a full state name) to its USPS
+ * abbreviation for the map's State search. Returns null when it isn't a US
+ * state, so the caller can show a tidy error. Never throws.
+ */
+export async function resolveState(
+  query: string,
+): Promise<{ ok: true; code: string } | { ok: false; error: string }> {
+  const raw = (query ?? "").trim();
+  if (!raw) return { ok: false, error: "Enter a state to search." };
+  const upper = raw.toUpperCase();
+  if (VALID_STATES.has(upper)) return { ok: true, code: upper };
+  const byName = STATE_NAME_TO_USPS[raw.toLowerCase()];
+  if (byName) return { ok: true, code: byName };
+  return {
+    ok: false,
+    error: `"${raw}" isn't a US state. Try a name (e.g. Utah) or code (e.g. UT).`,
   };
 }
 
