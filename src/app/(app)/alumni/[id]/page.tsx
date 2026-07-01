@@ -999,15 +999,23 @@ export default async function AlumniProfilePage({
                 </Panel>
               </div>
             }
-            education={
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-                {/* Main column fills the available width; leadership (when
-                    present) sits in a fixed right sidebar. */}
-                <div className="min-w-0 flex-1 space-y-4">
-                {/* Education */}
-                {profile.education.length || canEdit ? (
+            education={(() => {
+              // Equal-height panels (#235-adjacent request): collect every
+              // panel that should render, then lay them out in a 2-column grid
+              // so panels sharing a row stretch to the tallest one (bottoms
+              // align) regardless of how much data each holds. Leadership now
+              // lives in this same grid instead of a fixed side rail, so the
+              // layout no longer reshapes based on which data is present. A
+              // lone panel spans full width instead of sitting at half width.
+              const panels: React.ReactNode[] = [];
+
+              if (profile.education.length || canEdit) {
+                panels.push(
                   <Panel
+                    key="education"
                     title="Education"
+                    className="flex h-full flex-col"
+                    contentClassName="flex-1"
                     action={
                       canEdit ? <AddEducationButton alumniId={aid} /> : undefined
                     }
@@ -1081,21 +1089,79 @@ export default async function AlumniProfilePage({
                         No education on file yet.
                       </p>
                     )}
-                  </Panel>
-                ) : null}
+                  </Panel>,
+                );
+              }
 
-                {/* Additional education — top-level school/program names
-                    (#47). graduate_degree stays in the Career snapshot panel;
-                    these are the new secondary-education fields. Only rendered
-                    when at least one has a value, and each row is suppressed
-                    when empty. */}
-                {[
+              // Finance Society leadership — now a grid peer (was a side
+              // rail); still hidden entirely when there's no leadership.
+              if (profile.leadership.length) {
+                panels.push(
+                  <Panel
+                    key="leadership"
+                    title="Finance Society leadership"
+                    className="flex h-full flex-col"
+                    contentClassName="flex-1"
+                    action={
+                      canEdit ? (
+                        <AddLeadershipButton alumniId={aid} />
+                      ) : undefined
+                    }
+                  >
+                    <DrawerList
+                      title="Finance Society leadership"
+                      collapsed={3}
+                      listClassName="space-y-1"
+                      action={
+                        canEdit ? (
+                          <AddLeadershipButton alumniId={aid} />
+                        ) : undefined
+                      }
+                    >
+                      {profile.leadership.map((le) => (
+                        <li
+                          key={le.finance_society_leadership_id}
+                          className="flex items-center gap-3 border-b border-gray-100 py-2.5 last:border-0"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-gray-900">
+                              {le.leadership_role}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <span className="text-xs tabular-nums text-gray-500">
+                              {le.role_year ?? "—"}
+                            </span>
+                            {canEdit ? (
+                              <LeadershipRowActions alumniId={aid} row={le} />
+                            ) : null}
+                          </div>
+                        </li>
+                      ))}
+                    </DrawerList>
+                  </Panel>,
+                );
+              }
+
+              // Additional education — top-level school/program names (#47).
+              // graduate_degree stays in the Career snapshot panel; these are
+              // the secondary-education fields. Only rendered when at least
+              // one has a value, and each row is suppressed when empty.
+              if (
+                [
                   a.mba_program,
                   a.law_school,
                   a.medical_school,
                   a.graduate_school,
-                ].some(Boolean) ? (
-                  <Panel title="Additional education">
+                ].some(Boolean)
+              ) {
+                panels.push(
+                  <Panel
+                    key="additional-education"
+                    title="Additional education"
+                    className="flex h-full flex-col"
+                    contentClassName="flex-1"
+                  >
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       {a.mba_program ? (
                         <Field label="MBA program" value={a.mba_program} />
@@ -1116,18 +1182,27 @@ export default async function AlumniProfilePage({
                         />
                       ) : null}
                     </div>
-                  </Panel>
-                ) : null}
+                  </Panel>,
+                );
+              }
 
-                {/* Secondary affiliations — narrative free-text (#47). Only
-                    rendered when at least one field has a value; empty fields
-                    are suppressed. */}
-                {[
+              // Secondary affiliations — narrative free-text (#47). Only
+              // rendered when at least one field has a value; empty fields
+              // are suppressed.
+              if (
+                [
                   a.startup_involvement,
                   a.advisory_roles,
                   a.secondary_employment,
-                ].some(Boolean) ? (
-                  <Panel title="Secondary affiliations">
+                ].some(Boolean)
+              ) {
+                panels.push(
+                  <Panel
+                    key="secondary-affiliations"
+                    title="Secondary affiliations"
+                    className="flex h-full flex-col"
+                    contentClassName="flex-1"
+                  >
                     <div className="space-y-4">
                       {a.startup_involvement ? (
                         <ProfileNote
@@ -1148,59 +1223,22 @@ export default async function AlumniProfilePage({
                         />
                       ) : null}
                     </div>
-                  </Panel>
-                ) : null}
+                  </Panel>,
+                );
+              }
 
+              return (
+                <div
+                  className={
+                    panels.length === 1
+                      ? ""
+                      : "grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-stretch"
+                  }
+                >
+                  {panels}
                 </div>
-                {/* Finance Society leadership — right sidebar; hidden entirely
-                    when the alumnus has no recorded leadership (no empty-state
-                    or add-only card). */}
-                {profile.leadership.length ? (
-                  <div className="space-y-4 lg:w-80 lg:shrink-0">
-                    <Panel
-                      title="Finance Society leadership"
-                      action={
-                        canEdit ? (
-                          <AddLeadershipButton alumniId={aid} />
-                        ) : undefined
-                      }
-                    >
-                      <DrawerList
-                        title="Finance Society leadership"
-                        collapsed={3}
-                        listClassName="space-y-1"
-                        action={
-                          canEdit ? (
-                            <AddLeadershipButton alumniId={aid} />
-                          ) : undefined
-                        }
-                      >
-                        {profile.leadership.map((le) => (
-                          <li
-                            key={le.finance_society_leadership_id}
-                            className="flex items-center gap-3 border-b border-gray-100 py-2.5 last:border-0"
-                          >
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium text-gray-900">
-                                {le.leadership_role}
-                              </p>
-                            </div>
-                            <div className="flex shrink-0 items-center gap-2">
-                              <span className="text-xs tabular-nums text-gray-500">
-                                {le.role_year ?? "—"}
-                              </span>
-                              {canEdit ? (
-                                <LeadershipRowActions alumniId={aid} row={le} />
-                              ) : null}
-                            </div>
-                          </li>
-                        ))}
-                      </DrawerList>
-                    </Panel>
-                  </div>
-                ) : null}
-              </div>
-            }
+              );
+            })()}
             tasks={
               /* Open tasks — visible to admins (full_access / super_admin) only.
                  Rendered only when canEdit so the Tasks tab itself is omitted for
