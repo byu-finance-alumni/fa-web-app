@@ -1,7 +1,7 @@
 "use client";
 
+import { useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { parseAlumniQuery } from "@/lib/alumniQueryParser";
 import { Button } from "@/components/ui/button";
 
@@ -9,22 +9,25 @@ import { Button } from "@/components/ui/button";
  * Dashboard search hero — the page's primary call to action. A real search
  * field that accepts either keywords or a full natural-language sentence
  * (e.g. "alumni near Las Vegas that work in investment banking"). On submit it
- * runs a lightweight keyword parser (no AI) that maps recognized facets
- * (industry, location, intents) onto the alumni list's existing filter params
- * and deep-links there; anything it can't structure becomes a plain search.
- * The alumni list stays the single source of truth for results.
+ * runs a lightweight keyword parser (no AI) that maps recognized facets onto
+ * the alumni list's filter params and deep-links there.
  *
- * The optional `greeting` (a time-of-day + first-name salutation resolved by the
- * server component from the auth context) renders as the page's lead-in above
- * the search field, so the field itself stays the focal call to action.
+ * Built as an UNCONTROLLED input with a native GET-form fallback so it never
+ * depends on React state to be typeable: the browser owns the field value (no
+ * `value=` for React to fight), and the form natively posts to /alumni?q=... if
+ * JS is slow/absent, while the onSubmit handler runs the natural-language parser
+ * + client navigation when hydrated. The alumni list stays the single source of
+ * truth for results.
+ *
+ * The optional `greeting` renders as the page's lead-in above the field.
  */
 export function SearchHero({ greeting }: { greeting?: string }) {
   const router = useRouter();
-  const [q, setQ] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    router.push(parseAlumniQuery(q));
+    router.push(parseAlumniQuery(inputRef.current?.value ?? ""));
   };
 
   return (
@@ -36,13 +39,16 @@ export function SearchHero({ greeting }: { greeting?: string }) {
       ) : null}
       <form
         onSubmit={submit}
+        action="/alumni"
+        method="get"
         role="search"
         aria-label="Search alumni"
         className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white py-1.5 pl-4 pr-1.5 shadow-card transition focus-within:border-brand-blue-600 focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1"
       >
         <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
+          ref={inputRef}
+          name="q"
+          defaultValue=""
           placeholder="Search alumni by name, employer, title, location, or industry"
           aria-label="Search alumni by name, employer, title, location, or industry"
           autoComplete="off"
