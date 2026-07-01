@@ -558,12 +558,17 @@ export default async function AlumniProfilePage({
           <AlumniProfileTabs
             overview={
               <div className="space-y-4">
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                  {/* Main column (wider). */}
-                  <div className="flex flex-col gap-4 lg:col-span-2">
+                {/* 2x2 grid: each right-column box (Engagement summary /
+                    Personal & family) shares a row with a left-column box
+                    (Career snapshot / Contact information) so the paired boxes
+                    stretch to the same height. Dense flow keeps the DOM order
+                    while slotting the narrow right cards beside the wide left
+                    ones. */}
+                <div className="grid grid-cols-1 gap-4 lg:grid-flow-row-dense lg:grid-cols-3 lg:items-stretch">
               {/* Career snapshot — lead with what they do (before contact info) */}
               <Panel
                 title="Career snapshot"
+                className="lg:col-span-2"
                 action={canEdit ? <EditLink id={aid} /> : undefined}
               >
                 {career ? (
@@ -588,9 +593,11 @@ export default async function AlumniProfilePage({
                 )}
               </Panel>
 
-              {/* Contact information */}
+              {/* Contact information — spans the left 2/3, paired in its grid
+                  row with Personal & family. */}
               <Panel
                 title="Contact information"
+                className="lg:col-span-2"
                 action={canEdit ? <EditLink id={aid} /> : undefined}
               >
                 {c ? (
@@ -647,14 +654,8 @@ export default async function AlumniProfilePage({
                 )}
               </Panel>
 
-            </div>
-
-            {/* Right sidebar (narrower). The Engagement summary (first child)
-                grows to fill the remaining height so the sidebar ends level
-                with the main column, keeping Personal & family sized to its
-                content at the bottom. */}
-            <div className="flex flex-col gap-4 lg:[&>:first-child]:flex-1">
-              {/* Engagement summary — non-sensitive metrics + tags + derived
+              {/* Engagement summary — right column, row 1 (pairs with Career
+                  snapshot). Non-sensitive metrics + tags + derived
                   last-contacted. Shown for all roles (same gating posture as
                   "Engagement & tags"). Last-contacted comes from the newest
                   interaction, not a backend score. */}
@@ -720,7 +721,8 @@ export default async function AlumniProfilePage({
                 </div>
               </Panel>
 
-              {/* Personal & family */}
+              {/* Personal & family — right column, row 2 (pairs with Contact
+                  information). */}
               <Panel
                 title="Personal & family"
                 action={canEdit ? <EditLink id={aid} /> : undefined}
@@ -753,7 +755,6 @@ export default async function AlumniProfilePage({
                 </div>
               </Panel>
 
-                  </div>
                 </div>
               </div>
             }
