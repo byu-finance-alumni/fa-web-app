@@ -169,6 +169,7 @@ export function AlumniFilters({
   canExport = false,
   total,
   basePath = "/alumni",
+  kind = "alumni",
 }: {
   initial: AlumniFilterState;
   options?: FilterOptions;
@@ -180,6 +181,10 @@ export function AlumniFilters({
    *  the /needs-surveying view passes its own path so narrowing the due set stays
    *  on that page (and keeps the route-owned needs_survey flag in effect). */
   basePath?: string;
+  /** Roster scope (#218). "friend" / "all" are preserved across live filtering,
+   *  search, and the Add link so the Friends view never silently reverts to the
+   *  Alumni roster when a filter changes. */
+  kind?: "alumni" | "friend" | "all";
 }) {
   const router = useRouter();
   const [f, setF] = useState<AlumniFilterState>(initial);
@@ -207,8 +212,14 @@ export function AlumniFilters({
     if (serialized === lastPushedRef.current) return;
     const navigate = () => {
       lastPushedRef.current = serialized;
+      // Preserve the roster scope (Friends) across live filtering so the view
+      // never silently reverts to the Alumni roster when a filter changes.
+      const scopeParts: string[] = [];
+      if (kind !== "alumni") scopeParts.push(`kind=${kind}`);
+      if (serialized) scopeParts.push(serialized);
+      const qs = scopeParts.join("&");
       startTransition(() => {
-        router.replace(serialized ? `${basePath}?${serialized}` : basePath);
+        router.replace(qs ? `${basePath}?${qs}` : basePath);
       });
     };
     if (serialized === "") {
@@ -217,7 +228,7 @@ export function AlumniFilters({
     }
     const timer = setTimeout(navigate, 300);
     return () => clearTimeout(timer);
-  }, [serialized, router, basePath]);
+  }, [serialized, router, basePath, kind]);
 
   // Re-seed only when the URL changed from outside (deep-link / Clear).
   useEffect(() => {
@@ -252,8 +263,14 @@ export function AlumniFilters({
   const onSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (basePath === "/alumni") {
+      const target = parseAlumniQuery(f.q);
+      // Keep the roster scope (Friends) across a natural-language search.
+      const scoped =
+        kind !== "alumni"
+          ? `${target}${target.includes("?") ? "&" : "?"}kind=${kind}`
+          : target;
       startTransition(() => {
-        router.push(parseAlumniQuery(f.q));
+        router.push(scoped);
       });
     }
   };
@@ -345,8 +362,9 @@ export function AlumniFilters({
       <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white p-3 shadow-card">
         {canCreate ? (
           <Button asChild>
-            <Link href="/alumni/new">
-              <Plus className="h-4 w-4" /> Add alumni
+            <Link href={kind === "friend" ? "/alumni/new?kind=friend" : "/alumni/new"}>
+              <Plus className="h-4 w-4" />{" "}
+              {kind === "friend" ? "Add friend" : "Add alumni"}
             </Link>
           </Button>
         ) : null}
