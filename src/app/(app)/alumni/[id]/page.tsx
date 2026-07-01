@@ -994,7 +994,7 @@ export default async function AlumniProfilePage({
               </div>
             }
             education={
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
                 {/* Main column fills the available width; leadership (when
                     present) sits in a fixed right sidebar. */}
                 <div className="min-w-0 flex-1 space-y-4">
@@ -1150,9 +1150,10 @@ export default async function AlumniProfilePage({
                     present (matches the Education box); hidden entirely when the
                     alumnus has no recorded leadership. */}
                 {profile.leadership.length ? (
-                  <div className="min-w-0 flex-1 space-y-4">
+                  <div className="flex min-w-0 flex-1 flex-col">
                     <Panel
                       title="Finance Society leadership"
+                      className="h-full"
                       action={
                         canEdit ? (
                           <AddLeadershipButton alumniId={aid} />
