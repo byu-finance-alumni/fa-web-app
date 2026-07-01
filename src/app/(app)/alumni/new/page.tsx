@@ -34,7 +34,7 @@ export default async function NewAlumniPage({
       <Topbar
         breadcrumb={[
           isFriend
-            ? { label: "Friends", href: "/alumni?kind=friend" }
+            ? { label: "Friends", href: "/friends" }
             : { label: "Alumni", href: "/alumni" },
           { label: isFriend ? "Add friend" : "Add alumni" },
         ]}
@@ -44,7 +44,7 @@ export default async function NewAlumniPage({
           action={isFriend ? createFriend : createAlumni}
           previewAction={previewAlumni}
           submitLabel={isFriend ? "Create friend" : "Create alumni"}
-          cancelHref={isFriend ? "/alumni?kind=friend" : "/alumni"}
+          cancelHref={isFriend ? "/friends" : "/alumni"}
           extended
         />
       </main>

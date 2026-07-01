@@ -31,9 +31,9 @@ type NavItem = NavLeaf & {
 const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/alumni", label: "Alumni" },
-  // #218 Friends of the finance program — the same roster scoped to non-alumni
-  // contacts via ?kind=friend (backend is_alumni=false).
-  { href: "/alumni?kind=friend", label: "Friends" },
+  // #218 Friends of the finance program — its own /friends route (non-alumni
+  // contacts, backend is_alumni=false).
+  { href: "/friends", label: "Friends" },
   { href: "/map", label: "Map" },
   { href: "/events", label: "Events" },
   { href: "/pay-it-forward", label: "Pay It Forward" },
