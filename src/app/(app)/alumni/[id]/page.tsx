@@ -654,12 +654,13 @@ export default async function AlumniProfilePage({
                 )}
               </Panel>
 
-              {/* Engagement summary — right column, row 1 (pairs with Career
-                  snapshot). Non-sensitive metrics + tags + derived
+              {/* Engagement summary — right column, spanning both left-column
+                  rows (Career snapshot + Contact information) so it fills the
+                  right side. Non-sensitive metrics + tags + derived
                   last-contacted. Shown for all roles (same gating posture as
                   "Engagement & tags"). Last-contacted comes from the newest
                   interaction, not a backend score. */}
-              <Panel title="Engagement summary">
+              <Panel title="Engagement summary" className="lg:row-span-2">
                 <div className="space-y-4">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -721,13 +722,14 @@ export default async function AlumniProfilePage({
                 </div>
               </Panel>
 
-              {/* Personal & family — right column, row 2 (pairs with Contact
-                  information). */}
+              {/* Personal & family — full-width bottom section, spanning all
+                  three columns beneath the other panels. */}
               <Panel
                 title="Personal & family"
+                className="lg:col-span-3"
                 action={canEdit ? <EditLink id={aid} /> : undefined}
               >
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   <Field label="Birthday" value={fmtDate(a.birth_date)} />
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
