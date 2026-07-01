@@ -593,11 +593,12 @@ export default async function AlumniProfilePage({
                 )}
               </Panel>
 
-              {/* Contact information — spans the left 2/3, paired in its grid
-                  row with Personal & family. */}
+              {/* Contact information (+ the Personal & family subsection) —
+                  full-width bottom section, taking over the space beneath
+                  Career snapshot and Engagement summary. */}
               <Panel
                 title="Contact information"
-                className="lg:col-span-2"
+                className="lg:col-span-3"
                 action={canEdit ? <EditLink id={aid} /> : undefined}
               >
                 {c ? (
@@ -690,13 +691,12 @@ export default async function AlumniProfilePage({
                 </div>
               </Panel>
 
-              {/* Engagement summary — right column, spanning both left-column
-                  rows (Career snapshot + Contact information) so it fills the
-                  right side. Non-sensitive metrics + tags + derived
+              {/* Engagement summary — right column, row 1 (beside Career
+                  snapshot). Non-sensitive metrics + tags + derived
                   last-contacted. Shown for all roles (same gating posture as
                   "Engagement & tags"). Last-contacted comes from the newest
                   interaction, not a backend score. */}
-              <Panel title="Engagement summary" className="lg:row-span-2">
+              <Panel title="Engagement summary">
                 <div className="space-y-4">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
