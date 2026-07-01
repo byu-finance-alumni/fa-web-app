@@ -11,7 +11,41 @@ import { cn } from "@/lib/utils";
  * in. Replaces the hand-rolled overlay+panel modals. Use <DialogContent title>
  * for a titled modal with a close button.
  */
-const Dialog = DialogPrimitive.Root;
+/**
+ * Wrap Radix's Root to defensively clear the `pointer-events: none` that Radix
+ * locks onto `<body>` while a modal is open. Several dialogs call
+ * `router.refresh()` the instant they close (on a successful save); that server
+ * re-render can race Radix's own cleanup and leave the lock stuck — making the
+ * ENTIRE page unclickable ("everything is disabled"). Clearing it shortly after
+ * close is a safe no-op when Radix already cleaned up, and un-sticks the page
+ * when it didn't.
+ */
+function Dialog({
+  onOpenChange,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Root>) {
+  return (
+    <DialogPrimitive.Root
+      onOpenChange={(open) => {
+        onOpenChange?.(open);
+        if (!open && typeof document !== "undefined") {
+          // Run after Radix's close handling + any router.refresh() settle. Only
+          // clear when no other Radix dialog is still open, so a stacked dialog
+          // never unlocks its own backdrop.
+          window.setTimeout(() => {
+            const stillOpen = document.querySelector(
+              '[role="dialog"][data-state="open"]',
+            );
+            if (!stillOpen && document.body.style.pointerEvents === "none") {
+              document.body.style.pointerEvents = "";
+            }
+          }, 250);
+        }
+      }}
+      {...props}
+    />
+  );
+}
 const DialogTrigger = DialogPrimitive.Trigger;
 const DialogClose = DialogPrimitive.Close;
 const DialogPortal = DialogPrimitive.Portal;
