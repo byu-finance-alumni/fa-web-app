@@ -1146,11 +1146,11 @@ export default async function AlumniProfilePage({
                 ) : null}
 
                 </div>
-                {/* Finance Society leadership — right sidebar; hidden entirely
-                    when the alumnus has no recorded leadership (no empty-state
-                    or add-only card). */}
+                {/* Finance Society leadership — equal-width right column when
+                    present (matches the Education box); hidden entirely when the
+                    alumnus has no recorded leadership. */}
                 {profile.leadership.length ? (
-                  <div className="space-y-4 lg:w-80 lg:shrink-0">
+                  <div className="min-w-0 flex-1 space-y-4">
                     <Panel
                       title="Finance Society leadership"
                       action={
