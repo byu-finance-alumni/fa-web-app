@@ -135,15 +135,11 @@ function Panel({
   action,
   children,
   className = "",
-  contentClassName = "",
 }: {
   title: string;
   action?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
-  /** Extra classes on the CardContent body — e.g. to let it grow and center
-   *  its content when the card is stretched to fill a column. */
-  contentClassName?: string;
 }) {
   return (
     <Card className={className}>
@@ -151,7 +147,7 @@ function Panel({
         <CardTitle>{title}</CardTitle>
         {action}
       </CardHeader>
-      <CardContent className={contentClassName}>{children}</CardContent>
+      <CardContent>{children}</CardContent>
     </Card>
   );
 }
@@ -653,9 +649,11 @@ export default async function AlumniProfilePage({
 
             </div>
 
-            {/* Right sidebar (narrower). Same flex-column treatment so it ends
-                level with the main column. */}
-            <div className="flex flex-col gap-4 lg:[&>:last-child]:flex-1">
+            {/* Right sidebar (narrower). The Engagement summary (first child)
+                grows to fill the remaining height so the sidebar ends level
+                with the main column, keeping Personal & family sized to its
+                content at the bottom. */}
+            <div className="flex flex-col gap-4 lg:[&>:first-child]:flex-1">
               {/* Engagement summary — non-sensitive metrics + tags + derived
                   last-contacted. Shown for all roles (same gating posture as
                   "Engagement & tags"). Last-contacted comes from the newest
@@ -722,15 +720,10 @@ export default async function AlumniProfilePage({
                 </div>
               </Panel>
 
-              {/* Personal & family — as the column's last child it's stretched
-                  to fill the remaining height (so the sidebar ends level with
-                  the main column); center its content vertically so the extra
-                  height isn't dead space at the bottom of the card. */}
+              {/* Personal & family */}
               <Panel
                 title="Personal & family"
                 action={canEdit ? <EditLink id={aid} /> : undefined}
-                className="lg:flex lg:flex-col"
-                contentClassName="lg:flex lg:flex-1 lg:flex-col lg:justify-center"
               >
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field label="Birthday" value={fmtDate(a.birth_date)} />
