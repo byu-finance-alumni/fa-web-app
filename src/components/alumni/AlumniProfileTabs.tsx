@@ -17,6 +17,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 export function AlumniProfileTabs({
   overview,
   interactions,
+  notes,
+  events,
   education,
   engagement,
   tasks,
@@ -24,6 +26,12 @@ export function AlumniProfileTabs({
 }: {
   overview: ReactNode;
   interactions: ReactNode;
+  /** Unified notes timeline — its own tab. Shown to every role (writing is
+   *  gated server-side); the panel renders its own empty state. */
+  notes: ReactNode;
+  /** Recent events / attendance — its own tab. Pass undefined when the alumnus
+   *  has no events and the viewer can't add them, and the tab is hidden. */
+  events?: ReactNode;
   education?: ReactNode;
   /** Editor-only — pass undefined for view-only roles and the tab is hidden. */
   engagement?: ReactNode;
@@ -37,6 +45,8 @@ export function AlumniProfileTabs({
       <TabsList className="w-full">
         <TabsTrigger value="overview">Overview</TabsTrigger>
         <TabsTrigger value="interactions">Interactions</TabsTrigger>
+        <TabsTrigger value="notes">Notes</TabsTrigger>
+        {events ? <TabsTrigger value="events">Events</TabsTrigger> : null}
         {education ? (
           <TabsTrigger value="education">Education</TabsTrigger>
         ) : null}
@@ -51,6 +61,8 @@ export function AlumniProfileTabs({
 
       <TabsContent value="overview">{overview}</TabsContent>
       <TabsContent value="interactions">{interactions}</TabsContent>
+      <TabsContent value="notes">{notes}</TabsContent>
+      {events ? <TabsContent value="events">{events}</TabsContent> : null}
       {education ? (
         <TabsContent value="education">{education}</TabsContent>
       ) : null}

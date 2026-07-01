@@ -640,17 +640,6 @@ export default async function AlumniProfilePage({
                 )}
               </Panel>
 
-              {/* Unified notes (#39): free-text notes on this alumnus. Visible to
-                  every role; writing is full_access (canArchive), re-enforced and
-                  audit-logged server-side. */}
-              <Panel title="Notes">
-                <ProfileNotes
-                  alumniId={aid}
-                  notes={notes}
-                  canWrite={canArchive}
-                />
-              </Panel>
-
             </div>
 
             {/* Right sidebar (narrower). Same flex-column treatment so it ends
@@ -844,6 +833,80 @@ export default async function AlumniProfilePage({
                 canEdit={canEdit}
                 canWriteNotes={canArchive}
               />
+            }
+            notes={
+              /* Unified notes (#39) in their own tab. Visible to every role;
+                 writing is full_access (canArchive), re-enforced + audit-logged
+                 server-side. ProfileNotes renders its own empty state. */
+              <Panel title="Notes">
+                <ProfileNotes
+                  alumniId={aid}
+                  notes={notes}
+                  canWrite={canArchive}
+                />
+              </Panel>
+            }
+            events={
+              /* Recent events / attendance in their own tab (moved off Education).
+                 Rendered only when the alumnus has events or the viewer can add
+                 them, otherwise the island omits the tab. */
+              profile.events.length || canEdit ? (
+                <Panel
+                  title="Recent events"
+                  action={
+                    canEdit ? <AddEventButton alumniId={aid} /> : undefined
+                  }
+                >
+                  {profile.events.length ? (
+                    <DrawerList
+                      title="Recent events"
+                      collapsed={5}
+                      listClassName="space-y-1"
+                      action={
+                        canEdit ? <AddEventButton alumniId={aid} /> : undefined
+                      }
+                    >
+                      {profile.events.map((ev) => {
+                        const md = monthDay(ev.event_date);
+                        return (
+                          <li
+                            key={ev.event_id}
+                            className="flex items-center gap-3 border-b border-gray-100 py-2.5 last:border-0"
+                          >
+                            <span className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-lg bg-gray-100 text-center">
+                              <span className="text-[9px] font-semibold uppercase text-gray-500">
+                                {md?.mon ?? "—"}
+                              </span>
+                              <span className="text-sm font-semibold tabular-nums text-gray-900">
+                                {md?.day ?? "--"}
+                              </span>
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-gray-900">
+                                {ev.event_name}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {[ev.event_location, ev.event_type]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </p>
+                            </div>
+                            {ev.attendance_status ? (
+                              <EngagementChip tone="neutral">
+                                {ev.attendance_status}
+                              </EngagementChip>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                    </DrawerList>
+                  ) : (
+                    <p className="py-6 text-center text-sm text-gray-500">
+                      No events attended yet.
+                    </p>
+                  )}
+                </Panel>
+              ) : undefined
             }
             education={
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -1057,65 +1120,6 @@ export default async function AlumniProfilePage({
                         />
                       ) : null}
                     </div>
-                  </Panel>
-                ) : null}
-
-                {/* Recent events */}
-                {profile.events.length || canEdit ? (
-                  <Panel
-                    title="Recent events"
-                    action={
-                      canEdit ? <AddEventButton alumniId={aid} /> : undefined
-                    }
-                  >
-                    {profile.events.length ? (
-                      <DrawerList
-                        title="Recent events"
-                        collapsed={3}
-                        listClassName="space-y-1"
-                        action={
-                          canEdit ? <AddEventButton alumniId={aid} /> : undefined
-                        }
-                      >
-                        {profile.events.map((ev) => {
-                          const md = monthDay(ev.event_date);
-                          return (
-                            <li
-                              key={ev.event_id}
-                              className="flex items-center gap-3 border-b border-gray-100 py-2.5 last:border-0"
-                            >
-                              <span className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-lg bg-gray-100 text-center">
-                                <span className="text-[9px] font-semibold uppercase text-gray-500">
-                                  {md?.mon ?? "—"}
-                                </span>
-                                <span className="text-sm font-semibold tabular-nums text-gray-900">
-                                  {md?.day ?? "--"}
-                                </span>
-                              </span>
-                              <div className="min-w-0 flex-1">
-                                <p className="text-sm font-medium text-gray-900">
-                                  {ev.event_name}
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                  {[ev.event_location, ev.event_type]
-                                    .filter(Boolean)
-                                    .join(" · ")}
-                                </p>
-                              </div>
-                              {ev.attendance_status ? (
-                                <EngagementChip tone="neutral">
-                                  {ev.attendance_status}
-                                </EngagementChip>
-                              ) : null}
-                            </li>
-                          );
-                        })}
-                      </DrawerList>
-                    ) : (
-                      <p className="py-6 text-center text-sm text-gray-500">
-                        No events attended yet.
-                      </p>
-                    )}
                   </Panel>
                 ) : null}
 
