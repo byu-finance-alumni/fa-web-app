@@ -1,34 +1,17 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import {
-  Users,
-  Phone,
-  StickyNote,
-  CalendarDays,
-  MessageSquare,
-  ChevronRight,
-  type LucideIcon,
-} from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { ChevronRight } from "lucide-react";
 import type { Interaction } from "@/types/profile";
 import type { Note } from "@/types/notes";
 import { clientGet } from "@/lib/api-client";
 import { EntityNotes } from "@/components/notes/EntityNotes";
 import { Badge } from "@/components/ui/badge";
+import { Select } from "@/components/ui/select";
 import {
   AddInteractionButton,
   InteractionRowActions,
 } from "@/components/alumni/ProfileDialogs";
-
-/** Pick a category icon from the free-text interaction type. */
-function iconFor(type: string | null): LucideIcon {
-  const t = (type ?? "").toLowerCase();
-  if (t.includes("call")) return Phone;
-  if (t.includes("note")) return StickyNote;
-  if (t.includes("event")) return CalendarDays;
-  if (t.includes("meeting")) return Users;
-  return MessageSquare;
-}
 
 /** Render an interaction timestamp in Utah / Mountain time. */
 const fmtMountain = (iso: string | null) =>
@@ -161,40 +144,88 @@ export function InteractionTimeline({
   canEdit: boolean;
   canWriteNotes?: boolean;
 }) {
+  // Filter the timeline by interaction type (#222). Distinct types are derived
+  // from the items themselves so the menu always mirrors what's actually logged;
+  // "All" (empty value) is the default. Case-insensitive match so imported
+  // variants of the same type collapse together.
+  const [typeFilter, setTypeFilter] = useState("");
+  const types = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const i of items) {
+      const t = i.interaction_type?.trim();
+      if (t && !seen.has(t.toLowerCase())) seen.set(t.toLowerCase(), t);
+    }
+    return [...seen.values()].sort((a, b) => a.localeCompare(b));
+  }, [items]);
+
+  const shown = useMemo(
+    () =>
+      typeFilter
+        ? items.filter(
+            (i) =>
+              (i.interaction_type ?? "").toLowerCase() ===
+              typeFilter.toLowerCase(),
+          )
+        : items,
+    [items, typeFilter],
+  );
+
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-card">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-gray-900">Interactions</h3>
-        {canAdd ? (
-          <AddInteractionButton
-            alumniId={alumniId}
-            label="+ Log interaction"
-            primary
-          />
-        ) : null}
+        <div className="flex items-center gap-2">
+          {types.length ? (
+            <Select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              aria-label="Filter interactions by type"
+              className="h-9 w-auto"
+            >
+              <option value="">All types</option>
+              {types.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </Select>
+          ) : null}
+          {canAdd ? (
+            <AddInteractionButton
+              alumniId={alumniId}
+              label="+ Log interaction"
+              primary
+            />
+          ) : null}
+        </div>
       </div>
 
       {items.length === 0 ? (
         <p className="py-8 text-center text-sm text-gray-500">
           No interactions logged yet.
         </p>
+      ) : shown.length === 0 ? (
+        <p className="py-8 text-center text-sm text-gray-500">
+          No {typeFilter} interactions logged yet.
+        </p>
       ) : (
         <ul className="relative space-y-1">
-          {items.map((i, idx) => {
-            const Icon = iconFor(i.interaction_type);
-            const isLast = idx === items.length - 1;
+          {shown.map((i, idx) => {
+            const isLast = idx === shown.length - 1;
             return (
               <li key={i.interaction_id} className="relative flex gap-3 py-3">
                 {/* Vertical timeline connector — restrained 1px gray line. */}
                 {!isLast ? (
                   <span
                     aria-hidden="true"
-                    className="absolute left-4 top-11 bottom-0 w-px -translate-x-1/2 bg-gray-300"
+                    className="absolute left-1.5 top-5 bottom-0 w-px bg-gray-300"
                   />
                 ) : null}
-                <span className="relative z-10 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-blue-50 text-brand-blue-600">
-                  <Icon className="h-4 w-4" aria-hidden="true" />
-                </span>
+                {/* Square timeline marker (no icon, no pill) — #225. */}
+                <span
+                  aria-hidden="true"
+                  className="relative z-10 mt-1.5 h-3 w-3 shrink-0 rounded-sm bg-brand-blue-600"
+                />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
