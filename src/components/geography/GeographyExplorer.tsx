@@ -12,16 +12,29 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Loader2 } from "lucide-react";
-import { geoGraticule, geoNaturalEarth1, geoPath } from "d3-geo";
+import {
+  geoCentroid,
+  geoGraticule,
+  geoNaturalEarth1,
+  geoPath,
+} from "d3-geo";
 import { feature } from "topojson-client";
-import type { FeatureCollection, Geometry } from "geojson";
+import worldTopo from "world-atlas/countries-110m.json";
+import type { Feature, FeatureCollection, Geometry } from "geojson";
 import type { Topology } from "topojson-specification";
 import {
   geocodePlace,
+  getCountryDetail,
   resolveState,
   reverseGeocode,
+  type CountryDetailResult,
 } from "@/app/(app)/map/actions";
 import { INDUSTRY_OPTIONS } from "@/constants/dropdowns";
+import {
+  FALLBACK_CENTROIDS,
+  normalizeCountryName,
+  US_CANONICAL,
+} from "@/lib/geo/world-countries";
 import { UsGeoMap } from "./UsGeoMap";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -66,6 +79,7 @@ export interface RadiusState {
 export function GeographyExplorer({
   counts,
   countyCounts,
+  countryCounts,
   radius,
   filters,
   results,
@@ -75,6 +89,8 @@ export function GeographyExplorer({
   counts: Record<string, number>;
   /** Per-county alumni counts (FIPS → count) for the county choropleth. */
   countyCounts?: Record<string, number>;
+  /** Per-country alumni counts (country name → count) for the world view. */
+  countryCounts?: Record<string, number>;
   radius: RadiusState;
   /** The grouped "Filters" control (industry/year/region/tag). */
   filters: ReactNode;
@@ -303,7 +319,16 @@ export function GeographyExplorer({
             matchCounties={matchCounties}
           />
         ) : (
-          <WorldGeoMap />
+          <WorldGeoMap
+            countryCounts={countryCounts ?? {}}
+            filters={{
+              industry: radius.industry,
+              employer: radius.employer,
+              year: radius.year,
+              region: radius.region,
+              tag: radius.tag,
+            }}
+          />
         )}
       </div>
 
@@ -516,24 +541,81 @@ export function GeographyExplorer({
 
 const WORLD_W = 960;
 const WORLD_H = 500;
+const WORLD_MIN_K = 1;
+const WORLD_MAX_K = 8;
+
+// Country choropleth buckets — same palette family as the US map (UsGeoMap
+// BUCKETS), tuned to the smaller international counts. Countries with no alumni
+// stay a neutral base so only the ones that carry alumni read as colored.
+const COUNTRY_BUCKETS: { min: number; fill: string }[] = [
+  { min: 25, fill: "#1C2E54" },
+  { min: 10, fill: "#3B5C9A" },
+  { min: 5, fill: "#5B7BB4" },
+  { min: 1, fill: "#9DB2D8" },
+];
+const NEUTRAL_COUNTRY = "#E7EDF7";
+
+function countryFill(count: number): string {
+  if (count <= 0) return NEUTRAL_COUNTRY;
+  return (
+    COUNTRY_BUCKETS.find((b) => count >= b.min) ??
+    COUNTRY_BUCKETS[COUNTRY_BUCKETS.length - 1]
+  ).fill;
+}
+
+// Bubble radius (g-space units) from a count — sqrt scale so area ∝ count, with
+// a floor/ceiling so a single alumnus is still visible and a hub never dominates.
+function bubbleRadius(count: number): number {
+  return Math.max(5, Math.min(22, 4 + Math.sqrt(count) * 4));
+}
+
+type WorldFilters = {
+  industry?: string;
+  employer?: string;
+  year?: string;
+  region?: string;
+  tag?: string;
+};
 
 /**
- * World view (#213). Renders a `geoNaturalEarth1` world map. The country
- * polygons come from a world topojson that is loaded lazily — and ONLY if the
- * `world-atlas` package (or an equivalent asset) is present. We avoid bundling a
- * hard dependency: the dynamic import is wrapped so a missing asset degrades to
- * a graticule globe outline plus a clear "asset not yet available" note instead
- * of breaking the build/runtime.
+ * World view (#213). Renders a `geoNaturalEarth1` world map with real country
+ * shapes (Phase A, #237 — the `world-atlas` topojson is bundled), shades each
+ * country by its alumni count and plots a count bubble at its centroid
+ * (Phase B, #238), and opens an aggregate drill-down panel when a country is
+ * clicked (Phase C, #239). Scroll to zoom, drag to pan — mirroring the US map's
+ * `{k,x,y}` transform so the interaction feels identical.
  *
- * FOLLOW-UP (asset): to light up real countries, add the `world-atlas` package
- * (`countries-110m.json`, ~110 KB) — or drop a topojson in `public/` and fetch
- * it — and the loader below will pick it up. Alumni shading by country also
- * needs a backend that returns per-country counts (the geography endpoints are
- * US-state/county only today).
+ * Counts come pre-filtered from the server (the same industry/company/year/tag
+ * filters the US choropleth uses), so re-shading on a filter change is handled
+ * by the page refetch; the drill-down forwards the same filters to stay
+ * consistent. International location is country-level (centroids) by design —
+ * city-level international geocoding is a separate, larger data project.
  */
-function WorldGeoMap() {
-  const [countryPaths, setCountryPaths] = useState<string[] | null>(null);
-  const [assetMissing, setAssetMissing] = useState(false);
+function WorldGeoMap({
+  countryCounts,
+  filters,
+}: {
+  countryCounts: Record<string, number>;
+  filters: WorldFilters;
+}) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  // Zoom/pan transform (g-space -> outer viewBox), identical model to UsGeoMap.
+  const [view, setView] = useState({ k: 1, x: 0, y: 0 });
+  const drag = useRef<{ active: boolean; ox: number; oy: number; moved: boolean }>(
+    { active: false, ox: 0, oy: 0, moved: false },
+  );
+
+  const [hover, setHover] = useState<{
+    name: string;
+    count: number;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [detail, setDetail] = useState<CountryDetailResult | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const projection = useMemo(
     () =>
@@ -556,78 +638,382 @@ function WorldGeoMap() {
     [projection],
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    // Optional asset — guarded so a missing package degrades gracefully.
-    // `webpackIgnore` leaves this as a native dynamic import so the build never
-    // tries to resolve (and fail on) the not-yet-installed `world-atlas`
-    // package; at runtime the bare specifier just rejects in the browser and we
-    // fall back to the graticule outline. FOLLOW-UP: once `world-atlas` is added
-    // as a dependency, replace this whole block with a static
-    // `import("world-atlas/countries-110m.json")` so it's bundled + shaded.
-    const mod = "world-atlas/countries-110m.json";
-    import(/* webpackIgnore: true */ mod)
-      .then((m) => {
-        if (cancelled) return;
-        const topo = ((m as { default?: unknown }).default ?? m) as Topology;
-        const obj = topo.objects?.countries;
-        if (!obj) {
-          setAssetMissing(true);
-          return;
-        }
-        const fc = feature(topo, obj) as unknown as FeatureCollection<Geometry>;
-        const path = geoPath(projection);
-        setCountryPaths(
-          fc.features.map((f) => path(f) || "").filter((d) => d),
-        );
+  // Country polygons + display name + centroid, from the bundled topojson.
+  const countries = useMemo(() => {
+    const topo = worldTopo as unknown as Topology;
+    const obj = topo.objects?.countries;
+    if (!obj) return [];
+    const fc = feature(topo, obj) as unknown as FeatureCollection<Geometry>;
+    const path = geoPath(projection);
+    return fc.features
+      .map((f) => {
+        const name = (f.properties as { name?: string } | null)?.name ?? "";
+        return {
+          key: normalizeCountryName(name),
+          name,
+          d: path(f) || "",
+          centroid: geoCentroid(f as Feature) as [number, number],
+        };
       })
-      .catch(() => {
-        if (!cancelled) setAssetMissing(true);
-      });
-    return () => {
-      cancelled = true;
-    };
+      .filter((c) => c.d);
   }, [projection]);
 
+  // Fold the incoming counts by canonical key (dropping the US + zeros), keeping
+  // a display spelling for labels/drill-down.
+  const countsByKey = useMemo(() => {
+    const m = new Map<string, { count: number; display: string }>();
+    for (const [rawName, count] of Object.entries(countryCounts)) {
+      const key = normalizeCountryName(rawName);
+      if (!key || key === US_CANONICAL || !count) continue;
+      const prev = m.get(key);
+      m.set(key, {
+        count: (prev?.count ?? 0) + count,
+        display: prev?.display ?? rawName.trim(),
+      });
+    }
+    return m;
+  }, [countryCounts]);
+
+  // Bubble anchors in g-space: each country's centroid (from the topojson, or a
+  // fallback for microstates too small to appear in the low-res atlas), sorted
+  // so the biggest bubble draws on top.
+  const bubbles = useMemo(() => {
+    const centroidByKey = new Map<string, [number, number]>();
+    for (const c of countries) centroidByKey.set(c.key, c.centroid);
+    const out: {
+      key: string;
+      display: string;
+      count: number;
+      gx: number;
+      gy: number;
+    }[] = [];
+    for (const [key, { count, display }] of countsByKey) {
+      const lnglat = centroidByKey.get(key) ?? FALLBACK_CENTROIDS[key];
+      if (!lnglat) continue;
+      const pt = projection(lnglat);
+      if (!pt || !Number.isFinite(pt[0]) || !Number.isFinite(pt[1])) continue;
+      out.push({ key, display, count, gx: pt[0], gy: pt[1] });
+    }
+    return out.sort((a, b) => a.count - b.count);
+  }, [countries, countsByKey, projection]);
+
+  const totalPlotted = useMemo(
+    () => bubbles.reduce((n, b) => n + b.count, 0),
+    [bubbles],
+  );
+
+  // --- pan/zoom (mirrors UsGeoMap) --------------------------------------------
+  function toOuter(clientX: number, clientY: number): [number, number] | null {
+    const svg = svgRef.current;
+    const ctm = svg?.getScreenCTM();
+    if (!svg || !ctm) return null;
+    const p = new DOMPoint(clientX, clientY).matrixTransform(ctm.inverse());
+    return [p.x, p.y];
+  }
+
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    function onWheel(e: WheelEvent) {
+      e.preventDefault();
+      const outer = toOuter(e.clientX, e.clientY);
+      if (!outer) return;
+      const [mx, my] = outer;
+      setView((v) => {
+        const factor = e.deltaY < 0 ? 1.2 : 1 / 1.2;
+        const k = Math.min(WORLD_MAX_K, Math.max(WORLD_MIN_K, v.k * factor));
+        if (k === WORLD_MIN_K) return { k: 1, x: 0, y: 0 };
+        const ratio = k / v.k;
+        return { k, x: mx - ratio * (mx - v.x), y: my - ratio * (my - v.y) };
+      });
+    }
+    svg.addEventListener("wheel", onWheel, { passive: false });
+    return () => svg.removeEventListener("wheel", onWheel);
+  }, []);
+
+  function onPointerDown(e: React.PointerEvent<SVGSVGElement>) {
+    const outer = toOuter(e.clientX, e.clientY);
+    if (!outer) return;
+    drag.current = { active: true, ox: outer[0], oy: outer[1], moved: false };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+  function onPointerMove(e: React.PointerEvent<SVGSVGElement>) {
+    if (!drag.current.active) return;
+    const outer = toOuter(e.clientX, e.clientY);
+    if (!outer) return;
+    const dx = outer[0] - drag.current.ox;
+    const dy = outer[1] - drag.current.oy;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.current.moved = true;
+    drag.current.ox = outer[0];
+    drag.current.oy = outer[1];
+    setView((v) => ({ ...v, x: v.x + dx, y: v.y + dy }));
+  }
+  function onPointerUp(e: React.PointerEvent<SVGSVGElement>) {
+    if (e.currentTarget.hasPointerCapture(e.pointerId))
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    drag.current.active = false;
+  }
+
+  // --- drill-down -------------------------------------------------------------
+  const openCountry = useCallback(
+    (display: string) => {
+      if (drag.current.moved) {
+        drag.current.moved = false;
+        return;
+      }
+      setSelected(display);
+      setDetail(null);
+      setDetailLoading(true);
+      getCountryDetail(display, filters)
+        .then((r) => setDetail(r))
+        .catch(() => setDetail({ ok: false, forbidden: false }))
+        .finally(() => setDetailLoading(false));
+    },
+    [filters],
+  );
+
+  function moveHover(e: React.MouseEvent, name: string, count: number) {
+    const rect = wrapRef.current?.getBoundingClientRect();
+    setHover({
+      name,
+      count,
+      x: e.clientX - (rect?.left ?? 0),
+      y: e.clientY - (rect?.top ?? 0),
+    });
+  }
+
   return (
-    <div className="relative h-full w-full overflow-hidden bg-brand-blue-50/30">
+    <div ref={wrapRef} className="relative h-full w-full overflow-hidden">
       <svg
+        ref={svgRef}
         viewBox={`0 0 ${WORLD_W} ${WORLD_H}`}
         preserveAspectRatio="xMidYMid meet"
-        className="absolute inset-0 h-full w-full select-none"
+        className={cn(
+          "absolute inset-0 h-full w-full touch-none select-none bg-brand-blue-50/30",
+          view.k > 1 ? "cursor-grab" : "",
+        )}
         role="img"
-        aria-label="World map of alumni"
+        aria-label="World map of alumni by country. Scroll to zoom, drag to pan."
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
       >
-        <path d={spherePath} fill="#FFFFFF" stroke="#CBD5E1" strokeWidth={1} />
-        <path
-          d={graticulePath}
-          fill="none"
-          stroke="#E2E8F0"
-          strokeWidth={0.5}
-        />
-        {countryPaths
-          ? countryPaths.map((d, i) => (
+        {/* Shaded countries + graticule pan/zoom together in g-space. */}
+        <g transform={`translate(${view.x}, ${view.y}) scale(${view.k})`}>
+          <path d={spherePath} fill="#FFFFFF" stroke="#CBD5E1" strokeWidth={1} />
+          <path
+            d={graticulePath}
+            fill="none"
+            stroke="#E2E8F0"
+            strokeWidth={0.5}
+          />
+          {countries.map((c, i) => {
+            const entry = countsByKey.get(c.key);
+            const count = entry?.count ?? 0;
+            const interactive = count > 0;
+            return (
               <path
-                key={i}
-                d={d}
-                fill="#DCE5F5"
+                key={c.name || i}
+                d={c.d}
+                fill={countryFill(count)}
                 stroke="#9DB2D8"
                 strokeWidth={0.5}
+                vectorEffect="non-scaling-stroke"
+                className={interactive ? "cursor-pointer" : undefined}
+                aria-label={
+                  interactive ? `${c.name}: ${count} alumni` : undefined
+                }
+                onMouseEnter={
+                  interactive
+                    ? (e) => moveHover(e, entry!.display, count)
+                    : undefined
+                }
+                onMouseMove={
+                  interactive
+                    ? (e) => moveHover(e, entry!.display, count)
+                    : undefined
+                }
+                onMouseLeave={() => setHover(null)}
+                onClick={
+                  interactive ? () => openCountry(entry!.display) : undefined
+                }
               />
-            ))
-          : null}
+            );
+          })}
+        </g>
+
+        {/* Count bubbles in OUTER coords (project centroid, then apply the zoom
+            transform) so they stay a constant on-screen size at any zoom — the
+            same trick the US map uses for its pin. */}
+        {bubbles.map((b) => {
+          const ox = view.x + view.k * b.gx;
+          const oy = view.y + view.k * b.gy;
+          if (ox < -40 || ox > WORLD_W + 40 || oy < -40 || oy > WORLD_H + 40)
+            return null;
+          const r = bubbleRadius(b.count);
+          const active = selected === b.display;
+          return (
+            <g
+              key={b.key}
+              transform={`translate(${ox}, ${oy})`}
+              className="cursor-pointer"
+              onMouseEnter={(e) => moveHover(e, b.display, b.count)}
+              onMouseMove={(e) => moveHover(e, b.display, b.count)}
+              onMouseLeave={() => setHover(null)}
+              onClick={() => openCountry(b.display)}
+            >
+              <circle
+                r={r}
+                fill="#1C2E54"
+                fillOpacity={0.85}
+                stroke={active ? "#F59E0B" : "#FFFFFF"}
+                strokeWidth={active ? 2.5 : 1.5}
+              />
+              <text
+                textAnchor="middle"
+                dy="0.35em"
+                className="pointer-events-none fill-white text-[11px] font-semibold tabular-nums"
+              >
+                {b.count.toLocaleString()}
+              </text>
+            </g>
+          );
+        })}
       </svg>
 
-      {assetMissing ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-6 flex justify-center">
-          <p className="max-w-md rounded-lg bg-white/95 px-4 py-2 text-center text-xs text-gray-600 shadow-card">
-            World map outline is ready. Country shapes need the{" "}
-            <span className="font-semibold text-gray-900">world-atlas</span>{" "}
-            asset, and per-country alumni counts need a backend endpoint — see
-            the follow-up note.
+      {/* Hover tooltip. */}
+      {hover ? (
+        <div
+          className="pointer-events-none absolute z-30 -translate-x-1/2 rounded-md bg-gray-900/95 px-2 py-1 text-xs text-white shadow-card"
+          style={{ left: hover.x, top: hover.y - 10 }}
+        >
+          <p className="font-semibold">{hover.name}</p>
+          <p className="tabular-nums text-gray-200">
+            {hover.count.toLocaleString()} alumni
           </p>
         </div>
       ) : null}
+
+      {/* Empty state — no international alumni to plot (all alumni are US, or a
+          filter excluded everyone). The map still renders for context. */}
+      {bubbles.length === 0 ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-6 flex justify-center">
+          <p className="max-w-md rounded-lg bg-white/95 px-4 py-2 text-center text-xs text-gray-600 shadow-card">
+            No international alumni to plot yet. Alumni located outside the US
+            appear here as country bubbles.
+          </p>
+        </div>
+      ) : (
+        <div className="pointer-events-none absolute bottom-4 left-4 z-10 rounded-md bg-white/90 px-2.5 py-1.5 text-xs text-gray-600 shadow-card">
+          <span className="font-semibold text-gray-900 tabular-nums">
+            {totalPlotted.toLocaleString()}
+          </span>{" "}
+          international {totalPlotted === 1 ? "alumnus" : "alumni"} in{" "}
+          <span className="font-semibold text-gray-900 tabular-nums">
+            {bubbles.length}
+          </span>{" "}
+          {bubbles.length === 1 ? "country" : "countries"}
+        </div>
+      )}
+
+      {/* Country drill-down panel (Phase C) — floats bottom-right, mirroring the
+          US radius results panel. */}
+      {selected ? (
+        <div className="absolute bottom-4 right-4 z-20 w-[min(24rem,calc(100%-2rem))]">
+          <Card className="flex max-h-[min(70vh,28rem)] flex-col overflow-hidden">
+            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-gray-200 px-4 py-2.5">
+              <span className="truncate text-sm font-semibold text-gray-900">
+                {selected}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelected(null);
+                  setDetail(null);
+                }}
+                className="rounded-md px-1.5 text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                aria-label="Close country details"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 text-sm">
+              {detailLoading ? (
+                <p className="flex items-center gap-2 text-gray-500">
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  Loading…
+                </p>
+              ) : detail && !detail.ok ? (
+                <p className="text-gray-600">
+                  {detail.forbidden
+                    ? "Country details need full access."
+                    : "Couldn't load details for this country."}
+                </p>
+              ) : detail && detail.ok ? (
+                <CountryDetailBody detail={detail.detail} />
+              ) : null}
+            </div>
+          </Card>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+/** Renders the aggregate breakdown for one country in the drill-down panel. */
+function CountryDetailBody({
+  detail,
+}: {
+  detail: NonNullable<Extract<CountryDetailResult, { ok: true }>["detail"]>;
+}) {
+  return (
+    <>
+      <p className="text-gray-700">
+        <span className="text-base font-semibold tabular-nums text-gray-900">
+          {detail.alumni_count.toLocaleString()}
+        </span>{" "}
+        {detail.alumni_count === 1 ? "alumnus" : "alumni"}
+      </p>
+
+      {detail.employers.length ? (
+        <div>
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Top employers
+          </p>
+          <ul className="space-y-0.5">
+            {detail.employers.slice(0, 5).map((e) => (
+              <li key={e.employer} className="flex justify-between gap-2">
+                <span className="truncate text-gray-700">{e.employer}</span>
+                <span className="shrink-0 tabular-nums text-gray-500">
+                  {e.count}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {detail.industries.length ? (
+        <div>
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Top industries
+          </p>
+          <ul className="space-y-0.5">
+            {detail.industries.slice(0, 5).map((i) => (
+              <li key={i.industry} className="flex justify-between gap-2">
+                <span className="truncate text-gray-700">{i.industry}</span>
+                <span className="shrink-0 tabular-nums text-gray-500">
+                  {i.count}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {!detail.employers.length && !detail.industries.length ? (
+        <p className="text-gray-500">No employer or industry data yet.</p>
+      ) : null}
+    </>
   );
 }

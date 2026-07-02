@@ -3,6 +3,51 @@
 import cityCrosswalk from "@/lib/geo/city-crosswalk.json";
 import majorCities from "@/lib/geo/major-cities.json";
 import { lookupCityGeo, STATE_FIPS } from "@/lib/geo/counties-data";
+import { apiGet, ApiError } from "@/lib/api";
+import type { CountryDetail } from "@/types/geography";
+
+const GEO_FILTER_KEYS = [
+  "industry",
+  "employer",
+  "year",
+  "region",
+  "tag",
+] as const;
+
+/** Result of a world-view country drill-down fetch. `forbidden` distinguishes a
+ * 403 (not provisioned) from a generic failure so the panel can explain it. */
+export type CountryDetailResult =
+  | { ok: true; detail: CountryDetail }
+  | { ok: false; forbidden: boolean };
+
+/**
+ * Fetch the aggregate drill-down for one country (world view), passing through
+ * the same map-wide filters the choropleth uses so the panel stays consistent
+ * with the shading. Aggregate only (view-access) — never throws; returns a
+ * typed ok/error the client renders.
+ */
+export async function getCountryDetail(
+  country: string,
+  filters: Partial<Record<(typeof GEO_FILTER_KEYS)[number], string>> = {},
+): Promise<CountryDetailResult> {
+  const name = (country ?? "").trim();
+  if (!name) return { ok: false, forbidden: false };
+  const p = new URLSearchParams();
+  for (const k of GEO_FILTER_KEYS) {
+    const v = filters[k];
+    if (v) p.set(k, v);
+  }
+  const qs = p.toString();
+  try {
+    const detail = await apiGet<CountryDetail>(
+      `/geography/countries/${encodeURIComponent(name)}${qs ? `?${qs}` : ""}`,
+      { revalidate: 60, tags: ["geography"] },
+    );
+    return { ok: true, detail };
+  } catch (e) {
+    return { ok: false, forbidden: e instanceof ApiError && e.status === 403 };
+  }
+}
 
 /**
  * Result of geocoding a typed "City, ST" (or bare "City") string to a center
