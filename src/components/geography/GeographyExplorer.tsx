@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { ChevronDown, Loader2 } from "lucide-react";
 import {
   geoCentroid,
@@ -24,11 +25,14 @@ import type { Feature, FeatureCollection, Geometry } from "geojson";
 import type { Topology } from "topojson-specification";
 import {
   geocodePlace,
+  getCountryAlumni,
   getCountryDetail,
   resolveState,
   reverseGeocode,
+  type CountryAlumniResult,
   type CountryDetailResult,
 } from "@/app/(app)/map/actions";
+import type { GeoAlumniRow } from "@/types/geography";
 import { INDUSTRY_OPTIONS } from "@/constants/dropdowns";
 import {
   FALLBACK_CENTROIDS,
@@ -616,6 +620,12 @@ function WorldGeoMap({
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<CountryDetailResult | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  // The individual alumni behind the selected country (full-access; paginated).
+  const [alumniResult, setAlumniResult] = useState<CountryAlumniResult | null>(
+    null,
+  );
+  const [alumniItems, setAlumniItems] = useState<GeoAlumniRow[]>([]);
+  const [alumniLoading, setAlumniLoading] = useState(false);
 
   const projection = useMemo(
     () =>
@@ -755,6 +765,28 @@ function WorldGeoMap({
   }
 
   // --- drill-down -------------------------------------------------------------
+  const ALUMNI_PAGE = 50;
+
+  // Fetch one page of the country's alumni; offset 0 replaces the list, a
+  // higher offset appends (the "Show more" pager).
+  const fetchAlumniPage = useCallback(
+    (display: string, offset: number) => {
+      setAlumniLoading(true);
+      getCountryAlumni(display, filters, { limit: ALUMNI_PAGE, offset })
+        .then((r) => {
+          setAlumniResult(r);
+          if (r.ok) {
+            setAlumniItems((prev) =>
+              offset === 0 ? r.page.items : [...prev, ...r.page.items],
+            );
+          }
+        })
+        .catch(() => setAlumniResult({ ok: false, forbidden: false }))
+        .finally(() => setAlumniLoading(false));
+    },
+    [filters],
+  );
+
   const openCountry = useCallback(
     (display: string) => {
       if (drag.current.moved) {
@@ -764,12 +796,15 @@ function WorldGeoMap({
       setSelected(display);
       setDetail(null);
       setDetailLoading(true);
+      setAlumniResult(null);
+      setAlumniItems([]);
       getCountryDetail(display, filters)
         .then((r) => setDetail(r))
         .catch(() => setDetail({ ok: false, forbidden: false }))
         .finally(() => setDetailLoading(false));
+      fetchAlumniPage(display, 0);
     },
-    [filters],
+    [filters, fetchAlumniPage],
   );
 
   function moveHover(e: React.MouseEvent, name: string, count: number) {
@@ -930,6 +965,8 @@ function WorldGeoMap({
                 onClick={() => {
                   setSelected(null);
                   setDetail(null);
+                  setAlumniResult(null);
+                  setAlumniItems([]);
                 }}
                 className="rounded-md px-1.5 text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-900"
                 aria-label="Close country details"
@@ -951,6 +988,83 @@ function WorldGeoMap({
                 </p>
               ) : detail && detail.ok ? (
                 <CountryDetailBody detail={detail.detail} />
+              ) : null}
+
+              {/* Individual alumni (full-access). Aggregate detail above stays
+                  view-accessible; this list is the who-is-here drill-down. */}
+              {!detailLoading ? (
+                <div className="border-t border-gray-200 pt-3">
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Alumni
+                  </p>
+                  {alumniResult && !alumniResult.ok ? (
+                    <p className="text-gray-600">
+                      {alumniResult.forbidden
+                        ? "Viewing the individual alumni here needs full access."
+                        : "Couldn't load the alumni for this country."}
+                    </p>
+                  ) : alumniItems.length ? (
+                    <>
+                      <ul className="divide-y divide-gray-100">
+                        {alumniItems.map((a) => (
+                          <li key={a.alumni_id} className="py-1.5">
+                            <Link
+                              href={`/alumni/${a.alumni_id}`}
+                              className="font-medium text-brand-blue-700 hover:underline"
+                            >
+                              {a.name}
+                            </Link>
+                            <p className="text-xs text-gray-500">
+                              {[
+                                a.city,
+                                a.graduation_year
+                                  ? `Class of ${a.graduation_year}`
+                                  : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </p>
+                            {a.current_employer || a.current_title ? (
+                              <p className="truncate text-xs text-gray-600">
+                                {[a.current_title, a.current_employer]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </p>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                      {alumniResult?.ok &&
+                      alumniItems.length < alumniResult.page.total ? (
+                        <button
+                          type="button"
+                          disabled={alumniLoading}
+                          onClick={() =>
+                            selected &&
+                            fetchAlumniPage(selected, alumniItems.length)
+                          }
+                          className="mt-2 w-full rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                        >
+                          {alumniLoading
+                            ? "Loading…"
+                            : `Show more (${alumniResult.page.total - alumniItems.length} more)`}
+                        </button>
+                      ) : null}
+                    </>
+                  ) : alumniLoading ? (
+                    <p className="flex items-center gap-2 text-gray-500">
+                      <Loader2
+                        className="h-4 w-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                      Loading alumni…
+                    </p>
+                  ) : alumniResult?.ok ? (
+                    <p className="text-gray-500">
+                      No alumni match here with the current filters.
+                    </p>
+                  ) : null}
+                </div>
               ) : null}
             </div>
           </Card>

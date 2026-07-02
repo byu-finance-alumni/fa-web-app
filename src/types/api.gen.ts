@@ -1991,6 +1991,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/geography/countries/{country}/alumni": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Country Alumni
+         * @description Paginated, sortable alumni list for one country (world-view drill-down).
+         *
+         *     FERPA: this lists the individual alumni behind a country count, so it is
+         *     gated to full_access (view_only gets 403) and the disclosure is audited; the
+         *     aggregate country count/detail stay view-accessible.
+         */
+        get: operations["country_alumni_geography_countries__country__alumni_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/geography/breakdown": {
         parameters: {
             query?: never;
@@ -7564,6 +7588,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CountryDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    country_alumni_geography_countries__country__alumni_get: {
+        parameters: {
+            query?: {
+                sort?: string;
+                limit?: number;
+                offset?: number;
+                employer?: string | null;
+                industry?: string | null;
+                year?: number | null;
+                region?: string | null;
+                tag?: string | null;
+            };
+            header?: never;
+            path: {
+                country: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeoAlumniPage"];
                 };
             };
             /** @description Validation Error */
