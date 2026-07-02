@@ -1948,6 +1948,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/geography/countries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Countries
+         * @description Per-country alumni counts (international) for the world-map view.
+         *
+         *     Aggregate counts only (no PII), so view-accessible like ``/states``.
+         */
+        get: operations["countries_geography_countries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/geography/countries/{country}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Country Detail
+         * @description Country drill-down: count + top employers / industries + grad-year
+         *     histogram (aggregate only, so view-accessible like ``/states/{state}``).
+         */
+        get: operations["country_detail_geography_countries__country__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/geography/breakdown": {
         parameters: {
             query?: never;
@@ -3063,6 +3106,35 @@ export interface components {
             country: string | null;
             /** Region */
             region: string | null;
+        };
+        /**
+         * CountryCount
+         * @description Per-country alumni count for the world map (international alumni only).
+         */
+        CountryCount: {
+            /** Country */
+            country: string;
+            /** Alumni Count */
+            alumni_count: number;
+        };
+        /**
+         * CountryDetail
+         * @description Aggregate drill-down for one country (world-view country click-through).
+         *
+         *     No cities (international city data isn't populated) — count + top employers /
+         *     industries + grad-year histogram, mirroring ``StateDetail``.
+         */
+        CountryDetail: {
+            /** Country */
+            country: string;
+            /** Alumni Count */
+            alumni_count: number;
+            /** Employers */
+            employers: components["schemas"]["EmployerCount"][];
+            /** Industries */
+            industries: components["schemas"]["IndustryCount"][];
+            /** By Graduation Year */
+            by_graduation_year: components["schemas"]["YearCount"][];
         };
         /**
          * CountyCount
@@ -7420,6 +7492,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CountyCount"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    countries_geography_countries_get: {
+        parameters: {
+            query?: {
+                employer?: string | null;
+                industry?: string | null;
+                year?: number | null;
+                region?: string | null;
+                tag?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CountryCount"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    country_detail_geography_countries__country__get: {
+        parameters: {
+            query?: {
+                employer?: string | null;
+                industry?: string | null;
+                year?: number | null;
+                region?: string | null;
+                tag?: string | null;
+            };
+            header?: never;
+            path: {
+                country: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CountryDetail"];
                 };
             };
             /** @description Validation Error */

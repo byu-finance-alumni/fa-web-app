@@ -8,7 +8,12 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { lookupCityGeo } from "@/lib/geo/counties-data";
-import type { CountyCount, GeoSummary, StateCount } from "@/types/geography";
+import type {
+  CountryCount,
+  CountyCount,
+  GeoSummary,
+  StateCount,
+} from "@/types/geography";
 import type { components } from "@/types/api.gen";
 
 type RadiusPage = components["schemas"]["RadiusPage"];
@@ -76,11 +81,29 @@ export default async function GeographyPage({
     }
   }
 
+  // Per-country counts for the world view (#238). Fetched tolerantly like
+  // counties so an API without /geography/countries just disables world shading
+  // rather than blanking the map.
+  let countries: CountryCount[] = [];
+  if (!notProvisioned) {
+    try {
+      countries = await apiGet<CountryCount[]>(`/geography/countries?${qs}`, {
+        revalidate: 60,
+        tags: ["geography"],
+      });
+    } catch {
+      countries = [];
+    }
+  }
+
   const counts: Record<string, number> = {};
   for (const s of states) counts[s.state] = s.alumni_count;
 
   const countyCounts: Record<string, number> = {};
   for (const c of counties) countyCounts[c.county_fips] = c.count;
+
+  const countryCounts: Record<string, number> = {};
+  for (const c of countries) countryCounts[c.country] = c.alumni_count;
 
   // --- Radius search (full_access-gated) — always on -------------------------
   const lat = sp.lat;
@@ -215,6 +238,7 @@ export default async function GeographyPage({
           <GeographyExplorer
             counts={counts}
             countyCounts={countyCounts}
+            countryCounts={countryCounts}
             hasCenter={hasCenter || forbidden || loadError}
             matchCounties={matchCounties}
             radius={{
