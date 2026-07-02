@@ -4,7 +4,7 @@ import cityCrosswalk from "@/lib/geo/city-crosswalk.json";
 import majorCities from "@/lib/geo/major-cities.json";
 import { lookupCityGeo, STATE_FIPS } from "@/lib/geo/counties-data";
 import { apiGet, ApiError } from "@/lib/api";
-import type { CountryDetail } from "@/types/geography";
+import type { CountryDetail, GeoAlumniPage } from "@/types/geography";
 
 const GEO_FILTER_KEYS = [
   "industry",
@@ -44,6 +44,41 @@ export async function getCountryDetail(
       { revalidate: 60, tags: ["geography"] },
     );
     return { ok: true, detail };
+  } catch (e) {
+    return { ok: false, forbidden: e instanceof ApiError && e.status === 403 };
+  }
+}
+
+/** Result of a world-view country alumni-list fetch (the individual alumni
+ * behind a country). `forbidden` is a 403 — the list is full-access only. */
+export type CountryAlumniResult =
+  | { ok: true; page: GeoAlumniPage }
+  | { ok: false; forbidden: boolean };
+
+/**
+ * Fetch the individual alumni in one country (world-view drill-down), paginated
+ * + filtered like the choropleth. Full-access only (view-only gets a 403, which
+ * the panel explains). Never throws.
+ */
+export async function getCountryAlumni(
+  country: string,
+  filters: Partial<Record<(typeof GEO_FILTER_KEYS)[number], string>> = {},
+  { limit = 50, offset = 0 }: { limit?: number; offset?: number } = {},
+): Promise<CountryAlumniResult> {
+  const name = (country ?? "").trim();
+  if (!name) return { ok: false, forbidden: false };
+  const p = new URLSearchParams();
+  p.set("limit", String(limit));
+  p.set("offset", String(offset));
+  for (const k of GEO_FILTER_KEYS) {
+    const v = filters[k];
+    if (v) p.set(k, v);
+  }
+  try {
+    const page = await apiGet<GeoAlumniPage>(
+      `/geography/countries/${encodeURIComponent(name)}/alumni?${p.toString()}`,
+    );
+    return { ok: true, page };
   } catch (e) {
     return { ok: false, forbidden: e instanceof ApiError && e.status === 403 };
   }
