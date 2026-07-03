@@ -28,11 +28,31 @@ function withCookies(from: NextResponse, to: NextResponse): NextResponse {
 //   - unauthenticated + protected route  → redirect to /login (with ?next=)
 //   - authenticated + on /login          → redirect to the app home
 // Called from the root middleware.
-export const updateSession = async (request: NextRequest) => {
+export const updateSession = async (
+  request: NextRequest,
+  // Nonce-based CSP (#30). When present, the nonce is threaded onto the
+  // FORWARDED request headers (so Next.js reads it and nonces its scripts) and
+  // the CSP is set on every response the browser receives (so it's enforced).
+  csp?: { nonce: string; csp: string },
+) => {
+  // Forwarded request headers = the incoming headers (including any cookies
+  // Supabase just rotated onto `request`) plus the CSP nonce. Rebuilt each time
+  // so the freshly-set cookies AND the nonce reach the server render.
+  const forwardHeaders = () => {
+    const headers = new Headers(request.headers);
+    if (csp) {
+      headers.set("x-nonce", csp.nonce);
+      headers.set("content-security-policy", csp.csp);
+    }
+    return headers;
+  };
+  const withCsp = (response: NextResponse) => {
+    if (csp) response.headers.set("content-security-policy", csp.csp);
+    return response;
+  };
+
   let supabaseResponse = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
+    request: { headers: forwardHeaders() },
   });
 
   const supabase = createServerClient(supabaseUrl!, supabaseKey!, {
@@ -44,7 +64,9 @@ export const updateSession = async (request: NextRequest) => {
         cookiesToSet.forEach(({ name, value }) =>
           request.cookies.set(name, value),
         );
-        supabaseResponse = NextResponse.next({ request });
+        supabaseResponse = NextResponse.next({
+          request: { headers: forwardHeaders() },
+        });
         cookiesToSet.forEach(({ name, value, options }) =>
           supabaseResponse.cookies.set(name, value, options),
         );
@@ -90,7 +112,7 @@ export const updateSession = async (request: NextRequest) => {
     loginUrl.pathname = "/login";
     loginUrl.search = "";
     loginUrl.searchParams.set("next", pathname);
-    return withCookies(supabaseResponse, NextResponse.redirect(loginUrl));
+    return withCsp(withCookies(supabaseResponse, NextResponse.redirect(loginUrl)));
   }
 
   // Already signed in but sitting on /login → bounce to the app.
@@ -98,8 +120,8 @@ export const updateSession = async (request: NextRequest) => {
     const homeUrl = request.nextUrl.clone();
     homeUrl.pathname = APP_HOME;
     homeUrl.search = "";
-    return withCookies(supabaseResponse, NextResponse.redirect(homeUrl));
+    return withCsp(withCookies(supabaseResponse, NextResponse.redirect(homeUrl)));
   }
 
-  return supabaseResponse;
+  return withCsp(supabaseResponse);
 };
