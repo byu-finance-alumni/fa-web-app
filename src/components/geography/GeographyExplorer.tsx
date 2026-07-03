@@ -26,11 +26,9 @@ import type { Topology } from "topojson-specification";
 import {
   geocodePlace,
   getCountryAlumni,
-  getCountryDetail,
   resolveState,
   reverseGeocode,
   type CountryAlumniResult,
-  type CountryDetailResult,
 } from "@/app/(app)/map/actions";
 import type { GeoAlumniRow } from "@/types/geography";
 import { INDUSTRY_OPTIONS } from "@/constants/dropdowns";
@@ -621,9 +619,10 @@ function WorldGeoMap({
     x: number;
     y: number;
   } | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [detail, setDetail] = useState<CountryDetailResult | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
+  const [selected, setSelected] = useState<{
+    name: string;
+    count: number;
+  } | null>(null);
   // The individual alumni behind the selected country (full-access; paginated).
   const [alumniResult, setAlumniResult] = useState<CountryAlumniResult | null>(
     null,
@@ -812,23 +811,17 @@ function WorldGeoMap({
   );
 
   const openCountry = useCallback(
-    (display: string) => {
+    (display: string, count: number) => {
       if (drag.current.moved) {
         drag.current.moved = false;
         return;
       }
-      setSelected(display);
-      setDetail(null);
-      setDetailLoading(true);
+      setSelected({ name: display, count });
       setAlumniResult(null);
       setAlumniItems([]);
-      getCountryDetail(display, filters)
-        .then((r) => setDetail(r))
-        .catch(() => setDetail({ ok: false, forbidden: false }))
-        .finally(() => setDetailLoading(false));
       fetchAlumniPage(display, 0);
     },
-    [filters, fetchAlumniPage],
+    [fetchAlumniPage],
   );
 
   function moveHover(e: React.MouseEvent, name: string, count: number) {
@@ -894,7 +887,9 @@ function WorldGeoMap({
                 }
                 onMouseLeave={() => setHover(null)}
                 onClick={
-                  interactive ? () => openCountry(entry!.display) : undefined
+                  interactive
+                    ? () => openCountry(entry!.display, count)
+                    : undefined
                 }
               />
             );
@@ -910,7 +905,7 @@ function WorldGeoMap({
           if (ox < -40 || ox > WORLD_W + 40 || oy < -40 || oy > WORLD_H + 40)
             return null;
           const r = bubbleRadius(b.count);
-          const active = selected === b.display;
+          const active = selected?.name === b.display;
           return (
             <g
               key={b.key}
@@ -919,7 +914,7 @@ function WorldGeoMap({
               onMouseEnter={(e) => moveHover(e, b.display, b.count)}
               onMouseMove={(e) => moveHover(e, b.display, b.count)}
               onMouseLeave={() => setHover(null)}
-              onClick={() => openCountry(b.display)}
+              onClick={() => openCountry(b.display, b.count)}
             >
               <circle
                 r={r}
@@ -981,14 +976,19 @@ function WorldGeoMap({
         <div className="absolute bottom-4 right-4 z-20 w-[min(24rem,calc(100%-2rem))]">
           <Card className="flex max-h-[min(70vh,28rem)] flex-col overflow-hidden">
             <div className="flex shrink-0 items-center justify-between gap-2 border-b border-gray-200 px-4 py-2.5">
-              <span className="truncate text-sm font-semibold text-gray-900">
-                {selected}
-              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-gray-900">
+                  {selected.name}
+                </p>
+                <p className="text-xs tabular-nums text-gray-500">
+                  {selected.count.toLocaleString()}{" "}
+                  {selected.count === 1 ? "alumnus" : "alumni"}
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => {
                   setSelected(null);
-                  setDetail(null);
                   setAlumniResult(null);
                   setAlumniItems([]);
                 }}
@@ -998,160 +998,75 @@ function WorldGeoMap({
                 ✕
               </button>
             </div>
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 text-sm">
-              {detailLoading ? (
+            <div className="min-h-0 flex-1 overflow-y-auto p-3 text-sm">
+              {alumniResult && !alumniResult.ok ? (
+                <p className="text-gray-600">
+                  {alumniResult.forbidden
+                    ? "Viewing the individual alumni here needs full access."
+                    : "Couldn't load the alumni for this country."}
+                </p>
+              ) : alumniItems.length ? (
+                <>
+                  <ul className="divide-y divide-gray-100">
+                    {alumniItems.map((a) => (
+                      <li key={a.alumni_id} className="py-1.5">
+                        <Link
+                          href={`/alumni/${a.alumni_id}`}
+                          className="font-medium text-brand-blue-700 hover:underline"
+                        >
+                          {a.name}
+                        </Link>
+                        <p className="text-xs text-gray-500">
+                          {[
+                            a.city,
+                            a.graduation_year
+                              ? `Class of ${a.graduation_year}`
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                        {a.current_employer || a.current_title ? (
+                          <p className="truncate text-xs text-gray-600">
+                            {[a.current_title, a.current_employer]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </p>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                  {alumniResult?.ok &&
+                  alumniItems.length < alumniResult.page.total ? (
+                    <button
+                      type="button"
+                      disabled={alumniLoading}
+                      onClick={() =>
+                        selected &&
+                        fetchAlumniPage(selected.name, alumniItems.length)
+                      }
+                      className="mt-2 w-full rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                    >
+                      {alumniLoading
+                        ? "Loading…"
+                        : `Show more (${alumniResult.page.total - alumniItems.length} more)`}
+                    </button>
+                  ) : null}
+                </>
+              ) : alumniLoading ? (
                 <p className="flex items-center gap-2 text-gray-500">
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                  Loading…
+                  Loading alumni…
                 </p>
-              ) : detail && !detail.ok ? (
-                <p className="text-gray-600">
-                  {detail.forbidden
-                    ? "Country details need full access."
-                    : "Couldn't load details for this country."}
+              ) : alumniResult?.ok ? (
+                <p className="text-gray-500">
+                  No alumni match here with the current filters.
                 </p>
-              ) : detail && detail.ok ? (
-                <CountryDetailBody detail={detail.detail} />
-              ) : null}
-
-              {/* Individual alumni (full-access). Aggregate detail above stays
-                  view-accessible; this list is the who-is-here drill-down. */}
-              {!detailLoading ? (
-                <div className="border-t border-gray-200 pt-3">
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    Alumni
-                  </p>
-                  {alumniResult && !alumniResult.ok ? (
-                    <p className="text-gray-600">
-                      {alumniResult.forbidden
-                        ? "Viewing the individual alumni here needs full access."
-                        : "Couldn't load the alumni for this country."}
-                    </p>
-                  ) : alumniItems.length ? (
-                    <>
-                      <ul className="divide-y divide-gray-100">
-                        {alumniItems.map((a) => (
-                          <li key={a.alumni_id} className="py-1.5">
-                            <Link
-                              href={`/alumni/${a.alumni_id}`}
-                              className="font-medium text-brand-blue-700 hover:underline"
-                            >
-                              {a.name}
-                            </Link>
-                            <p className="text-xs text-gray-500">
-                              {[
-                                a.city,
-                                a.graduation_year
-                                  ? `Class of ${a.graduation_year}`
-                                  : null,
-                              ]
-                                .filter(Boolean)
-                                .join(" · ")}
-                            </p>
-                            {a.current_employer || a.current_title ? (
-                              <p className="truncate text-xs text-gray-600">
-                                {[a.current_title, a.current_employer]
-                                  .filter(Boolean)
-                                  .join(" · ")}
-                              </p>
-                            ) : null}
-                          </li>
-                        ))}
-                      </ul>
-                      {alumniResult?.ok &&
-                      alumniItems.length < alumniResult.page.total ? (
-                        <button
-                          type="button"
-                          disabled={alumniLoading}
-                          onClick={() =>
-                            selected &&
-                            fetchAlumniPage(selected, alumniItems.length)
-                          }
-                          className="mt-2 w-full rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
-                        >
-                          {alumniLoading
-                            ? "Loading…"
-                            : `Show more (${alumniResult.page.total - alumniItems.length} more)`}
-                        </button>
-                      ) : null}
-                    </>
-                  ) : alumniLoading ? (
-                    <p className="flex items-center gap-2 text-gray-500">
-                      <Loader2
-                        className="h-4 w-4 animate-spin"
-                        aria-hidden="true"
-                      />
-                      Loading alumni…
-                    </p>
-                  ) : alumniResult?.ok ? (
-                    <p className="text-gray-500">
-                      No alumni match here with the current filters.
-                    </p>
-                  ) : null}
-                </div>
               ) : null}
             </div>
           </Card>
         </div>
       ) : null}
     </div>
-  );
-}
-
-/** Renders the aggregate breakdown for one country in the drill-down panel. */
-function CountryDetailBody({
-  detail,
-}: {
-  detail: NonNullable<Extract<CountryDetailResult, { ok: true }>["detail"]>;
-}) {
-  return (
-    <>
-      <p className="text-gray-700">
-        <span className="text-base font-semibold tabular-nums text-gray-900">
-          {detail.alumni_count.toLocaleString()}
-        </span>{" "}
-        {detail.alumni_count === 1 ? "alumnus" : "alumni"}
-      </p>
-
-      {detail.employers.length ? (
-        <div>
-          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
-            Top employers
-          </p>
-          <ul className="space-y-0.5">
-            {detail.employers.slice(0, 5).map((e) => (
-              <li key={e.employer} className="flex justify-between gap-2">
-                <span className="truncate text-gray-700">{e.employer}</span>
-                <span className="shrink-0 tabular-nums text-gray-500">
-                  {e.count}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {detail.industries.length ? (
-        <div>
-          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
-            Top industries
-          </p>
-          <ul className="space-y-0.5">
-            {detail.industries.slice(0, 5).map((i) => (
-              <li key={i.industry} className="flex justify-between gap-2">
-                <span className="truncate text-gray-700">{i.industry}</span>
-                <span className="shrink-0 tabular-nums text-gray-500">
-                  {i.count}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {!detail.employers.length && !detail.industries.length ? (
-        <p className="text-gray-500">No employer or industry data yet.</p>
-      ) : null}
-    </>
   );
 }
