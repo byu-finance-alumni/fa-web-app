@@ -1551,11 +1551,12 @@ export interface paths {
         put?: never;
         /**
          * Preview Import Events
-         * @description Dry-run an events bulk CSV import (full_access, NO writes).
+         * @description Dry-run a single-event attendee CSV import (full_access, NO writes).
          *
-         *     Groups attendee rows into events, resolves attendees by Net ID, and flags
-         *     unmatched Net IDs, bad dates, and duplicate events. A bad header set surfaces
-         *     as ``columns_ok: false`` with ``header_errors``.
+         *     The event's identity (title/date/type/…) comes from the wizard as form
+         *     fields; the CSV is the attendee roster. Resolves attendees by Net ID and
+         *     flags unmatched/duplicate attendees, a bad date, and a pre-existing event. A
+         *     bad header set surfaces as ``columns_ok: false`` with ``header_errors``.
          */
         post: operations["preview_import_events_events_import_preview_post"];
         delete?: never;
@@ -1575,10 +1576,11 @@ export interface paths {
         put?: never;
         /**
          * Import Events Commit
-         * @description Commit an events bulk CSV import (full_access). Re-evaluates and inserts
-         *     every importable event + its matched attendees in one transaction (audit
-         *     logging fires per event and attendee); rejected events are skipped and
-         *     reported. A bad header set imports nothing.
+         * @description Commit a single-event attendee CSV import (full_access). Re-evaluates and,
+         *     if the event identity is valid and new, inserts the event + its matched
+         *     attendees in one transaction (audit logging fires for the event and each
+         *     attendee); unmatched attendees are skipped and reported. A bad header set
+         *     imports nothing.
          */
         post: operations["import_events_commit_events_import_post"];
         delete?: never;
@@ -2999,6 +3001,16 @@ export interface components {
         Body_import_events_commit_events_import_post: {
             /** File */
             file: string;
+            /** Event Name */
+            event_name: string;
+            /** Event Date */
+            event_date?: string | null;
+            /** Event Type */
+            event_type?: string | null;
+            /** Event Location */
+            event_location?: string | null;
+            /** Event Notes */
+            event_notes?: string | null;
         };
         /** Body_preview_import_alumni_alumni_import_preview_post */
         Body_preview_import_alumni_alumni_import_preview_post: {
@@ -3014,6 +3026,16 @@ export interface components {
         Body_preview_import_events_events_import_preview_post: {
             /** File */
             file: string;
+            /** Event Name */
+            event_name: string;
+            /** Event Date */
+            event_date?: string | null;
+            /** Event Type */
+            event_type?: string | null;
+            /** Event Location */
+            event_location?: string | null;
+            /** Event Notes */
+            event_notes?: string | null;
         };
         /** Breakdown */
         Breakdown: {

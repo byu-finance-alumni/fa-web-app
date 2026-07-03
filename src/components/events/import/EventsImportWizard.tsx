@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
 import type {
-  EventImportGroup,
+  EventImportAttendee,
   EventImportPreview,
   EventImportResult,
 } from "@/types/events-import";
@@ -14,12 +14,36 @@ import {
 } from "@/app/(app)/events/actions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 type Step = "upload" | "review" | "result";
 
-function fileForm(file: File): FormData {
+interface EventFields {
+  name: string;
+  date: string;
+  type: string;
+  location: string;
+  notes: string;
+}
+
+const EMPTY_FIELDS: EventFields = {
+  name: "",
+  date: "",
+  type: "",
+  location: "",
+  notes: "",
+};
+
+function importForm(file: File, ev: EventFields): FormData {
   const fd = new FormData();
   fd.append("file", file, file.name);
+  fd.append("event_name", ev.name.trim());
+  if (ev.date) fd.append("event_date", ev.date);
+  if (ev.type.trim()) fd.append("event_type", ev.type.trim());
+  if (ev.location.trim()) fd.append("event_location", ev.location.trim());
+  if (ev.notes.trim()) fd.append("event_notes", ev.notes.trim());
   return fd;
 }
 
@@ -41,14 +65,15 @@ const isCsv = (file: File) =>
   file.type === "application/vnd.ms-excel";
 
 /**
- * Bulk-import events from a CSV. One row per attendee; rows sharing a title +
- * date form one event. Attendees are matched to existing alumni by Net ID, and
- * any unmatched Net ID (or bad date / missing title / duplicate event) rejects
- * that whole event group — the backend re-enforces all of this. Text-only
+ * Bulk-import one event's attendees from a CSV (#149). The event's details are
+ * entered here; the CSV is just the attendee roster (Net ID + Name). Attendees
+ * are matched to existing alumni by Net ID — unmatched ones are reported and
+ * skipped, never invented. The backend re-enforces everything. Text-only
  * controls per the app's no-icons preference.
  */
 export function EventsImportWizard() {
   const [step, setStep] = useState<Step>("upload");
+  const [fields, setFields] = useState<EventFields>(EMPTY_FIELDS);
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
 
@@ -65,6 +90,9 @@ export function EventsImportWizard() {
 
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const setField = (key: keyof EventFields, value: string) =>
+    setFields((prev) => ({ ...prev, [key]: value }));
 
   const pickFile = (next: File | null) => {
     setPreview(null);
@@ -85,11 +113,13 @@ export function EventsImportWizard() {
     setFile(next);
   };
 
+  const canCheck = !!file && fields.name.trim().length > 0;
+
   const onCheck = () => {
-    if (!file) return;
+    if (!file || !canCheck) return;
     setPreviewError(null);
     startChecking(async () => {
-      const res = await previewEventsImport(fileForm(file));
+      const res = await previewEventsImport(importForm(file, fields));
       if (res.ok) {
         setPreview(res.data);
         setStep("review");
@@ -103,7 +133,7 @@ export function EventsImportWizard() {
     if (!file) return;
     setImportError(null);
     startImporting(async () => {
-      const res = await commitEventsImport(fileForm(file));
+      const res = await commitEventsImport(importForm(file, fields));
       if (res.ok) {
         setResult(res.data);
         setStep("result");
@@ -117,28 +147,15 @@ export function EventsImportWizard() {
     setTemplateError(null);
     startTemplate(async () => {
       const res = await downloadEventsTemplate();
-      if (res.ok) downloadCsv("events-import-template.csv", res.csv);
+      if (res.ok) downloadCsv("event-attendees-template.csv", res.csv);
       else setTemplateError(res.error);
     });
   };
 
-  const onDownloadRejects = () => {
-    if (!result || result.rejects.length === 0) return;
-    // CSV-injection defence: prefix a single quote when the value (ignoring
-    // leading whitespace) starts with a spreadsheet formula trigger, so it's
-    // treated as text. Robust to the leading-whitespace bypass a strip misses.
-    const esc = (v: string) => {
-      let s = String(v);
-      if (/^\s*[=+\-@\t\r]/.test(s)) s = "'" + s;
-      return `"${s.replace(/"/g, '""')}"`;
-    };
-    const lines = [
-      "event,date,reason",
-      ...result.rejects.map((r) =>
-        [esc(r.event), esc(r.date ?? ""), esc(r.reason)].join(","),
-      ),
-    ];
-    downloadCsv("events-import-rejects.csv", lines.join("\r\n"));
+  const reset = () => {
+    pickFile(null);
+    setFields(EMPTY_FIELDS);
+    setStep("upload");
   };
 
   return (
@@ -151,13 +168,14 @@ export function EventsImportWizard() {
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">
-                  Upload an events CSV
+                  Import one event&rsquo;s attendees
                 </h2>
                 <p className="mt-1 text-sm text-gray-500">
-                  Bulk-add events and their attendees from a spreadsheet. Use one
-                  row per attendee — rows that share an event title and date
-                  become one event. Attendees are matched to existing alumni by
-                  Net ID. Start from the template so the columns line up.
+                  Enter the event&rsquo;s details, then upload a CSV of its
+                  attendees — one row per person, with a <strong>Net ID</strong>{" "}
+                  and <strong>Name</strong>. Attendees are matched to existing
+                  alumni by Net ID; unmatched ones are reported and skipped. Start
+                  from the template so the columns line up.
                 </p>
               </div>
               <div className="shrink-0 text-right">
@@ -175,6 +193,60 @@ export function EventsImportWizard() {
               </div>
             </div>
 
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <Label htmlFor="event_name">Event title *</Label>
+                <Input
+                  id="event_name"
+                  value={fields.name}
+                  onChange={(e) => setField("name", e.target.value)}
+                  placeholder="Spring Finance Banquet"
+                  className="mt-1"
+                  maxLength={255}
+                />
+              </div>
+              <div>
+                <Label htmlFor="event_date">Date</Label>
+                <Input
+                  id="event_date"
+                  type="date"
+                  value={fields.date}
+                  onChange={(e) => setField("date", e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="event_type">Type</Label>
+                <Input
+                  id="event_type"
+                  value={fields.type}
+                  onChange={(e) => setField("type", e.target.value)}
+                  placeholder="Networking"
+                  className="mt-1"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor="event_location">Location</Label>
+                <Input
+                  id="event_location"
+                  value={fields.location}
+                  onChange={(e) => setField("location", e.target.value)}
+                  placeholder="Tanner Building"
+                  className="mt-1"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor="event_notes">Notes</Label>
+                <Textarea
+                  id="event_notes"
+                  value={fields.notes}
+                  onChange={(e) => setField("notes", e.target.value)}
+                  rows={2}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+
             <label
               onDragOver={(e) => {
                 e.preventDefault();
@@ -187,7 +259,7 @@ export function EventsImportWizard() {
                 const dropped = e.dataTransfer.files?.[0];
                 if (dropped) pickFile(dropped);
               }}
-              className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-12 text-center transition ${
+              className={`mt-4 flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-10 text-center transition ${
                 dragOver
                   ? "border-brand-blue-600 bg-brand-blue-50"
                   : "border-gray-300 bg-gray-50 hover:border-brand-blue-300 hover:bg-brand-blue-50/40"
@@ -201,7 +273,7 @@ export function EventsImportWizard() {
                 onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
               />
               <p className="text-sm font-medium text-gray-900">
-                Drag a CSV here, or click to choose a file
+                Drag the attendee CSV here, or click to choose a file
               </p>
               <p className="mt-1 text-xs text-gray-500">.csv files only</p>
             </label>
@@ -239,10 +311,19 @@ export function EventsImportWizard() {
             <Button asChild variant="secondary">
               <Link href="/events">Cancel</Link>
             </Button>
-            <Button variant="primary" onClick={onCheck} disabled={!file || checking}>
+            <Button
+              variant="primary"
+              onClick={onCheck}
+              disabled={!canCheck || checking}
+            >
               {checking ? "Checking…" : "Check file"}
             </Button>
           </div>
+          {!canCheck && (file || fields.name) && (
+            <p className="text-right text-xs text-gray-400">
+              An event title and an attendee CSV are both required.
+            </p>
+          )}
         </div>
       )}
 
@@ -257,14 +338,7 @@ export function EventsImportWizard() {
       )}
 
       {step === "result" && result && (
-        <ResultStep
-          result={result}
-          onDownloadRejects={onDownloadRejects}
-          onImportAnother={() => {
-            pickFile(null);
-            setStep("upload");
-          }}
-        />
+        <ResultStep result={result} onImportAnother={reset} />
       )}
     </div>
   );
@@ -272,7 +346,7 @@ export function EventsImportWizard() {
 
 function StepHeader({ step }: { step: Step }) {
   const steps: { id: Step; label: string }[] = [
-    { id: "upload", label: "Upload" },
+    { id: "upload", label: "Details & CSV" },
     { id: "review", label: "Review" },
     { id: "result", label: "Done" },
   ];
@@ -352,26 +426,38 @@ function ReviewStep({
   onBack: () => void;
   onImport: () => void;
 }) {
-  const { summary, columns_ok, header_errors, events } = preview;
-  const canImport = columns_ok && summary.importable_events > 0;
+  const { summary, columns_ok, header_errors, event, attendees, warnings } =
+    preview;
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <SummaryCard label="Events" value={summary.events} />
+      <Card className="p-5">
+        <p className="text-sm font-semibold text-gray-900">
+          {event.event_name || "(untitled event)"}
+          {event.event_date ? (
+            <span className="ml-2 font-normal text-gray-500">
+              {event.event_date}
+            </span>
+          ) : (
+            <span className="ml-2 font-normal text-gray-400">(no date)</span>
+          )}
+        </p>
+        <p className="mt-0.5 text-xs text-gray-500">
+          {[event.event_type, event.event_location]
+            .filter(Boolean)
+            .join(" · ") || "No type or location"}
+        </p>
+      </Card>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <SummaryCard label="Attendee rows" value={summary.total_rows} />
         <SummaryCard
-          label="Importable"
-          value={summary.importable_events}
+          label="Matched"
+          value={summary.attendees_matched}
           tone="success"
         />
         <SummaryCard
-          label="Rejected"
-          value={summary.rejected_events}
-          tone={summary.rejected_events > 0 ? "danger" : undefined}
-        />
-        <SummaryCard label="Attendees matched" value={summary.attendees_matched} />
-        <SummaryCard
-          label="Net IDs unmatched"
+          label="Unmatched (skipped)"
           value={summary.attendees_unmatched}
           tone={summary.attendees_unmatched > 0 ? "warning" : undefined}
         />
@@ -390,12 +476,38 @@ function ReviewStep({
         </div>
       )}
 
-      {columns_ok && (
-        <div className="space-y-2">
-          {events.map((ev, i) => (
-            <EventRow key={i} ev={ev} />
-          ))}
+      {preview.event_errors.length > 0 && (
+        <div className="rounded-lg border border-danger-600/40 bg-danger-50 p-4">
+          <p className="text-sm font-semibold text-danger-600">
+            This event can&apos;t be imported
+          </p>
+          <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-danger-600">
+            {preview.event_errors.map((e, i) => (
+              <li key={i}>{e.message}</li>
+            ))}
+          </ul>
         </div>
+      )}
+
+      {warnings.length > 0 && (
+        <ul className="list-inside list-disc space-y-0.5 rounded-lg border border-warning-600/30 bg-warning-50 p-3 text-xs text-warning-600">
+          {warnings.map((w, i) => (
+            <li key={i}>{w.message}</li>
+          ))}
+        </ul>
+      )}
+
+      {columns_ok && attendees.length > 0 && (
+        <Card className="p-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Attendees ({attendees.length})
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {attendees.map((a) => (
+              <AttendeeChip key={a.row} a={a} />
+            ))}
+          </div>
+        </Card>
       )}
 
       {importError && (
@@ -408,11 +520,15 @@ function ReviewStep({
         <Button variant="secondary" onClick={onBack}>
           Back
         </Button>
-        <Button variant="primary" onClick={onImport} disabled={!canImport || importing}>
+        <Button
+          variant="primary"
+          onClick={onImport}
+          disabled={!preview.importable || importing}
+        >
           {importing
             ? "Importing…"
-            : `Import ${summary.importable_events} event${
-                summary.importable_events === 1 ? "" : "s"
+            : `Create event with ${summary.attendees_matched} attendee${
+                summary.attendees_matched === 1 ? "" : "s"
               }`}
         </Button>
       </div>
@@ -420,142 +536,103 @@ function ReviewStep({
   );
 }
 
-function EventRow({ ev }: { ev: EventImportGroup }) {
-  const rejected = ev.status === "rejected";
+function AttendeeChip({ a }: { a: EventImportAttendee }) {
   return (
-    <Card className={`p-4 ${rejected ? "border-danger-600/30 bg-danger-50/40" : ""}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-gray-900">
-            {ev.event_title}
-            {ev.event_date ? (
-              <span className="ml-2 font-normal text-gray-500">
-                {ev.event_date}
-              </span>
-            ) : (
-              <span className="ml-2 font-normal text-gray-400">(no date)</span>
-            )}
-          </p>
-          <p className="mt-0.5 text-xs text-gray-500">
-            {ev.attendee_count} attendee{ev.attendee_count === 1 ? "" : "s"}
-          </p>
-        </div>
-        <span
-          className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
-            rejected
-              ? "bg-danger-50 text-danger-600"
-              : "bg-success-50 text-success-600"
-          }`}
-        >
-          {rejected ? "Rejected" : "Importable"}
-        </span>
-      </div>
-
-      {ev.blockers.length > 0 && (
-        <ul className="mt-2 list-inside list-disc space-y-0.5 text-xs text-danger-600">
-          {ev.blockers.map((b, i) => (
-            <li key={i}>{b.message}</li>
-          ))}
-        </ul>
-      )}
-      {ev.warnings.length > 0 && (
-        <ul className="mt-2 list-inside list-disc space-y-0.5 text-xs text-warning-600">
-          {ev.warnings.map((w, i) => (
-            <li key={i}>{w.message}</li>
-          ))}
-        </ul>
-      )}
-
-      {ev.attendees.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {ev.attendees.map((a, i) => (
-            <span
-              key={i}
-              className={`rounded px-1.5 py-0.5 text-xs ${
-                a.matched
-                  ? "bg-gray-100 text-gray-700"
-                  : "bg-danger-50 text-danger-600 line-through"
-              }`}
-              title={a.matched ? `Matched alumni #${a.alumni_id}` : "No active alumnus for this Net ID"}
-            >
-              {a.name || a.net_id} ({a.net_id})
-            </span>
-          ))}
-        </div>
-      )}
-    </Card>
+    <span
+      className={`rounded px-1.5 py-0.5 text-xs ${
+        a.matched
+          ? "bg-gray-100 text-gray-700"
+          : "bg-danger-50 text-danger-600 line-through"
+      }`}
+      title={
+        a.matched
+          ? `Matched alumni #${a.alumni_id}`
+          : "No active alumnus for this Net ID — will be skipped"
+      }
+    >
+      {a.name || a.net_id} ({a.net_id})
+    </span>
   );
 }
 
 function ResultStep({
   result,
-  onDownloadRejects,
   onImportAnother,
 }: {
   result: EventImportResult;
-  onDownloadRejects: () => void;
   onImportAnother: () => void;
 }) {
-  const hasRejects = result.rejects.length > 0;
+  const hasUnmatched = result.unmatched.length > 0;
   return (
     <div className="space-y-4">
       <Card className="p-6">
-        <h2 className="text-lg font-semibold text-gray-900">Import complete</h2>
-        <p className="text-sm text-gray-500">
-          {result.imported_events} event
-          {result.imported_events === 1 ? "" : "s"} added with{" "}
-          {result.imported_attendees} attendee
-          {result.imported_attendees === 1 ? "" : "s"}
-          {result.skipped_events > 0
-            ? `, ${result.skipped_events} skipped`
-            : ""}
-          .
-        </p>
+        {result.imported ? (
+          <>
+            <h2 className="text-lg font-semibold text-gray-900">
+              Event created
+            </h2>
+            <p className="text-sm text-gray-500">
+              Added the event with {result.imported_attendees} attendee
+              {result.imported_attendees === 1 ? "" : "s"}
+              {hasUnmatched
+                ? `, ${result.unmatched.length} unmatched row${
+                    result.unmatched.length === 1 ? "" : "s"
+                  } skipped`
+                : ""}
+              .
+            </p>
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:max-w-md">
+              <SummaryCard
+                label="Attendees added"
+                value={result.imported_attendees}
+                tone="success"
+              />
+              <SummaryCard
+                label="Skipped"
+                value={result.unmatched.length}
+                tone={hasUnmatched ? "warning" : undefined}
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <h2 className="text-lg font-semibold text-gray-900">
+              Nothing imported
+            </h2>
+            <p className="text-sm text-danger-600">
+              {result.event_error ?? "The event could not be created."}
+            </p>
+          </>
+        )}
 
-        <div className="mt-5 grid grid-cols-3 gap-3 sm:max-w-lg">
-          <SummaryCard
-            label="Events"
-            value={result.imported_events}
-            tone="success"
-          />
-          <SummaryCard label="Attendees" value={result.imported_attendees} />
-          <SummaryCard
-            label="Skipped"
-            value={result.skipped_events}
-            tone={result.skipped_events > 0 ? "danger" : undefined}
-          />
-        </div>
-
-        {hasRejects && (
+        {hasUnmatched && (
           <div className="mt-5 rounded-lg border border-warning-600/30 bg-warning-50 p-4">
             <p className="text-sm font-semibold text-warning-600">
-              {result.rejects.length} event
-              {result.rejects.length === 1 ? " was" : "s were"} skipped
+              {result.unmatched.length} attendee row
+              {result.unmatched.length === 1 ? " was" : "s were"} skipped (Net ID
+              didn&rsquo;t match an active alumnus)
             </p>
             <ul className="mt-3 max-h-48 space-y-1 overflow-auto text-sm">
-              {result.rejects.map((r, i) => (
-                <li key={i} className="flex items-baseline gap-2 text-gray-700">
-                  <span className="font-medium text-gray-900">{r.event}</span>
-                  {r.date && <span className="text-gray-500">{r.date}</span>}
-                  <span className="text-danger-600">— {r.reason}</span>
+              {result.unmatched.map((u) => (
+                <li
+                  key={u.row}
+                  className="flex items-baseline gap-2 text-gray-700"
+                >
+                  <span className="tabular-nums text-gray-500">Row {u.row}</span>
+                  <span className="font-medium text-gray-900">
+                    {u.name || "(no name)"}
+                  </span>
+                  <span className="text-danger-600">— {u.net_id}</span>
                 </li>
               ))}
             </ul>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={onDownloadRejects}
-              className="mt-4"
-            >
-              Download skipped (CSV)
-            </Button>
           </div>
         )}
       </Card>
 
       <div className="flex items-center justify-end gap-3">
         <Button variant="secondary" onClick={onImportAnother}>
-          Import another file
+          Import another event
         </Button>
         <Button asChild variant="primary">
           <Link href="/events">Go to events</Link>
