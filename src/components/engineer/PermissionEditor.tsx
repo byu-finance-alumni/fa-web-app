@@ -44,17 +44,19 @@ export function PermissionEditor({ initial }: { initial: PermissionMatrix }) {
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div className="max-h-[70vh] overflow-auto rounded-lg border border-gray-200">
       <table className="w-full border-collapse text-sm">
         <thead>
+          {/* Freeze the header row (and the corner cell) so role labels stay
+              visible while scrolling the large matrix (#258). */}
           <tr className="border-b border-gray-200">
-            <th className="w-[34%] px-3 py-2.5 text-left align-bottom font-semibold text-gray-900">
+            <th className="sticky left-0 top-0 z-20 w-[34%] border-b border-gray-200 bg-white px-3 py-2.5 text-left align-bottom font-semibold text-gray-900">
               Capability
             </th>
             {matrix.roles.map((role) => (
               <th
                 key={role.role}
-                className="px-3 py-2.5 text-center align-bottom font-semibold text-gray-700"
+                className="sticky top-0 z-10 border-b border-gray-200 bg-white px-3 py-2.5 text-center align-bottom font-semibold text-gray-700"
               >
                 {role.label}
               </th>
@@ -67,7 +69,7 @@ export function PermissionEditor({ initial }: { initial: PermissionMatrix }) {
               key={cap.code}
               className="border-b border-gray-100 align-top last:border-0"
             >
-              <td className="px-3 py-3">
+              <td className="sticky left-0 z-10 bg-white px-3 py-3">
                 <p className="font-medium text-gray-900">{cap.label}</p>
                 <p className="mt-0.5 text-xs leading-snug text-gray-500">
                   {cap.description}

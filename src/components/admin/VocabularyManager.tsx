@@ -94,6 +94,7 @@ export function VocabularyManager({
                 <div className="flex items-center gap-2">
                   <Input
                     autoFocus
+                    onFocus={(e) => e.currentTarget.select()}
                     value={editValue}
                     disabled={pending}
                     aria-invalid={editError ? true : undefined}
