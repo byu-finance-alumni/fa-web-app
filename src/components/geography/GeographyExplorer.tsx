@@ -607,9 +607,13 @@ function WorldGeoMap({
 
   // Zoom/pan transform (g-space -> outer viewBox), identical model to UsGeoMap.
   const [view, setView] = useState({ k: 1, x: 0, y: 0 });
-  const drag = useRef<{ active: boolean; ox: number; oy: number; moved: boolean }>(
-    { active: false, ox: 0, oy: 0, moved: false },
-  );
+  const drag = useRef<{
+    active: boolean;
+    ox: number;
+    oy: number;
+    moved: boolean;
+    captured: boolean;
+  }>({ active: false, ox: 0, oy: 0, moved: false, captured: false });
 
   const [hover, setHover] = useState<{
     name: string;
@@ -744,8 +748,18 @@ function WorldGeoMap({
   function onPointerDown(e: React.PointerEvent<SVGSVGElement>) {
     const outer = toOuter(e.clientX, e.clientY);
     if (!outer) return;
-    drag.current = { active: true, ox: outer[0], oy: outer[1], moved: false };
-    e.currentTarget.setPointerCapture(e.pointerId);
+    // NB: do NOT capture the pointer here — capturing on the SVG redirects the
+    // subsequent `click` to the SVG, so clicks never reach the country/bubble
+    // child elements (which is where the drill-down handlers live). We only
+    // capture once a real drag begins (past the threshold, below), so a plain
+    // click stays on its target while panning still tracks off-element.
+    drag.current = {
+      active: true,
+      ox: outer[0],
+      oy: outer[1],
+      moved: false,
+      captured: false,
+    };
   }
   function onPointerMove(e: React.PointerEvent<SVGSVGElement>) {
     if (!drag.current.active) return;
@@ -753,15 +767,25 @@ function WorldGeoMap({
     if (!outer) return;
     const dx = outer[0] - drag.current.ox;
     const dy = outer[1] - drag.current.oy;
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.current.moved = true;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+      drag.current.moved = true;
+      if (!drag.current.captured) {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        drag.current.captured = true;
+      }
+    }
     drag.current.ox = outer[0];
     drag.current.oy = outer[1];
     setView((v) => ({ ...v, x: v.x + dx, y: v.y + dy }));
   }
   function onPointerUp(e: React.PointerEvent<SVGSVGElement>) {
-    if (e.currentTarget.hasPointerCapture(e.pointerId))
+    if (
+      drag.current.captured &&
+      e.currentTarget.hasPointerCapture(e.pointerId)
+    )
       e.currentTarget.releasePointerCapture(e.pointerId);
     drag.current.active = false;
+    drag.current.captured = false;
   }
 
   // --- drill-down -------------------------------------------------------------
