@@ -948,6 +948,72 @@ export default async function AlumniProfilePage({
                 </Panel>
               ) : undefined
             }
+            surveys={
+              profile.surveys.length ? (
+                <Panel title="Survey history">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-200 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                          <th className="px-3 py-2">Year</th>
+                          <th className="px-3 py-2">Due date</th>
+                          <th className="px-3 py-2">Status</th>
+                          <th className="px-3 py-2">Completed</th>
+                          <th className="px-3 py-2">Notes</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {[...profile.surveys]
+                          .sort(
+                            (x, y) =>
+                              (y.survey_year ?? 0) - (x.survey_year ?? 0) ||
+                              (y.survey_due_date ?? "").localeCompare(
+                                x.survey_due_date ?? "",
+                              ),
+                          )
+                          .map((s) => {
+                            const overdue =
+                              !s.completed &&
+                              !!s.survey_due_date &&
+                              new Date(s.survey_due_date) < new Date();
+                            const tone = s.completed
+                              ? "success"
+                              : overdue
+                                ? "danger"
+                                : "warning";
+                            const label =
+                              s.survey_status ??
+                              (s.completed
+                                ? "Completed"
+                                : overdue
+                                  ? "Overdue"
+                                  : "Pending");
+                            return (
+                              <tr key={s.survey_id}>
+                                <td className="px-3 py-2 tabular-nums text-gray-900">
+                                  {s.survey_year ?? "—"}
+                                </td>
+                                <td className="px-3 py-2 text-gray-600">
+                                  {fmtDate(s.survey_due_date) ?? "—"}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <Badge variant={tone}>{label}</Badge>
+                                </td>
+                                <td className="px-3 py-2 text-gray-600">
+                                  {fmtDate(s.completed_at) ?? "—"}
+                                </td>
+                                <td className="max-w-xs truncate px-3 py-2 text-gray-500">
+                                  {s.survey_notes || "—"}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                </Panel>
+              ) : undefined
+            }
             employment={
               <div>
                 {/* Employment history — its own tab, full width. */}
