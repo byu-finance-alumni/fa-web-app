@@ -192,12 +192,28 @@ export type EventImportResultState =
   | { ok: true; data: EventImportResult }
   | { ok: false; error: string };
 
-/** Pull the single `file` out of the submitted FormData (re-named to `file`). */
+/**
+ * Rebuild the import FormData: the attendee `file` (re-named) plus the event
+ * identity fields the wizard captured (#149 — one CSV = one event). Returns null
+ * if the file is missing/empty. The backend re-validates title/date.
+ */
+const _EVENT_FIELDS = [
+  "event_name",
+  "event_date",
+  "event_type",
+  "event_location",
+  "event_notes",
+] as const;
+
 function importFormData(formData: FormData): FormData | null {
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return null;
   const fd = new FormData();
   fd.append("file", file, file.name);
+  for (const key of _EVENT_FIELDS) {
+    const value = formData.get(key);
+    if (typeof value === "string" && value !== "") fd.append(key, value);
+  }
   return fd;
 }
 

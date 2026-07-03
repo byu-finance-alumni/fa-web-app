@@ -58,8 +58,11 @@ export interface AlumniDonations {
 
 export interface DonationImportRow {
   row: number;
-  net_id: string;
+  mstid: string;
   name: string;
+  /** How the donor was resolved: "mstid" (high-confidence) or "name" (fallback,
+   *  worth a glance). null when the row was rejected. */
+  match_method: "mstid" | "name" | null;
   month: number | null;
   year: number | null;
   amount: number | null;

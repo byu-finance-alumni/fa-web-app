@@ -48,10 +48,11 @@ function money(value: number | null): string {
 }
 
 /**
- * Bulk-import donations from a CSV (super_admin). Columns: Net ID, Name, Month,
- * Year, Amount. Donors are matched by Net ID; an unmatched Net ID or a bad
- * month/year/amount rejects that row. Text-only controls per the no-icons
- * preference; the backend re-enforces the super_admin gate and validation.
+ * Bulk-import donations from a CSV (super_admin). Columns: MSTID, First name,
+ * Last name, Month, Year, Amount. Donors are matched by MSTID, falling back to
+ * first + last name; an unmatched or ambiguous donor, or a bad month/year/amount,
+ * rejects that row. Text-only controls per the no-icons preference; the backend
+ * re-enforces the super_admin gate and validation.
  */
 export function DonationsImportWizard() {
   const [step, setStep] = useState<Step>("upload");
@@ -159,10 +160,11 @@ export function DonationsImportWizard() {
                   Upload a donations CSV
                 </h2>
                 <p className="mt-1 text-sm text-gray-500">
-                  Bulk-add Pay It Forward donations. Columns: Net ID, Name, Month,
-                  Year, Amount. Donors are matched to existing alumni by Net ID —
-                  an unmatched Net ID or a bad month / year / amount rejects that
-                  row. Start from the template so the columns line up.
+                  Bulk-add Pay It Forward donations. Columns: MSTID, First name,
+                  Last name, Month, Year, Amount. Donors are matched to existing
+                  alumni by MSTID, falling back to first + last name — an
+                  unmatched or ambiguous donor, or a bad month / year / amount,
+                  rejects that row. Start from the template so the columns line up.
                 </p>
               </div>
               <div className="shrink-0 text-right">
@@ -280,7 +282,7 @@ export function DonationsImportWizard() {
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                     <th className="px-3 py-2">Row</th>
-                    <th className="px-3 py-2">Net ID</th>
+                    <th className="px-3 py-2">MSTID</th>
                     <th className="px-3 py-2">Name</th>
                     <th className="px-3 py-2 text-right">Amount</th>
                     <th className="px-3 py-2">Period</th>
@@ -296,7 +298,7 @@ export function DonationsImportWizard() {
                       <td className="px-3 py-2 tabular-nums text-gray-500">
                         {r.row}
                       </td>
-                      <td className="px-3 py-2 text-gray-700">{r.net_id}</td>
+                      <td className="px-3 py-2 text-gray-700">{r.mstid || "—"}</td>
                       <td className="px-3 py-2 text-gray-700">{r.name}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-gray-900">
                         {money(r.amount)}
@@ -313,6 +315,11 @@ export function DonationsImportWizard() {
                         ) : (
                           <span className="text-xs font-semibold text-success-600">
                             OK
+                            {r.match_method === "name" && (
+                              <span className="ml-1 font-normal text-warning-600">
+                                (matched by name — verify)
+                              </span>
+                            )}
                             {r.warnings.length > 0 && (
                               <span className="ml-1 font-normal text-warning-600">
                                 ({r.warnings[0].message})
