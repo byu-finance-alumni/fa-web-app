@@ -8,7 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { addAttendee, removeAttendee } from "@/app/(app)/events/actions";
+import {
+  addAttendee,
+  removeAttendee,
+  exportEventAttendees,
+} from "@/app/(app)/events/actions";
 import type { Alumni, AlumniPage } from "@/types/alumni";
 
 // Mirror the topbar typeahead ergonomics: 2 chars is fine here (a focused,
@@ -158,6 +162,29 @@ export function AttendeeManager({
     }
   }
 
+  // Download the roster as CSV (Name, Email, Net ID). The server action returns
+  // the CSV text (full_access on the backend); we turn it into a Blob download.
+  const [exporting, setExporting] = useState(false);
+  async function handleExport() {
+    if (exporting) return;
+    setExporting(true);
+    const result = await exportEventAttendees(eventId);
+    setExporting(false);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    const blob = new Blob([result.csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = result.filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
   async function handleRemove(att: Attendee) {
     if (pending.has(att.alumni_id)) return;
     setPendingFor(att.alumni_id, true);
@@ -183,6 +210,16 @@ export function AttendeeManager({
           <Badge variant="neutral" className="tabular-nums">
             {attendees.length}
           </Badge>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={handleExport}
+            disabled={exporting || attendees.length === 0}
+            className="ml-auto"
+          >
+            {exporting ? "Downloading…" : "Download attendees (CSV)"}
+          </Button>
         </div>
 
         {/* Add-attendee search */}
