@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isPrefetchHeaders } from "@/lib/prefetch";
 import { updateSession } from "@/utils/supabase/middleware";
+import { buildCsp } from "@/lib/csp";
 
 // Detects a Next.js <Link> prefetch (or any speculative fetch) so we can skip
 // auth refresh/redirect for it. The detection logic lives in @/lib/prefetch as a
@@ -10,6 +11,12 @@ function isPrefetch(request: NextRequest): boolean {
 }
 
 export async function middleware(request: NextRequest) {
+  // Per-request nonce-based CSP (#30): a fresh nonce so Next.js can nonce its
+  // injected scripts and we can drop script-src 'unsafe-inline'. Threaded into
+  // the forwarded request (so Next reads the nonce) AND set on the response (so
+  // the browser enforces it) — both handled here and in updateSession.
+  const { nonce, csp } = buildCsp();
+
   // Prefetch requests must NOT trigger the Supabase token refresh or the
   // redirect-to-login path. A prefetch runs the same middleware as a real
   // navigation, so near token expiry it would (a) rotate the single-use refresh
@@ -19,10 +26,15 @@ export async function middleware(request: NextRequest) {
   // lands on login. Skipping updateSession for prefetch avoids both; the real
   // navigation that follows still runs full auth (refresh + redirect) below.
   if (isPrefetch(request)) {
-    return NextResponse.next({ request: { headers: request.headers } });
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set("x-nonce", nonce);
+    requestHeaders.set("content-security-policy", csp);
+    const response = NextResponse.next({ request: { headers: requestHeaders } });
+    response.headers.set("content-security-policy", csp);
+    return response;
   }
 
-  return await updateSession(request);
+  return await updateSession(request, { nonce, csp });
 }
 
 export const config = {
