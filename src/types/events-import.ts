@@ -13,6 +13,8 @@ export interface EventImportAttendee {
   row: number;
   net_id: string;
   name: string;
+  /** Free-text Notes column, persisted onto the attendance row (#252). */
+  notes: string | null;
   matched: boolean;
   alumni_id: number | null;
 }

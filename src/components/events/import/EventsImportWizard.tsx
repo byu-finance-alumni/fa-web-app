@@ -66,7 +66,8 @@ const isCsv = (file: File) =>
 
 /**
  * Bulk-import one event's attendees from a CSV (#149). The event's details are
- * entered here; the CSV is just the attendee roster (Net ID + Name). Attendees
+ * entered here; the CSV is just the attendee roster (Net ID, First name, Last
+ * name, Notes). Attendees
  * are matched to existing alumni by Net ID — unmatched ones are reported and
  * skipped, never invented. The backend re-enforces everything. Text-only
  * controls per the app's no-icons preference.
@@ -172,10 +173,12 @@ export function EventsImportWizard() {
                 </h2>
                 <p className="mt-1 text-sm text-gray-500">
                   Enter the event&rsquo;s details, then upload a CSV of its
-                  attendees — one row per person, with a <strong>Net ID</strong>{" "}
-                  and <strong>Name</strong>. Attendees are matched to existing
-                  alumni by Net ID; unmatched ones are reported and skipped. Start
-                  from the template so the columns line up.
+                  attendees — one row per person with{" "}
+                  <strong>Net ID</strong>, <strong>First name</strong>,{" "}
+                  <strong>Last name</strong>, and an optional <strong>Notes</strong>{" "}
+                  column. Attendees are matched to existing alumni by Net ID;
+                  unmatched ones are reported and skipped. Start from the template
+                  so the columns line up.
                 </p>
               </div>
               <div className="shrink-0 text-right">
@@ -545,12 +548,16 @@ function AttendeeChip({ a }: { a: EventImportAttendee }) {
           : "bg-danger-50 text-danger-600 line-through"
       }`}
       title={
-        a.matched
+        (a.matched
           ? `Matched alumni #${a.alumni_id}`
-          : "No active alumnus for this Net ID — will be skipped"
+          : "No active alumnus for this Net ID — will be skipped") +
+        (a.notes ? ` · Notes: ${a.notes}` : "")
       }
     >
       {a.name || a.net_id} ({a.net_id})
+      {a.notes ? (
+        <span className="ml-1 text-[10px] uppercase text-gray-400">note</span>
+      ) : null}
     </span>
   );
 }

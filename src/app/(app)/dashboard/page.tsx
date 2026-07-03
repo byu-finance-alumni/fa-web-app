@@ -321,6 +321,24 @@ export default async function DashboardPage() {
   const greeting = firstName ? `Welcome, ${firstName}` : "Welcome";
 
   const industries = geoSum?.top_industries ?? [];
+  // Reconcile the industry breakdown to the total alumni count (#251): show the
+  // top few industries, then a single "Other" bucket for everyone else (smaller
+  // industries + alumni with no industry on file) so the slices add up to the
+  // total instead of a smaller partial sum.
+  const industryRows: { label: string; count: number; href?: string }[] = (() => {
+    const shown = industries.slice(0, 5).map((i) => ({
+      label: i.industry,
+      count: i.count,
+      href: `/alumni?industry=${encodeURIComponent(i.industry)}`,
+    }));
+    const total = s?.total_alumni ?? 0;
+    const shownSum = shown.reduce((acc, r) => acc + r.count, 0);
+    const other = total - shownSum;
+    if (other > 0) {
+      return [...shown, { label: "Other", count: other }];
+    }
+    return shown;
+  })();
 
   // Quick-filter presets on the Quick search tab — engineer/super-admin-managed
   // (GET /dashboard/presets), each a common compound search deep-linking into
@@ -417,11 +435,7 @@ export default async function DashboardPage() {
               >
                 <div className="flex w-full flex-1 items-center">
                   <DonutChart
-                    rows={industries.slice(0, 5).map((i) => ({
-                      label: i.industry,
-                      count: i.count,
-                      href: `/alumni?industry=${encodeURIComponent(i.industry)}`,
-                    }))}
+                    rows={industryRows}
                     emptyLabel="No industry data yet."
                   />
                 </div>
