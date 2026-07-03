@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { Loader2, Search, X } from "lucide-react";
 import { clientGet } from "@/lib/api-client";
 import { useToast } from "@/components/ui/Toast";
@@ -313,9 +314,12 @@ export function AttendeeManager({
                 className="flex items-center justify-between gap-3 px-3 py-2.5"
               >
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-gray-900">
+                  <Link
+                    href={`/alumni/${a.alumni_id}`}
+                    className="block truncate text-sm font-medium text-gray-900 hover:text-brand-blue-600 hover:underline"
+                  >
                     {a.name}
-                  </p>
+                  </Link>
                   <p className="truncate text-xs text-gray-500">
                     {[
                       a.graduation_year ? `Class of ${a.graduation_year}` : null,

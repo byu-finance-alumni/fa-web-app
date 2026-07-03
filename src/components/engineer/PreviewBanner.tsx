@@ -13,16 +13,17 @@ export function PreviewBanner({ roleLabel }: { roleLabel: string }) {
   const [pending, startTransition] = useTransition();
 
   return (
-    <div className="flex items-center justify-center gap-3 border-b border-warning-600/30 bg-warning-50 px-4 py-2 text-sm text-warning-600">
-      <span>
-        Previewing as <span className="font-semibold">{roleLabel}</span> —
-        read-only. You are still signed in as yourself.
+    <div className="flex items-center justify-center gap-3 bg-warning-600 px-4 py-3 text-center text-sm font-semibold text-white shadow-sm">
+      <span className="tracking-wide">
+        PREVIEW MODE — viewing as{" "}
+        <span className="font-bold uppercase">{roleLabel}</span>. You are still
+        signed in as yourself.
       </span>
       <button
         type="button"
         onClick={() => startTransition(() => exitPreview())}
         disabled={pending}
-        className="shrink-0 rounded-md border border-warning-600/40 bg-white px-2.5 py-1 text-xs font-semibold text-warning-600 transition-colors hover:bg-warning-50 disabled:opacity-50"
+        className="shrink-0 rounded-md bg-white px-3 py-1.5 text-xs font-bold text-warning-600 transition-colors hover:bg-warning-50 disabled:opacity-50"
       >
         {pending ? "Exiting…" : "Exit preview"}
       </button>
