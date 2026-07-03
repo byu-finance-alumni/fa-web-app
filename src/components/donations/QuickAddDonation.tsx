@@ -12,6 +12,7 @@ import {
   DialogBody,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/Toast";
 import { addDonation } from "@/app/(app)/pay-it-forward/actions";
 import type { Alumni, AlumniPage } from "@/types/alumni";
@@ -19,6 +20,12 @@ import type { Alumni, AlumniPage } from "@/types/alumni";
 const MIN_CHARS = 2;
 const DEBOUNCE_MS = 300;
 const MAX_MATCHES = 8;
+// Plausible donation-year window. The backend rejects out-of-range years (e.g.
+// 9999) with a 422 — we surface a clear inline message before the request (H3).
+const MIN_YEAR = 1900;
+const MAX_YEAR = new Date().getFullYear() + 1;
+
+type DonationFieldErrors = { amount?: string; year?: string };
 
 function displayName(a: Alumni): string {
   const first = a.preferred_first_name ?? a.first_name ?? "";
@@ -40,6 +47,7 @@ export function QuickAddDonation() {
   const [month, setMonth] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<DonationFieldErrors>({});
   const [pending, start] = useTransition();
 
   // Search state.
@@ -57,6 +65,7 @@ export function QuickAddDonation() {
     setQ("");
     setMatches([]);
     setError(null);
+    setFieldErrors({});
   };
 
   useEffect(() => {
@@ -72,8 +81,11 @@ export function QuickAddDonation() {
     const seq = ++seqRef.current;
     const timer = setTimeout(async () => {
       try {
+        // kind=all so the picker finds BOTH alumni and friends of the program
+        // (is_alumni=false) — a friend can be a donor too, and the default
+        // /alumni search would otherwise exclude them (#218).
         const page = await clientGet<AlumniPage>(
-          `/alumni?q=${encodeURIComponent(term)}&limit=${MAX_MATCHES}&offset=0`,
+          `/alumni?q=${encodeURIComponent(term)}&kind=all&limit=${MAX_MATCHES}&offset=0`,
         );
         if (seq !== seqRef.current) return;
         setMatches(page.items);
@@ -88,19 +100,39 @@ export function QuickAddDonation() {
 
   const onSubmit = () => {
     setError(null);
+    setFieldErrors({});
     if (!picked) {
       setError("Pick an alumnus first.");
       return;
     }
-    const yearNum = Number(year);
-    if (!year || !Number.isInteger(yearNum)) {
-      setError("Enter a valid year.");
-      return;
-    }
+
+    // Field-level validation surfaced inline next to each input (H3): a missing,
+    // zero, or negative amount and an out-of-range year each get their own
+    // message instead of a silently blocked submit. The backend re-validates.
+    const fe: DonationFieldErrors = {};
+    const amountNum = Number(amount);
     if (!amount.trim()) {
-      setError("Enter an amount.");
+      fe.amount = "Enter an amount.";
+    } else if (!Number.isFinite(amountNum)) {
+      fe.amount = "Enter a valid amount.";
+    } else if (amountNum <= 0) {
+      fe.amount = "Amount must be greater than $0.";
+    }
+
+    const yearNum = Number(year);
+    if (!year.trim()) {
+      fe.year = "Enter a year.";
+    } else if (!Number.isInteger(yearNum)) {
+      fe.year = "Enter a valid year.";
+    } else if (yearNum < MIN_YEAR || yearNum > MAX_YEAR) {
+      fe.year = `Year must be between ${MIN_YEAR} and ${MAX_YEAR}.`;
+    }
+
+    if (Object.keys(fe).length > 0) {
+      setFieldErrors(fe);
       return;
     }
+
     const monthNum = month ? Number(month) : undefined;
     start(async () => {
       const res = await addDonation(picked.alumni_id, {
@@ -211,21 +243,48 @@ export function QuickAddDonation() {
                 <Label htmlFor="donation-amount">Amount (USD)</Label>
                 <Input
                   id="donation-amount"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
                   inputMode="decimal"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="250.00"
+                  aria-invalid={fieldErrors.amount ? true : undefined}
+                  className={cn(
+                    fieldErrors.amount &&
+                      "border-danger-600 focus-visible:border-danger-600 focus-visible:ring-danger-600",
+                  )}
                 />
+                {fieldErrors.amount ? (
+                  <p className="mt-1 text-xs text-danger-600">
+                    {fieldErrors.amount}
+                  </p>
+                ) : null}
               </div>
               <div>
                 <Label htmlFor="donation-year">Year</Label>
                 <Input
                   id="donation-year"
+                  type="number"
+                  min={MIN_YEAR}
+                  max={MAX_YEAR}
+                  step="1"
                   inputMode="numeric"
                   value={year}
                   onChange={(e) => setYear(e.target.value)}
                   placeholder="2026"
+                  aria-invalid={fieldErrors.year ? true : undefined}
+                  className={cn(
+                    fieldErrors.year &&
+                      "border-danger-600 focus-visible:border-danger-600 focus-visible:ring-danger-600",
+                  )}
                 />
+                {fieldErrors.year ? (
+                  <p className="mt-1 text-xs text-danger-600">
+                    {fieldErrors.year}
+                  </p>
+                ) : null}
               </div>
             </div>
 
@@ -259,13 +318,14 @@ export function QuickAddDonation() {
           </DialogBody>
           <DialogFooter>
             <Button
+              type="button"
               variant="secondary"
               onClick={() => setOpen(false)}
               disabled={pending}
             >
               Cancel
             </Button>
-            <Button variant="primary" onClick={onSubmit} disabled={pending}>
+            <Button type="button" variant="primary" onClick={onSubmit} disabled={pending}>
               {pending ? "Adding…" : "Add donation"}
             </Button>
           </DialogFooter>

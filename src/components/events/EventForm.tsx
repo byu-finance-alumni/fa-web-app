@@ -135,6 +135,7 @@ export function EventForm({
               label="Date"
               name="event_date"
               type="date"
+              required
               defaultValue={v?.event_date ?? undefined}
               error={fe?.event_date}
             />

@@ -21,6 +21,22 @@ function avatarName(a: Alumni): string {
   );
 }
 
+/**
+ * Current city / state for a list row (#217). The list endpoint joins these from
+ * the alumnus's current employment / contact info, but they aren't on the
+ * generated `AlumniListItem` schema yet (backend follow-up — see report). Read
+ * them defensively so the columns light up automatically once the backend adds
+ * `current_city` / `current_state` to the list payload, and render "—" until
+ * then instead of crashing.
+ */
+function currentLocation(a: Alumni): { city: string | null; state: string | null } {
+  const row = a as Alumni & {
+    current_city?: string | null;
+    current_state?: string | null;
+  };
+  return { city: row.current_city ?? null, state: row.current_state ?? null };
+}
+
 /** Desktop alumni table. The entire row is clickable (navigates to the
  *  profile); the name stays a real link for keyboard/focus, and the LinkedIn
  *  link stops propagation so it opens externally instead of the profile. */
@@ -52,6 +68,10 @@ export function AlumniTable({
             </th>
             <th className="sticky top-0 z-10 bg-gray-50 px-4 py-2.5">
               Current industry
+            </th>
+            <th className="sticky top-0 z-10 bg-gray-50 px-4 py-2.5">City</th>
+            <th className="sticky top-0 z-10 w-16 bg-gray-50 px-4 py-2.5">
+              State
             </th>
             <th className="sticky top-0 z-10 w-24 bg-gray-50 px-4 py-2.5">
               LinkedIn
@@ -95,6 +115,19 @@ export function AlumniTable({
                   <span className="text-gray-300">—</span>
                 )}
               </td>
+              {(() => {
+                const { city, state } = currentLocation(a);
+                return (
+                  <>
+                    <td className="px-4 py-2.5 text-gray-700">
+                      {city ?? <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-gray-700">
+                      {state ?? <span className="text-gray-300">—</span>}
+                    </td>
+                  </>
+                );
+              })()}
               <td className="px-4 py-2.5">
                 {a.linkedin_url ? (
                   <a

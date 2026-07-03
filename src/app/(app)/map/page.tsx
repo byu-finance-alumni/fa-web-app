@@ -8,12 +8,17 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { lookupCityGeo } from "@/lib/geo/counties-data";
-import type { CountyCount, GeoSummary, StateCount } from "@/types/geography";
+import type {
+  CountryCount,
+  CountyCount,
+  GeoSummary,
+  StateCount,
+} from "@/types/geography";
 import type { components } from "@/types/api.gen";
 
 type RadiusPage = components["schemas"]["RadiusPage"];
 
-const FILTER_KEYS = ["industry", "year", "region", "tag"] as const;
+const FILTER_KEYS = ["industry", "employer", "year", "region", "tag"] as const;
 
 const DEFAULT_MILES = 25;
 const RESULT_LIMIT = 200;
@@ -76,11 +81,29 @@ export default async function GeographyPage({
     }
   }
 
+  // Per-country counts for the world view (#238). Fetched tolerantly like
+  // counties so an API without /geography/countries just disables world shading
+  // rather than blanking the map.
+  let countries: CountryCount[] = [];
+  if (!notProvisioned) {
+    try {
+      countries = await apiGet<CountryCount[]>(`/geography/countries?${qs}`, {
+        revalidate: 60,
+        tags: ["geography"],
+      });
+    } catch {
+      countries = [];
+    }
+  }
+
   const counts: Record<string, number> = {};
   for (const s of states) counts[s.state] = s.alumni_count;
 
   const countyCounts: Record<string, number> = {};
   for (const c of counties) countyCounts[c.county_fips] = c.count;
+
+  const countryCounts: Record<string, number> = {};
+  for (const c of countries) countryCounts[c.country] = c.alumni_count;
 
   // --- Radius search (full_access-gated) — always on -------------------------
   const lat = sp.lat;
@@ -144,6 +167,7 @@ export default async function GeographyPage({
     for (const c of cities) p.append("city", c);
     for (const s of statesSet) p.append("state", s);
     if (sp.industry) p.set("industry", sp.industry);
+    if (sp.employer) p.set("employer", sp.employer);
     if (sp.year) p.set("year", sp.year);
     if (sp.tag) p.set("tag", sp.tag);
     return `/alumni?${p.toString()}`;
@@ -214,6 +238,7 @@ export default async function GeographyPage({
           <GeographyExplorer
             counts={counts}
             countyCounts={countyCounts}
+            countryCounts={countryCounts}
             hasCenter={hasCenter || forbidden || loadError}
             matchCounties={matchCounties}
             radius={{
@@ -222,6 +247,7 @@ export default async function GeographyPage({
               miles,
               place,
               industry: sp.industry,
+              employer: sp.employer,
               year: sp.year,
               region: sp.region,
               tag: sp.tag,
@@ -234,6 +260,7 @@ export default async function GeographyPage({
                   lng,
                   place,
                   miles: String(miles),
+                  employer: sp.employer,
                 }}
                 values={{
                   industry: sp.industry,

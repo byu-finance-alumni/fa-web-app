@@ -1754,8 +1754,14 @@ export interface paths {
         post?: never;
         /**
          * Delete Donation
-         * @description Delete a donation (super_admin). 404 if unknown. Audits the write
-         *     (entity_type "donation", action "delete").
+         * @description Delete a donation (full_access and up). 404 if unknown. Audits the write
+         *     (entity_type "donation", action "delete") with the actor's user id — the
+         *     DB trigger snapshots the actor email for the FERPA trail. Returns 204.
+         *
+         *     Gated to the ``alumni.full`` admin tier (full_access / super_admin /
+         *     engineer), matching the other destructive data-management writes (event
+         *     delete, alumni archive). Broadened from the original super_admin-only gate
+         *     during QA hardening (H4).
          */
         delete: operations["delete_donation_donations__donation_id__delete"];
         options?: never;
@@ -1934,6 +1940,73 @@ export interface paths {
          *     Aggregate counts only (no PII), so view-accessible like ``/states``.
          */
         get: operations["counties_geography_counties_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/geography/countries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Countries
+         * @description Per-country alumni counts (international) for the world-map view.
+         *
+         *     Aggregate counts only (no PII), so view-accessible like ``/states``.
+         */
+        get: operations["countries_geography_countries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/geography/countries/{country}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Country Detail
+         * @description Country drill-down: count + top employers / industries + grad-year
+         *     histogram (aggregate only, so view-accessible like ``/states/{state}``).
+         */
+        get: operations["country_detail_geography_countries__country__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/geography/countries/{country}/alumni": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Country Alumni
+         * @description Paginated, sortable alumni list for one country (world-view drill-down).
+         *
+         *     FERPA: this lists the individual alumni behind a country count, so it is
+         *     gated to full_access (view_only gets 403) and the disclosure is audited; the
+         *     aggregate country count/detail stay view-accessible.
+         */
+        get: operations["country_alumni_geography_countries__country__alumni_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2392,6 +2465,20 @@ export interface components {
             finance_program_year: number | null;
             /** Graduate Degree */
             graduate_degree: string | null;
+            /** Mba Program */
+            mba_program: string | null;
+            /** Law School */
+            law_school: string | null;
+            /** Medical School */
+            medical_school: string | null;
+            /** Graduate School */
+            graduate_school: string | null;
+            /** Startup Involvement */
+            startup_involvement: string | null;
+            /** Advisory Roles */
+            advisory_roles: string | null;
+            /** Secondary Employment */
+            secondary_employment: string | null;
             /** Spouse First Name */
             spouse_first_name: string | null;
             /** Spouse Last Name */
@@ -2402,6 +2489,8 @@ export interface components {
             spouse_alumni_id: number | null;
             /** Deceased */
             deceased: boolean | null;
+            /** Is Alumni */
+            is_alumni: boolean | null;
             /** Linkedin Url */
             linkedin_url: string | null;
             /** Notes */
@@ -2510,6 +2599,8 @@ export interface components {
              * @default false
              */
             duplicate: boolean;
+            /** Is Alumni */
+            is_alumni: boolean | null;
             /**
              * Include Archived
              * @default false
@@ -2534,8 +2625,10 @@ export interface components {
         /**
          * AlumniListItem
          * @description List-row variant: adds the alumnus's current employer + industry (joined
-         *     from ``current_employment``) for the alumni table. Single-record reads use
-         *     plain ``AlumniRead``, which omits these.
+         *     from ``current_employment``) and current city + state (from
+         *     ``alumni_contact_info`` — the SAME source the geography map shades by, so the
+         *     list and the map agree on a record's location) for the alumni table.
+         *     Single-record reads use plain ``AlumniRead``, which omits these.
          */
         AlumniListItem: {
             /** Alumni Id */
@@ -2570,6 +2663,20 @@ export interface components {
             finance_program_year: number | null;
             /** Graduate Degree */
             graduate_degree: string | null;
+            /** Mba Program */
+            mba_program: string | null;
+            /** Law School */
+            law_school: string | null;
+            /** Medical School */
+            medical_school: string | null;
+            /** Graduate School */
+            graduate_school: string | null;
+            /** Startup Involvement */
+            startup_involvement: string | null;
+            /** Advisory Roles */
+            advisory_roles: string | null;
+            /** Secondary Employment */
+            secondary_employment: string | null;
             /** Spouse First Name */
             spouse_first_name: string | null;
             /** Spouse Last Name */
@@ -2580,6 +2687,11 @@ export interface components {
             spouse_alumni_id: number | null;
             /** Deceased */
             deceased: boolean;
+            /**
+             * Is Alumni
+             * @default true
+             */
+            is_alumni: boolean;
             /** Linkedin Url */
             linkedin_url: string | null;
             /** Notes */
@@ -2604,6 +2716,10 @@ export interface components {
             current_employer: string | null;
             /** Current Industry */
             current_industry: string | null;
+            /** Current City */
+            current_city: string | null;
+            /** Current State */
+            current_state: string | null;
         };
         /**
          * AlumniPage
@@ -2653,6 +2769,20 @@ export interface components {
             finance_program_year: number | null;
             /** Graduate Degree */
             graduate_degree: string | null;
+            /** Mba Program */
+            mba_program: string | null;
+            /** Law School */
+            law_school: string | null;
+            /** Medical School */
+            medical_school: string | null;
+            /** Graduate School */
+            graduate_school: string | null;
+            /** Startup Involvement */
+            startup_involvement: string | null;
+            /** Advisory Roles */
+            advisory_roles: string | null;
+            /** Secondary Employment */
+            secondary_employment: string | null;
             /** Spouse First Name */
             spouse_first_name: string | null;
             /** Spouse Last Name */
@@ -2663,6 +2793,11 @@ export interface components {
             spouse_alumni_id: number | null;
             /** Deceased */
             deceased: boolean;
+            /**
+             * Is Alumni
+             * @default true
+             */
+            is_alumni: boolean;
             /** Linkedin Url */
             linkedin_url: string | null;
             /** Notes */
@@ -2723,6 +2858,20 @@ export interface components {
             finance_program_year: number | null;
             /** Graduate Degree */
             graduate_degree: string | null;
+            /** Mba Program */
+            mba_program: string | null;
+            /** Law School */
+            law_school: string | null;
+            /** Medical School */
+            medical_school: string | null;
+            /** Graduate School */
+            graduate_school: string | null;
+            /** Startup Involvement */
+            startup_involvement: string | null;
+            /** Advisory Roles */
+            advisory_roles: string | null;
+            /** Secondary Employment */
+            secondary_employment: string | null;
             /** Spouse First Name */
             spouse_first_name: string | null;
             /** Spouse Last Name */
@@ -2733,6 +2882,8 @@ export interface components {
             spouse_alumni_id: number | null;
             /** Deceased */
             deceased: boolean | null;
+            /** Is Alumni */
+            is_alumni: boolean | null;
             /** Linkedin Url */
             linkedin_url: string | null;
             /** Notes */
@@ -2757,8 +2908,8 @@ export interface components {
              * Format: date-time
              */
             uploaded_at: string;
-            /** Uploaded By User Id */
-            uploaded_by_user_id: number | null;
+            /** Uploaded By */
+            uploaded_by: string | null;
         };
         /**
          * AttendeeCreate
@@ -2789,8 +2940,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
-            /** User Id */
-            user_id: number | null;
+            /** Performed By */
+            performed_by: string | null;
         };
         /**
          * AuthenticatedUser
@@ -2979,6 +3130,35 @@ export interface components {
             country: string | null;
             /** Region */
             region: string | null;
+        };
+        /**
+         * CountryCount
+         * @description Per-country alumni count for the world map (international alumni only).
+         */
+        CountryCount: {
+            /** Country */
+            country: string;
+            /** Alumni Count */
+            alumni_count: number;
+        };
+        /**
+         * CountryDetail
+         * @description Aggregate drill-down for one country (world-view country click-through).
+         *
+         *     No cities (international city data isn't populated) — count + top employers /
+         *     industries + grad-year histogram, mirroring ``StateDetail``.
+         */
+        CountryDetail: {
+            /** Country */
+            country: string;
+            /** Alumni Count */
+            alumni_count: number;
+            /** Employers */
+            employers: components["schemas"]["EmployerCount"][];
+            /** Industries */
+            industries: components["schemas"]["IndustryCount"][];
+            /** By Graduation Year */
+            by_graduation_year: components["schemas"]["YearCount"][];
         };
         /**
          * CountyCount
@@ -3394,16 +3574,24 @@ export interface components {
          * EventCreate
          * @description Client-editable fields for creating an event. ``extra='forbid'`` rejects
          *     unknown keys; ``event_name`` is required, non-empty, and at most 255 chars.
-         *     ``event_type``/``event_location`` are capped at 255 chars and ``event_notes``
-         *     at 10000 chars.
+         *     ``event_date`` is REQUIRED (M4) — a missing date is a 422, never a dateless
+         *     event. ``event_type``/``event_location`` are capped at 255 chars and
+         *     ``event_notes`` at 10000 chars.
+         *
+         *     Note: ``event_type`` stays OPTIONAL — it's free text with no enforced
+         *     controlled vocabulary at the schema layer, and bulk-imported events may
+         *     legitimately have no type; requiring it would reject valid data.
          */
         EventCreate: {
             /** Event Name */
             event_name: string;
             /** Event Type */
             event_type?: string | null;
-            /** Event Date */
-            event_date?: string | null;
+            /**
+             * Event Date
+             * Format: date
+             */
+            event_date: string;
             /** Event Location */
             event_location?: string | null;
             /** Event Notes */
@@ -3564,12 +3752,19 @@ export interface components {
         /**
          * InteractionCreate
          * @description Log an interaction against an alumni (Interactions tab).
+         *
+         *     ``interaction_type`` and ``interaction_date_time`` are both REQUIRED (H1) —
+         *     an empty payload is a 422, never a silently-defaulted record. The date/time
+         *     must not be in the future (H2).
          */
         InteractionCreate: {
             /** Interaction Type */
             interaction_type: string;
-            /** Interaction Date Time */
-            interaction_date_time?: string | null;
+            /**
+             * Interaction Date Time
+             * Format: date-time
+             */
+            interaction_date_time: string;
             /** Interaction Notes */
             interaction_notes?: string | null;
         };
@@ -4643,6 +4838,8 @@ export interface operations {
                 /** @description Only alumni flagged as duplicate candidates. */
                 duplicate?: boolean;
                 include_archived?: boolean;
+                /** @description Which records to return (#218): 'alumni' (default) — only graduates (is_alumni=true); 'friend' — only friends of the program (is_alumni=false); 'all' — both. Defaults to 'alumni' so the Alumni page is unchanged. */
+                kind?: "alumni" | "friend" | "all";
                 /** @description Sort order: name | grad_desc | grad_asc. */
                 sort?: string;
                 limit?: number;
@@ -7021,15 +7218,11 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            200: {
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -7323,6 +7516,118 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CountyCount"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    countries_geography_countries_get: {
+        parameters: {
+            query?: {
+                employer?: string | null;
+                industry?: string | null;
+                year?: number | null;
+                region?: string | null;
+                tag?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CountryCount"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    country_detail_geography_countries__country__get: {
+        parameters: {
+            query?: {
+                employer?: string | null;
+                industry?: string | null;
+                year?: number | null;
+                region?: string | null;
+                tag?: string | null;
+            };
+            header?: never;
+            path: {
+                country: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CountryDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    country_alumni_geography_countries__country__alumni_get: {
+        parameters: {
+            query?: {
+                sort?: string;
+                limit?: number;
+                offset?: number;
+                employer?: string | null;
+                industry?: string | null;
+                year?: number | null;
+                region?: string | null;
+                tag?: string | null;
+            };
+            header?: never;
+            path: {
+                country: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeoAlumniPage"];
                 };
             };
             /** @description Validation Error */

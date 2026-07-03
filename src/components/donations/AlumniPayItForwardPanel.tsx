@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import type { AlumniDonations } from "@/types/donations";
+import { DeleteDonationButton } from "@/components/donations/DeleteDonationButton";
 
 const MONTHS = [
   "",
@@ -35,7 +36,14 @@ function money(value: number | null): string {
  * render as "—" for non-full-access users while the years/counts stay visible.
  * Rendered only when the alumnus actually has donations.
  */
-export function AlumniPayItForwardPanel({ data }: { data: AlumniDonations }) {
+export function AlumniPayItForwardPanel({
+  data,
+  canDelete = false,
+}: {
+  data: AlumniDonations;
+  /** Admin tier (full_access+) — shows the per-gift delete control (H4). */
+  canDelete?: boolean;
+}) {
   // Amounts are withheld uniformly by the backend; lifetime_total === null is
   // the signal that this caller may not see dollar figures.
   const showAmounts = data.lifetime_total !== null;
@@ -49,6 +57,9 @@ export function AlumniPayItForwardPanel({ data }: { data: AlumniDonations }) {
     byYear.set(d.year, cur);
   }
   const years = [...byYear.entries()].sort((a, b) => b[0] - a[0]);
+  // #220: surface the latest year a gift was given (max year) and how many
+  // gifts in total, replacing the old "Years given" (distinct-year count).
+  const mostRecentYear = years.length ? years[0][0] : null;
 
   return (
     <div className="space-y-4">
@@ -67,18 +78,18 @@ export function AlumniPayItForwardPanel({ data }: { data: AlumniDonations }) {
         </Card>
         <Card className="p-4">
           <span className="block text-xs font-semibold uppercase tracking-wide text-gray-500">
-            Gifts
+            Most recent year
           </span>
           <p className="mt-1.5 text-2xl font-semibold tabular-nums text-gray-900">
-            {data.donation_count}
+            {mostRecentYear ?? "—"}
           </p>
         </Card>
         <Card className="p-4">
           <span className="block text-xs font-semibold uppercase tracking-wide text-gray-500">
-            Years given
+            Times given
           </span>
           <p className="mt-1.5 text-2xl font-semibold tabular-nums text-gray-900">
-            {years.length}
+            {data.donation_count}
           </p>
         </Card>
       </div>
@@ -123,24 +134,34 @@ export function AlumniPayItForwardPanel({ data }: { data: AlumniDonations }) {
       <Card className="p-5">
         <h3 className="mb-3 text-sm font-semibold text-gray-900">Gift history</h3>
         <ul className="divide-y divide-gray-100">
-          {data.donations.map((d) => (
-            <li
-              key={d.donation_id}
-              className="flex items-center justify-between gap-3 py-2"
-            >
-              <span className="text-sm text-gray-700">
-                {d.month ? `${MONTHS[d.month]} ` : ""}
-                {d.year}
-              </span>
-              <span
-                className={`text-sm tabular-nums ${
-                  showAmounts ? "font-semibold text-gray-900" : "text-gray-400"
-                }`}
+          {data.donations.map((d) => {
+            const when = `${d.month ? `${MONTHS[d.month]} ` : ""}${d.year}`;
+            return (
+              <li
+                key={d.donation_id}
+                className="flex items-center justify-between gap-3 py-2"
               >
-                {money(d.amount)}
-              </span>
-            </li>
-          ))}
+                <span className="text-sm text-gray-700">{when}</span>
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`text-sm tabular-nums ${
+                      showAmounts
+                        ? "font-semibold text-gray-900"
+                        : "text-gray-400"
+                    }`}
+                  >
+                    {money(d.amount)}
+                  </span>
+                  {canDelete ? (
+                    <DeleteDonationButton
+                      donationId={d.donation_id}
+                      label={when}
+                    />
+                  ) : null}
+                </div>
+              </li>
+            );
+          })}
         </ul>
         <Link
           href="/pay-it-forward"

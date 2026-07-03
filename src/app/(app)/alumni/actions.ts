@@ -101,6 +101,17 @@ function buildPayload(formData: FormData): Record<string, unknown> {
     spouse_alumni_id,
     linkedin_url: str("linkedin_url"),
     notes: str("notes"),
+    // Secondary affiliation / education fields (#47) — top-level optional
+    // fields on the alumni record (siblings of graduate_degree), so they go
+    // through the core payload rather than a nested section.
+    graduate_degree: str("graduate_degree"),
+    mba_program: str("mba_program"),
+    law_school: str("law_school"),
+    medical_school: str("medical_school"),
+    graduate_school: str("graduate_school"),
+    startup_involvement: str("startup_involvement"),
+    advisory_roles: str("advisory_roles"),
+    secondary_employment: str("secondary_employment"),
   });
 }
 
@@ -196,16 +207,12 @@ function buildCreatePayload(formData: FormData): Record<string, unknown> {
   return compact({ ...payload, contact, career, education, engagement });
 }
 
-export async function createAlumni(
-  _prev: FormState,
-  formData: FormData,
+async function createFrom(
+  payload: Record<string, unknown>,
 ): Promise<FormState> {
   let id: number;
   try {
-    const created = await apiPost<{ alumni_id: number }>(
-      "/alumni",
-      buildCreatePayload(formData),
-    );
+    const created = await apiPost<{ alumni_id: number }>("/alumni", payload);
     id = created.alumni_id;
   } catch (e) {
     return toFormState(e, "Failed to create.");
@@ -214,6 +221,23 @@ export async function createAlumni(
   revalidateTag("dashboard");
   revalidateTag("geography");
   redirect(`/alumni/${id}`);
+}
+
+export async function createAlumni(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  return createFrom(buildCreatePayload(formData));
+}
+
+// #218: create a "friend of the program" — a non-alumni record. Force
+// is_alumni=false AFTER buildCreatePayload's compaction (which would otherwise
+// drop the falsy flag), so the record lands in the Friends roster, never Alumni.
+export async function createFriend(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  return createFrom({ ...buildCreatePayload(formData), is_alumni: false });
 }
 
 export async function updateAlumni(

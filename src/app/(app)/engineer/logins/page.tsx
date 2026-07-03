@@ -114,6 +114,7 @@ export default async function LoginsPage({
     <>
       <Topbar breadcrumb={[{ label: "Engineer", href: "/engineer" }, { label: "Logins" }]} />
       <main className="flex-1 overflow-auto p-6">
+        <h1 className="sr-only">Login history</h1>
         <p className="mb-4 max-w-2xl text-sm text-gray-500">
           Every sign-in with a captured location, newest first. Recorded when a
           user logs in; a removed user’s past sign-ins keep the email they used.

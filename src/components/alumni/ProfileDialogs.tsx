@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Check, Pencil, Trash2, X } from "lucide-react";
 import {
   addEducation,
   addEmploymentRole,
@@ -161,8 +161,67 @@ function toDateTimeLocalValue(iso: string | null | undefined): string {
   return local.toISOString().slice(0, 16);
 }
 
+/** Current local wall-clock as a `YYYY-MM-DDTHH:mm` value for the `max` attr. */
+function nowDateTimeLocalValue(): string {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+/**
+ * Field-level errors for the interaction form, keyed by input name. Mirrors the
+ * `fieldErrors` shape the event form uses — `undefined` for a valid field.
+ */
+type InteractionFieldErrors = {
+  interaction_type?: string;
+  interaction_date_time?: string;
+};
+
+/**
+ * Client-side validation for an add/edit interaction submit. The backend now
+ * 422s on an empty/partial interaction (interaction_type + interaction_date_time
+ * are both REQUIRED, H1) and rejects a future date (H2) — we re-check here so an
+ * invalid submit is blocked with inline messages and no request is sent.
+ *
+ * `allowEmptyDate` keeps editing-to-clear working where the action supports it:
+ * on edit, an empty date is allowed (sent as null); on add it is required.
+ */
+function validateInteraction(
+  type: string,
+  when: string,
+  { allowEmptyDate }: { allowEmptyDate: boolean },
+): InteractionFieldErrors {
+  const errors: InteractionFieldErrors = {};
+  if (!type.trim()) errors.interaction_type = "Choose an interaction type.";
+  if (!when) {
+    if (!allowEmptyDate) errors.interaction_date_time = "Pick a date and time.";
+  } else {
+    const picked = new Date(when);
+    if (Number.isNaN(picked.getTime())) {
+      errors.interaction_date_time = "Enter a valid date and time.";
+    } else if (picked.getTime() > Date.now()) {
+      errors.interaction_date_time = "The date can't be in the future.";
+    }
+  }
+  return errors;
+}
+
 /** Shared field set for the add/edit interaction forms. */
-function InteractionFields({ row }: { row?: Interaction }) {
+function InteractionFields({
+  row,
+  fieldErrors,
+  when,
+  setWhen,
+  type,
+  setType,
+}: {
+  row?: Interaction;
+  fieldErrors: InteractionFieldErrors;
+  when: string;
+  setWhen: (v: string) => void;
+  type: string;
+  setType: (v: string) => void;
+}) {
   // Preserve a stored type that isn't one of the preset options (e.g. an
   // older/imported value): show it as a selectable option so editing an
   // unrelated field doesn't silently overwrite it with the first preset.
@@ -171,35 +230,42 @@ function InteractionFields({ row }: { row?: Interaction }) {
     current && !(INTERACTION_TYPES as readonly string[]).includes(current)
       ? [current, ...INTERACTION_TYPES]
       : INTERACTION_TYPES;
-  // Controlled date so an explicit "Clear" reliably empties the field (the
-  // browser-native datetime-local clear is inconsistent across browsers and was
-  // reported not clearing — FA-6). The empty value submits as "", which the
-  // updateInteraction action sends as null so the cleared date persists.
-  const [when, setWhen] = useState(() =>
-    toDateTimeLocalValue(row?.interaction_date_time),
-  );
   return (
     <div className="space-y-3">
       <div>
         <Label className="mb-1" htmlFor="interaction_type">
-          Type
+          Type <span className="text-danger-600">*</span>
         </Label>
         <Select
           id="interaction_type"
           name="interaction_type"
           style={{ colorScheme: "light" }}
-          defaultValue={current ?? INTERACTION_TYPES[0]}
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+          aria-invalid={fieldErrors.interaction_type ? true : undefined}
+          className={cn(
+            fieldErrors.interaction_type &&
+              "border-danger-600 focus-visible:border-danger-600 focus-visible:ring-danger-600",
+          )}
         >
+          <option value="">— Select —</option>
           {typeOptions.map((t) => (
             <option key={t} value={t}>
               {t}
             </option>
           ))}
         </Select>
+        {fieldErrors.interaction_type ? (
+          <p className="mt-1 text-xs text-danger-600">
+            {fieldErrors.interaction_type}
+          </p>
+        ) : null}
       </div>
       <div>
         <div className="mb-1 flex items-center justify-between">
-          <Label htmlFor="interaction_date_time">Date &amp; time</Label>
+          <Label htmlFor="interaction_date_time">
+            Date &amp; time <span className="text-danger-600">*</span>
+          </Label>
           {when ? (
             <Button
               type="button"
@@ -212,14 +278,29 @@ function InteractionFields({ row }: { row?: Interaction }) {
             </Button>
           ) : null}
         </div>
+        {/* Controlled date so an explicit "Clear" reliably empties the field (the
+            browser-native datetime-local clear is inconsistent — FA-6). `max` =
+            now blocks future dates at the picker level (H2); the empty value
+            submits as "", which updateInteraction sends as null on edit. */}
         <Input
           id="interaction_date_time"
           name="interaction_date_time"
           type="datetime-local"
           style={{ colorScheme: "light" }}
           value={when}
+          max={nowDateTimeLocalValue()}
           onChange={(e) => setWhen(e.target.value)}
+          aria-invalid={fieldErrors.interaction_date_time ? true : undefined}
+          className={cn(
+            fieldErrors.interaction_date_time &&
+              "border-danger-600 focus-visible:border-danger-600 focus-visible:ring-danger-600",
+          )}
         />
+        {fieldErrors.interaction_date_time ? (
+          <p className="mt-1 text-xs text-danger-600">
+            {fieldErrors.interaction_date_time}
+          </p>
+        ) : null}
       </div>
       <div>
         <Label className="mb-1" htmlFor="interaction_notes">
@@ -266,11 +347,20 @@ export function AddInteractionButton({
     addInteraction.bind(null, alumniId),
     null,
   );
+  // Required type + date are validated client-side before the request is sent
+  // (H1/H2): an empty/partial or future-dated submit is blocked with inline
+  // messages and never reaches the backend.
+  const [type, setType] = useState("");
+  const [when, setWhen] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<InteractionFieldErrors>({});
   useOnSubmitSettled(
     pending,
     state?.error,
     () => {
       setOpen(false);
+      setType("");
+      setWhen("");
+      setFieldErrors({});
       toast.success("Interaction logged.");
     },
     () => toast.error(state?.error ?? "Failed to add interaction."),
@@ -289,8 +379,23 @@ export function AddInteractionButton({
       )}
       {open ? (
         <Modal title="Log interaction" onClose={() => setOpen(false)}>
-          <form action={formAction}>
-            <InteractionFields />
+          <form
+            action={formAction}
+            onSubmit={(e) => {
+              const errs = validateInteraction(type, when, {
+                allowEmptyDate: false,
+              });
+              setFieldErrors(errs);
+              if (Object.keys(errs).length > 0) e.preventDefault();
+            }}
+          >
+            <InteractionFields
+              fieldErrors={fieldErrors}
+              type={type}
+              setType={setType}
+              when={when}
+              setWhen={setWhen}
+            />
             {state?.error ? (
               <p className="mt-3 text-sm text-danger-600">{state.error}</p>
             ) : null}
@@ -322,11 +427,19 @@ export function EditInteractionButton({
     updateInteraction.bind(null, alumniId, row.interaction_id),
     null,
   );
+  // Seed from the existing row. Editing to clear the date stays allowed (sent as
+  // null); type stays required and a future date is rejected (H1/H2).
+  const [type, setType] = useState(row.interaction_type ?? "");
+  const [when, setWhen] = useState(() =>
+    toDateTimeLocalValue(row.interaction_date_time),
+  );
+  const [fieldErrors, setFieldErrors] = useState<InteractionFieldErrors>({});
   useOnSubmitSettled(
     pending,
     state?.error,
     () => {
       setOpen(false);
+      setFieldErrors({});
       toast.success("Interaction updated.");
     },
     () => toast.error(state?.error ?? "Failed to save interaction."),
@@ -341,8 +454,24 @@ export function EditInteractionButton({
       />
       {open ? (
         <Modal title="Edit interaction" onClose={() => setOpen(false)}>
-          <form action={formAction}>
-            <InteractionFields row={row} />
+          <form
+            action={formAction}
+            onSubmit={(e) => {
+              const errs = validateInteraction(type, when, {
+                allowEmptyDate: true,
+              });
+              setFieldErrors(errs);
+              if (Object.keys(errs).length > 0) e.preventDefault();
+            }}
+          >
+            <InteractionFields
+              row={row}
+              fieldErrors={fieldErrors}
+              type={type}
+              setType={setType}
+              when={when}
+              setWhen={setWhen}
+            />
             {state?.error ? (
               <p className="mt-3 text-sm text-danger-600">{state.error}</p>
             ) : null}
@@ -1562,10 +1691,9 @@ function ChipManager({
               type="button"
               disabled={pending && busy === v}
               onClick={() => run(v, addAction, `Added ${v}.`)}
-              className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-dashed border-gray-300 px-3 py-1 text-xs font-medium text-gray-600 hover:border-brand-blue-600 hover:bg-brand-blue-50 hover:text-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 disabled:opacity-50"
+              className="inline-flex min-h-[32px] items-center rounded-md border border-dashed border-gray-300 px-3 py-1 text-xs font-medium text-gray-600 hover:border-brand-blue-600 hover:bg-brand-blue-50 hover:text-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 disabled:opacity-50"
             >
-              <Plus className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              {v}
+              + {v}
             </button>
           ))}
         </div>

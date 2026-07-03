@@ -67,7 +67,7 @@ export function LoginForm() {
       )}
 
       <div>
-        <Label htmlFor="email">Username</Label>
+        <Label htmlFor="email">Email</Label>
         <Input
           id="email"
           type="email"

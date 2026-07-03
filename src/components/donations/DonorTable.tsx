@@ -42,8 +42,8 @@ export function DonorTable({
         <thead>
           <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
             <th className="px-4 py-2.5">Donor</th>
-            <th className="px-4 py-2.5">Years given</th>
-            <th className="px-4 py-2.5 text-right">Gifts</th>
+            <th className="px-4 py-2.5 text-right">Most recent year</th>
+            <th className="px-4 py-2.5 text-right">Times given</th>
             <th className="px-4 py-2.5 text-right">Lifetime</th>
             <th className="px-4 py-2.5" aria-label="Expand" />
           </tr>
@@ -78,7 +78,9 @@ function DonorRows({
   onToggle: () => void;
   showAmounts: boolean;
 }) {
-  const years = donor.years.length ? donor.years.join(", ") : "—";
+  // #220: show the latest year a gift landed (max year) plus the gift count,
+  // replacing the old comma-joined list of every year given.
+  const mostRecentYear = donor.years.length ? Math.max(...donor.years) : null;
   return (
     <>
       <tr className="hover:bg-gray-50">
@@ -95,7 +97,9 @@ function DonorRows({
             </span>
           ) : null}
         </td>
-        <td className="px-4 py-2.5 text-gray-700">{years}</td>
+        <td className="px-4 py-2.5 text-right tabular-nums text-gray-700">
+          {mostRecentYear ?? "—"}
+        </td>
         <td className="px-4 py-2.5 text-right tabular-nums text-gray-700">
           {donor.donation_count}
         </td>

@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { MobileNav } from "@/components/shell/MobileNav";
 import { SessionTimeout } from "@/components/auth/SessionTimeout";
+import { PointerEventsGuard } from "@/components/shell/PointerEventsGuard";
 import { PreviewBanner } from "@/components/engineer/PreviewBanner";
 import { apiGet } from "@/lib/api";
 import type { UserContext } from "@/types/alumni";
@@ -83,6 +84,7 @@ export default async function AppLayout({
   return (
     <ToastProvider>
       <SessionTimeout />
+      <PointerEventsGuard />
       <div className="flex h-screen overflow-hidden bg-canvas">
         {/* While previewing, the sidebar reflects the previewed role (engineer
             tools disappear); the engineer exits via the always-visible banner. */}

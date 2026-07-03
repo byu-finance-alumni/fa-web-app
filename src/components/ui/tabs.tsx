@@ -51,7 +51,13 @@ const TabsContent = React.forwardRef<
   <TabsPrimitive.Content
     ref={ref}
     className={cn(
-      "mt-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
+      // Radix hides the inactive panel with the `hidden` attribute (which relies
+      // on the UA `[hidden]{display:none}` rule). A consumer that adds a `display`
+      // utility (e.g. `flex`/`grid`) to a panel would override that rule, leaving
+      // the "hidden" panel laid out and painting over the active one — silently
+      // stealing pointer events (issue #235). Force `display:none` while hidden so
+      // any display utility never re-shows an inactive panel.
+      "mt-4 [&[hidden]]:!hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
       className,
     )}
     {...props}
