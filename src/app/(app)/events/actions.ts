@@ -254,3 +254,25 @@ export async function downloadEventsTemplate(): Promise<
     };
   }
 }
+
+/**
+ * Download an event's attendee roster as CSV (GET /events/{id}/attendees/export)
+ * — columns Name, Email, Net ID. full_access on the backend (bulk alumni PII);
+ * the client turns the returned text into a Blob download. Returns the raw CSV
+ * plus a suggested filename so the caller doesn't have to know the shape.
+ */
+export async function exportEventAttendees(
+  eventId: number,
+): Promise<
+  { ok: true; csv: string; filename: string } | { ok: false; error: string }
+> {
+  try {
+    const csv = await apiGetText(`/events/${eventId}/attendees/export`);
+    return { ok: true, csv, filename: `event_${eventId}_attendees.csv` };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Couldn't download attendees.",
+    };
+  }
+}

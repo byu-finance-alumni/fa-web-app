@@ -651,6 +651,24 @@ export default async function AlumniProfilePage({
                 )}
               </Panel>
 
+              {/* Record notes — the record-level "Notes" set from the add/edit
+                  form. Distinct from the per-note "Add note" thread below; this
+                  surfaces the value so it isn't saved-but-invisible (#211). */}
+              <Panel
+                title="Record notes"
+                action={canEdit ? <EditLink id={aid} /> : undefined}
+              >
+                {a.notes ? (
+                  <p className="whitespace-pre-wrap text-sm text-gray-900">
+                    {a.notes}
+                  </p>
+                ) : (
+                  <p className="py-6 text-center text-sm text-gray-500">
+                    No record notes yet.
+                  </p>
+                )}
+              </Panel>
+
             </div>
 
             {/* Right sidebar (narrower). Same flex-column treatment so it ends

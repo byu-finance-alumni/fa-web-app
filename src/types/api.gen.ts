@@ -1650,6 +1650,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/events/{event_id}/attendees/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Event Attendees
+         * @description Download an event's attendee list as CSV — columns **Name, Email, Net ID**
+         *     (#219). Gated at ``full_access`` (a rung above the view-only attendee list)
+         *     because bulk contact details — alumni PII — leave the system here, and audited
+         *     as a disclosure (action ``export_event_attendees``, row count only, never the
+         *     data itself). 404 if the event is unknown.
+         *
+         *     Email is the alumnus's personal email, falling back to the work email. Rows
+         *     are ordered by name, matching the on-screen roster.
+         */
+        get: operations["export_event_attendees_events__event_id__attendees_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/events/{event_id}/attendees/{alumni_id}": {
         parameters: {
             query?: never;
@@ -7045,6 +7072,37 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_event_attendees_events__event_id__attendees_export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                event_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
