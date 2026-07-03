@@ -144,6 +144,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/session/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Session Active
+         * @description Report whether THIS session is still the account's active session (#147).
+         *
+         *     Uses the force-change-EXEMPT resolver, which does NOT reject a superseded
+         *     session (unlike the data routes) — so a superseded device can still ask "am I
+         *     still signed in?" and get a clean ``{active: false}`` instead of a 401. The
+         *     frontend polls this and, on ``false``, signs the device out and explains why.
+         *
+         *     Fails OPEN (``active: true``) when the account has no claimed session yet
+         *     (``active_session_id`` NULL — e.g. a session predating this feature) or the
+         *     token carried no ``session_id``, so nobody is spuriously logged out.
+         */
+        get: operations["session_active_auth_session_active_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/password/complete": {
         parameters: {
             query?: never;
@@ -2986,6 +3015,8 @@ export interface components {
             email: string | null;
             /** Token Role */
             token_role: string | null;
+            /** Session Id */
+            session_id: string | null;
         };
         /** Body_import_alumni_alumni_import_post */
         Body_import_alumni_alumni_import_post: {
@@ -4280,6 +4311,14 @@ export interface components {
          * @enum {string}
          */
         RoleName: "engineer" | "super_admin" | "full_access" | "student" | "view_only";
+        /**
+         * SessionActiveResponse
+         * @description Whether the caller's session is still the account's single active one.
+         */
+        SessionActiveResponse: {
+            /** Active */
+            active: boolean;
+        };
         /** StateCount */
         StateCount: {
             /** State */
@@ -4493,6 +4532,10 @@ export interface components {
              * @default false
              */
             must_change_password: boolean;
+            /** Session Id */
+            session_id: string | null;
+            /** Active Session Id */
+            active_session_id: string | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -4724,6 +4767,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    session_active_auth_session_active_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionActiveResponse"];
                 };
             };
         };

@@ -57,6 +57,14 @@ export function LoginForm() {
           You were signed out due to inactivity. Please sign in again.
         </div>
       )}
+      {searchParams.get("signedout") === "other-device" && !formError && (
+        <div
+          role="status"
+          className="rounded-md border border-warning-600/30 bg-warning-50 px-3 py-2 text-sm text-warning-600"
+        >
+          You were signed out because this account signed in on another device.
+        </div>
+      )}
       {formError && (
         <div
           role="alert"
