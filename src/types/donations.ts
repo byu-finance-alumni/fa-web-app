@@ -24,6 +24,16 @@ export interface Donor {
   per_year: DonorYear[];
 }
 
+/** Paginated envelope returned by GET /donations/donors (#173 follow-up). The
+ *  endpoint changed from a bare `Donor[]` to this shape; read `items` for the
+ *  page of donors and `total`/`limit`/`offset` for pagination. */
+export interface DonorsResponse {
+  items: Donor[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface DonationsSummary {
   /** Public counts (visible to all roles). */
   donor_count: number;
