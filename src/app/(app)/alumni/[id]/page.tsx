@@ -83,17 +83,26 @@ const place = (...parts: (string | null | undefined)[]) =>
 function HeaderContact({
   contact,
   linkedinUrl,
+  canViewContactDetails,
 }: {
   contact: Contact | null;
   linkedinUrl: string | null;
+  /** Email, phone, and the full mailing address are contact PII — surfaced only
+   *  to editors (defense-in-depth for #166; the backend also nulls them for the
+   *  view_only role). LinkedIn stays visible to every role. */
+  canViewContactDetails: boolean;
 }) {
-  const email = contact?.personal_email || contact?.work_email || null;
-  const phone = contact?.phone || null;
-  const mailing = place(
-    place(contact?.address_line_1, contact?.address_line_2),
-    place(contact?.city, contact?.state),
-    contact?.zip,
-  );
+  const email = canViewContactDetails
+    ? contact?.personal_email || contact?.work_email || null
+    : null;
+  const phone = canViewContactDetails ? contact?.phone || null : null;
+  const mailing = canViewContactDetails
+    ? place(
+        place(contact?.address_line_1, contact?.address_line_2),
+        place(contact?.city, contact?.state),
+        contact?.zip,
+      )
+    : null;
 
   if (!email && !phone && !mailing && !linkedinUrl) return null;
 
@@ -315,6 +324,13 @@ export default async function AlumniProfilePage({
     /* not provisioned → view-only */
   }
 
+  // Contact PII (personal/work email, phone, street address, ZIP) is shown only
+  // to editors — defense-in-depth for #166. The backend nulls these fields for
+  // the view_only role; this keeps the client from rendering them regardless.
+  // Directory-like location (city/state/country) and LinkedIn stay visible to
+  // every role, matching the backend minimization.
+  const canViewContactDetails = canEdit;
+
   const a = profile.alumni;
   const c = profile.contact;
   const career = profile.current_career;
@@ -471,7 +487,11 @@ export default async function AlumniProfilePage({
                       Text-only (no icons) per the design rules; the full
                       breakdown still lives in the Overview "Contact
                       information" panel. */}
-                  <HeaderContact contact={c} linkedinUrl={a.linkedin_url} />
+                  <HeaderContact
+                    contact={c}
+                    linkedinUrl={a.linkedin_url}
+                    canViewContactDetails={canViewContactDetails}
+                  />
                 </div>
               </div>
 
@@ -599,27 +619,35 @@ export default async function AlumniProfilePage({
               >
                 {c ? (
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <ContactField
-                      icon={Mail}
-                      label="Personal email"
-                      value={c.personal_email}
-                      href={c.personal_email ? `mailto:${c.personal_email}` : undefined}
-                      hrefLabel="Send"
-                    />
-                    <ContactField
-                      icon={Mail}
-                      label="Work email"
-                      value={c.work_email}
-                      href={c.work_email ? `mailto:${c.work_email}` : undefined}
-                      hrefLabel="Send"
-                    />
-                    <ContactField
-                      icon={Phone}
-                      label="Phone"
-                      value={c.phone}
-                      href={c.phone ? `tel:${c.phone}` : undefined}
-                      hrefLabel="Call"
-                    />
+                    {/* Contact PII (email, phone, street address) is editor-only
+                        — defense-in-depth for #166. The backend nulls these for
+                        view_only; we simply don't render the rows. LinkedIn and
+                        directory-like City/State/Country stay visible to all. */}
+                    {canViewContactDetails ? (
+                      <>
+                        <ContactField
+                          icon={Mail}
+                          label="Personal email"
+                          value={c.personal_email}
+                          href={c.personal_email ? `mailto:${c.personal_email}` : undefined}
+                          hrefLabel="Send"
+                        />
+                        <ContactField
+                          icon={Mail}
+                          label="Work email"
+                          value={c.work_email}
+                          href={c.work_email ? `mailto:${c.work_email}` : undefined}
+                          hrefLabel="Send"
+                        />
+                        <ContactField
+                          icon={Phone}
+                          label="Phone"
+                          value={c.phone}
+                          href={c.phone ? `tel:${c.phone}` : undefined}
+                          hrefLabel="Call"
+                        />
+                      </>
+                    ) : null}
                     <ContactField
                       icon={Link2}
                       label="LinkedIn"
@@ -627,11 +655,13 @@ export default async function AlumniProfilePage({
                       href={a.linkedin_url ?? undefined}
                       hrefLabel="Open ↗"
                     />
-                    <ContactField
-                      icon={Home}
-                      label="Address"
-                      value={place(c.address_line_1, c.address_line_2)}
-                    />
+                    {canViewContactDetails ? (
+                      <ContactField
+                        icon={Home}
+                        label="Address"
+                        value={place(c.address_line_1, c.address_line_2)}
+                      />
+                    ) : null}
                     <ContactField icon={MapPin} label="City" value={c.city} />
                     <ContactField
                       icon={MapPin}
