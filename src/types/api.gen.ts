@@ -1739,10 +1739,16 @@ export interface paths {
         };
         /**
          * List Donors
-         * @description List donors with per-year and lifetime roll-ups (view access).
+         * @description List donors with per-year and lifetime roll-ups (view access, paginated).
          *
          *     Everyone sees who gave and in which years; ``lifetime_total`` and each
          *     ``per_year.total`` are non-null only for amount-viewers (full_access+).
+         *
+         *     Returns a ``{items, total, limit, offset}`` envelope. The ranking, LIMIT, and
+         *     OFFSET are pushed into PostgreSQL; only the page's per-year breakdown is then
+         *     aggregated (``WHERE alumni_id IN (<page ids>)``), so the endpoint is bounded
+         *     regardless of donor count. Amount-viewers see the biggest givers first;
+         *     others get a stable name sort (the lifetime ranking is amount-gated too).
          */
         get: operations["list_donors_donations_donors_get"];
         put?: never;
@@ -2316,6 +2322,9 @@ export interface paths {
          * Create Vocabulary Term
          * @description Add a term (or reactivate a previously-deactivated identical one).
          *     409 if an active term with the same value already exists in the category.
+         *
+         *     Returns 201 Created for a genuinely new term, 200 OK when an existing
+         *     soft-deleted term was reactivated (nothing new was created) (#176).
          */
         post: operations["create_vocabulary_term_admin_vocabulary_post"];
         delete?: never;
@@ -2568,6 +2577,16 @@ export interface components {
         AlumniExportFilters: {
             /** Q */
             q: string | null;
+            /** Net Id */
+            net_id: string | null;
+            /** First Name */
+            first_name: string | null;
+            /** Last Name */
+            last_name: string | null;
+            /** Preferred Name */
+            preferred_name: string | null;
+            /** Email */
+            email: string | null;
             /** Graduation Year */
             graduation_year: number | null;
             /** Grad Year Min */
@@ -3268,12 +3287,8 @@ export interface components {
             first_name?: string | null;
             /** Last Name */
             last_name?: string | null;
-            /**
-             * Role Name
-             * @default view_only
-             * @enum {string}
-             */
-            role_name: "full_access" | "student" | "view_only";
+            /** @default view_only */
+            role_name: components["schemas"]["RoleName"];
         };
         /**
          * CreateUserResponse
@@ -4953,7 +4968,7 @@ export interface operations {
                 /** @description Which records to return (#218): 'alumni' (default) — only graduates (is_alumni=true); 'friend' — only friends of the program (is_alumni=false); 'all' — both. Defaults to 'alumni' so the Alumni page is unchanged. */
                 kind?: "alumni" | "friend" | "all";
                 /** @description Sort order: name | grad_desc | grad_asc. */
-                sort?: string;
+                sort?: "name" | "grad_desc" | "grad_asc";
                 limit?: number;
                 offset?: number;
             };
@@ -7237,7 +7252,10 @@ export interface operations {
     };
     list_donors_donations_donors_get: {
         parameters: {
-            query?: never;
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -7252,7 +7270,16 @@ export interface operations {
                 content: {
                     "application/json": {
                         [key: string]: unknown;
-                    }[];
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
