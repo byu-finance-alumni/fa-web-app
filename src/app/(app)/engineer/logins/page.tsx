@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { apiGet, ApiError } from "@/lib/api";
+import { getAuthContext } from "@/lib/auth-context";
 import { Topbar } from "@/components/shell/Topbar";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { UserContext } from "@/types/alumni";
 import { ROLE } from "@/constants/roles";
 
 interface LoginRow {
@@ -66,7 +66,7 @@ export default async function LoginsPage({
   let isEngineer = false;
   let meId: number | null = null;
   try {
-    const ctx = await apiGet<UserContext>("/auth/context");
+    const ctx = await getAuthContext();
     isEngineer = ctx.roles?.includes(ROLE.ENGINEER) ?? false;
     meId = ctx.user_id;
   } catch {

@@ -7,8 +7,7 @@ import { SessionTimeout } from "@/components/auth/SessionTimeout";
 import { SessionGuard } from "@/components/auth/SessionGuard";
 import { PointerEventsGuard } from "@/components/shell/PointerEventsGuard";
 import { PreviewBanner } from "@/components/engineer/PreviewBanner";
-import { apiGet } from "@/lib/api";
-import type { UserContext } from "@/types/alumni";
+import { getAuthContext } from "@/lib/auth-context";
 import { highestRole, isEngineer, roleLabel } from "@/constants/roles";
 import { asPreviewRole, PREVIEW_COOKIE } from "@/lib/preview";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -44,7 +43,7 @@ export default async function AppLayout({
   let canVocabReal = false;
   let userName = "";
   try {
-    const ctx = await apiGet<UserContext>("/auth/context");
+    const ctx = await getAuthContext();
     mustChangePassword = ctx.must_change_password === true;
     // Resolve the user's single highest role for role-aware nav (engineer is
     // the top of the ladder). See @/constants/roles.

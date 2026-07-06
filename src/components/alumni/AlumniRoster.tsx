@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { apiGet, apiGetWithRetry, ApiError } from "@/lib/api";
-import type { Alumni, AlumniPage, UserContext } from "@/types/alumni";
+import { getAuthContext } from "@/lib/auth-context";
+import type { Alumni, AlumniPage } from "@/types/alumni";
 import type { FilterOptions } from "@/types/filters";
 import { hasFullAccess, canEditAlumni, canAddInteraction } from "@/constants/roles";
 import { Topbar } from "@/components/shell/Topbar";
@@ -182,7 +183,7 @@ export async function AlumniRoster({
         revalidate: 300,
         tags: ["vocabulary"],
       }),
-      apiGet<UserContext>("/auth/context"),
+      getAuthContext(),
     ]);
   if (listResult.status === "fulfilled") {
     data = listResult.value;

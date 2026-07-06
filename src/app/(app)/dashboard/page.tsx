@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { apiGet, ApiError } from "@/lib/api";
+import { getAuthContext } from "@/lib/auth-context";
 import { Topbar } from "@/components/shell/Topbar";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { SearchHero } from "@/components/dashboard/SearchHero";
@@ -290,7 +291,8 @@ export default async function DashboardPage() {
       }),
       // Per-user, not cacheable — used only to greet the signed-in user by name.
       // Tolerated separately below so a context hiccup never blanks the page.
-      apiGet<UserContext>("/auth/context").catch(() => null),
+      // Deduped with the layout's own context read for this request (#254).
+      getAuthContext().catch(() => null),
     ]);
   } catch (e) {
     if (e instanceof ApiError && e.status === 403) notProvisioned = true;
