@@ -45,7 +45,7 @@ export function MultiSelect({
   }
 
   return (
-    <div>
+    <div className="relative">
       <div className="mb-1.5 flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
           {label}
@@ -77,7 +77,7 @@ export function MultiSelect({
       </button>
 
       {open && (
-        <div className="mt-1 rounded-lg border border-gray-200 bg-white shadow-card">
+        <div className="absolute left-0 right-0 z-20 mt-1 rounded-lg border border-gray-200 bg-white shadow-card">
           {merged.length > 8 && (
             <div className="flex items-center gap-2 border-b border-gray-200 px-2.5 py-1.5">
               <Search className="h-3.5 w-3.5 shrink-0 text-gray-400" aria-hidden="true" />
