@@ -309,8 +309,12 @@ export default async function AlumniProfilePage({
   let canAdd = false;
   // Profile-completeness tab is gated by the editable `profile.completeness`
   // capability (default: super_admin + engineer), toggleable per role in the
-  // Engineer Console permission editor. Read the effective capability set the
-  // backend resolves under the live config.
+  // Engineer Console permission editor. NOTE (#189): this is a CLIENT-SIDE
+  // DISPLAY gate only — there is no backend endpoint guarded by this capability,
+  // and the completeness % is computed here from the already-VIEW-accessible
+  // profile. Toggling it hides/shows the tab; it does not protect any data a
+  // viewer couldn't already derive. See the matching note in the backend
+  // capabilities registry.
   let canViewCompleteness = false;
   try {
     const ctx = await apiGet<UserContext>("/auth/context");

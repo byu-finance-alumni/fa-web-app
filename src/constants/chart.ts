@@ -15,3 +15,10 @@ export const DATA_VIZ_PALETTE = [
   "#7C3AED", // violet (accent)
   "#0E7490", // teal (accent)
 ] as const;
+
+/**
+ * Neutral gray for a catch-all "Other"/uncategorized slice, so it reads as
+ * "not a real category" instead of borrowing a brand accent (e.g. the green).
+ * gray-400.
+ */
+export const CHART_MUTED_COLOR = "#9CA3AF";
