@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Search } from "lucide-react";
+import { useUrlQueryParam } from "@/lib/useUrlQueryParam";
 import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
 import { RoleManager } from "@/components/admin/RoleManager";
 import { UserActiveToggle } from "@/components/admin/UserActiveToggle";
@@ -56,17 +57,24 @@ function LockedBadge() {
  * role management. `canAssignEngineer` (the viewer is an engineer) gates whether
  * the engineer role can be granted/removed in the UI — the backend enforces the
  * same ceiling.
+ *
+ * The search term is mirrored into the URL (`?q=`) via `useUrlQueryParam` so it
+ * survives back-navigation and is shareable, consistent with every other list
+ * page (#259). Filtering stays client-side over the already-loaded `users`.
  */
 export function UsersAdmin({
   users,
   currentUserId,
   canAssignEngineer,
+  initialQ = "",
 }: {
   users: AdminUser[];
   currentUserId: number | null;
   canAssignEngineer: boolean;
+  /** Search term read from the URL (`?q=`) by the server component. */
+  initialQ?: string;
 }) {
-  const [q, setQ] = useState("");
+  const [q, setQ] = useUrlQueryParam("q", initialQ, { basePath: "/admin" });
 
   // Show the permanent-delete control everywhere the backend would allow it:
   // never on your own row, and (for non-engineers) never on an engineer's row.
