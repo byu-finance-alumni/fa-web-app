@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { Loader2, Search, X } from "lucide-react";
 import { clientGet } from "@/lib/api-client";
 import { useToast } from "@/components/ui/Toast";
@@ -277,7 +278,16 @@ export function AttendeeManager({
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-gray-900">
-                    {a.name}
+                    {a.alumni_id ? (
+                      <Link
+                        href={`/alumni/${a.alumni_id}`}
+                        className="rounded-sm hover:text-brand-blue-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
+                      >
+                        {a.name}
+                      </Link>
+                    ) : (
+                      a.name
+                    )}
                   </p>
                   <p className="truncate text-xs text-gray-500">
                     {[

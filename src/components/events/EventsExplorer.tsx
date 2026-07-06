@@ -509,24 +509,28 @@ function EventSheet({
                     <ul className="divide-y divide-gray-100">
                       {attendees.map((a) => (
                         <li key={a.alumni_id} className="py-2">
-                          <Link
-                            href={`/alumni/${a.alumni_id}`}
-                            className="block hover:opacity-80"
-                          >
-                            <p className="text-sm font-medium text-gray-900">
-                              {a.name}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {[
-                                a.graduation_year
-                                  ? `Class of ${a.graduation_year}`
-                                  : null,
-                                a.attendance_status,
-                              ]
-                                .filter(Boolean)
-                                .join(" · ") || "—"}
-                            </p>
-                          </Link>
+                          <p className="text-sm font-medium text-gray-900">
+                            {a.alumni_id ? (
+                              <Link
+                                href={`/alumni/${a.alumni_id}`}
+                                className="rounded-sm hover:text-brand-blue-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
+                              >
+                                {a.name}
+                              </Link>
+                            ) : (
+                              a.name
+                            )}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {[
+                              a.graduation_year
+                                ? `Class of ${a.graduation_year}`
+                                : null,
+                              a.attendance_status,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ") || "—"}
+                          </p>
                         </li>
                       ))}
                     </ul>
