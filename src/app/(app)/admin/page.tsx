@@ -9,7 +9,18 @@ import type { UserContext } from "@/types/alumni";
 import type { PermissionMatrix } from "@/types/permissions";
 import { ROLE } from "@/constants/roles";
 
-export default async function AdminPage() {
+type SP = { q?: string };
+
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams: Promise<SP>;
+}) {
+  // The Users search is mirrored into the URL (?q=) so it survives back-nav and
+  // is shareable (#259); read it here and seed the client list from it.
+  const sp = await searchParams;
+  const initialQ = typeof sp.q === "string" ? sp.q : "";
+
   let users: AdminUser[] | null = null;
   let error: ApiError | null = null;
   let currentUserId: number | null = null;
@@ -79,6 +90,7 @@ export default async function AdminPage() {
               users={users!}
               currentUserId={currentUserId}
               canAssignEngineer={canAssignEngineer}
+              initialQ={initialQ}
             />
           </>
         )}
