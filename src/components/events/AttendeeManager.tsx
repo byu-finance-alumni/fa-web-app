@@ -27,6 +27,7 @@ interface Attendee {
   name: string;
   graduation_year: number | null;
   attendance_status: string | null;
+  notes: string | null;
 }
 
 function displayName(a: Alumni): string {
@@ -151,6 +152,7 @@ export function AttendeeManager({
         name: displayName(a),
         graduation_year: a.graduation_year,
         attendance_status: null,
+        notes: null,
       };
       setAttendees((prev) =>
         prev.some((p) => p.alumni_id === a.alumni_id)
@@ -328,6 +330,14 @@ export function AttendeeManager({
                       .filter(Boolean)
                       .join(" · ") || "—"}
                   </p>
+                  {a.notes ? (
+                    <p
+                      className="truncate text-xs text-gray-400"
+                      title={a.notes}
+                    >
+                      {a.notes}
+                    </p>
+                  ) : null}
                 </div>
                 <Button
                   type="button"
