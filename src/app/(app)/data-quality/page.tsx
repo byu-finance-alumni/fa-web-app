@@ -13,6 +13,7 @@ interface DataQuality {
   total_alumni: number;
   missing_email: number;
   missing_employer: number;
+  missing_phone: number;
   duplicate_count: number;
 }
 
@@ -85,6 +86,13 @@ export default async function DataQualityPage() {
           label: "Employer on file",
           missing: dq.missing_employer,
           href: "/alumni?missing_employer=1",
+        },
+        {
+          label: "Phone on file",
+          missing: dq.missing_phone,
+          // No /alumni?missing_phone=1 filter yet, so the bar shows but there's
+          // no drill-down link (guarded below). Add the filter later to enable it.
+          href: undefined as string | undefined,
         },
       ]
     : [];
@@ -182,7 +190,7 @@ export default async function DataQualityPage() {
                               1,
                             )}% of active alumni on file`}
                           />
-                          {c.missing > 0 && (
+                          {c.missing > 0 && c.href && (
                             <div className="mt-1.5">
                               <Button asChild variant="link" size="sm">
                                 <Link

@@ -1265,7 +1265,18 @@ export interface paths {
         get: operations["list_logins_admin_logins_get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Purge Logins
+         * @description Delete ALL recorded sign-ins (the entire ``login_events`` history).
+         *     Engineer only.
+         *
+         *     The irreversible counterpart to GET /admin/logins: it wipes the whole
+         *     login-history table in one shot (e.g. to clear accumulated dev/test noise
+         *     from the Admin -> Logins tab). Engineer-gated (RequireEngineer) like the
+         *     listing. Since #199 stops auditing engineer actions, this purge is
+         *     intentionally NOT written to the audit trail. Returns the row count removed.
+         */
+        delete: operations["purge_logins_admin_logins_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1764,7 +1775,7 @@ export interface paths {
         };
         /**
          * List Donors
-         * @description List donors with per-year and lifetime roll-ups (view access, paginated).
+         * @description List donors with per-year and lifetime roll-ups (full_access+, paginated).
          *
          *     Everyone sees who gave and in which years; ``lifetime_total`` and each
          *     ``per_year.total`` are non-null only for amount-viewers (full_access+).
@@ -1793,7 +1804,7 @@ export interface paths {
         };
         /**
          * Donations Summary
-         * @description Fund totals (view access). Donor / donation COUNTS are public; the dollar
+         * @description Fund totals (full_access+). Donor / donation COUNTS are public; the dollar
          *     ``total_raised`` and each ``per_year.total`` are gated to amount-viewers.
          */
         get: operations["donations_summary_donations_summary_get"];
@@ -1814,7 +1825,7 @@ export interface paths {
         };
         /**
          * List Alumni Donations
-         * @description A single donor's donation history (view access). 404 if the alumnus is
+         * @description A single donor's donation history (full_access+). 404 if the alumnus is
          *     unknown. Each entry's ``amount`` and ``notes`` are gated to amount-viewers.
          */
         get: operations["list_alumni_donations_donations_alumni__alumni_id__get"];
@@ -3646,6 +3657,8 @@ export interface components {
             missing_email: number;
             /** Missing Employer */
             missing_employer: number;
+            /** Missing Phone */
+            missing_phone: number;
             /** Duplicate Count */
             duplicate_count: number;
         };
@@ -4498,6 +4511,14 @@ export interface components {
         LoginPrecheckRequest: {
             /** Email */
             email: string;
+        };
+        /**
+         * LoginPurgeResult
+         * @description Count of login-history rows removed by the engineer purge (#200).
+         */
+        LoginPurgeResult: {
+            /** Deleted */
+            deleted: number;
         };
         /**
          * LoginRecordRequest
@@ -7003,6 +7024,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    purge_logins_admin_logins_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginPurgeResult"];
                 };
             };
         };
