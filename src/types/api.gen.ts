@@ -1275,8 +1275,43 @@ export interface paths {
          *     from the Admin -> Logins tab). Engineer-gated (RequireEngineer) like the
          *     listing. Since #199 stops auditing engineer actions, this purge is
          *     intentionally NOT written to the audit trail. Returns the row count removed.
+         *
+         *     SCOPE (security review, #199/#200): this deletes ONLY ``login_events``. It
+         *     deliberately does NOT touch ``engineer_action_log`` -- that append-only table
+         *     is the tamper-resistant record of engineer actions and has no purge path, so
+         *     an engineer cannot use this endpoint (or any other) to erase their own trail.
          */
         delete: operations["purge_logins_admin_logins_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/engineer-actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Engineer Actions
+         * @description List recorded engineer actions, newest first (paginated). super_admin only.
+         *
+         *     Reads the append-only ``engineer_action_log`` -- the tamper-resistant oversight
+         *     trail of engineer actions (#199/#200). ROLE-gated to ``super_admin`` and
+         *     explicitly denied to the ``engineer`` (see require_super_admin_role_strict), so
+         *     the audited party can neither read nor disable it; there is no delete/purge
+         *     route for this table at all. Paginated (default 50, hard cap 200 -- mirrors the
+         *     users/logins/audit endpoints) so one request can't enumerate the whole log.
+         *
+         *     Reading the log is itself audited (``read_engineer_action_log``; actor +
+         *     applied limit/offset) -- the returned rows are not logged.
+         */
+        get: operations["list_engineer_actions_admin_engineer_actions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -3975,6 +4010,51 @@ export interface components {
             engagement_interest_type: string | null;
             /** Engagement Notes */
             engagement_notes: string | null;
+        };
+        /**
+         * EngineerActionPage
+         * @description A page of engineer actions, newest first, with the total for pagination.
+         */
+        EngineerActionPage: {
+            /** Items */
+            items: components["schemas"]["EngineerActionRow"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+        };
+        /**
+         * EngineerActionRow
+         * @description One recorded engineer action for the super_admin oversight view.
+         *     ``actor_user_id`` is null once the engineer has been deleted; ``actor_email``
+         *     is the snapshot taken at write time, so the row still shows who acted.
+         */
+        EngineerActionRow: {
+            /** Engineer Action Log Id */
+            engineer_action_log_id: number;
+            /** Actor User Id */
+            actor_user_id: number | null;
+            /** Actor Email */
+            actor_email: string | null;
+            /** Action Type */
+            action_type: string;
+            /** Entity Type */
+            entity_type: string;
+            /** Entity Id */
+            entity_id: number | null;
+            /** Field Name */
+            field_name: string | null;
+            /** Old Value */
+            old_value: string | null;
+            /** New Value */
+            new_value: string | null;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
         };
         /** ErrorBody */
         ErrorBody: {
@@ -7048,6 +7128,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LoginPurgeResult"];
+                };
+            };
+        };
+    };
+    list_engineer_actions_admin_engineer_actions_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineerActionPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
