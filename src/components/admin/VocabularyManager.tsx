@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Check, Loader2, Pencil, Plus, X } from "lucide-react";
 import {
   createVocabTerm,
+  deleteVocabTerm,
   renameVocabTerm,
   setVocabTermActive,
 } from "@/app/(app)/vocabulary/actions";
@@ -36,6 +37,8 @@ export function VocabularyManager({
   const [editError, setEditError] = useState<string | null>(null);
   // The term queued for hide confirmation; null when the confirm dialog is shut.
   const [hideTarget, setHideTarget] = useState<VocabTerm | null>(null);
+  // The term queued for PERMANENT-delete confirmation (distinct from hide).
+  const [deleteTarget, setDeleteTarget] = useState<VocabTerm | null>(null);
 
   const run = (fn: () => Promise<{ error?: string } | null>, ok: string) =>
     startTransition(async () => {
@@ -82,6 +85,13 @@ export function VocabularyManager({
     const t = hideTarget;
     setHideTarget(null);
     run(() => setVocabTermActive(t.term_id, false), `“${t.value}” hidden.`);
+  };
+
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    const t = deleteTarget;
+    setDeleteTarget(null);
+    run(() => deleteVocabTerm(t.term_id), `“${t.value}” deleted.`);
   };
 
   return (
@@ -201,6 +211,19 @@ export function VocabularyManager({
                     Restore
                   </Button>
                 )}
+                {/* Permanent delete — available on every row (active or hidden),
+                    text-only, gated behind a confirm dialog. */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={pending}
+                  title="Delete permanently"
+                  onClick={() => setDeleteTarget(t)}
+                  className="text-danger-600 hover:bg-danger-50 hover:text-danger-600"
+                >
+                  Delete
+                </Button>
               </>
             )}
           </li>
@@ -264,6 +287,40 @@ export function VocabularyManager({
               onClick={confirmHide}
             >
               Hide option
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deleteTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setDeleteTarget(null);
+        }}
+      >
+        <DialogContent
+          title="Delete this option permanently?"
+          description={
+            deleteTarget
+              ? `“${deleteTarget.value}” will be removed for good — it can’t be restored. Existing records that already use it keep the value; it just won’t be offered anywhere. To keep it recoverable instead, hide it.`
+              : undefined
+          }
+        >
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setDeleteTarget(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={pending}
+              onClick={confirmDelete}
+            >
+              Delete permanently
             </Button>
           </DialogFooter>
         </DialogContent>
