@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress";
 
 interface DataQuality {
   total_alumni: number;
+  complete_alumni: number;
   missing_email: number;
   missing_employer: number;
   missing_phone: number;
@@ -128,7 +129,7 @@ export default async function DataQualityPage() {
           </Card>
         ) : (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <MetricCard
                 size="lg"
                 label="Active alumni"
@@ -136,16 +137,18 @@ export default async function DataQualityPage() {
                 href="/alumni"
                 linkLabel="View all alumni"
               />
-              {alerts.map((a) => (
-                <MetricCard
-                  key={a.label}
-                  size="lg"
-                  label={a.label}
-                  value={a.count}
-                  href={a.href}
-                  linkLabel={a.linkLabel}
-                />
-              ))}
+              <MetricCard
+                size="lg"
+                label="Complete alumni"
+                value={dq?.complete_alumni ?? "—"}
+              />
+              <MetricCard
+                size="lg"
+                label="Missing employer"
+                value={dq?.missing_employer ?? "—"}
+                href="/alumni?missing_employer=1"
+                linkLabel="Review alumni missing an employer"
+              />
             </div>
 
             {/* Field coverage — visualizes the share of active alumni missing

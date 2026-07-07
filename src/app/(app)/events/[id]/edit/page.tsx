@@ -72,44 +72,44 @@ export default async function EditEventPage({
               Event created. Add attendees below.
             </p>
           ) : null}
-          {/* Full-width two-column layout: event details + danger zone on the
-              left, the attendee manager on the right. Fills the page instead of
-              a narrow single column. Stacks on smaller screens. */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div className="space-y-6">
-              <EventForm
-                action={action}
-                submitLabel="Save changes"
-                cancelHref="/events"
-                eventTypeOptions={eventTypeOptions}
-                cardClassName="w-full"
-                initialValues={{
-                  event_name: event.event_name,
-                  event_type: event.event_type,
-                  event_date: event.event_date,
-                  event_location: event.event_location,
-                  event_notes: event.event_notes,
-                }}
-              />
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-danger-600">Danger zone</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-gray-500">
-                    Deleting this event also removes its attendance records.
-                  </p>
-                  <div className="mt-3">
-                    <DeleteEventButton
-                      eventId={event.event_id}
-                      eventName={event.event_name}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-            <AttendeeManager eventId={event.event_id} className="w-full" />
+          {/* Full-width two-column layout: event details on the left, the
+              attendee manager on the right, as equal-height boxes (items-stretch
+              + h-full). The attendee list scrolls inside its box. Danger zone
+              spans full width below. Stacks on smaller screens. */}
+          <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
+            <EventForm
+              action={action}
+              submitLabel="Save changes"
+              cancelHref="/events"
+              eventTypeOptions={eventTypeOptions}
+              cardClassName="h-full w-full"
+              initialValues={{
+                event_name: event.event_name,
+                event_type: event.event_type,
+                event_date: event.event_date,
+                event_location: event.event_location,
+                event_notes: event.event_notes,
+              }}
+            />
+            <AttendeeManager eventId={event.event_id} className="h-full w-full" />
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-danger-600">Danger zone</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-gray-500">
+                Deleting this event also removes its attendance records.
+              </p>
+              <div className="mt-3">
+                <DeleteEventButton
+                  eventId={event.event_id}
+                  eventName={event.event_name}
+                />
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </main>
     </>
