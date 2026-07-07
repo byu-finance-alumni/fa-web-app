@@ -685,41 +685,6 @@ export default async function AlumniProfilePage({
                 )}
               </Panel>
 
-              {/* Personal & family — lives in the main column directly under
-                  Contact information so the two panels share the same column
-                  width and align (#269). */}
-              <Panel
-                title="Personal & family"
-                action={canEdit ? <EditLink id={aid} /> : undefined}
-              >
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Field label="Birthday" value={fmtDate(a.birth_date)} />
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      Spouse
-                    </p>
-                    {spouseLinkLabel ? (
-                      a.spouse_alumni_id ? (
-                        <Link
-                          href={`/alumni/${a.spouse_alumni_id}`}
-                          className="text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
-                        >
-                          {spouseLinkLabel} ↗
-                        </Link>
-                      ) : (
-                        <p className="text-sm text-gray-900">{spouseLinkLabel}</p>
-                      )
-                    ) : (
-                      <p className="text-sm text-gray-300">—</p>
-                    )}
-                  </div>
-                  <Field
-                    label="Spouse birthday"
-                    value={fmtDate(a.spouse_birth_date)}
-                  />
-                </div>
-              </Panel>
-
             </div>
 
             {/* Right sidebar (narrower). */}
@@ -787,6 +752,43 @@ export default async function AlumniProfilePage({
                       </ChipRow>
                     </div>
                   ) : null}
+                </div>
+              </Panel>
+
+              {/* Personal & family — sits under Engagement summary in the right
+                  column and stretches (flex-1) to fill down so its bottom aligns
+                  with Contact information in the main column (replaces the old
+                  #269 placement in the main column). */}
+              <Panel
+                title="Personal & family"
+                action={canEdit ? <EditLink id={aid} /> : undefined}
+                className="flex-1"
+              >
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field label="Birthday" value={fmtDate(a.birth_date)} />
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Spouse
+                    </p>
+                    {spouseLinkLabel ? (
+                      a.spouse_alumni_id ? (
+                        <Link
+                          href={`/alumni/${a.spouse_alumni_id}`}
+                          className="text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
+                        >
+                          {spouseLinkLabel} ↗
+                        </Link>
+                      ) : (
+                        <p className="text-sm text-gray-900">{spouseLinkLabel}</p>
+                      )
+                    ) : (
+                      <p className="text-sm text-gray-300">—</p>
+                    )}
+                  </div>
+                  <Field
+                    label="Spouse birthday"
+                    value={fmtDate(a.spouse_birth_date)}
+                  />
                 </div>
               </Panel>
 
