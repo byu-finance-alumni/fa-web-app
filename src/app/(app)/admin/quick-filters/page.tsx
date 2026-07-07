@@ -1,10 +1,11 @@
+import { redirect } from "next/navigation";
 import { apiGet, ApiError } from "@/lib/api";
+import { getAuthContext } from "@/lib/auth-context";
 import { Topbar } from "@/components/shell/Topbar";
 import { QuickFiltersManager } from "@/components/admin/QuickFiltersManager";
 import { Card } from "@/components/ui/card";
 import type { DashboardPreset } from "@/types/dashboardPresets";
-import type { UserContext } from "@/types/alumni";
-import { ROLE } from "@/constants/roles";
+import { isUserAdmin } from "@/constants/roles";
 
 /**
  * Engineer / super-admin editor for the dashboard quick-filter presets shown on
@@ -13,34 +14,12 @@ import { ROLE } from "@/constants/roles";
  * the list uses the view-access GET /dashboard/presets.
  */
 export default async function QuickFiltersPage() {
-  let canManage = false;
-  try {
-    const ctx = await apiGet<UserContext>("/auth/context");
-    canManage =
-      ctx.roles?.some(
-        (r) => r === ROLE.ENGINEER || r === ROLE.SUPER_ADMIN,
-      ) ?? false;
-  } catch {
-    /* fall through to the access-required screen */
-  }
-
-  if (!canManage) {
-    return (
-      <>
-        <Topbar title="Quick filters" />
-        <main className="flex-1 overflow-auto p-6">
-          <Card className="p-10 text-center">
-            <p className="text-sm font-semibold text-gray-900">
-              Admin access required
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              Only an engineer or super admin can manage dashboard quick filters.
-            </p>
-          </Card>
-        </main>
-      </>
-    );
-  }
+  // Role gate (defense-in-depth): managing presets is USER_ADMIN-only (engineer
+  // / super_admin, matching the backend RequireSuperAdmin). Redirect anyone
+  // else — and any authed-but-unprovisioned user (getAuthContext throws → null)
+  // — to the dashboard rather than rendering a dead-end "access required" shell.
+  const gate = await getAuthContext().catch(() => null);
+  if (!gate || !isUserAdmin(gate.roles)) redirect("/dashboard");
 
   let presets: DashboardPreset[] = [];
   let error: ApiError | null = null;

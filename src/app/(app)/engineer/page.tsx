@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Topbar } from "@/components/shell/Topbar";
 import { Card } from "@/components/ui/card";
+import { getAuthContext } from "@/lib/auth-context";
+import { isEngineer } from "@/constants/roles";
 
 /**
  * Engineer Console home (#162). A dedicated, engineer-only landing that gathers
@@ -47,7 +50,15 @@ const TOOLS: Tool[] = [
   },
 ];
 
-export default function EngineerConsolePage() {
+export default async function EngineerConsolePage() {
+  // Role gate (defense-in-depth): the engineer console is engineer-only. The
+  // /engineer/* route group is already gated in engineer/layout.tsx; this
+  // page-level check is belt-and-suspenders. Redirect non-engineers — and any
+  // authed-but-unprovisioned user (getAuthContext throws → null) — to the
+  // dashboard rather than rendering the console. The backend re-enforces it too.
+  const gate = await getAuthContext().catch(() => null);
+  if (!gate || !isEngineer(gate.roles)) redirect("/dashboard");
+
   return (
     <>
       <Topbar title="Engineer Console" />
