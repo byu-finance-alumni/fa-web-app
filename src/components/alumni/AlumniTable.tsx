@@ -56,20 +56,28 @@ export function AlumniTable({
   const showActions = canEdit || canAdd;
   return (
     <div className="hidden overflow-hidden rounded-lg border border-gray-200 bg-white shadow-card md:block">
-      <table className="w-full text-sm">
+      {/* Fixed column layout (#268): widths are pinned on the header so sorting
+          only reorders rows — column positions/widths never shift with the
+          content. `table-fixed` ignores cell content for sizing, so long values
+          truncate inside their column instead of stretching it. */}
+      <table className="w-full table-fixed text-sm">
         <thead>
           <tr className="border-b border-gray-200 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-            <th className="sticky top-0 z-10 bg-gray-50 px-4 py-2.5">Name</th>
+            <th className="sticky top-0 z-10 w-[24%] bg-gray-50 px-4 py-2.5">
+              Name
+            </th>
             <th className="sticky top-0 z-10 w-20 bg-gray-50 px-4 py-2.5 text-right">
               Grad
             </th>
-            <th className="sticky top-0 z-10 bg-gray-50 px-4 py-2.5">
+            <th className="sticky top-0 z-10 w-[20%] bg-gray-50 px-4 py-2.5">
               Current company
             </th>
-            <th className="sticky top-0 z-10 bg-gray-50 px-4 py-2.5">
+            <th className="sticky top-0 z-10 w-[18%] bg-gray-50 px-4 py-2.5">
               Current industry
             </th>
-            <th className="sticky top-0 z-10 bg-gray-50 px-4 py-2.5">City</th>
+            <th className="sticky top-0 z-10 w-[12%] bg-gray-50 px-4 py-2.5">
+              City
+            </th>
             <th className="sticky top-0 z-10 w-16 bg-gray-50 px-4 py-2.5">
               State
             </th>
@@ -91,12 +99,12 @@ export function AlumniTable({
               className="group cursor-pointer border-b border-gray-200 last:border-0 even:bg-gray-50/50 hover:bg-gray-50"
             >
               <td className="px-4 py-2.5">
-                <div className="flex items-center gap-3">
+                <div className="flex min-w-0 items-center gap-3">
                   <InitialsAvatar name={avatarName(a)} size="sm" />
                   <Link
                     href={`/alumni/${a.alumni_id}`}
                     onClick={(e) => e.stopPropagation()}
-                    className="font-medium text-gray-900 group-hover:text-brand-blue-600"
+                    className="truncate font-medium text-gray-900 group-hover:text-brand-blue-600"
                   >
                     {fullName(a)}
                   </Link>
@@ -105,12 +113,12 @@ export function AlumniTable({
               <td className="px-4 py-2.5 text-right tabular-nums text-gray-700">
                 {a.graduation_year ?? "—"}
               </td>
-              <td className="px-4 py-2.5 text-gray-700">
+              <td className="truncate px-4 py-2.5 text-gray-700">
                 {a.current_employer ?? (
                   <span className="text-gray-300">—</span>
                 )}
               </td>
-              <td className="px-4 py-2.5 text-gray-700">
+              <td className="truncate px-4 py-2.5 text-gray-700">
                 {a.current_industry ?? (
                   <span className="text-gray-300">—</span>
                 )}
@@ -119,10 +127,10 @@ export function AlumniTable({
                 const { city, state } = currentLocation(a);
                 return (
                   <>
-                    <td className="px-4 py-2.5 text-gray-700">
+                    <td className="truncate px-4 py-2.5 text-gray-700">
                       {city ?? <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="px-4 py-2.5 text-gray-700">
+                    <td className="truncate px-4 py-2.5 text-gray-700">
                       {state ?? <span className="text-gray-300">—</span>}
                     </td>
                   </>

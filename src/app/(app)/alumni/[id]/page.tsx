@@ -83,17 +83,26 @@ const place = (...parts: (string | null | undefined)[]) =>
 function HeaderContact({
   contact,
   linkedinUrl,
+  canViewContactDetails,
 }: {
   contact: Contact | null;
   linkedinUrl: string | null;
+  /** Email, phone, and the full mailing address are contact PII — surfaced only
+   *  to editors (defense-in-depth for #166; the backend also nulls them for the
+   *  view_only role). LinkedIn stays visible to every role. */
+  canViewContactDetails: boolean;
 }) {
-  const email = contact?.personal_email || contact?.work_email || null;
-  const phone = contact?.phone || null;
-  const mailing = place(
-    place(contact?.address_line_1, contact?.address_line_2),
-    place(contact?.city, contact?.state),
-    contact?.zip,
-  );
+  const email = canViewContactDetails
+    ? contact?.personal_email || contact?.work_email || null
+    : null;
+  const phone = canViewContactDetails ? contact?.phone || null : null;
+  const mailing = canViewContactDetails
+    ? place(
+        place(contact?.address_line_1, contact?.address_line_2),
+        place(contact?.city, contact?.state),
+        contact?.zip,
+      )
+    : null;
 
   if (!email && !phone && !mailing && !linkedinUrl) return null;
 
@@ -300,8 +309,12 @@ export default async function AlumniProfilePage({
   let canAdd = false;
   // Profile-completeness tab is gated by the editable `profile.completeness`
   // capability (default: super_admin + engineer), toggleable per role in the
-  // Engineer Console permission editor. Read the effective capability set the
-  // backend resolves under the live config.
+  // Engineer Console permission editor. NOTE (#189): this is a CLIENT-SIDE
+  // DISPLAY gate only — there is no backend endpoint guarded by this capability,
+  // and the completeness % is computed here from the already-VIEW-accessible
+  // profile. Toggling it hides/shows the tab; it does not protect any data a
+  // viewer couldn't already derive. See the matching note in the backend
+  // capabilities registry.
   let canViewCompleteness = false;
   try {
     const ctx = await apiGet<UserContext>("/auth/context");
@@ -314,6 +327,13 @@ export default async function AlumniProfilePage({
   } catch {
     /* not provisioned → view-only */
   }
+
+  // Contact PII (personal/work email, phone, street address, ZIP) is shown only
+  // to editors — defense-in-depth for #166. The backend nulls these fields for
+  // the view_only role; this keeps the client from rendering them regardless.
+  // Directory-like location (city/state/country) and LinkedIn stay visible to
+  // every role, matching the backend minimization.
+  const canViewContactDetails = canEdit;
 
   const a = profile.alumni;
   const c = profile.contact;
@@ -471,7 +491,11 @@ export default async function AlumniProfilePage({
                       Text-only (no icons) per the design rules; the full
                       breakdown still lives in the Overview "Contact
                       information" panel. */}
-                  <HeaderContact contact={c} linkedinUrl={a.linkedin_url} />
+                  <HeaderContact
+                    contact={c}
+                    linkedinUrl={a.linkedin_url}
+                    canViewContactDetails={canViewContactDetails}
+                  />
                 </div>
               </div>
 
@@ -599,27 +623,35 @@ export default async function AlumniProfilePage({
               >
                 {c ? (
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <ContactField
-                      icon={Mail}
-                      label="Personal email"
-                      value={c.personal_email}
-                      href={c.personal_email ? `mailto:${c.personal_email}` : undefined}
-                      hrefLabel="Send"
-                    />
-                    <ContactField
-                      icon={Mail}
-                      label="Work email"
-                      value={c.work_email}
-                      href={c.work_email ? `mailto:${c.work_email}` : undefined}
-                      hrefLabel="Send"
-                    />
-                    <ContactField
-                      icon={Phone}
-                      label="Phone"
-                      value={c.phone}
-                      href={c.phone ? `tel:${c.phone}` : undefined}
-                      hrefLabel="Call"
-                    />
+                    {/* Contact PII (email, phone, street address) is editor-only
+                        — defense-in-depth for #166. The backend nulls these for
+                        view_only; we simply don't render the rows. LinkedIn and
+                        directory-like City/State/Country stay visible to all. */}
+                    {canViewContactDetails ? (
+                      <>
+                        <ContactField
+                          icon={Mail}
+                          label="Personal email"
+                          value={c.personal_email}
+                          href={c.personal_email ? `mailto:${c.personal_email}` : undefined}
+                          hrefLabel="Send"
+                        />
+                        <ContactField
+                          icon={Mail}
+                          label="Work email"
+                          value={c.work_email}
+                          href={c.work_email ? `mailto:${c.work_email}` : undefined}
+                          hrefLabel="Send"
+                        />
+                        <ContactField
+                          icon={Phone}
+                          label="Phone"
+                          value={c.phone}
+                          href={c.phone ? `tel:${c.phone}` : undefined}
+                          hrefLabel="Call"
+                        />
+                      </>
+                    ) : null}
                     <ContactField
                       icon={Link2}
                       label="LinkedIn"
@@ -627,11 +659,13 @@ export default async function AlumniProfilePage({
                       href={a.linkedin_url ?? undefined}
                       hrefLabel="Open ↗"
                     />
-                    <ContactField
-                      icon={Home}
-                      label="Address"
-                      value={place(c.address_line_1, c.address_line_2)}
-                    />
+                    {canViewContactDetails ? (
+                      <ContactField
+                        icon={Home}
+                        label="Address"
+                        value={place(c.address_line_1, c.address_line_2)}
+                      />
+                    ) : null}
                     <ContactField icon={MapPin} label="City" value={c.city} />
                     <ContactField
                       icon={MapPin}
@@ -651,11 +685,45 @@ export default async function AlumniProfilePage({
                 )}
               </Panel>
 
+              {/* Personal & family — lives in the main column directly under
+                  Contact information so the two panels share the same column
+                  width and align (#269). */}
+              <Panel
+                title="Personal & family"
+                action={canEdit ? <EditLink id={aid} /> : undefined}
+              >
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field label="Birthday" value={fmtDate(a.birth_date)} />
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Spouse
+                    </p>
+                    {spouseLinkLabel ? (
+                      a.spouse_alumni_id ? (
+                        <Link
+                          href={`/alumni/${a.spouse_alumni_id}`}
+                          className="text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
+                        >
+                          {spouseLinkLabel} ↗
+                        </Link>
+                      ) : (
+                        <p className="text-sm text-gray-900">{spouseLinkLabel}</p>
+                      )
+                    ) : (
+                      <p className="text-sm text-gray-300">—</p>
+                    )}
+                  </div>
+                  <Field
+                    label="Spouse birthday"
+                    value={fmtDate(a.spouse_birth_date)}
+                  />
+                </div>
+              </Panel>
+
             </div>
 
-            {/* Right sidebar (narrower). Same flex-column treatment so it ends
-                level with the main column. */}
-            <div className="flex flex-col gap-4 lg:[&>:last-child]:flex-1">
+            {/* Right sidebar (narrower). */}
+            <div className="flex flex-col gap-4">
               {/* Engagement summary — non-sensitive metrics + tags + derived
                   last-contacted. Shown for all roles (same gating posture as
                   "Engagement & tags"). Last-contacted comes from the newest
@@ -719,44 +787,6 @@ export default async function AlumniProfilePage({
                       </ChipRow>
                     </div>
                   ) : null}
-                </div>
-              </Panel>
-
-              {/* Personal & family — as the column's last child it's stretched
-                  to fill the remaining height (so the sidebar ends level with
-                  the main column); center its content vertically so the extra
-                  height isn't dead space at the bottom of the card. */}
-              <Panel
-                title="Personal & family"
-                action={canEdit ? <EditLink id={aid} /> : undefined}
-                className="lg:flex lg:flex-col"
-                contentClassName="lg:flex lg:flex-1 lg:flex-col lg:justify-center"
-              >
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Field label="Birthday" value={fmtDate(a.birth_date)} />
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      Spouse
-                    </p>
-                    {spouseLinkLabel ? (
-                      a.spouse_alumni_id ? (
-                        <Link
-                          href={`/alumni/${a.spouse_alumni_id}`}
-                          className="text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
-                        >
-                          {spouseLinkLabel} ↗
-                        </Link>
-                      ) : (
-                        <p className="text-sm text-gray-900">{spouseLinkLabel}</p>
-                      )
-                    ) : (
-                      <p className="text-sm text-gray-300">—</p>
-                    )}
-                  </div>
-                  <Field
-                    label="Spouse birthday"
-                    value={fmtDate(a.spouse_birth_date)}
-                  />
                 </div>
               </Panel>
 
@@ -927,6 +957,72 @@ export default async function AlumniProfilePage({
                       No events attended yet.
                     </p>
                   )}
+                </Panel>
+              ) : undefined
+            }
+            surveys={
+              profile.surveys.length ? (
+                <Panel title="Survey history">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-200 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                          <th className="px-3 py-2">Year</th>
+                          <th className="px-3 py-2">Due date</th>
+                          <th className="px-3 py-2">Status</th>
+                          <th className="px-3 py-2">Completed</th>
+                          <th className="px-3 py-2">Notes</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {[...profile.surveys]
+                          .sort(
+                            (x, y) =>
+                              (y.survey_year ?? 0) - (x.survey_year ?? 0) ||
+                              (y.survey_due_date ?? "").localeCompare(
+                                x.survey_due_date ?? "",
+                              ),
+                          )
+                          .map((s) => {
+                            const overdue =
+                              !s.completed &&
+                              !!s.survey_due_date &&
+                              new Date(s.survey_due_date) < new Date();
+                            const tone = s.completed
+                              ? "success"
+                              : overdue
+                                ? "danger"
+                                : "warning";
+                            const label =
+                              s.survey_status ??
+                              (s.completed
+                                ? "Completed"
+                                : overdue
+                                  ? "Overdue"
+                                  : "Pending");
+                            return (
+                              <tr key={s.survey_id}>
+                                <td className="px-3 py-2 tabular-nums text-gray-900">
+                                  {s.survey_year ?? "—"}
+                                </td>
+                                <td className="px-3 py-2 text-gray-600">
+                                  {fmtDate(s.survey_due_date) ?? "—"}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <Badge variant={tone}>{label}</Badge>
+                                </td>
+                                <td className="px-3 py-2 text-gray-600">
+                                  {fmtDate(s.completed_at) ?? "—"}
+                                </td>
+                                <td className="max-w-xs truncate px-3 py-2 text-gray-500">
+                                  {s.survey_notes || "—"}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
                 </Panel>
               ) : undefined
             }

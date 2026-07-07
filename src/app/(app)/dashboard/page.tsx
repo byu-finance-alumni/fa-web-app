@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { apiGet, ApiError } from "@/lib/api";
+import { getAuthContext } from "@/lib/auth-context";
 import { Topbar } from "@/components/shell/Topbar";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { SearchHero } from "@/components/dashboard/SearchHero";
 import { DashboardSearch } from "@/components/dashboard/DashboardSearch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DATA_VIZ_PALETTE } from "@/constants/chart";
+import { DATA_VIZ_PALETTE, CHART_MUTED_COLOR } from "@/constants/chart";
 import type { GeoSummary } from "@/types/geography";
 import type { UserContext } from "@/types/alumni";
 import type { FilterOptions } from "@/types/filters";
@@ -153,7 +154,7 @@ function DonutChart({
   rows,
   emptyLabel,
 }: {
-  rows: { label: string; count: number; href?: string }[];
+  rows: { label: string; count: number; href?: string; muted?: boolean }[];
   emptyLabel: string;
 }) {
   if (rows.length === 0)
@@ -197,7 +198,11 @@ function DonutChart({
                   cy={size / 2}
                   r={radius}
                   fill="none"
-                  stroke={DATA_VIZ_PALETTE[i % DATA_VIZ_PALETTE.length]}
+                  stroke={
+                    r.muted
+                      ? CHART_MUTED_COLOR
+                      : DATA_VIZ_PALETTE[i % DATA_VIZ_PALETTE.length]
+                  }
                   strokeWidth={stroke}
                   strokeDasharray={`${arc} ${circumference - arc}`}
                   strokeDashoffset={-acc}
@@ -229,7 +234,9 @@ function DonutChart({
               <span
                 className="h-3 w-3 shrink-0 rounded-sm"
                 style={{
-                  backgroundColor: DATA_VIZ_PALETTE[i % DATA_VIZ_PALETTE.length],
+                  backgroundColor: r.muted
+                    ? CHART_MUTED_COLOR
+                    : DATA_VIZ_PALETTE[i % DATA_VIZ_PALETTE.length],
                 }}
                 aria-hidden="true"
               />
@@ -290,7 +297,8 @@ export default async function DashboardPage() {
       }),
       // Per-user, not cacheable — used only to greet the signed-in user by name.
       // Tolerated separately below so a context hiccup never blanks the page.
-      apiGet<UserContext>("/auth/context").catch(() => null),
+      // Deduped with the layout's own context read for this request (#254).
+      getAuthContext().catch(() => null),
     ]);
   } catch (e) {
     if (e instanceof ApiError && e.status === 403) notProvisioned = true;
@@ -321,6 +329,29 @@ export default async function DashboardPage() {
   const greeting = firstName ? `Welcome, ${firstName}` : "Welcome";
 
   const industries = geoSum?.top_industries ?? [];
+  // Reconcile the industry breakdown to the total alumni count (#251): show the
+  // top few industries, then a single "Other" bucket for everyone else (smaller
+  // industries + alumni with no industry on file) so the slices add up to the
+  // total instead of a smaller partial sum.
+  const industryRows: {
+    label: string;
+    count: number;
+    href?: string;
+    muted?: boolean;
+  }[] = (() => {
+    const shown = industries.slice(0, 5).map((i) => ({
+      label: i.industry,
+      count: i.count,
+      href: `/alumni?industry=${encodeURIComponent(i.industry)}`,
+    }));
+    const total = s?.total_alumni ?? 0;
+    const shownSum = shown.reduce((acc, r) => acc + r.count, 0);
+    const other = total - shownSum;
+    if (other > 0) {
+      return [...shown, { label: "Other", count: other, muted: true }];
+    }
+    return shown;
+  })();
 
   // Quick-filter presets on the Quick search tab — engineer/super-admin-managed
   // (GET /dashboard/presets), each a common compound search deep-linking into
@@ -417,11 +448,7 @@ export default async function DashboardPage() {
               >
                 <div className="flex w-full flex-1 items-center">
                   <DonutChart
-                    rows={industries.slice(0, 5).map((i) => ({
-                      label: i.industry,
-                      count: i.count,
-                      href: `/alumni?industry=${encodeURIComponent(i.industry)}`,
-                    }))}
+                    rows={industryRows}
                     emptyLabel="No industry data yet."
                   />
                 </div>

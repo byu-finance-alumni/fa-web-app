@@ -192,12 +192,28 @@ export type EventImportResultState =
   | { ok: true; data: EventImportResult }
   | { ok: false; error: string };
 
-/** Pull the single `file` out of the submitted FormData (re-named to `file`). */
+/**
+ * Rebuild the import FormData: the attendee `file` (re-named) plus the event
+ * identity fields the wizard captured (#149 — one CSV = one event). Returns null
+ * if the file is missing/empty. The backend re-validates title/date.
+ */
+const _EVENT_FIELDS = [
+  "event_name",
+  "event_date",
+  "event_type",
+  "event_location",
+  "event_notes",
+] as const;
+
 function importFormData(formData: FormData): FormData | null {
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return null;
   const fd = new FormData();
   fd.append("file", file, file.name);
+  for (const key of _EVENT_FIELDS) {
+    const value = formData.get(key);
+    if (typeof value === "string" && value !== "") fd.append(key, value);
+  }
   return fd;
 }
 
@@ -251,6 +267,28 @@ export async function downloadEventsTemplate(): Promise<
     return {
       ok: false,
       error: e instanceof ApiError ? e.message : "Couldn't download the template.",
+    };
+  }
+}
+
+/**
+ * Download an event's attendee roster as CSV (GET /events/{id}/attendees/export)
+ * — columns Name, Email, Net ID. full_access on the backend (bulk alumni PII);
+ * the client turns the returned text into a Blob download. Returns the raw CSV
+ * plus a suggested filename so the caller doesn't have to know the shape.
+ */
+export async function exportEventAttendees(
+  eventId: number,
+): Promise<
+  { ok: true; csv: string; filename: string } | { ok: false; error: string }
+> {
+  try {
+    const csv = await apiGetText(`/events/${eventId}/attendees/export`);
+    return { ok: true, csv, filename: `event_${eventId}_attendees.csv` };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Couldn't download attendees.",
     };
   }
 }

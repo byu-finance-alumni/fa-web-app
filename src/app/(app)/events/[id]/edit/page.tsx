@@ -3,6 +3,7 @@ import { Topbar } from "@/components/shell/Topbar";
 import { EventForm } from "@/components/events/EventForm";
 import { AttendeeManager } from "@/components/events/AttendeeManager";
 import { DeleteEventButton } from "@/components/events/DeleteEventButton";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiGet, ApiError } from "@/lib/api";
 import { hasFullAccess } from "@/constants/roles";
 import type { UserContext } from "@/types/alumni";
@@ -65,37 +66,50 @@ export default async function EditEventPage({
         ]}
       />
       <main className="flex-1 overflow-auto p-6">
-        {created ? (
-          <p className="mb-4 rounded-lg border border-brand-blue-300 bg-brand-blue-50 px-4 py-3 text-sm text-navy-800">
-            Event created. Add attendees below.
-          </p>
-        ) : null}
-        <EventForm
-          action={action}
-          submitLabel="Save changes"
-          cancelHref="/events"
-          eventTypeOptions={eventTypeOptions}
-          initialValues={{
-            event_name: event.event_name,
-            event_type: event.event_type,
-            event_date: event.event_date,
-            event_location: event.event_location,
-            event_notes: event.event_notes,
-          }}
-        />
-        <AttendeeManager eventId={event.event_id} />
-
-        <div className="mt-8 border-t border-gray-200 pt-6">
-          <h2 className="text-sm font-semibold text-gray-900">Danger zone</h2>
-          <p className="mt-1 text-sm text-gray-500">
-            Deleting this event also removes its attendance records.
-          </p>
-          <div className="mt-3">
-            <DeleteEventButton
-              eventId={event.event_id}
-              eventName={event.event_name}
+        <div className="w-full space-y-6">
+          {created ? (
+            <p className="rounded-lg border border-brand-blue-300 bg-brand-blue-50 px-4 py-3 text-sm text-navy-800">
+              Event created. Add attendees below.
+            </p>
+          ) : null}
+          {/* Full-width two-column layout: event details on the left, the
+              attendee manager on the right, as equal-height boxes (items-stretch
+              + h-full). The attendee list scrolls inside its box. Danger zone
+              spans full width below. Stacks on smaller screens. */}
+          <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
+            <EventForm
+              action={action}
+              submitLabel="Save changes"
+              cancelHref="/events"
+              eventTypeOptions={eventTypeOptions}
+              cardClassName="h-full w-full"
+              initialValues={{
+                event_name: event.event_name,
+                event_type: event.event_type,
+                event_date: event.event_date,
+                event_location: event.event_location,
+                event_notes: event.event_notes,
+              }}
             />
+            <AttendeeManager eventId={event.event_id} className="h-full w-full" />
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-danger-600">Danger zone</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-gray-500">
+                Deleting this event also removes its attendance records.
+              </p>
+              <div className="mt-3">
+                <DeleteEventButton
+                  eventId={event.event_id}
+                  eventName={event.event_name}
+                />
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </main>
     </>

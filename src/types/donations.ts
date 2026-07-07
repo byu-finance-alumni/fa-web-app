@@ -24,6 +24,16 @@ export interface Donor {
   per_year: DonorYear[];
 }
 
+/** Paginated envelope returned by GET /donations/donors (#173 follow-up). The
+ *  endpoint changed from a bare `Donor[]` to this shape; read `items` for the
+ *  page of donors and `total`/`limit`/`offset` for pagination. */
+export interface DonorsResponse {
+  items: Donor[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface DonationsSummary {
   /** Public counts (visible to all roles). */
   donor_count: number;
@@ -58,8 +68,11 @@ export interface AlumniDonations {
 
 export interface DonationImportRow {
   row: number;
-  net_id: string;
+  mstid: string;
   name: string;
+  /** How the donor was resolved: "mstid" (high-confidence) or "name" (fallback,
+   *  worth a glance). null when the row was rejected. */
+  match_method: "mstid" | "name" | null;
   month: number | null;
   year: number | null;
   amount: number | null;

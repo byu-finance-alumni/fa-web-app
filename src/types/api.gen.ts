@@ -65,6 +65,14 @@ export interface paths {
          *
          *     Requires a valid Supabase access token in the `Authorization: Bearer`
          *     header.
+         *
+         *     NOTE (#189): this deliberately uses the token-only resolver, so it does NOT
+         *     reflect single-session validity — a superseded token still gets 200 here. It
+         *     is a pure token-identity echo, and session validity has its own purpose-built
+         *     endpoint (``GET /auth/session/active``) that the frontend polls. If /me is
+         *     ever meant to gate on session validity too, switch it to the session-aware
+         *     resolver (``get_current_db_user``) — a scoped change left out here on purpose,
+         *     since it would also change the response to a DB ``UserContext``.
          */
         get: operations["me_auth_me_get"];
         put?: never;
@@ -127,6 +135,10 @@ export interface paths {
          *       2. Inserts a ``login_events`` row (the security log backing the engineer
          *          "Logins" tab; email is snapshotted so the history survives the user's
          *          later deletion).
+         *       3. Clears the rolling failed-login counter for this email (#182) — a real
+         *          sign-in is the correct, un-abusable place to reset it, so it no longer
+         *          runs on every authenticated request.
+         *       4. Claims this sign-in as the account's single active session (#147).
          *
          *     Uses the force-password-change-EXEMPT resolver: a user on an admin-issued
          *     temp password has still genuinely signed in, so their login must be recorded
@@ -138,6 +150,35 @@ export interface paths {
          *     events are a security log, not the record-change audit trail.
          */
         post: operations["record_login_auth_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/session/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Session Active
+         * @description Report whether THIS session is still the account's active session (#147).
+         *
+         *     Uses the force-change-EXEMPT resolver, which does NOT reject a superseded
+         *     session (unlike the data routes) — so a superseded device can still ask "am I
+         *     still signed in?" and get a clean ``{active: false}`` instead of a 401. The
+         *     frontend polls this and, on ``false``, signs the device out and explains why.
+         *
+         *     Fails OPEN (``active: true``) when the account has no claimed session yet
+         *     (``active_session_id`` NULL — e.g. a session predating this feature) or the
+         *     token carried no ``session_id``, so nobody is spuriously logged out.
+         */
+        get: operations["session_active_auth_session_active_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -220,7 +261,8 @@ export interface paths {
          *     rolling counter, because an attacker could otherwise POST ``{email,
          *     success:true}`` to wipe a legitimately-set cooldown and brute-force
          *     unbounded. The genuine success-clear happens on the AUTHENTICATED path
-         *     (``get_current_db_user``), which only a real, signed-in user can reach.
+         *     (``POST /auth/login`` -> ``_clear_login_attempts``), which only a real,
+         *     signed-in user can reach.
          *
          *     The ``locked`` flag the service returns is intentionally NOT echoed to the
          *     client (anti-enumeration); only the coarse ``reason`` is.
@@ -1035,7 +1077,11 @@ export interface paths {
          * Contacted This Month List
          * @description The alumni behind the "Contacted this month" KPI — one row per distinct
          *     alumnus contacted in the last 30 days, carrying their most recent
-         *     interaction in the window (DISTINCT ON matches the KPI's distinct count).
+         *     interaction in the window.
+         *
+         *     Applies the same active-alumni filter as the KPI count
+         *     (archived=false AND is_alumni=true) so archived / friend-of-program records
+         *     never leak into the list and the row count reconciles with the tile (#179).
          *
          *     FERPA: exposes individual alumni + CRM interaction data, so it is gated to
          *     full_access (view_only gets 403) and the disclosure is audited; only the
@@ -1219,6 +1265,52 @@ export interface paths {
         get: operations["list_logins_admin_logins_get"];
         put?: never;
         post?: never;
+        /**
+         * Purge Logins
+         * @description Delete ALL recorded sign-ins (the entire ``login_events`` history).
+         *     Engineer only.
+         *
+         *     The irreversible counterpart to GET /admin/logins: it wipes the whole
+         *     login-history table in one shot (e.g. to clear accumulated dev/test noise
+         *     from the Admin -> Logins tab). Engineer-gated (RequireEngineer) like the
+         *     listing. Since #199 stops auditing engineer actions, this purge is
+         *     intentionally NOT written to the audit trail. Returns the row count removed.
+         *
+         *     SCOPE (security review, #199/#200): this deletes ONLY ``login_events``. It
+         *     deliberately does NOT touch ``engineer_action_log`` -- that append-only table
+         *     is the tamper-resistant record of engineer actions and has no purge path, so
+         *     an engineer cannot use this endpoint (or any other) to erase their own trail.
+         */
+        delete: operations["purge_logins_admin_logins_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/engineer-actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Engineer Actions
+         * @description List recorded engineer actions, newest first (paginated). super_admin only.
+         *
+         *     Reads the append-only ``engineer_action_log`` -- the tamper-resistant oversight
+         *     trail of engineer actions (#199/#200). ROLE-gated to ``super_admin`` and
+         *     explicitly denied to the ``engineer`` (see require_super_admin_role_strict), so
+         *     the audited party can neither read nor disable it; there is no delete/purge
+         *     route for this table at all. Paginated (default 50, hard cap 200 -- mirrors the
+         *     users/logins/audit endpoints) so one request can't enumerate the whole log.
+         *
+         *     Reading the log is itself audited (``read_engineer_action_log``; actor +
+         *     applied limit/offset) -- the returned rows are not logged.
+         */
+        get: operations["list_engineer_actions_admin_engineer_actions_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1253,8 +1345,10 @@ export interface paths {
          *
          *     Guards (mirroring remove_role):
          *       * You cannot delete your own account.
-         *       * Privilege ceiling: only an engineer may delete a user who holds the
-         *         engineer role.
+         *       * Privilege ceiling (#178): an actor may only delete a user whose highest
+         *         role is at or below the actor's own highest tier (ranked via
+         *         ROLE_ORDER) — so only an engineer may delete an engineer, and only
+         *         super_admin/engineer may delete a super_admin.
          *       * Last-holder guard: you cannot delete the final holder of a top role
          *         (super_admin / engineer), which would lock administration out for
          *         everyone.
@@ -1298,10 +1392,11 @@ export interface paths {
          * @description Grant a role to an existing user (idempotent). super_admin and up.
          *
          *     Rate-limited per actor (best-effort, in-process) to brake bulk privilege
-         *     changes. Privilege ceiling: only an ``engineer`` may grant the ``engineer``
-         *     role. A
-         *     ``super_admin`` (who is below engineer) cannot mint an account that outranks
-         *     them — that would be a privilege escalation above the actor's own ceiling.
+         *     changes. Privilege ceiling (#178): an actor may only grant a role at or
+         *     below their own highest tier (ranked via ROLE_ORDER). So only an
+         *     ``engineer`` may grant ``engineer``, and only ``super_admin``/``engineer``
+         *     may grant ``super_admin`` — a lower role that was delegated ``USER_ADMIN``
+         *     still cannot mint an account that outranks it.
          */
         post: operations["assign_role_admin_users__user_id__roles_post"];
         delete?: never;
@@ -1324,9 +1419,11 @@ export interface paths {
          * Remove Role
          * @description Revoke a role from an existing user (idempotent). super_admin and up.
          *
-         *     Privilege ceiling (symmetric with assign_role): only an ``engineer`` may
-         *     remove the ``engineer`` role. A ``super_admin`` cannot demote an engineer —
-         *     the engineer tier is managed exclusively by engineers.
+         *     Privilege ceiling (symmetric with assign_role, #178): an actor may only
+         *     remove a role at or below their own highest tier (ranked via ROLE_ORDER).
+         *     So only an ``engineer`` may remove ``engineer``, and only
+         *     ``super_admin``/``engineer`` may remove ``super_admin`` — a lower role that
+         *     was delegated ``USER_ADMIN`` cannot strip a role that outranks it.
          *
          *     Guards against an admin removing their OWN top role (super_admin or
          *     engineer), which would lock user administration (or, for engineer, vocab /
@@ -1551,11 +1648,12 @@ export interface paths {
         put?: never;
         /**
          * Preview Import Events
-         * @description Dry-run an events bulk CSV import (full_access, NO writes).
+         * @description Dry-run a single-event attendee CSV import (full_access, NO writes).
          *
-         *     Groups attendee rows into events, resolves attendees by Net ID, and flags
-         *     unmatched Net IDs, bad dates, and duplicate events. A bad header set surfaces
-         *     as ``columns_ok: false`` with ``header_errors``.
+         *     The event's identity (title/date/type/…) comes from the wizard as form
+         *     fields; the CSV is the attendee roster. Resolves attendees by Net ID and
+         *     flags unmatched/duplicate attendees, a bad date, and a pre-existing event. A
+         *     bad header set surfaces as ``columns_ok: false`` with ``header_errors``.
          */
         post: operations["preview_import_events_events_import_preview_post"];
         delete?: never;
@@ -1575,10 +1673,11 @@ export interface paths {
         put?: never;
         /**
          * Import Events Commit
-         * @description Commit an events bulk CSV import (full_access). Re-evaluates and inserts
-         *     every importable event + its matched attendees in one transaction (audit
-         *     logging fires per event and attendee); rejected events are skipped and
-         *     reported. A bad header set imports nothing.
+         * @description Commit a single-event attendee CSV import (full_access). Re-evaluates and,
+         *     if the event identity is valid and new, inserts the event + its matched
+         *     attendees in one transaction (audit logging fires for the event and each
+         *     attendee); unmatched attendees are skipped and reported. A bad header set
+         *     imports nothing.
          */
         post: operations["import_events_commit_events_import_post"];
         delete?: never;
@@ -1627,6 +1726,9 @@ export interface paths {
          * List Event Attendees
          * @description Alumni who attended an event (view-access read). 404 if the event is
          *     unknown so callers can distinguish "no attendees" from "no such event".
+         *
+         *     ``notes`` echoes the per-attendance ``attendance_notes`` (#181) so the notes
+         *     the bulk importer writes are actually readable on the roster.
          */
         get: operations["list_event_attendees_events__event_id__attendees_get"];
         put?: never;
@@ -1644,6 +1746,33 @@ export interface paths {
          *     oversight. Students manage attendance per-alumnus, not from the event roster.
          */
         post: operations["add_event_attendee_events__event_id__attendees_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/{event_id}/attendees/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Event Attendees
+         * @description Download an event's attendee list as CSV — columns **Name, Email, Net ID**
+         *     (#219). Gated at ``full_access`` (a rung above the view-only attendee list)
+         *     because bulk contact details — alumni PII — leave the system here, and audited
+         *     as a disclosure (action ``export_event_attendees``, row count only, never the
+         *     data itself). 404 if the event is unknown.
+         *
+         *     Email is the alumnus's personal email, falling back to the work email. Rows
+         *     are ordered by name, matching the on-screen roster.
+         */
+        get: operations["export_event_attendees_events__event_id__attendees_export_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1681,10 +1810,16 @@ export interface paths {
         };
         /**
          * List Donors
-         * @description List donors with per-year and lifetime roll-ups (view access).
+         * @description List donors with per-year and lifetime roll-ups (full_access+, paginated).
          *
          *     Everyone sees who gave and in which years; ``lifetime_total`` and each
          *     ``per_year.total`` are non-null only for amount-viewers (full_access+).
+         *
+         *     Returns a ``{items, total, limit, offset}`` envelope. The ranking, LIMIT, and
+         *     OFFSET are pushed into PostgreSQL; only the page's per-year breakdown is then
+         *     aggregated (``WHERE alumni_id IN (<page ids>)``), so the endpoint is bounded
+         *     regardless of donor count. Amount-viewers see the biggest givers first;
+         *     others get a stable name sort (the lifetime ranking is amount-gated too).
          */
         get: operations["list_donors_donations_donors_get"];
         put?: never;
@@ -1704,7 +1839,7 @@ export interface paths {
         };
         /**
          * Donations Summary
-         * @description Fund totals (view access). Donor / donation COUNTS are public; the dollar
+         * @description Fund totals (full_access+). Donor / donation COUNTS are public; the dollar
          *     ``total_raised`` and each ``per_year.total`` are gated to amount-viewers.
          */
         get: operations["donations_summary_donations_summary_get"];
@@ -1725,15 +1860,16 @@ export interface paths {
         };
         /**
          * List Alumni Donations
-         * @description A single donor's donation history (view access). 404 if the alumnus is
+         * @description A single donor's donation history (full_access+). 404 if the alumnus is
          *     unknown. Each entry's ``amount`` and ``notes`` are gated to amount-viewers.
          */
         get: operations["list_alumni_donations_donations_alumni__alumni_id__get"];
         put?: never;
         /**
          * Add Donation
-         * @description Add a donation to an alumnus (super_admin). 404 if the alumnus is unknown
-         *     or archived. Audits the write (entity_type "donation", action "create").
+         * @description Add a donation to an alumnus (donations.manage). 404 if the alumnus is
+         *     unknown or archived. Audits the write (entity_type "donation", action
+         *     "create").
          */
         post: operations["add_donation_donations_alumni__alumni_id__post"];
         delete?: never;
@@ -1768,8 +1904,8 @@ export interface paths {
         head?: never;
         /**
          * Update Donation
-         * @description Partially update a donation (super_admin). Only fields present in the body
-         *     are applied; each change is audited. 404 if the donation is unknown.
+         * @description Partially update a donation (donations.manage). Only fields present in the
+         *     body are applied; each change is audited. 404 if the donation is unknown.
          */
         patch: operations["update_donation_donations__donation_id__patch"];
         trace?: never;
@@ -1783,7 +1919,7 @@ export interface paths {
         };
         /**
          * Donations Import Template
-         * @description Download the donations bulk-import CSV template (super_admin): columns
+         * @description Download the donations bulk-import CSV template (donations.manage): columns
          *     Net ID, Name, Month, Year, Amount plus a couple of example rows.
          */
         get: operations["donations_import_template_donations_import_template_get"];
@@ -1806,7 +1942,7 @@ export interface paths {
         put?: never;
         /**
          * Preview Import Donations
-         * @description Dry-run a donations bulk CSV import (super_admin, NO writes). Matches
+         * @description Dry-run a donations bulk CSV import (donations.manage, NO writes). Matches
          *     donors by Net ID and flags unmatched Net IDs, bad month/year, and non-numeric
          *     amounts. A bad header set surfaces as ``columns_ok: false``.
          */
@@ -1828,7 +1964,7 @@ export interface paths {
         put?: never;
         /**
          * Import Donations Commit
-         * @description Commit a donations bulk CSV import (super_admin). Re-evaluates and inserts
+         * @description Commit a donations bulk CSV import (donations.manage). Re-evaluates and inserts
          *     every importable donation in one transaction (audited per row); rejected rows
          *     are skipped and reported. A bad header set imports nothing.
          */
@@ -2258,6 +2394,9 @@ export interface paths {
          * Create Vocabulary Term
          * @description Add a term (or reactivate a previously-deactivated identical one).
          *     409 if an active term with the same value already exists in the category.
+         *
+         *     Returns 201 Created for a genuinely new term, 200 OK when an existing
+         *     soft-deleted term was reactivated (nothing new was created) (#176).
          */
         post: operations["create_vocabulary_term_admin_vocabulary_post"];
         delete?: never;
@@ -2385,6 +2524,22 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * ActivityFeed
+         * @description Paginated interaction feed for ``GET /dashboard/activity``.
+         */
+        ActivityFeed: {
+            /** Items */
+            items: components["schemas"]["InteractionActivity"][];
+            /** Types */
+            types: string[];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+        };
+        /**
          * AdminTaskItem
          * @description A single follow-up task in the cross-alumni admin task list.
          *
@@ -2510,6 +2665,16 @@ export interface components {
         AlumniExportFilters: {
             /** Q */
             q: string | null;
+            /** Net Id */
+            net_id: string | null;
+            /** First Name */
+            first_name: string | null;
+            /** Last Name */
+            last_name: string | null;
+            /** Preferred Name */
+            preferred_name: string | null;
+            /** Email */
+            email: string | null;
             /** Graduation Year */
             graduation_year: number | null;
             /** Grad Year Min */
@@ -2621,6 +2786,97 @@ export interface components {
             /** Columns */
             columns: string[];
             filters?: components["schemas"]["AlumniExportFilters"];
+        };
+        /**
+         * AlumniHygienePreview
+         * @description ``hygiene.build_preview`` output: the cleaned payload, the per-field
+         *     changes, soft warnings, and exact-duplicate blockers.
+         */
+        AlumniHygienePreview: {
+            /** Cleaned */
+            cleaned: {
+                [key: string]: unknown;
+            };
+            /** Changes */
+            changes: components["schemas"]["ImportChange"][];
+            /** Warnings */
+            warnings: {
+                [key: string]: unknown;
+            }[];
+            /** Blockers */
+            blockers: {
+                [key: string]: unknown;
+            }[];
+        };
+        /**
+         * AlumniImportPreview
+         * @description ``POST /alumni/import/preview`` dry-run report.
+         */
+        AlumniImportPreview: {
+            /** Columns Ok */
+            columns_ok: boolean;
+            /** Header Errors */
+            header_errors: string[];
+            summary: components["schemas"]["AlumniImportSummary"];
+            /** Rows */
+            rows: components["schemas"]["AlumniImportRowReport"][];
+        };
+        /**
+         * AlumniImportResult
+         * @description ``POST /alumni/import`` commit result.
+         */
+        AlumniImportResult: {
+            /** Imported */
+            imported: number;
+            /** Skipped */
+            skipped: number;
+            /** Created Ids */
+            created_ids: number[];
+            /** Rejects */
+            rejects: components["schemas"]["ImportReject"][];
+        };
+        /** AlumniImportRowReport */
+        AlumniImportRowReport: {
+            /** Row */
+            row: number;
+            /** Name */
+            name: string | null;
+            /** Status */
+            status: string;
+            /**
+             * Changes
+             * @default []
+             */
+            changes: components["schemas"]["ImportChange"][];
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Blockers
+             * @default []
+             */
+            blockers: {
+                [key: string]: unknown;
+            }[];
+            /** Error */
+            error: string | null;
+        };
+        /** AlumniImportSummary */
+        AlumniImportSummary: {
+            /** Total */
+            total: number;
+            /** Importable */
+            importable: number;
+            /** Rejected */
+            rejected: number;
+            /** With Warnings */
+            with_warnings: number;
+            /** Cleaned */
+            cleaned: number;
         };
         /**
          * AlumniListItem
@@ -2915,13 +3171,36 @@ export interface components {
          * AttendeeCreate
          * @description Body for adding an attendee to an event (full_access). ``extra='forbid'``
          *     rejects unknown keys; ``alumni_id`` is required; ``attendance_status`` is an
-         *     optional free-text label capped at 100 chars (blank collapses to None).
+         *     optional free-text label capped at 100 chars (blank collapses to None);
+         *     ``notes`` is optional free-text (per-attendance notes, #181) capped at 10000
+         *     chars (blank collapses to None), matching the ``attendance_notes`` the bulk
+         *     importer writes.
          */
         AttendeeCreate: {
             /** Alumni Id */
             alumni_id: number;
             /** Attendance Status */
             attendance_status?: string | null;
+            /** Notes */
+            notes?: string | null;
+        };
+        /**
+         * AttendeeRead
+         * @description One row of an event's attendee roster (view access). ``notes`` surfaces the
+         *     per-attendance ``attendance_notes`` (#181) — previously write-only "dark data"
+         *     set by the bulk importer with no read path.
+         */
+        AttendeeRead: {
+            /** Alumni Id */
+            alumni_id: number;
+            /** Name */
+            name: string;
+            /** Graduation Year */
+            graduation_year: number | null;
+            /** Attendance Status */
+            attendance_status: string | null;
+            /** Notes */
+            notes: string | null;
         };
         /** AuditEntryRead */
         AuditEntryRead: {
@@ -2957,6 +3236,29 @@ export interface components {
             email: string | null;
             /** Token Role */
             token_role: string | null;
+            /** Session Id */
+            session_id: string | null;
+        };
+        /**
+         * BirthdayRow
+         * @description One alumnus with a birthday this month (``GET /dashboard/birthdays``).
+         *     Only the recurring month+day is exposed — never the birth year (FERPA).
+         */
+        BirthdayRow: {
+            /** Id */
+            id: number;
+            /** First Name */
+            first_name: string | null;
+            /** Last Name */
+            last_name: string | null;
+            /** Current Employer */
+            current_employer: string | null;
+            /** Graduation Year */
+            graduation_year: number | null;
+            /** Birth Month */
+            birth_month: number | null;
+            /** Birth Day */
+            birth_day: number | null;
         };
         /** Body_import_alumni_alumni_import_post */
         Body_import_alumni_alumni_import_post: {
@@ -2972,6 +3274,16 @@ export interface components {
         Body_import_events_commit_events_import_post: {
             /** File */
             file: string;
+            /** Event Name */
+            event_name: string;
+            /** Event Date */
+            event_date?: string | null;
+            /** Event Type */
+            event_type?: string | null;
+            /** Event Location */
+            event_location?: string | null;
+            /** Event Notes */
+            event_notes?: string | null;
         };
         /** Body_preview_import_alumni_alumni_import_preview_post */
         Body_preview_import_alumni_alumni_import_preview_post: {
@@ -2987,6 +3299,16 @@ export interface components {
         Body_preview_import_events_events_import_preview_post: {
             /** File */
             file: string;
+            /** Event Name */
+            event_name: string;
+            /** Event Date */
+            event_date?: string | null;
+            /** Event Type */
+            event_type?: string | null;
+            /** Event Location */
+            event_location?: string | null;
+            /** Event Notes */
+            event_notes?: string | null;
         };
         /** Breakdown */
         Breakdown: {
@@ -3188,12 +3510,8 @@ export interface components {
             first_name?: string | null;
             /** Last Name */
             last_name?: string | null;
-            /**
-             * Role Name
-             * @default view_only
-             * @enum {string}
-             */
-            role_name: "full_access" | "student" | "view_only";
+            /** @default view_only */
+            role_name: components["schemas"]["RoleName"];
         };
         /**
          * CreateUserResponse
@@ -3249,6 +3567,26 @@ export interface components {
             database: string;
         };
         /**
+         * DashboardEmployerCount
+         * @description One employer bucket in the top-employers distribution.
+         */
+        DashboardEmployerCount: {
+            /** Employer */
+            employer: string;
+            /** Count */
+            count: number;
+        };
+        /**
+         * DashboardGradYearCount
+         * @description One graduation-year bucket in the cohort distribution.
+         */
+        DashboardGradYearCount: {
+            /** Year */
+            year: number;
+            /** Count */
+            count: number;
+        };
+        /**
          * DashboardPresetCreate
          * @description Add a quick-filter preset (engineer / super_admin).
          */
@@ -3287,6 +3625,81 @@ export interface components {
             sort_order?: number | null;
         };
         /**
+         * DashboardStateCount
+         * @description One state bucket in the by-state distribution.
+         */
+        DashboardStateCount: {
+            /** State */
+            state: string;
+            /** Count */
+            count: number;
+        };
+        /**
+         * DashboardSummary
+         * @description KPIs + distributions for ``GET /dashboard/summary`` (aggregate counts
+         *     only; no per-alumnus identity).
+         */
+        DashboardSummary: {
+            /** Total Alumni */
+            total_alumni: number;
+            /** Archived */
+            archived: number;
+            /** Deceased */
+            deceased: number;
+            /** Missing Email */
+            missing_email: number;
+            /** Missing Employer */
+            missing_employer: number;
+            /** Contacted This Month */
+            contacted_this_month: number;
+            /** Not Contacted 6Mo */
+            not_contacted_6mo: number;
+            /** Not Contacted 12Mo */
+            not_contacted_12mo: number;
+            /** Not Contacted 24Mo */
+            not_contacted_24mo: number;
+            /** Upcoming Follow Ups */
+            upcoming_follow_ups: number;
+            /** Duplicate Count */
+            duplicate_count: number;
+            /** Attended Event This Month */
+            attended_event_this_month: number;
+            /** Upcoming Events */
+            upcoming_events: number;
+            /** Events This Month */
+            events_this_month: number;
+            /** Guest Speakers This Month */
+            guest_speakers_this_month: number;
+            /** Piff Donors */
+            piff_donors: number;
+            /** Willing Mentors */
+            willing_mentors: number;
+            /** By Graduation Year */
+            by_graduation_year: components["schemas"]["DashboardGradYearCount"][];
+            /** Top Employers */
+            top_employers: components["schemas"]["DashboardEmployerCount"][];
+            /** By State */
+            by_state: components["schemas"]["DashboardStateCount"][];
+        };
+        /**
+         * DataQuality
+         * @description Data-quality alert counts for ``GET /dashboard/data-quality``.
+         */
+        DataQuality: {
+            /** Total Alumni */
+            total_alumni: number;
+            /** Complete Alumni */
+            complete_alumni: number;
+            /** Missing Email */
+            missing_email: number;
+            /** Missing Employer */
+            missing_employer: number;
+            /** Missing Phone */
+            missing_phone: number;
+            /** Duplicate Count */
+            duplicate_count: number;
+        };
+        /**
          * DeleteUserResponse
          * @description Confirmation of a permanent user deletion (the row is gone, so there is
          *     nothing left to serialize). The deleted user's id + email are echoed back so
@@ -3315,6 +3728,75 @@ export interface components {
             month?: number | null;
             /** Notes */
             notes?: string | null;
+        };
+        /**
+         * DonationImportPreview
+         * @description ``POST /donations/import/preview`` dry-run report.
+         */
+        DonationImportPreview: {
+            /** Columns Ok */
+            columns_ok: boolean;
+            /** Header Errors */
+            header_errors: string[];
+            summary: components["schemas"]["DonationImportSummary"];
+            /** Rows */
+            rows: components["schemas"]["DonationImportRowReport"][];
+        };
+        /**
+         * DonationImportResult
+         * @description ``POST /donations/import`` commit result.
+         */
+        DonationImportResult: {
+            /** Imported */
+            imported: number;
+            /** Skipped */
+            skipped: number;
+            /** Rejects */
+            rejects: components["schemas"]["ImportReject"][];
+        };
+        /** DonationImportRowReport */
+        DonationImportRowReport: {
+            /** Row */
+            row: number;
+            /** Mstid */
+            mstid: string | null;
+            /** Name */
+            name: string | null;
+            /** Match Method */
+            match_method: string | null;
+            /** Month */
+            month: number | null;
+            /** Year */
+            year: number | null;
+            /** Amount */
+            amount: number | null;
+            /** Alumni Id */
+            alumni_id: number | null;
+            /** Status */
+            status: string;
+            /**
+             * Blockers
+             * @default []
+             */
+            blockers: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: {
+                [key: string]: unknown;
+            }[];
+        };
+        /** DonationImportSummary */
+        DonationImportSummary: {
+            /** Total */
+            total: number;
+            /** Importable */
+            importable: number;
+            /** Rejected */
+            rejected: number;
         };
         /**
          * DonationUpdate
@@ -3529,6 +4011,51 @@ export interface components {
             /** Engagement Notes */
             engagement_notes: string | null;
         };
+        /**
+         * EngineerActionPage
+         * @description A page of engineer actions, newest first, with the total for pagination.
+         */
+        EngineerActionPage: {
+            /** Items */
+            items: components["schemas"]["EngineerActionRow"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+        };
+        /**
+         * EngineerActionRow
+         * @description One recorded engineer action for the super_admin oversight view.
+         *     ``actor_user_id`` is null once the engineer has been deleted; ``actor_email``
+         *     is the snapshot taken at write time, so the row still shows who acted.
+         */
+        EngineerActionRow: {
+            /** Engineer Action Log Id */
+            engineer_action_log_id: number;
+            /** Actor User Id */
+            actor_user_id: number | null;
+            /** Actor Email */
+            actor_email: string | null;
+            /** Action Type */
+            action_type: string;
+            /** Entity Type */
+            entity_type: string;
+            /** Entity Id */
+            entity_id: number | null;
+            /** Field Name */
+            field_name: string | null;
+            /** Old Value */
+            old_value: string | null;
+            /** New Value */
+            new_value: string | null;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+        };
         /** ErrorBody */
         ErrorBody: {
             /** Code */
@@ -3596,6 +4123,112 @@ export interface components {
             event_location?: string | null;
             /** Event Notes */
             event_notes?: string | null;
+        };
+        /** EventImportAttendee */
+        EventImportAttendee: {
+            /** Row */
+            row: number;
+            /** Net Id */
+            net_id: string | null;
+            /** Name */
+            name: string | null;
+            /** Notes */
+            notes: string | null;
+            /** Matched */
+            matched: boolean;
+            /** Alumni Id */
+            alumni_id: number | null;
+        };
+        /**
+         * EventImportEventMeta
+         * @description The event identity entered in the wizard (echoed back in the report).
+         */
+        EventImportEventMeta: {
+            /** Event Name */
+            event_name: string | null;
+            /** Event Date */
+            event_date: string | null;
+            /** Event Type */
+            event_type: string | null;
+            /** Event Location */
+            event_location: string | null;
+            /** Event Notes */
+            event_notes: string | null;
+        };
+        /**
+         * EventImportPreview
+         * @description ``POST /events/import/preview`` dry-run report.
+         */
+        EventImportPreview: {
+            /** Columns Ok */
+            columns_ok: boolean;
+            /** Header Errors */
+            header_errors: string[];
+            event: components["schemas"]["EventImportEventMeta"];
+            /** Importable */
+            importable: boolean;
+            /** Event Errors */
+            event_errors: {
+                [key: string]: unknown;
+            }[];
+            summary: components["schemas"]["EventImportSummary"];
+            /** Attendees */
+            attendees: components["schemas"]["EventImportAttendee"][];
+            /** Warnings */
+            warnings: {
+                [key: string]: unknown;
+            }[];
+        };
+        /**
+         * EventImportResult
+         * @description ``POST /events/import`` commit result.
+         */
+        EventImportResult: {
+            /** Imported */
+            imported: boolean;
+            /** Event Id */
+            event_id: number | null;
+            /** Imported Attendees */
+            imported_attendees: number;
+            /** Unmatched */
+            unmatched: components["schemas"]["EventImportUnmatched"][];
+            /** Event Error */
+            event_error: string | null;
+        };
+        /** EventImportSummary */
+        EventImportSummary: {
+            /** Total Rows */
+            total_rows: number;
+            /** Attendees Matched */
+            attendees_matched: number;
+            /** Attendees Unmatched */
+            attendees_unmatched: number;
+        };
+        /** EventImportUnmatched */
+        EventImportUnmatched: {
+            /** Row */
+            row: number;
+            /** Net Id */
+            net_id: string | null;
+            /** Name */
+            name: string | null;
+        };
+        /**
+         * EventParticipationRow
+         * @description One event with its attendee count
+         *     (``GET /dashboard/event-participation``).
+         */
+        EventParticipationRow: {
+            /** Event Id */
+            event_id: number;
+            /** Event Name */
+            event_name: string | null;
+            /** Event Type */
+            event_type: string | null;
+            /** Event Date */
+            event_date: string | null;
+            /** Participant Count */
+            participant_count: number;
         };
         /**
          * EventUpdate
@@ -3665,6 +4298,24 @@ export interface components {
             survey_statuses: string[];
             /** Graduation Years */
             graduation_years: number[];
+        };
+        /**
+         * FollowUpRow
+         * @description One open follow-up task in ``GET /dashboard/follow-ups``.
+         */
+        FollowUpRow: {
+            /** Task Id */
+            task_id: number;
+            /** Alumni Id */
+            alumni_id: number;
+            /** Alumni Name */
+            alumni_name: string;
+            /** Title */
+            title: string | null;
+            /** Due Date */
+            due_date: string | null;
+            /** Assigned To */
+            assigned_to: string | null;
         };
         /** GeoAlumniPage */
         GeoAlumniPage: {
@@ -3742,12 +4393,64 @@ export interface components {
             /** Version */
             version: string;
         };
+        /**
+         * ImportChange
+         * @description One field the cleaning step normalized: ``before`` -> ``after``.
+         */
+        ImportChange: {
+            /** Section */
+            section: string;
+            /** Field */
+            field: string;
+            /** Label */
+            label: string;
+            /** Before */
+            before: unknown;
+            /** After */
+            after: unknown;
+        };
+        /**
+         * ImportReject
+         * @description One skipped row in a commit result.
+         */
+        ImportReject: {
+            /** Row */
+            row: number;
+            /** Name */
+            name: string | null;
+            /** Reason */
+            reason: string;
+        };
         /** IndustryCount */
         IndustryCount: {
             /** Industry */
             industry: string;
             /** Count */
             count: number;
+        };
+        /**
+         * InteractionActivity
+         * @description One interaction row in the activity feed / contacted-this-month list.
+         *
+         *     Matches ``dashboard._serialize_interaction`` exactly. ``by`` is the actor's
+         *     display name (email fallback); ``by_user_id`` their user id — both null when
+         *     the actor user was removed. No internal user PK beyond ``by_user_id``.
+         */
+        InteractionActivity: {
+            /** Interaction Id */
+            interaction_id: number;
+            /** Alumni Id */
+            alumni_id: number;
+            /** Alumni Name */
+            alumni_name: string;
+            /** Type */
+            type: string | null;
+            /** When */
+            when: string | null;
+            /** By */
+            by: string | null;
+            /** By User Id */
+            by_user_id: number | null;
         };
         /**
          * InteractionCreate
@@ -3890,6 +4593,14 @@ export interface components {
         LoginPrecheckRequest: {
             /** Email */
             email: string;
+        };
+        /**
+         * LoginPurgeResult
+         * @description Count of login-history rows removed by the engineer purge (#200).
+         */
+        LoginPurgeResult: {
+            /** Deleted */
+            deleted: number;
         };
         /**
          * LoginRecordRequest
@@ -4231,6 +4942,14 @@ export interface components {
          * @enum {string}
          */
         RoleName: "engineer" | "super_admin" | "full_access" | "student" | "view_only";
+        /**
+         * SessionActiveResponse
+         * @description Whether the caller's session is still the account's single active one.
+         */
+        SessionActiveResponse: {
+            /** Active */
+            active: boolean;
+        };
         /** StateCount */
         StateCount: {
             /** State */
@@ -4444,6 +5163,10 @@ export interface components {
              * @default false
              */
             must_change_password: boolean;
+            /** Session Id */
+            session_id: string | null;
+            /** Active Session Id */
+            active_session_id: string | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -4679,6 +5402,26 @@ export interface operations {
             };
         };
     };
+    session_active_auth_session_active_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionActiveResponse"];
+                };
+            };
+        };
+    };
     password_complete_auth_password_complete_post: {
         parameters: {
             query?: never;
@@ -4835,13 +5578,15 @@ export interface operations {
                 missing_email?: boolean;
                 /** @description Only alumni with no current employer on file. */
                 missing_employer?: boolean;
+                /** @description Only alumni with no phone number on file. */
+                missing_phone?: boolean;
                 /** @description Only alumni flagged as duplicate candidates. */
                 duplicate?: boolean;
                 include_archived?: boolean;
                 /** @description Which records to return (#218): 'alumni' (default) — only graduates (is_alumni=true); 'friend' — only friends of the program (is_alumni=false); 'all' — both. Defaults to 'alumni' so the Alumni page is unchanged. */
                 kind?: "alumni" | "friend" | "all";
                 /** @description Sort order: name | grad_desc | grad_asc. */
-                sort?: string;
+                sort?: "name" | "grad_desc" | "grad_asc";
                 limit?: number;
                 offset?: number;
             };
@@ -4963,7 +5708,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["AlumniImportPreview"];
                 };
             };
             /** @description Validation Error */
@@ -4996,7 +5741,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["AlumniImportResult"];
                 };
             };
             /** @description Validation Error */
@@ -5208,9 +5953,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ProfileRead"];
                 };
             };
             /** @description Validation Error */
@@ -5887,9 +6630,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["AlumniHygienePreview"];
                 };
             };
             /** @description Validation Error */
@@ -5924,9 +6665,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["AlumniHygienePreview"];
                 };
             };
             /** @description Validation Error */
@@ -5986,9 +6725,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["DashboardSummary"];
                 };
             };
         };
@@ -6008,9 +6745,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["BirthdayRow"][];
                 };
             };
         };
@@ -6030,9 +6765,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["EventParticipationRow"][];
                 };
             };
         };
@@ -6067,9 +6800,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ActivityFeed"];
                 };
             };
             /** @description Validation Error */
@@ -6098,9 +6829,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["DataQuality"];
                 };
             };
         };
@@ -6120,9 +6849,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["InteractionActivity"][];
                 };
             };
         };
@@ -6142,9 +6869,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["FollowUpRow"][];
                 };
             };
         };
@@ -6374,6 +7099,58 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LoginEventPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    purge_logins_admin_logins_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginPurgeResult"];
+                };
+            };
+        };
+    };
+    list_engineer_actions_admin_engineer_actions_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineerActionPage"];
                 };
             };
             /** @description Validation Error */
@@ -6838,7 +7615,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["EventImportPreview"];
                 };
             };
             /** @description Validation Error */
@@ -6871,7 +7648,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["EventImportResult"];
                 };
             };
             /** @description Validation Error */
@@ -7005,9 +7782,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["AttendeeRead"][];
                 };
             };
             /** @description Validation Error */
@@ -7058,6 +7833,37 @@ export interface operations {
             };
         };
     };
+    export_event_attendees_events__event_id__attendees_export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                event_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     remove_event_attendee_events__event_id__attendees__alumni_id__delete: {
         parameters: {
             query?: never;
@@ -7094,7 +7900,10 @@ export interface operations {
     };
     list_donors_donations_donors_get: {
         parameters: {
-            query?: never;
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -7109,7 +7918,16 @@ export interface operations {
                 content: {
                     "application/json": {
                         [key: string]: unknown;
-                    }[];
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -7311,7 +8129,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["DonationImportPreview"];
                 };
             };
             /** @description Validation Error */
@@ -7344,7 +8162,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["DonationImportResult"];
                 };
             };
             /** @description Validation Error */

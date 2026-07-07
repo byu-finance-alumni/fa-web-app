@@ -4,10 +4,10 @@ import { createClient } from "@/utils/supabase/server";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { MobileNav } from "@/components/shell/MobileNav";
 import { SessionTimeout } from "@/components/auth/SessionTimeout";
+import { SessionGuard } from "@/components/auth/SessionGuard";
 import { PointerEventsGuard } from "@/components/shell/PointerEventsGuard";
 import { PreviewBanner } from "@/components/engineer/PreviewBanner";
-import { apiGet } from "@/lib/api";
-import type { UserContext } from "@/types/alumni";
+import { getAuthContext } from "@/lib/auth-context";
 import { highestRole, isEngineer, roleLabel } from "@/constants/roles";
 import { asPreviewRole, PREVIEW_COOKIE } from "@/lib/preview";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -43,7 +43,7 @@ export default async function AppLayout({
   let canVocabReal = false;
   let userName = "";
   try {
-    const ctx = await apiGet<UserContext>("/auth/context");
+    const ctx = await getAuthContext();
     mustChangePassword = ctx.must_change_password === true;
     // Resolve the user's single highest role for role-aware nav (engineer is
     // the top of the ladder). See @/constants/roles.
@@ -84,8 +84,16 @@ export default async function AppLayout({
   return (
     <ToastProvider>
       <SessionTimeout />
+      <SessionGuard />
       <PointerEventsGuard />
-      <div className="flex h-screen overflow-hidden bg-canvas">
+      {/* While previewing a role, frame the whole viewport in a thick amber
+          border so it's impossible to forget you're not seeing your own account
+          (#256). Pairs with the solid PreviewBanner below. */}
+      <div
+        className={`flex h-screen overflow-hidden bg-canvas${
+          previewRole ? " ring-4 ring-inset ring-warning-500" : ""
+        }`}
+      >
         {/* While previewing, the sidebar reflects the previewed role (engineer
             tools disappear); the engineer exits via the always-visible banner. */}
         <Sidebar

@@ -16,6 +16,11 @@ type Result = { error?: string } | null;
 function revalidate() {
   revalidatePath("/vocabulary");
   revalidateTag("vocabulary");
+  // Vocab also feeds the alumni filter/search facets (industry, status label,
+  // survey status) via `/alumni/filter-options`, which is cached under its own
+  // tag. Invalidate it too so those dropdowns pick up renames/additions/hides
+  // instead of showing stale options (#275).
+  revalidateTag("alumni-filter-options");
 }
 
 export async function createVocabTerm(

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import {
   Eye,
   Pencil,
@@ -8,6 +9,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
+import { getAuthContext } from "@/lib/auth-context";
+import { isUserAdmin } from "@/constants/roles";
 import { humanize } from "@/lib/format";
 import { Topbar } from "@/components/shell/Topbar";
 import { Card } from "@/components/ui/card";
@@ -143,6 +146,13 @@ export default async function AuditPage({
 }: {
   searchParams: Promise<SP>;
 }) {
+  // Role gate (defense-in-depth): the audit trail is USER_ADMIN-only (engineer /
+  // super_admin). Redirect anyone else — and any authed-but-unprovisioned user
+  // (getAuthContext throws → null) — to the dashboard rather than rendering a
+  // dead-end "access required" shell. The backend still 403s /audit for others.
+  const gate = await getAuthContext().catch(() => null);
+  if (!gate || !isUserAdmin(gate.roles)) redirect("/dashboard");
+
   const sp = await searchParams;
 
   const filters: AuditFilterState = {

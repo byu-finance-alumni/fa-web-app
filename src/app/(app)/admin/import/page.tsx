@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { Topbar } from "@/components/shell/Topbar";
-import { apiGet } from "@/lib/api";
-import type { UserContext } from "@/types/alumni";
+import { getAuthContext } from "@/lib/auth-context";
 import { hasFullAccess } from "@/constants/roles";
 import { ImportWizard } from "@/components/alumni/import/ImportWizard";
 
@@ -15,7 +14,7 @@ import { ImportWizard } from "@/components/alumni/import/ImportWizard";
 export default async function ImportAlumniPage() {
   let canImport = false;
   try {
-    const ctx = await apiGet<UserContext>("/auth/context");
+    const ctx = await getAuthContext();
     canImport = hasFullAccess(ctx.roles);
   } catch {
     canImport = false;

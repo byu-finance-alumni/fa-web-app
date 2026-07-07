@@ -19,6 +19,7 @@ export function AlumniProfileTabs({
   interactions,
   notes,
   events,
+  surveys,
   employment,
   education,
   engagement,
@@ -34,6 +35,9 @@ export function AlumniProfileTabs({
   /** Recent events / attendance — its own tab. Pass undefined when the alumnus
    *  has no events and the viewer can't add them, and the tab is hidden. */
   events?: ReactNode;
+  /** Survey tracking history — its own tab. Pass undefined when the alumnus has
+   *  no surveys on file, and the tab is hidden. */
+  surveys?: ReactNode;
   /** Employment history — its own tab. */
   employment: ReactNode;
   education?: ReactNode;
@@ -54,6 +58,9 @@ export function AlumniProfileTabs({
         <TabsTrigger value="interactions">Interactions</TabsTrigger>
         <TabsTrigger value="notes">Notes</TabsTrigger>
         {events ? <TabsTrigger value="events">Events</TabsTrigger> : null}
+        {surveys ? (
+          <TabsTrigger value="surveys">Surveys</TabsTrigger>
+        ) : null}
         <TabsTrigger value="employment">Employment</TabsTrigger>
         {education ? (
           <TabsTrigger value="education">Education</TabsTrigger>
@@ -74,6 +81,9 @@ export function AlumniProfileTabs({
       <TabsContent value="interactions">{interactions}</TabsContent>
       <TabsContent value="notes">{notes}</TabsContent>
       {events ? <TabsContent value="events">{events}</TabsContent> : null}
+      {surveys ? (
+        <TabsContent value="surveys">{surveys}</TabsContent>
+      ) : null}
       <TabsContent value="employment">{employment}</TabsContent>
       {education ? (
         <TabsContent value="education">{education}</TabsContent>

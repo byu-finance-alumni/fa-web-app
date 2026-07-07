@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { apiGet, ApiError } from "@/lib/api";
 import { hasFullAccess, isUserAdmin } from "@/constants/roles";
 import type { UserContext } from "@/types/alumni";
-import type { Donor, DonationsSummary } from "@/types/donations";
+import type { Donor, DonorsResponse, DonationsSummary } from "@/types/donations";
 import { DonorTable } from "@/components/donations/DonorTable";
 import { QuickAddDonation } from "@/components/donations/QuickAddDonation";
 
@@ -43,10 +43,16 @@ export default async function PayItForwardPage() {
   let summary: DonationsSummary | null = null;
   let error: ApiError | null = null;
   const [donorsRes, summaryRes] = await Promise.allSettled([
-    apiGet<Donor[]>("/donations/donors"),
+    // GET /donations/donors now returns a paginated envelope
+    // ({ items, total, limit, offset }), not a bare array (#173 follow-up).
+    // We show the full list here (no pagination UI yet), so pull the default
+    // first page and read `items`. Guard against a non-array `items` so a shape
+    // regression degrades to "no donors" instead of a render crash.
+    apiGet<DonorsResponse>("/donations/donors"),
     apiGet<DonationsSummary>("/donations/summary"),
   ]);
-  if (donorsRes.status === "fulfilled") donors = donorsRes.value;
+  if (donorsRes.status === "fulfilled")
+    donors = Array.isArray(donorsRes.value.items) ? donorsRes.value.items : [];
   else {
     const e = donorsRes.reason;
     error = e instanceof ApiError ? e : new ApiError(0, "Failed to load donors.");

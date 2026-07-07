@@ -266,17 +266,32 @@ function InteractionFields({
           <Label htmlFor="interaction_date_time">
             Date &amp; time <span className="text-danger-600">*</span>
           </Label>
-          {when ? (
+          <div className="flex items-center gap-3">
+            {/* "Today" fills BOTH the date and the current time (#277) — a
+                one-click way to stamp "now" without fighting the native picker.
+                nowDateTimeLocalValue() already includes HH:mm, so the time is
+                set, not just the date. */}
             <Button
               type="button"
               variant="link"
               size="sm"
               className="h-auto px-0"
-              onClick={() => setWhen("")}
+              onClick={() => setWhen(nowDateTimeLocalValue())}
             >
-              Clear
+              Today
             </Button>
-          ) : null}
+            {when ? (
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="h-auto px-0"
+                onClick={() => setWhen("")}
+              >
+                Clear
+              </Button>
+            ) : null}
+          </div>
         </div>
         {/* Controlled date so an explicit "Clear" reliably empties the field (the
             browser-native datetime-local clear is inconsistent — FA-6). `max` =

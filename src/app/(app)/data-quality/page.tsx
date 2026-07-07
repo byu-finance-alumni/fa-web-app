@@ -11,8 +11,10 @@ import { Progress } from "@/components/ui/progress";
 
 interface DataQuality {
   total_alumni: number;
+  complete_alumni: number;
   missing_email: number;
   missing_employer: number;
+  missing_phone: number;
   duplicate_count: number;
 }
 
@@ -54,6 +56,16 @@ export default async function DataQualityPage() {
           tone: "warning" as const,
         },
         {
+          label: "Missing phone",
+          count: dq.missing_phone,
+          description:
+            "Active alumni with no phone number on file — can't be reached by phone for outreach.",
+          href: "/alumni?missing_phone=1",
+          linkLabel: "Review alumni missing a phone number",
+          /** UX-UI.md: missing-data = warning */
+          tone: "warning" as const,
+        },
+        {
           label: "Duplicate records",
           count: dq.duplicate_count,
           description:
@@ -86,6 +98,11 @@ export default async function DataQualityPage() {
           missing: dq.missing_employer,
           href: "/alumni?missing_employer=1",
         },
+        {
+          label: "Phone on file",
+          missing: dq.missing_phone,
+          href: "/alumni?missing_phone=1",
+        },
       ]
     : [];
 
@@ -112,7 +129,7 @@ export default async function DataQualityPage() {
           </Card>
         ) : (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <MetricCard
                 size="lg"
                 label="Active alumni"
@@ -120,16 +137,18 @@ export default async function DataQualityPage() {
                 href="/alumni"
                 linkLabel="View all alumni"
               />
-              {alerts.map((a) => (
-                <MetricCard
-                  key={a.label}
-                  size="lg"
-                  label={a.label}
-                  value={a.count}
-                  href={a.href}
-                  linkLabel={a.linkLabel}
-                />
-              ))}
+              <MetricCard
+                size="lg"
+                label="Complete alumni"
+                value={dq?.complete_alumni ?? "—"}
+              />
+              <MetricCard
+                size="lg"
+                label="Missing employer"
+                value={dq?.missing_employer ?? "—"}
+                href="/alumni?missing_employer=1"
+                linkLabel="Review alumni missing an employer"
+              />
             </div>
 
             {/* Field coverage — visualizes the share of active alumni missing
@@ -143,8 +162,8 @@ export default async function DataQualityPage() {
                 <CardContent>
                   <ul className="space-y-4">
                     {coverage.map((c) => {
-                      const pct = pctMissing(c.missing);
                       const present = total - c.missing;
+                      const pctPresent = 100 - pctMissing(c.missing);
                       return (
                         <li key={c.label}>
                           <div className="flex items-baseline justify-between gap-3">
@@ -163,25 +182,26 @@ export default async function DataQualityPage() {
                                     : "font-semibold text-success-600"
                                 }
                               >
-                                {pct.toFixed(1)}% missing
+                                {pctPresent.toFixed(1)}% on file
                               </span>
                             </span>
                           </div>
-                          {/* Bar fills with the MISSING share (the problem),
-                              tinted warning. */}
+                          {/* Bar fills with the COVERAGE share (data on file):
+                              full + green when complete, otherwise a partial
+                              bar tinted warning to flag the remaining gap. */}
                           <Progress
-                            value={pct}
+                            value={pctPresent}
                             className="mt-2"
                             barClassName={
                               c.missing > 0
                                 ? "bg-warning-600"
                                 : "bg-success-600"
                             }
-                            aria-label={`${c.label}: ${pct.toFixed(
+                            aria-label={`${c.label}: ${pctPresent.toFixed(
                               1,
-                            )}% of active alumni missing`}
+                            )}% of active alumni on file`}
                           />
-                          {c.missing > 0 && (
+                          {c.missing > 0 && c.href && (
                             <div className="mt-1.5">
                               <Button asChild variant="link" size="sm">
                                 <Link

@@ -1,4 +1,7 @@
+import { redirect } from "next/navigation";
 import { apiGet, ApiError } from "@/lib/api";
+import { getAuthContext } from "@/lib/auth-context";
+import { isEngineer } from "@/constants/roles";
 import { Topbar } from "@/components/shell/Topbar";
 import { PermissionEditor } from "@/components/engineer/PermissionEditor";
 import { Card } from "@/components/ui/card";
@@ -10,6 +13,14 @@ import type { PermissionMatrix } from "@/types/permissions";
  * endpoints re-enforce it. Reads the live config from GET /engineer/permissions.
  */
 export default async function PermissionsPage() {
+  // Role gate (defense-in-depth): the permission editor is engineer-only. The
+  // /engineer/* route group is already gated in engineer/layout.tsx; this
+  // page-level check is belt-and-suspenders. Redirect non-engineers — and any
+  // authed-but-unprovisioned user (getAuthContext throws → null) — to the
+  // dashboard rather than rendering the editor. The backend re-enforces it too.
+  const gate = await getAuthContext().catch(() => null);
+  if (!gate || !isEngineer(gate.roles)) redirect("/dashboard");
+
   let matrix: PermissionMatrix | null = null;
   let error: ApiError | null = null;
   try {

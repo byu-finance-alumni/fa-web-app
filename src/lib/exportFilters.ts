@@ -13,6 +13,15 @@ export function toExportFilters(f: AlumniFilterState): AlumniExportFilters {
   const orNull = (xs: string[]): string[] | null => (xs.length ? xs : null);
   return {
     q: f.q.trim() || null,
+    // Name/identifier facets exist on the backend export schema for parity with
+    // GET /alumni, but the alumni-list UI only exposes the unified `q` search box,
+    // so they stay null here (nothing to mirror). Wire them up if/when the list
+    // gains dedicated name/net_id/email facets.
+    net_id: null,
+    first_name: null,
+    last_name: null,
+    preferred_name: null,
+    email: null,
     graduation_year: null,
     grad_year_min: f.ymin.trim() ? Number(f.ymin) : null,
     grad_year_max: f.ymax.trim() ? Number(f.ymax) : null,
