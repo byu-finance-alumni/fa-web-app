@@ -66,43 +66,50 @@ export default async function EditEventPage({
         ]}
       />
       <main className="flex-1 overflow-auto p-6">
-        <div className="w-full max-w-2xl space-y-6">
+        <div className="w-full space-y-6">
           {created ? (
             <p className="rounded-lg border border-brand-blue-300 bg-brand-blue-50 px-4 py-3 text-sm text-navy-800">
               Event created. Add attendees below.
             </p>
           ) : null}
-          <EventForm
-            action={action}
-            submitLabel="Save changes"
-            cancelHref="/events"
-            eventTypeOptions={eventTypeOptions}
-            initialValues={{
-              event_name: event.event_name,
-              event_type: event.event_type,
-              event_date: event.event_date,
-              event_location: event.event_location,
-              event_notes: event.event_notes,
-            }}
-          />
-          <AttendeeManager eventId={event.event_id} className="" />
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-danger-600">Danger zone</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-gray-500">
-                Deleting this event also removes its attendance records.
-              </p>
-              <div className="mt-3">
-                <DeleteEventButton
-                  eventId={event.event_id}
-                  eventName={event.event_name}
-                />
-              </div>
-            </CardContent>
-          </Card>
+          {/* Full-width two-column layout: event details + danger zone on the
+              left, the attendee manager on the right. Fills the page instead of
+              a narrow single column. Stacks on smaller screens. */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className="space-y-6">
+              <EventForm
+                action={action}
+                submitLabel="Save changes"
+                cancelHref="/events"
+                eventTypeOptions={eventTypeOptions}
+                cardClassName="w-full"
+                initialValues={{
+                  event_name: event.event_name,
+                  event_type: event.event_type,
+                  event_date: event.event_date,
+                  event_location: event.event_location,
+                  event_notes: event.event_notes,
+                }}
+              />
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-danger-600">Danger zone</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-500">
+                    Deleting this event also removes its attendance records.
+                  </p>
+                  <div className="mt-3">
+                    <DeleteEventButton
+                      eventId={event.event_id}
+                      eventName={event.event_name}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+            <AttendeeManager eventId={event.event_id} className="w-full" />
+          </div>
         </div>
       </main>
     </>

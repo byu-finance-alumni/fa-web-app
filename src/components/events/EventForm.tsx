@@ -67,6 +67,7 @@ export function EventForm({
   cancelHref,
   initialValues,
   eventTypeOptions = [],
+  cardClassName = "max-w-2xl",
 }: {
   action: Action;
   submitLabel: string;
@@ -75,6 +76,9 @@ export function EventForm({
   /** Managed event-type options (from the editable vocabulary). Admins curate
    * these under Admin → Vocabulary. */
   eventTypeOptions?: string[];
+  /** Width class for the form Card. Defaults to `max-w-2xl` (standalone create
+   * page); the edit page passes `w-full` to fill its grid column. */
+  cardClassName?: string;
 }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(
     action,
@@ -94,7 +98,7 @@ export function EventForm({
     current && !hasCurrent ? [current, ...eventTypeOptions] : eventTypeOptions;
 
   return (
-    <Card className="max-w-2xl">
+    <Card className={cardClassName}>
       <CardContent className="pt-5">
         <form action={formAction} className="space-y-4">
           <Field

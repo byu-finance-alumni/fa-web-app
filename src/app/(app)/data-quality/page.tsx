@@ -55,6 +55,16 @@ export default async function DataQualityPage() {
           tone: "warning" as const,
         },
         {
+          label: "Missing phone",
+          count: dq.missing_phone,
+          description:
+            "Active alumni with no phone number on file — can't be reached by phone for outreach.",
+          href: "/alumni?missing_phone=1",
+          linkLabel: "Review alumni missing a phone number",
+          /** UX-UI.md: missing-data = warning */
+          tone: "warning" as const,
+        },
+        {
           label: "Duplicate records",
           count: dq.duplicate_count,
           description:
@@ -90,9 +100,7 @@ export default async function DataQualityPage() {
         {
           label: "Phone on file",
           missing: dq.missing_phone,
-          // No /alumni?missing_phone=1 filter yet, so the bar shows but there's
-          // no drill-down link (guarded below). Add the filter later to enable it.
-          href: undefined as string | undefined,
+          href: "/alumni?missing_phone=1",
         },
       ]
     : [];

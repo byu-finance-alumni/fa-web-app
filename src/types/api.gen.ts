@@ -5496,6 +5496,8 @@ export interface operations {
                 missing_email?: boolean;
                 /** @description Only alumni with no current employer on file. */
                 missing_employer?: boolean;
+                /** @description Only alumni with no phone number on file. */
+                missing_phone?: boolean;
                 /** @description Only alumni flagged as duplicate candidates. */
                 duplicate?: boolean;
                 include_archived?: boolean;
