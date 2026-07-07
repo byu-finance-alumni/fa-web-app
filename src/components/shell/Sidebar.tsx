@@ -36,10 +36,12 @@ const NAV: NavItem[] = [
   { href: "/friends", label: "Friends" },
   { href: "/map", label: "Map" },
   { href: "/events", label: "Events" },
-  // Pay It Forward is a giving/donation workflow — hidden from view_only
-  // ("Professor") users, who have no write/giving affordances (#278). The
-  // backend gates the route separately.
-  { href: "/pay-it-forward", label: "Pay It Forward", hideViewOnly: true },
+  // Pay It Forward is a data-management surface — the backend requires the
+  // full_access tier (alumni.full) to read the donor ledger at all (#278), so
+  // student and view_only ("Professor") are 403'd. Gate the nav to full_access+
+  // to match, rather than only hiding it from view_only (which would leave a
+  // student a link that just errors). The backend re-enforces the route.
+  { href: "/pay-it-forward", label: "Pay It Forward", fullAccessOnly: true },
   { href: "/activity", label: "Activity", hideViewOnly: true },
   { href: "/tasks", label: "Tasks", fullAccessOnly: true },
   {
