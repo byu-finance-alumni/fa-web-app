@@ -36,7 +36,10 @@ const NAV: NavItem[] = [
   { href: "/friends", label: "Friends" },
   { href: "/map", label: "Map" },
   { href: "/events", label: "Events" },
-  { href: "/pay-it-forward", label: "Pay It Forward" },
+  // Pay It Forward is a giving/donation workflow — hidden from view_only
+  // ("Professor") users, who have no write/giving affordances (#278). The
+  // backend gates the route separately.
+  { href: "/pay-it-forward", label: "Pay It Forward", hideViewOnly: true },
   { href: "/activity", label: "Activity", hideViewOnly: true },
   { href: "/tasks", label: "Tasks", fullAccessOnly: true },
   {
