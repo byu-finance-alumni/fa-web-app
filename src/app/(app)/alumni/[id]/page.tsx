@@ -685,29 +685,45 @@ export default async function AlumniProfilePage({
                 )}
               </Panel>
 
-              {/* Record notes — the record-level "Notes" set from the add/edit
-                  form. Distinct from the per-note "Add note" thread below; this
-                  surfaces the value so it isn't saved-but-invisible (#211). */}
+              {/* Personal & family — lives in the main column directly under
+                  Contact information so the two panels share the same column
+                  width and align (#269). */}
               <Panel
-                title="Record notes"
+                title="Personal & family"
                 action={canEdit ? <EditLink id={aid} /> : undefined}
               >
-                {a.notes ? (
-                  <p className="whitespace-pre-wrap text-sm text-gray-900">
-                    {a.notes}
-                  </p>
-                ) : (
-                  <p className="py-6 text-center text-sm text-gray-500">
-                    No record notes yet.
-                  </p>
-                )}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field label="Birthday" value={fmtDate(a.birth_date)} />
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Spouse
+                    </p>
+                    {spouseLinkLabel ? (
+                      a.spouse_alumni_id ? (
+                        <Link
+                          href={`/alumni/${a.spouse_alumni_id}`}
+                          className="text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
+                        >
+                          {spouseLinkLabel} ↗
+                        </Link>
+                      ) : (
+                        <p className="text-sm text-gray-900">{spouseLinkLabel}</p>
+                      )
+                    ) : (
+                      <p className="text-sm text-gray-300">—</p>
+                    )}
+                  </div>
+                  <Field
+                    label="Spouse birthday"
+                    value={fmtDate(a.spouse_birth_date)}
+                  />
+                </div>
               </Panel>
 
             </div>
 
-            {/* Right sidebar (narrower). Same flex-column treatment so it ends
-                level with the main column. */}
-            <div className="flex flex-col gap-4 lg:[&>:last-child]:flex-1">
+            {/* Right sidebar (narrower). */}
+            <div className="flex flex-col gap-4">
               {/* Engagement summary — non-sensitive metrics + tags + derived
                   last-contacted. Shown for all roles (same gating posture as
                   "Engagement & tags"). Last-contacted comes from the newest
@@ -771,44 +787,6 @@ export default async function AlumniProfilePage({
                       </ChipRow>
                     </div>
                   ) : null}
-                </div>
-              </Panel>
-
-              {/* Personal & family — as the column's last child it's stretched
-                  to fill the remaining height (so the sidebar ends level with
-                  the main column); center its content vertically so the extra
-                  height isn't dead space at the bottom of the card. */}
-              <Panel
-                title="Personal & family"
-                action={canEdit ? <EditLink id={aid} /> : undefined}
-                className="lg:flex lg:flex-col"
-                contentClassName="lg:flex lg:flex-1 lg:flex-col lg:justify-center"
-              >
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Field label="Birthday" value={fmtDate(a.birth_date)} />
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      Spouse
-                    </p>
-                    {spouseLinkLabel ? (
-                      a.spouse_alumni_id ? (
-                        <Link
-                          href={`/alumni/${a.spouse_alumni_id}`}
-                          className="text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
-                        >
-                          {spouseLinkLabel} ↗
-                        </Link>
-                      ) : (
-                        <p className="text-sm text-gray-900">{spouseLinkLabel}</p>
-                      )
-                    ) : (
-                      <p className="text-sm text-gray-300">—</p>
-                    )}
-                  </div>
-                  <Field
-                    label="Spouse birthday"
-                    value={fmtDate(a.spouse_birth_date)}
-                  />
                 </div>
               </Panel>
 
