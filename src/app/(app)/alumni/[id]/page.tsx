@@ -556,15 +556,14 @@ export default async function AlumniProfilePage({
             ) : null}
           </div>
 
-          {/* KPI strip — 6 non-sensitive tiles, shown for every role. */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {/* KPI strip — 5 non-sensitive tiles, shown for every role.
+              NOTE (#291): "Graduating class" surfaces the year only. A combined
+              graduation month+year is pending a future backend
+              `graduation_month`/`graduation_date` field — do not invent it. */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <MetricCard
-              label="Year entered program"
-              value={a.finance_program_year ?? "—"}
-            />
-            <MetricCard
-              label="Graduation year"
-              value={a.graduation_year ?? "—"}
+              label="Graduating class"
+              value={a.graduation_year ? `Class of ${a.graduation_year}` : "—"}
             />
             <MetricCard label="Interactions" value={profile.interaction_count} />
             <MetricCard label="Events attended" value={profile.events.length} />
@@ -964,8 +963,104 @@ export default async function AlumniProfilePage({
             }
             surveys={
               profile.surveys.length ? (
-                <Panel title="Survey history">
-                  <div className="overflow-x-auto">
+                (() => {
+                  // Survey summary (#292): most-recent completed survey, the
+                  // nearest upcoming/overdue due date, and the latest survey's
+                  // status, shown above the full history table.
+                  const surveysSorted = [...profile.surveys].sort(
+                    (x, y) =>
+                      (y.survey_year ?? 0) - (x.survey_year ?? 0) ||
+                      (y.survey_due_date ?? "").localeCompare(
+                        x.survey_due_date ?? "",
+                      ),
+                  );
+                  // Most-recent completed survey's completion date; fall back
+                  // to the newest survey's completed_at (may be null → "—").
+                  const lastCompletedIso =
+                    lastSurveyedIso ?? surveysSorted[0]?.completed_at ?? null;
+                  // Nearest not-yet-completed due date; overdue when < today
+                  // (same past-due basis as the table rows below).
+                  const nextDue = profile.surveys
+                    .filter((s) => !s.completed && !!s.survey_due_date)
+                    .sort((x, y) =>
+                      (x.survey_due_date ?? "").localeCompare(
+                        y.survey_due_date ?? "",
+                      ),
+                    )[0];
+                  const nextDueIso = nextDue?.survey_due_date ?? null;
+                  const nextDueOverdue =
+                    !!nextDueIso && new Date(nextDueIso) < new Date();
+                  const latestSurvey = surveysSorted[0];
+                  const latestOverdue =
+                    !!latestSurvey &&
+                    !latestSurvey.completed &&
+                    !!latestSurvey.survey_due_date &&
+                    new Date(latestSurvey.survey_due_date) < new Date();
+                  const latestStatusTone: "success" | "danger" | "warning" =
+                    latestSurvey?.completed
+                      ? "success"
+                      : latestOverdue
+                        ? "danger"
+                        : "warning";
+                  const latestStatusLabel =
+                    latestSurvey?.survey_status ??
+                    (latestSurvey?.completed
+                      ? "Completed"
+                      : latestOverdue
+                        ? "Overdue"
+                        : "Pending");
+                  return (
+                    <Panel
+                      title="Survey history"
+                      action={
+                        // Donation link (#295): quick jump to the Pay It Forward
+                        // ledger to record a gift. Secondary text-only action.
+                        <Button asChild variant="secondary" size="sm">
+                          <Link href="/pay-it-forward">
+                            Pay It Forward — record a donation
+                          </Link>
+                        </Button>
+                      }
+                    >
+                      {/* Summary row (#292) — surfaced above the table. */}
+                      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <MetricCard
+                          label="Last survey completed"
+                          value={fmtDate(lastCompletedIso) ?? "—"}
+                        />
+                        <MetricCard
+                          label="Next survey due"
+                          value={
+                            nextDueIso ? (
+                              <span
+                                className={
+                                  nextDueOverdue
+                                    ? "text-danger-600"
+                                    : undefined
+                                }
+                              >
+                                {fmtDate(nextDueIso)}
+                                {nextDueOverdue ? (
+                                  <span className="block text-xs font-semibold">
+                                    Overdue
+                                  </span>
+                                ) : null}
+                              </span>
+                            ) : (
+                              "—"
+                            )
+                          }
+                        />
+                        <MetricCard
+                          label="Latest survey status"
+                          value={
+                            <Badge variant={latestStatusTone}>
+                              {latestStatusLabel}
+                            </Badge>
+                          }
+                        />
+                      </div>
+                      <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-gray-200 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -1024,8 +1119,10 @@ export default async function AlumniProfilePage({
                           })}
                       </tbody>
                     </table>
-                  </div>
-                </Panel>
+                      </div>
+                    </Panel>
+                  );
+                })()
               ) : undefined
             }
             employment={
