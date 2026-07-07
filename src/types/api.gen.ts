@@ -3653,6 +3653,8 @@ export interface components {
         DataQuality: {
             /** Total Alumni */
             total_alumni: number;
+            /** Complete Alumni */
+            complete_alumni: number;
             /** Missing Email */
             missing_email: number;
             /** Missing Employer */
