@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { apiGet, ApiError } from "@/lib/api";
 import { getAuthContext } from "@/lib/auth-context";
 import { Topbar } from "@/components/shell/Topbar";
@@ -7,7 +8,7 @@ import { UsersAdmin, type AdminUser } from "@/components/admin/UsersAdmin";
 import { RoleCapabilitiesTable } from "@/components/admin/RoleCapabilitiesTable";
 import { Card } from "@/components/ui/card";
 import type { PermissionMatrix } from "@/types/permissions";
-import { ROLE } from "@/constants/roles";
+import { ROLE, isUserAdmin } from "@/constants/roles";
 
 type SP = { q?: string };
 
@@ -16,6 +17,15 @@ export default async function AdminPage({
 }: {
   searchParams: Promise<SP>;
 }) {
+  // Role gate (defense-in-depth): user administration is USER_ADMIN-only
+  // (engineer / super_admin). Redirect anyone else — and any authed-but-
+  // unprovisioned user (getAuthContext throws → null) — to the dashboard rather
+  // than rendering a dead-end "access required" shell. The backend still
+  // re-enforces the guard on every /admin/* endpoint. getAuthContext is
+  // React-cached, so the read below in Promise.allSettled dedupes with this one.
+  const gate = await getAuthContext().catch(() => null);
+  if (!gate || !isUserAdmin(gate.roles)) redirect("/dashboard");
+
   // The Users search is mirrored into the URL (?q=) so it survives back-nav and
   // is shareable (#259); read it here and seed the client list from it.
   const sp = await searchParams;

@@ -1,5 +1,8 @@
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { apiGet, ApiError } from "@/lib/api";
+import { getAuthContext } from "@/lib/auth-context";
+import { isEngineer } from "@/constants/roles";
 import { Topbar } from "@/components/shell/Topbar";
 import { PreviewLauncher } from "@/components/engineer/PreviewLauncher";
 import { Card } from "@/components/ui/card";
@@ -12,6 +15,14 @@ import type { PermissionMatrix } from "@/types/permissions";
  * The route group is engineer-gated; entering preview is audited server-side.
  */
 export default async function PreviewPage() {
+  // Role gate (defense-in-depth): preview-as-role is engineer-only. The
+  // /engineer/* route group is already gated in engineer/layout.tsx; this
+  // page-level check is belt-and-suspenders. Redirect non-engineers — and any
+  // authed-but-unprovisioned user (getAuthContext throws → null) — to the
+  // dashboard rather than rendering the launcher. The backend re-enforces it too.
+  const gate = await getAuthContext().catch(() => null);
+  if (!gate || !isEngineer(gate.roles)) redirect("/dashboard");
+
   const store = await cookies();
   const current = asPreviewRole(store.get(PREVIEW_COOKIE)?.value);
 

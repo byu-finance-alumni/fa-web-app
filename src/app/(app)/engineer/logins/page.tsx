@@ -5,8 +5,9 @@ import { Topbar } from "@/components/shell/Topbar";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { redirect } from "next/navigation";
 import { PurgeLoginsButton } from "./PurgeLoginsButton";
-import { ROLE } from "@/constants/roles";
+import { isEngineer } from "@/constants/roles";
 
 interface LoginRow {
   login_event_id: number;
@@ -64,33 +65,15 @@ export default async function LoginsPage({
 }: {
   searchParams: Promise<SP>;
 }) {
-  let isEngineer = false;
-  let meId: number | null = null;
-  try {
-    const ctx = await getAuthContext();
-    isEngineer = ctx.roles?.includes(ROLE.ENGINEER) ?? false;
-    meId = ctx.user_id;
-  } catch {
-    /* fall through to the access-required screen */
-  }
-
-  if (!isEngineer) {
-    return (
-      <>
-        <Topbar breadcrumb={[{ label: "Engineer", href: "/engineer" }, { label: "Logins" }]} />
-        <main className="flex-1 overflow-auto p-6">
-          <Card className="p-10 text-center">
-            <p className="text-sm font-semibold text-gray-900">
-              Engineer access required
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              Only an engineer can view the login history.
-            </p>
-          </Card>
-        </main>
-      </>
-    );
-  }
+  // Role gate (defense-in-depth): logins are engineer-only. The /engineer/*
+  // route group is already gated in engineer/layout.tsx; this page-level check
+  // is belt-and-suspenders. Redirect non-engineers — and any authed-but-
+  // unprovisioned user (getAuthContext throws → null) — to the dashboard rather
+  // than rendering a dead-end "access required" shell. The backend re-enforces
+  // RequireEngineer on GET /admin/logins.
+  const gate = await getAuthContext().catch(() => null);
+  if (!gate || !isEngineer(gate.roles)) redirect("/dashboard");
+  const meId: number | null = gate.user_id;
 
   const sp = await searchParams;
   const offset = Math.max(0, Number(sp.offset ?? "0") || 0);

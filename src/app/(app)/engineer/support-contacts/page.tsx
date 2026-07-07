@@ -1,10 +1,11 @@
+import { redirect } from "next/navigation";
 import { apiGet, ApiError } from "@/lib/api";
+import { getAuthContext } from "@/lib/auth-context";
 import { Topbar } from "@/components/shell/Topbar";
 import { SupportContactsManager } from "@/components/admin/SupportContactsManager";
 import { Card } from "@/components/ui/card";
 import type { SupportContact } from "@/types/support";
-import type { UserContext } from "@/types/alumni";
-import { ROLE } from "@/constants/roles";
+import { isEngineer } from "@/constants/roles";
 
 /**
  * Engineer-only editor for the support contacts shown to signed-in users on the
@@ -13,31 +14,14 @@ import { ROLE } from "@/constants/roles";
  * RequireEngineer. Reading the list uses the view-access GET.
  */
 export default async function SupportContactsPage() {
-  let isEngineer = false;
-  try {
-    const ctx = await apiGet<UserContext>("/auth/context");
-    isEngineer = ctx.roles?.includes(ROLE.ENGINEER) ?? false;
-  } catch {
-    /* fall through to the access-required screen */
-  }
-
-  if (!isEngineer) {
-    return (
-      <>
-        <Topbar title="Support contacts" />
-        <main className="flex-1 overflow-auto p-6">
-          <Card className="p-10 text-center">
-            <p className="text-sm font-semibold text-gray-900">
-              Engineer access required
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              Only an engineer can manage support contacts.
-            </p>
-          </Card>
-        </main>
-      </>
-    );
-  }
+  // Role gate (defense-in-depth): support contacts are engineer-only. The
+  // /engineer/* route group is already gated in engineer/layout.tsx; this
+  // page-level check is belt-and-suspenders. Redirect non-engineers — and any
+  // authed-but-unprovisioned user (getAuthContext throws → null) — to the
+  // dashboard rather than rendering a dead-end "access required" shell. The
+  // backend re-enforces RequireEngineer on every write.
+  const gate = await getAuthContext().catch(() => null);
+  if (!gate || !isEngineer(gate.roles)) redirect("/dashboard");
 
   let contacts: SupportContact[] = [];
   let error: ApiError | null = null;
