@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Topbar } from "@/components/shell/Topbar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { MetricCard } from "@/components/shared/MetricCard";
 import { apiGet, ApiError } from "@/lib/api";
 import { hasFullAccess, isUserAdmin } from "@/constants/roles";
 import type { UserContext } from "@/types/alumni";
@@ -20,12 +21,18 @@ function money(value: number | null): string {
   });
 }
 
+/** Render a metric value, dimmed when the dollar figure is withheld. */
+function amountValue(text: string, showAmounts: boolean) {
+  return showAmounts ? text : <span className="text-gray-400">{text}</span>;
+}
+
 /**
- * Pay It Forward Fund tab (#161). Donor identity, the years each gave, and the
- * donor count are visible to every role; dollar AMOUNTS are shown only to
+ * Pay It Forward Fund tab (#161). The donor ledger requires the full_access tier
+ * to read (#278) — the backend 403s student / view_only ("Professor"), and the
+ * sidebar hides the nav for them. Dollar AMOUNTS are additionally gated to
  * full_access+ (the backend nulls them otherwise, so `null` renders as "—").
- * Super admins get the quick-add and CSV import entry points. The backend
- * re-enforces every gate.
+ * Add-donation and CSV import are admin-tier (super_admin+) via `canManage`. The
+ * backend re-enforces every gate.
  */
 export default async function PayItForwardPage() {
   let showAmounts = false;
@@ -59,97 +66,104 @@ export default async function PayItForwardPage() {
   }
   if (summaryRes.status === "fulfilled") summary = summaryRes.value;
 
+  const thisYear = summary?.per_year[0];
+
   return (
     <>
       <Topbar title="Pay It Forward" />
       <main className="flex-1 overflow-auto p-6">
-        {/* Summary + actions */}
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatCard label="Donors" value={String(summary?.donor_count ?? 0)} />
-            <StatCard
+        <div className="mx-auto max-w-6xl space-y-6">
+          {/* Page header */}
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="text-xl font-semibold tracking-tight text-gray-900">
+                Pay It Forward Fund
+              </h1>
+              <p className="mt-1 max-w-2xl text-sm text-gray-500">
+                Alumni giving back to the finance program. Every role can see who
+                gave and when; dollar figures are reserved for full-access staff.
+              </p>
+            </div>
+            {canManage && (
+              <div className="flex shrink-0 items-center gap-2">
+                <QuickAddDonation />
+                <Button asChild variant="secondary">
+                  <Link href="/pay-it-forward/import">Import CSV</Link>
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Fund summary */}
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <MetricCard label="Donors" value={summary?.donor_count ?? 0} />
+            <MetricCard
               label="Donations"
-              value={String(summary?.donation_count ?? 0)}
+              value={summary?.donation_count ?? 0}
             />
-            <StatCard
+            <MetricCard
               label="Total raised"
-              value={summary ? money(summary.total_raised) : "—"}
-              muted={!showAmounts}
+              value={amountValue(
+                summary ? money(summary.total_raised) : "—",
+                showAmounts,
+              )}
             />
-            <StatCard
-              label="This year"
-              value={
+            <MetricCard
+              label={thisYear ? `This year (${thisYear.year})` : "This year"}
+              value={amountValue(
                 summary
-                  ? money(summary.per_year[0]?.total ?? (showAmounts ? 0 : null))
-                  : "—"
-              }
-              hint={summary?.per_year[0] ? String(summary.per_year[0].year) : undefined}
-              muted={!showAmounts}
+                  ? money(thisYear?.total ?? (showAmounts ? 0 : null))
+                  : "—",
+                showAmounts,
+              )}
             />
           </div>
-          {canManage && (
-            <div className="flex shrink-0 items-center gap-2">
-              <QuickAddDonation />
-              <Button asChild variant="secondary">
-                <Link href="/pay-it-forward/import">Import CSV</Link>
-              </Button>
-            </div>
+
+          {!showAmounts && (
+            <p className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-500">
+              Donation amounts are restricted. You can see who gave and when, but
+              dollar figures are visible to full-access staff only.
+            </p>
+          )}
+
+          {/* Donor ledger */}
+          {error ? (
+            <Card className="flex flex-col items-center justify-center px-6 py-16 text-center">
+              <p className="text-sm font-semibold text-gray-900">
+                {error.status === 403
+                  ? "You don't have access to the Pay It Forward fund"
+                  : "Couldn't load donors"}
+              </p>
+              <p className="mt-1 max-w-sm text-sm text-gray-500">
+                {error.status === 403
+                  ? "The donor ledger is available to full-access staff. Ask an administrator if you need access."
+                  : error.message}
+              </p>
+            </Card>
+          ) : donors.length === 0 ? (
+            <Card className="flex flex-col items-center justify-center px-6 py-16 text-center">
+              <p className="text-sm font-semibold text-gray-900">
+                No donations recorded yet
+              </p>
+              <p className="mt-1 max-w-sm text-sm text-gray-500">
+                {canManage
+                  ? "Use Add donation to log a single gift, or Import CSV to bulk-load from a spreadsheet."
+                  : "Gifts will appear here once they're recorded."}
+              </p>
+            </Card>
+          ) : (
+            <section className="space-y-3">
+              <div className="flex items-baseline justify-between">
+                <h2 className="text-sm font-semibold text-gray-900">Donors</h2>
+                <span className="text-xs tabular-nums text-gray-500">
+                  {donors.length} shown
+                </span>
+              </div>
+              <DonorTable donors={donors} showAmounts={showAmounts} />
+            </section>
           )}
         </div>
-
-        {!showAmounts && (
-          <p className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-500">
-            Donation amounts are restricted. You can see who gave and when, but
-            dollar figures are visible to full-access staff only.
-          </p>
-        )}
-
-        {error ? (
-          <Card className="p-10 text-center">
-            <p className="text-sm font-semibold text-gray-900">
-              {error.status === 403
-                ? "Your account isn't provisioned yet"
-                : "Couldn't load donors"}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">{error.message}</p>
-          </Card>
-        ) : donors.length === 0 ? (
-          <Card className="p-10 text-center text-sm text-gray-500">
-            No donations recorded yet.
-            {canManage ? " Use Add donation or Import CSV to get started." : ""}
-          </Card>
-        ) : (
-          <DonorTable donors={donors} showAmounts={showAmounts} />
-        )}
       </main>
     </>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  hint,
-  muted,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  muted?: boolean;
-}) {
-  return (
-    <Card className="p-4">
-      <span className="block text-xs font-semibold uppercase tracking-wide text-gray-500">
-        {label}
-        {hint ? <span className="ml-1 normal-case text-gray-400">({hint})</span> : null}
-      </span>
-      <p
-        className={`mt-1.5 text-2xl font-semibold tabular-nums tracking-tight ${
-          muted ? "text-gray-400" : "text-gray-900"
-        }`}
-      >
-        {value}
-      </p>
-    </Card>
   );
 }
