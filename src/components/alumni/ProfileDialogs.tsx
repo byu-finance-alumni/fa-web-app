@@ -40,6 +40,7 @@ import {
   TAG_OPTIONS,
 } from "@/constants/dropdowns";
 import { clientGet } from "@/lib/api-client";
+import { useVocabOptions, withValue } from "@/hooks/useVocabOptions";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -222,14 +223,14 @@ function InteractionFields({
   type: string;
   setType: (v: string) => void;
 }) {
-  // Preserve a stored type that isn't one of the preset options (e.g. an
-  // older/imported value): show it as a selectable option so editing an
-  // unrelated field doesn't silently overwrite it with the first preset.
+  // Options come from the editable vocabulary (Admin → Vocabulary) so admin
+  // edits show up here; INTERACTION_TYPES is the fallback until it loads / on
+  // error. Preserve a stored type that isn't in the active list (e.g. an
+  // older/imported or since-hidden value) so editing an unrelated field doesn't
+  // silently overwrite it with the first option.
   const current = row?.interaction_type ?? null;
-  const typeOptions: readonly string[] =
-    current && !(INTERACTION_TYPES as readonly string[]).includes(current)
-      ? [current, ...INTERACTION_TYPES]
-      : INTERACTION_TYPES;
+  const vocabTypes = useVocabOptions("interaction_type", INTERACTION_TYPES);
+  const typeOptions = withValue(vocabTypes, current);
   return (
     <div className="space-y-3">
       <div>
@@ -809,6 +810,12 @@ export function AddRoleButton({
 
 /** The shared field set for the add/edit employment forms. */
 function EmploymentFields({ row }: { row?: EmploymentHistory }) {
+  // Industry options from the editable vocabulary (Admin → Vocabulary), keeping
+  // any stored value that's no longer active so an edit never drops it.
+  const industryOptions = withValue(
+    useVocabOptions("industry", INDUSTRY_OPTIONS),
+    row?.employment_industry,
+  );
   return (
     <div className="space-y-3">
       <div>
@@ -844,7 +851,7 @@ function EmploymentFields({ row }: { row?: EmploymentHistory }) {
           defaultValue={row?.employment_industry ?? ""}
         >
           <option value="">—</option>
-          {INDUSTRY_OPTIONS.map((opt) => (
+          {industryOptions.map((opt) => (
             <option key={opt} value={opt}>
               {opt}
             </option>
@@ -1492,6 +1499,14 @@ export function AddEventButton({
   );
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  // Attendance-status options from the editable vocabulary (Admin → Vocabulary);
+  // fetched only once the dialog opens (like the events list below). Falls back
+  // to the constant until it loads / on error.
+  const statusOptions = useVocabOptions(
+    "attendance_status",
+    ATTENDANCE_STATUS_OPTIONS,
+    open,
+  );
 
   // Fetch the events list the first time the dialog opens.
   useEffect(() => {
@@ -1591,7 +1606,7 @@ export function AddEventButton({
                 value={statusVal}
                 onChange={(e) => setStatusVal(e.target.value)}
               >
-                {ATTENDANCE_STATUS_OPTIONS.map((opt) => (
+                {statusOptions.map((opt) => (
                   <option key={opt} value={opt}>
                     {opt}
                   </option>

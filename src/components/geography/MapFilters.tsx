@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { INDUSTRY_OPTIONS } from "@/constants/dropdowns";
+import { useVocabOptions, withValue } from "@/hooks/useVocabOptions";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -50,6 +51,13 @@ export function MapFilters({
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  // Industry options from the editable vocabulary (Admin → Vocabulary) so admin
+  // edits show up here, rather than the hardcoded constant. Keep the currently
+  // selected value even if it's no longer active so the filter still reflects it.
+  const industryOptions = withValue(
+    useVocabOptions("industry", INDUSTRY_OPTIONS),
+    values.industry,
+  );
 
   const activeCount = FILTER_KEYS.filter((k) => values[k]).length;
 
@@ -121,7 +129,7 @@ export function MapFilters({
               name="industry"
               label="Industry"
               value={values.industry}
-              options={INDUSTRY_OPTIONS}
+              options={industryOptions}
             />
             <Filter
               name="year"

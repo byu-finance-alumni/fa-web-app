@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { FormState, PreviewState } from "@/app/(app)/alumni/actions";
 import type { Alumni, HygienePreview } from "@/types/alumni";
 import { INDUSTRY_OPTIONS } from "@/constants/dropdowns";
+import { useVocabOptions, withValue } from "@/hooks/useVocabOptions";
 import { SpousePicker } from "@/components/alumni/SpousePicker";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -478,6 +479,10 @@ export function AlumniForm({
   // the section (or field) is absent, so the Add page renders blank inputs.
   const contact = (name: string) => defaults?.contact?.[name] ?? "";
   const career = (name: string) => defaults?.career?.[name] ?? "";
+  // Industry options come from the editable vocabulary (Admin → Vocabulary), not
+  // the hardcoded constant, so admin edits show up here. Falls back to the
+  // constant until the fetch resolves / on error so the select is never blank.
+  const industryOptions = useVocabOptions("industry", INDUSTRY_OPTIONS);
   const education = (name: string) => defaults?.education?.[name] ?? "";
   const flag = (name: string) =>
     defaults?.engagement?.flags?.[name] ?? false;
@@ -689,14 +694,17 @@ export function AlumniForm({
           <SelectField
             label="Industry"
             name="career.current_industry"
-            options={INDUSTRY_OPTIONS}
+            options={withValue(industryOptions, career("current_industry"))}
             defaultValue={career("current_industry")}
             error={errors["career.current_industry"]}
           />
           <SelectField
             label="Secondary industry"
             name="career.current_industry_secondary"
-            options={INDUSTRY_OPTIONS}
+            options={withValue(
+              industryOptions,
+              career("current_industry_secondary"),
+            )}
             defaultValue={career("current_industry_secondary")}
             error={errors["career.current_industry_secondary"]}
           />
