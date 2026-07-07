@@ -66,7 +66,14 @@ async function handle<T>(res: Response): Promise<T> {
     }
     throw new ApiError(res.status, message, fields);
   }
-  return (await res.json()) as T;
+  // A 204 No Content (and any other empty body — e.g. DELETE /notes/{id}) has
+  // nothing to parse; calling res.json() on it throws a SyntaxError, which is
+  // NOT an ApiError, so callers surface their generic fallback ("Couldn't delete
+  // the note.") on what was actually a success. Read as text and only parse when
+  // there's a body.
+  if (res.status === 204) return undefined as T;
+  const text = await res.text();
+  return (text ? (JSON.parse(text) as T) : (undefined as T));
 }
 
 /** Opt-in Next data-cache settings for slow-changing aggregate GETs. */
