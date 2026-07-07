@@ -2431,6 +2431,29 @@ export interface paths {
         patch: operations["update_vocabulary_term_admin_vocabulary__term_id__patch"];
         trace?: never;
     };
+    "/admin/vocabulary/{term_id}/permanent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Vocabulary Term
+         * @description Permanently remove a term (hard delete), unlike the soft-delete DELETE
+         *     above. Existing records that already stored this value keep it — only the
+         *     managed option is removed, so it no longer appears in any admin list or
+         *     dropdown and cannot be restored. Writes an audit row. 404 if missing.
+         */
+        delete: operations["delete_vocabulary_term_admin_vocabulary__term_id__permanent_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/support-contacts": {
         parameters: {
             query?: never;
@@ -8975,6 +8998,35 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["VocabularyTermRead"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_vocabulary_term_admin_vocabulary__term_id__permanent_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                term_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

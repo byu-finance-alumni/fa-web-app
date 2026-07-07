@@ -68,3 +68,21 @@ export async function setVocabTermActive(
   revalidate();
   return null;
 }
+
+/**
+ * Permanently remove a term (hard delete) via the dedicated `/permanent` route —
+ * distinct from {@link setVocabTermActive}(id, false), which only hides it. The
+ * value stays on any existing records that already used it; it just disappears
+ * from every admin list and dropdown and can't be restored.
+ */
+export async function deleteVocabTerm(termId: number): Promise<Result> {
+  try {
+    await apiDelete(`/admin/vocabulary/${termId}/permanent`);
+  } catch (e) {
+    return {
+      error: e instanceof ApiError ? e.message : "Failed to delete term.",
+    };
+  }
+  revalidate();
+  return null;
+}
