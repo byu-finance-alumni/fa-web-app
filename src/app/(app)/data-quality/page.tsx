@@ -143,8 +143,8 @@ export default async function DataQualityPage() {
                 <CardContent>
                   <ul className="space-y-4">
                     {coverage.map((c) => {
-                      const pct = pctMissing(c.missing);
                       const present = total - c.missing;
+                      const pctPresent = 100 - pctMissing(c.missing);
                       return (
                         <li key={c.label}>
                           <div className="flex items-baseline justify-between gap-3">
@@ -163,23 +163,24 @@ export default async function DataQualityPage() {
                                     : "font-semibold text-success-600"
                                 }
                               >
-                                {pct.toFixed(1)}% missing
+                                {pctPresent.toFixed(1)}% on file
                               </span>
                             </span>
                           </div>
-                          {/* Bar fills with the MISSING share (the problem),
-                              tinted warning. */}
+                          {/* Bar fills with the COVERAGE share (data on file):
+                              full + green when complete, otherwise a partial
+                              bar tinted warning to flag the remaining gap. */}
                           <Progress
-                            value={pct}
+                            value={pctPresent}
                             className="mt-2"
                             barClassName={
                               c.missing > 0
                                 ? "bg-warning-600"
                                 : "bg-success-600"
                             }
-                            aria-label={`${c.label}: ${pct.toFixed(
+                            aria-label={`${c.label}: ${pctPresent.toFixed(
                               1,
-                            )}% of active alumni missing`}
+                            )}% of active alumni on file`}
                           />
                           {c.missing > 0 && (
                             <div className="mt-1.5">
