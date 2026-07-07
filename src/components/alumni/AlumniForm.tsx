@@ -198,22 +198,36 @@ function Field({
   label,
   name,
   defaultValue,
+  value,
   type = "text",
   error,
   onBlur,
+  onChange,
   required,
   placeholder,
+  hint,
 }: {
   label: string;
   name: string;
   defaultValue?: string;
+  /** When provided, the input renders CONTROLLED (value + onChange). Leave
+   * undefined for the default uncontrolled (`defaultValue`) behavior. */
+  value?: string;
   type?: string;
   error?: string;
   onBlur?: (name: string, value: string) => void;
+  /** Fires on every keystroke with the field's current value. Works for both
+   * controlled fields (to update state) and uncontrolled ones (to react to
+   * changes without owning the value). */
+  onChange?: (name: string, value: string) => void;
   required?: boolean;
   placeholder?: string;
+  /** Optional muted helper line shown under the field (non-error). */
+  hint?: string;
 }) {
   const errorId = error ? `${name}-error` : undefined;
+  const hintId = hint ? `${name}-hint` : undefined;
+  const controlled = value !== undefined;
   return (
     <div>
       <FieldLabel htmlFor={name} required={required}>
@@ -223,15 +237,18 @@ function Field({
         id={name}
         name={name}
         type={type}
-        defaultValue={defaultValue}
+        // Controlled when `value` is supplied; otherwise uncontrolled via
+        // `defaultValue` (React forbids passing both).
+        {...(controlled ? { value } : { defaultValue })}
         placeholder={placeholder}
         // Off so the browser can't inject/duplicate autofill text into these
         // uncontrolled fields (the only path that could render e.g. a doubled
         // "FinanceFinance" department value; the stored data is single).
         autoComplete="off"
         aria-invalid={error ? true : undefined}
-        aria-describedby={errorId}
+        aria-describedby={errorId ?? hintId}
         onBlur={onBlur ? (e) => onBlur(name, e.target.value) : undefined}
+        onChange={onChange ? (e) => onChange(name, e.target.value) : undefined}
         className={cn(
           error && "border-danger-600 focus-visible:ring-danger-600",
         )}
@@ -239,6 +256,10 @@ function Field({
       {error ? (
         <p id={errorId} className="mt-1 text-xs text-danger-600">
           {error}
+        </p>
+      ) : hint ? (
+        <p id={hintId} className="mt-1 text-xs text-brand-blue-600">
+          {hint}
         </p>
       ) : null}
     </div>
@@ -482,6 +503,40 @@ export function AlumniForm({
   const flag = (name: string) =>
     defaults?.engagement?.flags?.[name] ?? false;
 
+  // --- Work email follows the current employer (#293) ---------------------
+  // A stored work email is tied to the old employer's domain, so when the
+  // current employer changes on an EXISTING record we clear the work email and
+  // prompt for the new one — a stale address is worse than a blank one.
+  //
+  // Only relevant when editing (an alumni id is present); a brand-new blank
+  // form has no prior employer/email to reconcile. The work email is rendered
+  // controlled off `workEmail` so we can clear it; the employer stays
+  // uncontrolled and just notifies us on change. `initialEmployer` is captured
+  // from props (stable for this record) as the baseline to diverge from.
+  const isEdit = defaults?.alumni_id != null;
+  const initialEmployer = (defaults?.career?.current_employer ?? "").trim();
+  const [workEmail, setWorkEmail] = useState(contact("work_email"));
+  const [workEmailCleared, setWorkEmailCleared] = useState(false);
+
+  const handleEmployerChange = (_name: string, value: string) => {
+    if (!isEdit) return;
+    const changed = value.trim() !== initialEmployer;
+    if (changed) {
+      // Employer diverged from the stored one — drop the now-stale work email
+      // once and surface the prompt. Guarded so we don't fight the user if
+      // they start typing a replacement address.
+      if (!workEmailCleared) {
+        setWorkEmail("");
+        setWorkEmailCleared(true);
+      }
+    } else if (workEmailCleared) {
+      // Reverted to the original employer — restore the original email and
+      // dismiss the prompt.
+      setWorkEmail(contact("work_email"));
+      setWorkEmailCleared(false);
+    }
+  };
+
   /* --- Core section (shared by add + edit) ------------------------------- */
   const coreSection = (
     <Section title="Core">
@@ -608,8 +663,14 @@ export function AlumniForm({
             label="Work email"
             name="contact.work_email"
             type="email"
-            defaultValue={contact("work_email")}
+            value={workEmail}
+            onChange={(_n, v) => setWorkEmail(v)}
             error={errors["contact.work_email"]}
+            hint={
+              workEmailCleared
+                ? "Cleared — the previous work email was tied to the old employer. Add the new one."
+                : undefined
+            }
           />
         </div>
         <Field
@@ -677,6 +738,9 @@ export function AlumniForm({
             name="career.current_employer"
             defaultValue={career("current_employer")}
             error={errors["career.current_employer"]}
+            // When the employer changes on an existing record, clear the stale
+            // work email tied to the old company (#293).
+            onChange={handleEmployerChange}
           />
           <Field
             label="Title"
