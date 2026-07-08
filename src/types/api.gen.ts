@@ -3463,6 +3463,8 @@ export interface components {
             country?: string | null;
             /** Region */
             region?: string | null;
+            /** Preferred Contact Method */
+            preferred_contact_method?: string | null;
         };
         /** ContactRead */
         ContactRead: {
@@ -3488,6 +3490,8 @@ export interface components {
             country: string | null;
             /** Region */
             region: string | null;
+            /** Preferred Contact Method */
+            preferred_contact_method: string | null;
         };
         /**
          * CountryCount
