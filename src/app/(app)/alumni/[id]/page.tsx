@@ -16,7 +16,12 @@ import { apiGet, ApiError } from "@/lib/api";
 import { daysAgo } from "@/lib/format";
 import type { Contact, Profile } from "@/types/profile";
 import type { UserContext } from "@/types/alumni";
-import { canAddInteraction, canEditAlumni, hasFullAccess } from "@/constants/roles";
+import {
+  canAddInteraction,
+  canEditAlumni,
+  hasFullAccess,
+  isUserAdmin,
+} from "@/constants/roles";
 import { Topbar } from "@/components/shell/Topbar";
 import { TopbarSearch } from "@/components/shared/TopbarSearch";
 import {
@@ -307,6 +312,10 @@ export default async function AlumniProfilePage({
   let canEdit = false;
   let canArchive = false;
   let canAdd = false;
+  // Deleting a donation is now the donations.manage tier (super_admin+), matching
+  // the tightened backend gate — separate from canArchive (full_access) which
+  // still governs archive/notes.
+  let canDeleteDonation = false;
   // Profile-completeness tab is gated by the editable `profile.completeness`
   // capability (default: super_admin + engineer), toggleable per role in the
   // Engineer Console permission editor. NOTE (#189): this is a CLIENT-SIDE
@@ -320,6 +329,7 @@ export default async function AlumniProfilePage({
     const ctx = await apiGet<UserContext>("/auth/context");
     canEdit = canEditAlumni(ctx.roles);
     canArchive = hasFullAccess(ctx.roles);
+    canDeleteDonation = isUserAdmin(ctx.roles);
     canAdd = canAddInteraction(ctx.roles);
     canViewCompleteness = (ctx.capabilities ?? []).includes(
       "profile.completeness",
@@ -556,14 +566,25 @@ export default async function AlumniProfilePage({
             ) : null}
           </div>
 
-          {/* KPI strip — 5 non-sensitive tiles, shown for every role.
-              NOTE (#291): "Graduating class" surfaces the year only. A combined
-              graduation month+year is pending a future backend
-              `graduation_month`/`graduation_date` field — do not invent it. */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {/* KPI strip — 6 non-sensitive tiles, shown for every role.
+              (#291) "Graduating class" is the cohort year; "Graduated" is the
+              specific month+year once a graduation_month is on file. */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <MetricCard
               label="Graduating class"
               value={a.graduation_year ? `Class of ${a.graduation_year}` : "—"}
+            />
+            <MetricCard
+              label="Graduated"
+              value={
+                a.graduation_month && a.graduation_year
+                  ? `${new Date(
+                      a.graduation_year,
+                      a.graduation_month - 1,
+                      1,
+                    ).toLocaleString("en-US", { month: "long" })} ${a.graduation_year}`
+                  : "—"
+              }
             />
             <MetricCard label="Interactions" value={profile.interaction_count} />
             <MetricCard label="Events attended" value={profile.events.length} />
@@ -1493,12 +1514,11 @@ export default async function AlumniProfilePage({
               // Only present when the alumnus has donations; shown to every role
               // (amounts gated server-side). The tab is omitted otherwise.
               donations ? (
-                // canArchive === hasFullAccess(roles); the admin tier
-                // (full_access+) gets the per-gift delete control (H4), matching
-                // the DELETE /donations/{id} gate and the event-delete gate.
+                // Per-gift delete is now the donations.manage tier (super_admin+),
+                // matching the tightened DELETE /donations/{id} gate (#296).
                 <AlumniPayItForwardPanel
                   data={donations}
-                  canDelete={canArchive}
+                  canDelete={canDeleteDonation}
                 />
               ) : undefined
             }

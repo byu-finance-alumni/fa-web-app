@@ -94,6 +94,7 @@ function buildPayload(formData: FormData): Record<string, unknown> {
     net_id: str("net_id"),
     birth_date: str("birth_date"),
     graduation_year: num("graduation_year"),
+    graduation_month: num("graduation_month"),
     gender: str("gender"),
     spouse_first_name: str("spouse_first_name"),
     spouse_last_name: str("spouse_last_name"),
