@@ -17,6 +17,14 @@ import { Label } from "@/components/ui/label";
 
 type Action = (prev: FormState, formData: FormData) => Promise<FormState>;
 
+/** Month options for the graduation-month picker (value 1-12, matching the
+ *  backend `graduation_month` int). BYU convocations are April/August/December,
+ *  but all 12 months are offered for flexibility. */
+const GRAD_MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+].map((label, i) => ({ value: i + 1, label }));
+
 /** Runs the server-side hygiene preview for the current form's FormData. The
  * Add page binds {@link previewAlumni}; the Edit page binds
  * {@link previewAlumniUpdate} with the alumni id already applied. */
@@ -587,7 +595,7 @@ export function AlumniForm({
             onBlur={handleBlur}
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <Field
             label="Graduation year"
             name="graduation_year"
@@ -596,6 +604,21 @@ export function AlumniForm({
             error={errors.graduation_year}
             onBlur={handleBlur}
           />
+          <div>
+            <FieldLabel htmlFor="graduation_month">Graduation month</FieldLabel>
+            <Select
+              id="graduation_month"
+              name="graduation_month"
+              defaultValue={defaults?.graduation_month?.toString() ?? ""}
+            >
+              <option value="">—</option>
+              {GRAD_MONTHS.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </Select>
+          </div>
           <Field
             label="Gender"
             name="gender"

@@ -324,8 +324,10 @@ export interface paths {
         };
         /**
          * Alumni Import Template
-         * @description Download the bulk-import CSV template: the exact Alumni columns plus one
-         *     example row (full_access). Same column source as the xlsx intake template.
+         * @description Download the bulk-import CSV template (full_access). ``kind=alumni`` (the
+         *     default) returns the full Alumni columns; ``kind=friend`` returns the curated
+         *     friend (non-alumni contact) column set (#294). Same column source as the xlsx
+         *     intake template.
          */
         get: operations["alumni_import_template_alumni_import_template_get"];
         put?: never;
@@ -349,7 +351,8 @@ export interface paths {
          * Preview Import Alumni
          * @description Dry-run a bulk CSV import (full_access, NO writes).
          *
-         *     Parses + maps the uploaded CSV against the Alumni template columns, then
+         *     Parses + maps the uploaded CSV against the template columns for ``kind``
+         *     (``alumni`` default, or ``friend`` for non-alumni contacts, #294), then
          *     evaluates every row (clean + duplicate-detect against the DB and earlier
          *     rows in the file + completeness warnings). Returns the full preview report;
          *     a bad header set surfaces as ``columns_ok: false`` with ``header_errors``.
@@ -372,9 +375,11 @@ export interface paths {
         put?: never;
         /**
          * Import Alumni
-         * @description Commit a bulk CSV import (full_access). Re-evaluates and inserts every
-         *     importable row in one transaction (audit logging fires per row); rejected
-         *     rows are skipped and reported. A bad header set imports nothing.
+         * @description Commit a bulk CSV import (full_access). ``kind=friend`` imports non-alumni
+         *     contacts (``is_alumni=false``, #294); ``kind=alumni`` (default) imports
+         *     alumni. Re-evaluates and inserts every importable row in one transaction
+         *     (audit logging fires per row); rejected rows are skipped and reported. A bad
+         *     header set imports nothing.
          */
         post: operations["import_alumni_alumni_import_post"];
         delete?: never;
@@ -1890,14 +1895,14 @@ export interface paths {
         post?: never;
         /**
          * Delete Donation
-         * @description Delete a donation (full_access and up). 404 if unknown. Audits the write
-         *     (entity_type "donation", action "delete") with the actor's user id — the
-         *     DB trigger snapshots the actor email for the FERPA trail. Returns 204.
+         * @description Delete a donation (donations.manage tier: super_admin / engineer). 404 if
+         *     unknown. Audits the write (entity_type "donation", action "delete") with the
+         *     actor's user id — the DB trigger snapshots the actor email for the FERPA
+         *     trail. Returns 204.
          *
-         *     Gated to the ``alumni.full`` admin tier (full_access / super_admin /
-         *     engineer), matching the other destructive data-management writes (event
-         *     delete, alumni archive). Broadened from the original super_admin-only gate
-         *     during QA hardening (H4).
+         *     Gated to the ``donations.manage`` tier (super_admin / engineer), matching the
+         *     other donation writes (add / update). Tightened back from the temporary
+         *     ``alumni.full`` gate so full_access can no longer delete donations.
          */
         delete: operations["delete_donation_donations__donation_id__delete"];
         options?: never;
@@ -2639,6 +2644,8 @@ export interface components {
             birth_date: string | null;
             /** Graduation Year */
             graduation_year: number | null;
+            /** Graduation Month */
+            graduation_month: number | null;
             /** Finance Program Year */
             finance_program_year: number | null;
             /** Graduate Degree */
@@ -2938,6 +2945,8 @@ export interface components {
             birth_date: string | null;
             /** Graduation Year */
             graduation_year: number | null;
+            /** Graduation Month */
+            graduation_month: number | null;
             /** Finance Program Year */
             finance_program_year: number | null;
             /** Graduate Degree */
@@ -3044,6 +3053,8 @@ export interface components {
             birth_date: string | null;
             /** Graduation Year */
             graduation_year: number | null;
+            /** Graduation Month */
+            graduation_month: number | null;
             /** Finance Program Year */
             finance_program_year: number | null;
             /** Graduate Degree */
@@ -3133,6 +3144,8 @@ export interface components {
             birth_date: string | null;
             /** Graduation Year */
             graduation_year: number | null;
+            /** Graduation Month */
+            graduation_month: number | null;
             /** Finance Program Year */
             finance_program_year: number | null;
             /** Graduate Degree */
@@ -5694,7 +5707,9 @@ export interface operations {
     };
     alumni_import_template_alumni_import_template_get: {
         parameters: {
-            query?: never;
+            query?: {
+                kind?: "alumni" | "friend";
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5710,11 +5725,22 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     preview_import_alumni_alumni_import_preview_post: {
         parameters: {
-            query?: never;
+            query?: {
+                kind?: "alumni" | "friend";
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5747,7 +5773,9 @@ export interface operations {
     };
     import_alumni_alumni_import_post: {
         parameters: {
-            query?: never;
+            query?: {
+                kind?: "alumni" | "friend";
+            };
             header?: never;
             path?: never;
             cookie?: never;
