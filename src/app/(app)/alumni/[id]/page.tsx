@@ -109,10 +109,66 @@ function HeaderContact({
       )
     : null;
 
-  if (!email && !phone && !mailing && !linkedinUrl) return null;
+  // Resolve the flagged preferred method (#301) to a concrete, reachable target,
+  // honoring the SAME PII gate as the rows above: personal/work email + phone are
+  // editor-only, LinkedIn is visible to every role. If the target is empty or
+  // gated away for this viewer we fall back to null (no marker) so we never leak
+  // PII or point at a blank field.
+  let preferred: { label: string; value: string; href: string } | null = null;
+  switch (contact?.preferred_contact_method) {
+    case "personal_email":
+      if (canViewContactDetails && contact?.personal_email)
+        preferred = {
+          label: "Personal email",
+          value: contact.personal_email,
+          href: `mailto:${contact.personal_email}`,
+        };
+      break;
+    case "work_email":
+      if (canViewContactDetails && contact?.work_email)
+        preferred = {
+          label: "Work email",
+          value: contact.work_email,
+          href: `mailto:${contact.work_email}`,
+        };
+      break;
+    case "phone":
+      if (canViewContactDetails && contact?.phone)
+        preferred = {
+          label: "Phone",
+          value: contact.phone,
+          href: `tel:${contact.phone}`,
+        };
+      break;
+    case "linkedin":
+      if (linkedinUrl)
+        preferred = { label: "LinkedIn", value: "LinkedIn", href: linkedinUrl };
+      break;
+    default:
+      break;
+  }
+
+  if (!email && !phone && !mailing && !linkedinUrl && !preferred) return null;
 
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
+      {preferred ? (
+        <a
+          href={preferred.href}
+          target={preferred.href.startsWith("http") ? "_blank" : undefined}
+          rel={
+            preferred.href.startsWith("http") ? "noopener noreferrer" : undefined
+          }
+          className="inline-flex items-center gap-1 font-semibold text-brand-blue-600 hover:text-brand-blue-500"
+          title={`Preferred contact method: ${preferred.label}`}
+        >
+          <span aria-hidden="true">★</span>
+          {preferred.value}
+          <span className="text-xs font-normal text-gray-500">
+            · Preferred
+          </span>
+        </a>
+      ) : null}
       {email ? (
         <a
           href={`mailto:${email}`}
@@ -176,12 +232,16 @@ function ContactField({
   value,
   href,
   hrefLabel,
+  preferred = false,
 }: {
   icon: LucideIcon;
   label: string;
   value: string | null;
   href?: string;
   hrefLabel?: string;
+  /** When true, marks this row as the alumnus's preferred contact method (#301)
+   *  with a text star (★) next to the label. */
+  preferred?: boolean;
 }) {
   return (
     <div className="flex items-start gap-3">
@@ -191,6 +251,14 @@ function ContactField({
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
           {label}
+          {preferred ? (
+            <span
+              className="ml-1 text-brand-blue-600"
+              title="Preferred contact method"
+            >
+              ★<span className="sr-only"> (preferred)</span>
+            </span>
+          ) : null}
         </p>
         {value && href ? (
           // The value itself is clickable (mailto:/tel:/https:), not just the
@@ -655,6 +723,7 @@ export default async function AlumniProfilePage({
                           value={c.personal_email}
                           href={c.personal_email ? `mailto:${c.personal_email}` : undefined}
                           hrefLabel="Send"
+                          preferred={c.preferred_contact_method === "personal_email"}
                         />
                         <ContactField
                           icon={Mail}
@@ -662,6 +731,7 @@ export default async function AlumniProfilePage({
                           value={c.work_email}
                           href={c.work_email ? `mailto:${c.work_email}` : undefined}
                           hrefLabel="Send"
+                          preferred={c.preferred_contact_method === "work_email"}
                         />
                         <ContactField
                           icon={Phone}
@@ -669,6 +739,7 @@ export default async function AlumniProfilePage({
                           value={c.phone}
                           href={c.phone ? `tel:${c.phone}` : undefined}
                           hrefLabel="Call"
+                          preferred={c.preferred_contact_method === "phone"}
                         />
                       </>
                     ) : null}
@@ -678,6 +749,7 @@ export default async function AlumniProfilePage({
                       value={a.linkedin_url}
                       href={a.linkedin_url ?? undefined}
                       hrefLabel="Open ↗"
+                      preferred={c.preferred_contact_method === "linkedin"}
                     />
                     {canViewContactDetails ? (
                       <ContactField

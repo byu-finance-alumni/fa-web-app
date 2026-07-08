@@ -25,6 +25,15 @@ const GRAD_MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ].map((label, i) => ({ value: i + 1, label }));
 
+/** Options for the "Preferred contact method" picker (#301). Values match the
+ *  backend `contact.preferred_contact_method` enum; a blank value means "none". */
+const PREFERRED_CONTACT_METHODS = [
+  { value: "personal_email", label: "Personal email" },
+  { value: "work_email", label: "Work email" },
+  { value: "phone", label: "Phone" },
+  { value: "linkedin", label: "LinkedIn" },
+] as const;
+
 /** Runs the server-side hygiene preview for the current form's FormData. The
  * Add page binds {@link previewAlumni}; the Edit page binds
  * {@link previewAlumniUpdate} with the alumni id already applied. */
@@ -753,6 +762,23 @@ export function AlumniForm({
           defaultValue={contact("region")}
           error={errors["contact.region"]}
         />
+        <div>
+          <FieldLabel htmlFor="contact.preferred_contact_method">
+            Preferred contact method
+          </FieldLabel>
+          <Select
+            id="contact.preferred_contact_method"
+            name="contact.preferred_contact_method"
+            defaultValue={contact("preferred_contact_method")}
+          >
+            <option value="">— None —</option>
+            {PREFERRED_CONTACT_METHODS.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </Select>
+        </div>
       </div>
     </Section>
   );

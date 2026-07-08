@@ -164,6 +164,10 @@ function buildCreatePayload(formData: FormData): Record<string, unknown> {
     { name: "zip" },
     { name: "country" },
     { name: "region" },
+    // One of "personal_email" | "work_email" | "phone" | "linkedin" (or absent
+    // when the picker's "— None —" option is selected). Flows through the
+    // contact section to ContactCreate.preferred_contact_method (#301).
+    { name: "preferred_contact_method" },
   ]);
 
   const career = buildSection(formData, "career", [
