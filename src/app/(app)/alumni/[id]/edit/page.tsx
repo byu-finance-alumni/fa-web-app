@@ -70,6 +70,7 @@ export default async function EditAlumniPage({
           zip: s(c.zip),
           country: s(c.country),
           region: s(c.region),
+          preferred_contact_method: s(c.preferred_contact_method),
         }
       : undefined,
     career: career
