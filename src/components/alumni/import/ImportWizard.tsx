@@ -17,6 +17,7 @@ import {
   previewImport,
   commitImport,
   downloadImportTemplate,
+  type ImportKind,
 } from "@/app/(app)/alumni/actions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -49,7 +50,18 @@ const isCsv = (file: File) =>
   file.type === "text/csv" ||
   file.type === "application/vnd.ms-excel";
 
-export function ImportWizard() {
+/**
+ * Copy/routing that differs by roster. `kind` also flows through to the three
+ * import server actions (`?kind=…`) so the backend picks the right template and
+ * stamps `is_alumni` correctly. Defaults to `alumni` so the alumni import is
+ * byte-for-byte unchanged.
+ */
+export function ImportWizard({ kind = "alumni" }: { kind?: ImportKind }) {
+  const isFriend = kind === "friend";
+  const noun = isFriend ? "friends" : "alumni";
+  const listPath = isFriend ? "/friends" : "/alumni";
+  const listLabel = isFriend ? "Friends" : "Alumni";
+
   const [step, setStep] = useState<Step>("upload");
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -91,7 +103,7 @@ export function ImportWizard() {
     if (!file) return;
     setPreviewError(null);
     startChecking(async () => {
-      const res = await previewImport(fileForm(file));
+      const res = await previewImport(fileForm(file), kind);
       if (res.ok) {
         setPreview(res.data);
         setStep("review");
@@ -105,7 +117,7 @@ export function ImportWizard() {
     if (!file) return;
     setImportError(null);
     startImporting(async () => {
-      const res = await commitImport(fileForm(file));
+      const res = await commitImport(fileForm(file), kind);
       if (res.ok) {
         setResult(res.data);
         setStep("result");
@@ -118,9 +130,9 @@ export function ImportWizard() {
   const onTemplate = () => {
     setTemplateError(null);
     startTemplate(async () => {
-      const res = await downloadImportTemplate();
+      const res = await downloadImportTemplate(kind);
       if (res.ok) {
-        downloadCsv("alumni-import-template.csv", res.csv);
+        downloadCsv(`${noun}-import-template.csv`, res.csv);
       } else {
         setTemplateError(res.error);
       }
@@ -141,7 +153,7 @@ export function ImportWizard() {
         [esc(String(r.row)), esc(r.name), esc(r.reason)].join(","),
       ),
     ];
-    downloadCsv("alumni-import-rejects.csv", lines.join("\r\n"));
+    downloadCsv(`${noun}-import-rejects.csv`, lines.join("\r\n"));
   };
 
   const resetToUpload = () => {
@@ -154,15 +166,17 @@ export function ImportWizard() {
     <div className="mx-auto max-w-5xl">
       {/* Always-available way out if someone lands here by accident (#257). */}
       <Link
-        href="/alumni"
+        href={listPath}
         className="mb-4 inline-block text-sm font-medium text-brand-blue-600 hover:underline"
       >
-        ← Back to Alumni
+        ← Back to {listLabel}
       </Link>
       <StepHeader step={step} />
 
       {step === "upload" && (
         <UploadStep
+          noun={noun}
+          listPath={listPath}
           file={file}
           fileError={fileError}
           dragOver={dragOver}
@@ -190,6 +204,9 @@ export function ImportWizard() {
 
       {step === "result" && result && (
         <ResultStep
+          noun={noun}
+          listPath={listPath}
+          listLabel={listLabel}
           result={result}
           onDownloadRejects={onDownloadRejects}
           onImportAnother={() => {
@@ -268,6 +285,8 @@ function StepHeader({ step }: { step: Step }) {
 /* ----------------------------------------------------------- step 1: upload --- */
 
 function UploadStep({
+  noun,
+  listPath,
   file,
   fileError,
   dragOver,
@@ -281,6 +300,8 @@ function UploadStep({
   onCheck,
   onTemplate,
 }: {
+  noun: string;
+  listPath: string;
   file: File | null;
   fileError: string | null;
   dragOver: boolean;
@@ -303,7 +324,7 @@ function UploadStep({
               Upload a CSV
             </h2>
             <p className="mt-1 text-sm text-gray-500">
-              Bulk-add or update alumni from a spreadsheet. Start from the
+              Bulk-add or update {noun} from a spreadsheet. Start from the
               template so the columns line up, then check the file before
               importing.
             </p>
@@ -409,7 +430,7 @@ function UploadStep({
 
       <div className="flex items-center justify-end gap-3">
         <Button asChild variant="secondary">
-          <Link href="/alumni">Cancel</Link>
+          <Link href={listPath}>Cancel</Link>
         </Button>
         <Button
           variant="primary"
@@ -558,10 +579,16 @@ function SummaryCard({
 /* ----------------------------------------------------------- step 3: result --- */
 
 function ResultStep({
+  noun,
+  listPath,
+  listLabel,
   result,
   onDownloadRejects,
   onImportAnother,
 }: {
+  noun: string;
+  listPath: string;
+  listLabel: string;
   result: ImportResult;
   onDownloadRejects: () => void;
   onImportAnother: () => void;
@@ -579,7 +606,7 @@ function ResultStep({
               Import complete
             </h2>
             <p className="text-sm text-gray-500">
-              {result.imported} alumni added
+              {result.imported} {noun} added
               {result.skipped > 0 ? `, ${result.skipped} skipped` : ""}.
             </p>
           </div>
@@ -639,7 +666,7 @@ function ResultStep({
           Import another file
         </Button>
         <Button asChild variant="primary">
-          <Link href="/alumni">Go to alumni list</Link>
+          <Link href={listPath}>Go to {listLabel.toLowerCase()} list</Link>
         </Button>
       </div>
     </div>
