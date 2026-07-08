@@ -758,6 +758,15 @@ export type ImportResultState =
   | { ok: true; data: ImportResult }
   | { ok: false; error: string };
 
+/**
+ * Which roster the import targets. The backend shares one set of import
+ * endpoints and switches on a `kind` query param: `alumni` (the default) stamps
+ * rows `is_alumni=true`, `friend` stamps them `is_alumni=false` and uses a
+ * friend-specific template (no grad/education columns). Defaults to `alumni`
+ * everywhere so the existing alumni import is unchanged.
+ */
+export type ImportKind = "alumni" | "friend";
+
 /** Pull the single `file` out of the submitted FormData (re-named to `file`). */
 function importFormData(formData: FormData): FormData | null {
   const file = formData.get("file");
@@ -774,12 +783,13 @@ function importFormData(formData: FormData): FormData | null {
  */
 export async function previewImport(
   formData: FormData,
+  kind: ImportKind = "alumni",
 ): Promise<ImportPreviewState> {
   const fd = importFormData(formData);
   if (!fd) return { ok: false, error: "Choose a .csv file to check." };
   try {
     const data = await apiPostForm<ImportPreview>(
-      "/alumni/import/preview",
+      `/alumni/import/preview?kind=${kind}`,
       fd,
     );
     return { ok: true, data };
@@ -798,12 +808,16 @@ export async function previewImport(
  */
 export async function commitImport(
   formData: FormData,
+  kind: ImportKind = "alumni",
 ): Promise<ImportResultState> {
   const fd = importFormData(formData);
   if (!fd) return { ok: false, error: "Choose a .csv file to import." };
   try {
-    const data = await apiPostForm<ImportResult>("/alumni/import", fd);
+    const data = await apiPostForm<ImportResult>(`/alumni/import?kind=${kind}`, fd);
+    // Friends and alumni are the same underlying records (split by is_alumni),
+    // so refresh both rosters plus the dashboard/geography aggregates.
     revalidatePath("/alumni");
+    revalidatePath("/friends");
     revalidateTag("dashboard");
     revalidateTag("geography");
     return { ok: true, data };
@@ -818,11 +832,11 @@ export async function commitImport(
  * client can trigger a Blob download — the GET needs the user's Bearer token,
  * which only the server client attaches.
  */
-export async function downloadImportTemplate(): Promise<
-  { ok: true; csv: string } | { ok: false; error: string }
-> {
+export async function downloadImportTemplate(
+  kind: ImportKind = "alumni",
+): Promise<{ ok: true; csv: string } | { ok: false; error: string }> {
   try {
-    const csv = await apiGetText("/alumni/import/template");
+    const csv = await apiGetText(`/alumni/import/template?kind=${kind}`);
     return { ok: true, csv };
   } catch (e) {
     return {
