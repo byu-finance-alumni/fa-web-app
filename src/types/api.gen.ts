@@ -2945,12 +2945,30 @@ export interface components {
             birth_date: string | null;
             /** Graduation Year */
             graduation_year: number | null;
-            /** Graduation Month */
-            graduation_month: number | null;
+            /** Graduation Semester */
+            graduation_semester: string | null;
+            /** Graduation Class */
+            graduation_class: number | null;
             /** Finance Program Year */
             finance_program_year: number | null;
             /** Graduate Degree */
             graduate_degree: string | null;
+            /** Citizenship */
+            citizenship: string | null;
+            /** Marital Status */
+            marital_status: string | null;
+            /** Home Country */
+            home_country: string | null;
+            /** Employment Status */
+            employment_status: string | null;
+            /** Other Designations */
+            other_designations: string | null;
+            /** Survey Completed Date */
+            survey_completed_date: string | null;
+            /** Profile Updated Date */
+            profile_updated_date: string | null;
+            /** Profile Updated By Name */
+            profile_updated_by_name: string | null;
             /** Mba Program */
             mba_program: string | null;
             /** Law School */
@@ -3053,12 +3071,30 @@ export interface components {
             birth_date: string | null;
             /** Graduation Year */
             graduation_year: number | null;
-            /** Graduation Month */
-            graduation_month: number | null;
+            /** Graduation Semester */
+            graduation_semester: string | null;
+            /** Graduation Class */
+            graduation_class: number | null;
             /** Finance Program Year */
             finance_program_year: number | null;
             /** Graduate Degree */
             graduate_degree: string | null;
+            /** Citizenship */
+            citizenship: string | null;
+            /** Marital Status */
+            marital_status: string | null;
+            /** Home Country */
+            home_country: string | null;
+            /** Employment Status */
+            employment_status: string | null;
+            /** Other Designations */
+            other_designations: string | null;
+            /** Survey Completed Date */
+            survey_completed_date: string | null;
+            /** Profile Updated Date */
+            profile_updated_date: string | null;
+            /** Profile Updated By Name */
+            profile_updated_by_name: string | null;
             /** Mba Program */
             mba_program: string | null;
             /** Law School */
