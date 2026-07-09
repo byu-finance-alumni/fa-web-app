@@ -726,9 +726,11 @@ export default async function AlumniProfilePage({
                 )}
               </Panel>
 
-              {/* Contact information */}
+              {/* Contact information — grows to fill the wider column so its
+                  bottom lines up with Personal & family in the right column. */}
               <Panel
                 title="Contact information"
+                className="lg:flex-1"
                 action={canEdit ? <EditLink id={aid} /> : undefined}
               >
                 {c ? (
