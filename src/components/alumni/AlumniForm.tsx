@@ -53,6 +53,11 @@ export type AlumniFormDefaults = Partial<Alumni> & {
   /** Linked spouse's current display name (from the profile aggregate), used to
    * label the "Linked" chip when editing. */
   spouseAlumniName?: string | null;
+  /** Graduation month is still a writable field (AlumniUpdate), but the profile
+   * READ model no longer returns it, so it can't be prefilled from `...a` — kept
+   * here (decoupled from the read model) so the editor stays type-safe and
+   * renders blank until re-entered. */
+  graduation_month?: number | null;
   contact?: Record<string, string>;
   career?: Record<string, string>;
   education?: Record<string, string>;

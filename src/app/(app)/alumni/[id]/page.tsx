@@ -562,6 +562,13 @@ export default async function AlumniProfilePage({
                         {place(c?.city, c?.state)}
                       </span>
                     ) : null}
+                    {/* Employment status (#306) — a small text-only label beside
+                        the current-job location; no icon per the design rules. */}
+                    {a.employment_status ? (
+                      <span className="text-sm text-gray-500">
+                        {a.employment_status}
+                      </span>
+                    ) : null}
                   </div>
 
                   {/* Contact info lifted into the header (#223): email, phone,
@@ -635,22 +642,25 @@ export default async function AlumniProfilePage({
           </div>
 
           {/* KPI strip — 6 non-sensitive tiles, shown for every role.
-              (#291) "Graduating class" is the cohort year; "Graduated" is the
-              specific month+year once a graduation_month is on file. */}
+              "Graduating class" is the named cohort (graduation_class, falling
+              back to graduation_year); "Graduated" is the specific semester +
+              year once both are on file. */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <MetricCard
               label="Graduating class"
-              value={a.graduation_year ? `Class of ${a.graduation_year}` : "—"}
+              value={
+                a.graduation_class
+                  ? `Class of ${a.graduation_class}`
+                  : a.graduation_year
+                    ? `Class of ${a.graduation_year}`
+                    : "—"
+              }
             />
             <MetricCard
               label="Graduated"
               value={
-                a.graduation_month && a.graduation_year
-                  ? `${new Date(
-                      a.graduation_year,
-                      a.graduation_month - 1,
-                      1,
-                    ).toLocaleString("en-US", { month: "long" })} ${a.graduation_year}`
+                a.graduation_semester && a.graduation_year
+                  ? `${a.graduation_semester} ${a.graduation_year}`
                   : "—"
               }
             />
@@ -658,11 +668,23 @@ export default async function AlumniProfilePage({
             <MetricCard label="Events attended" value={profile.events.length} />
             <MetricCard
               label="Last updated"
-              value={fmtDate(a.updated_at) ?? "—"}
+              value={
+                fmtDate(a.profile_updated_date ?? a.updated_at) ?? "—"
+              }
+              title={
+                a.profile_updated_by_name
+                  ? `Updated by ${a.profile_updated_by_name}`
+                  : undefined
+              }
             />
             <MetricCard
               label="Last surveyed"
-              value={fmtDate(lastSurveyedIso) ?? "—"}
+              value={fmtDate(a.survey_completed_date ?? lastSurveyedIso) ?? "—"}
+              title={
+                a.survey_completed_date
+                  ? `Survey completed ${fmtDate(a.survey_completed_date)}`
+                  : undefined
+              }
             />
           </div>
 
@@ -881,6 +903,17 @@ export default async function AlumniProfilePage({
                     label="Spouse birthday"
                     value={fmtDate(a.spouse_birth_date)}
                   />
+                  {/* New alumni demographic fields (#305) — only rendered when a
+                      value is on file so the panel stays compact. */}
+                  {a.citizenship ? (
+                    <Field label="Citizenship" value={a.citizenship} />
+                  ) : null}
+                  {a.marital_status ? (
+                    <Field label="Marital status" value={a.marital_status} />
+                  ) : null}
+                  {a.home_country ? (
+                    <Field label="Home country" value={a.home_country} />
+                  ) : null}
                 </div>
               </Panel>
 
@@ -1525,6 +1558,45 @@ export default async function AlumniProfilePage({
                 >
                   {panels}
                 </div>
+              );
+            })()}
+            designations={(() => {
+              // Other Designations tab (#307): the free-text `other_designations`
+              // field plus the boolean CFA/CFP/CPA certifications (from
+              // program_engagement) shown for context. Renders a friendly empty
+              // state when nothing is on file, so the tab always appears.
+              const pe = profile.program_engagement;
+              const certs = [
+                pe?.cfa_designation ? "CFA" : null,
+                pe?.cfp_designation ? "CFP" : null,
+                pe?.cpa_designation ? "CPA" : null,
+              ].filter(Boolean) as string[];
+              return (
+                <Panel title="Designations">
+                  {a.other_designations || certs.length ? (
+                    <div className="space-y-5">
+                      {a.other_designations ? (
+                        <ProfileNote
+                          label="Other designations"
+                          value={a.other_designations}
+                        />
+                      ) : null}
+                      {certs.length ? (
+                        <ChipRow label="Certifications">
+                          {certs.map((cert) => (
+                            <EngagementChip key={cert} tone="success">
+                              {cert}
+                            </EngagementChip>
+                          ))}
+                        </ChipRow>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <p className="py-6 text-center text-sm text-gray-500">
+                      No designations on file yet.
+                    </p>
+                  )}
+                </Panel>
               );
             })()}
             tasks={
