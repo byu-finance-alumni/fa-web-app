@@ -85,8 +85,23 @@ const NAV: NavItem[] = [
   },
 ];
 
-const isActivePath = (pathname: string, href: string) =>
-  pathname === href || pathname.startsWith(`${href}/`);
+// Every navigable leaf href (group headers are toggles, not links — their
+// children are the real destinations), plus the standalone privacy link.
+const LEAF_HREFS: string[] = [
+  ...NAV.flatMap((i) => (i.children ? i.children.map((c) => c.href) : [i.href])),
+  "/privacy",
+];
+
+// The active link is the LONGEST leaf href the current path matches (exact, or
+// as a "/parent/…" prefix). An exact deeper route therefore wins over a shorter
+// prefix — so "/admin/import" activates only Import CSV, not the Users link
+// ("/admin"), while "/alumni/123" still activates Alumni ("/alumni").
+const resolveActiveHref = (pathname: string): string | null =>
+  LEAF_HREFS.reduce<string | null>((best, href) => {
+    const matches = pathname === href || pathname.startsWith(`${href}/`);
+    if (!matches) return best;
+    return best === null || href.length > best.length ? href : best;
+  }, null);
 
 export function Sidebar({
   email,
@@ -103,6 +118,10 @@ export function Sidebar({
   canVocab?: boolean;
 }) {
   const pathname = usePathname();
+  // Single most-specific active link (see resolveActiveHref) — avoids a
+  // parent-prefix href lighting up alongside its deeper sibling.
+  const activeHref = resolveActiveHref(pathname);
+  const isActive = (href: string) => href === activeHref;
   // engineer is the top role and satisfies both gates. User/audit admin =
   // engineer or super_admin; full_access tooling (e.g. Tasks) also includes
   // full_access. (Mirrors @/constants/roles, but operates on the single
@@ -171,16 +190,14 @@ export function Sidebar({
               <Link
                 key={href}
                 href={href}
-                className={linkCls(isActivePath(pathname, href))}
+                className={linkCls(isActive(href))}
               >
                 {label}
               </Link>
             );
           }
 
-          const childActive = children.some((c) =>
-            isActivePath(pathname, c.href),
-          );
+          const childActive = children.some((c) => isActive(c.href));
           const open = openGroups[label] ?? childActive;
           return (
             <div key={label}>
@@ -204,7 +221,7 @@ export function Sidebar({
                     <Link
                       key={c.href}
                       href={c.href}
-                      className={linkCls(isActivePath(pathname, c.href), true)}
+                      className={linkCls(isActive(c.href), true)}
                     >
                       {c.label}
                     </Link>
@@ -220,7 +237,7 @@ export function Sidebar({
           role (no gate). Pinned just above the user footer. */}
       <Link
         href="/privacy"
-        className={`mt-auto ${linkCls(isActivePath(pathname, "/privacy"))}`}
+        className={`mt-auto ${linkCls(isActive("/privacy"))}`}
       >
         Privacy
       </Link>
