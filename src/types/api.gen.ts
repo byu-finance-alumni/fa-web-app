@@ -4110,21 +4110,12 @@ export interface components {
              * @default false
              */
             piff_donor: boolean;
-            /**
-             * Cfp Designation
-             * @default false
-             */
-            cfp_designation: boolean;
-            /**
-             * Cfa Designation
-             * @default false
-             */
-            cfa_designation: boolean;
-            /**
-             * Cpa Designation
-             * @default false
-             */
-            cpa_designation: boolean;
+            /** Cfp Designation */
+            cfp_designation?: string | null;
+            /** Cfa Designation */
+            cfa_designation?: string | null;
+            /** Cpa Designation */
+            cpa_designation?: string | null;
             /** Engagement Notes */
             engagement_notes?: string | null;
         };
@@ -4991,11 +4982,11 @@ export interface components {
             /** Piff Donor */
             piff_donor: boolean;
             /** Cfp Designation */
-            cfp_designation: boolean;
+            cfp_designation: string | null;
             /** Cfa Designation */
-            cfa_designation: boolean;
+            cfa_designation: string | null;
             /** Cpa Designation */
-            cpa_designation: boolean;
+            cpa_designation: string | null;
             /** Engagement Notes */
             engagement_notes: string | null;
         };

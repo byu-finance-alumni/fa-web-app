@@ -214,8 +214,9 @@ function buildCreatePayload(formData: FormData): Record<string, unknown> {
     { name: "hired_finance_intern", type: "bool" },
     { name: "hired_finance_full_time", type: "bool" },
     { name: "piff_donor", type: "bool" },
-    { name: "cfp_designation", type: "bool" },
-    { name: "cfa_designation", type: "bool" },
+    { name: "cfp_designation" },
+    { name: "cfa_designation" },
+    { name: "cpa_designation" },
     { name: "engagement_notes" },
   ]);
 
