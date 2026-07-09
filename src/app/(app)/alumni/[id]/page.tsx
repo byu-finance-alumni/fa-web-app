@@ -1567,14 +1567,16 @@ export default async function AlumniProfilePage({
             })()}
             designations={(() => {
               // Other Designations tab (#307): the free-text `other_designations`
-              // field plus the boolean CFA/CFP/CPA certifications (from
-              // program_engagement) shown for context. Renders a friendly empty
-              // state when nothing is on file, so the tab always appears.
+              // field plus the free-text CFA/CFP/CPA certifications (from
+              // program_engagement) shown for context. Each designation stores
+              // its own label (e.g. "CFA all 3 levels"), so render the value
+              // verbatim when present. Renders a friendly empty state when
+              // nothing is on file, so the tab always appears.
               const pe = profile.program_engagement;
               const certs = [
-                pe?.cfa_designation ? "CFA" : null,
-                pe?.cfp_designation ? "CFP" : null,
-                pe?.cpa_designation ? "CPA" : null,
+                pe?.cfa_designation || null,
+                pe?.cfp_designation || null,
+                pe?.cpa_designation || null,
               ].filter(Boolean) as string[];
               return (
                 <Panel title="Designations">
@@ -1731,9 +1733,16 @@ function programChips(p: Profile["program_engagement"]): string[] {
     [p.guest_speaker_willing, "Guest speaker"],
     [p.nettrek_host_willing, "NetTrek host"],
     [p.finance_conference_willing, "Finance conference"],
-    [p.cfa_designation, "CFA"],
-    [p.cfp_designation, "CFP"],
     [p.piff_donor, "PIFF donor"],
   ];
-  return flags.filter(([on]) => on).map(([, label]) => label);
+  const chips = flags.filter(([on]) => on).map(([, label]) => label);
+  // Free-text designations render their stored value (e.g. "CFA all 3 levels").
+  for (const designation of [
+    p.cfa_designation,
+    p.cfp_designation,
+    p.cpa_designation,
+  ]) {
+    if (designation) chips.push(designation);
+  }
+  return chips;
 }

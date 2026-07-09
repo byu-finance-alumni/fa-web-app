@@ -61,6 +61,11 @@ export type AlumniFormDefaults = Partial<Alumni> & {
   education?: Record<string, string>;
   engagement?: {
     flags?: Record<string, boolean>;
+    /** Free-text professional designations (#XXX): stored as strings, not
+     * booleans, so values like "CFP Level 1" / "CFA all 3 levels" round-trip. */
+    cfp_designation?: string;
+    cfa_designation?: string;
+    cpa_designation?: string;
     engagement_notes?: string;
   };
 };
@@ -1160,20 +1165,45 @@ export function AlumniForm({
             defaultChecked={flag("hired_finance_full_time")}
           />
           <Checkbox
-            label="CFP designation"
-            name="engagement.cfp_designation"
-            defaultChecked={flag("cfp_designation")}
-          />
-          <Checkbox
-            label="CFA designation"
-            name="engagement.cfa_designation"
-            defaultChecked={flag("cfa_designation")}
-          />
-          <Checkbox
             label="PIFF donor"
             name="engagement.piff_donor"
             defaultChecked={flag("piff_donor")}
           />
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <FieldLabel htmlFor="engagement.cfp_designation">
+              CFP designation
+            </FieldLabel>
+            <Input
+              id="engagement.cfp_designation"
+              name="engagement.cfp_designation"
+              placeholder="e.g. CFP Level 1"
+              defaultValue={defaults?.engagement?.cfp_designation ?? ""}
+            />
+          </div>
+          <div>
+            <FieldLabel htmlFor="engagement.cfa_designation">
+              CFA designation
+            </FieldLabel>
+            <Input
+              id="engagement.cfa_designation"
+              name="engagement.cfa_designation"
+              placeholder="e.g. CFA all 3 levels"
+              defaultValue={defaults?.engagement?.cfa_designation ?? ""}
+            />
+          </div>
+          <div>
+            <FieldLabel htmlFor="engagement.cpa_designation">
+              CPA designation
+            </FieldLabel>
+            <Input
+              id="engagement.cpa_designation"
+              name="engagement.cpa_designation"
+              placeholder="e.g. CPA (Utah)"
+              defaultValue={defaults?.engagement?.cpa_designation ?? ""}
+            />
+          </div>
         </div>
         <div>
           <FieldLabel htmlFor="engagement.engagement_notes">
