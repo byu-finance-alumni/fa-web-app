@@ -522,7 +522,8 @@ export default async function AlumniProfilePage({
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-3xl font-semibold text-gray-900">{name}</h2>
                     {a.preferred_first_name &&
-                    a.preferred_first_name !== a.first_name ? (
+                    a.preferred_first_name.trim().toLowerCase() !==
+                      (a.first_name ?? "").trim().toLowerCase() ? (
                       <EngagementChip tone="neutral">
                         Goes by “{a.preferred_first_name}”
                       </EngagementChip>
