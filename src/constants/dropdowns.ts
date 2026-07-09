@@ -25,6 +25,11 @@ export const INDUSTRY_OPTIONS = [
   "Valuation & Advisory",
   "Venture Capital",
   "Wealth Management",
+  "Law",
+  "Corporate Banking",
+  "FP&A",
+  "Sales and Trading",
+  "Credit Risk",
   "Other",
 ] as const;
 
