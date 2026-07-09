@@ -17,13 +17,16 @@ import { Label } from "@/components/ui/label";
 
 type Action = (prev: FormState, formData: FormData) => Promise<FormState>;
 
-/** Month options for the graduation-month picker (value 1-12, matching the
- *  backend `graduation_month` int). BYU convocations are April/August/December,
- *  but all 12 months are offered for flexibility. */
-const GRAD_MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-].map((label, i) => ({ value: i + 1, label }));
+/** Season options for the graduation-semester picker. Values are the plain
+ *  season names the backend `graduation_semester` string stores; a blank value
+ *  means "none". Replaces the former month picker — the profile READ model
+ *  exposes semester, not month. */
+const GRAD_SEMESTERS = ["Fall", "Winter", "Spring", "Summer"] as const;
+
+/** Canonical U.S. regions for the contact `region` select. Enforced on manual
+ *  edits so free-text region values don't drift; an existing value outside this
+ *  set is preserved on load via `withValue` (shown selected). */
+const REGIONS = ["Northeast", "Southeast", "Midwest", "Southwest", "West"] as const;
 
 /** Options for the "Preferred contact method" picker (#301). Values match the
  *  backend `contact.preferred_contact_method` enum; a blank value means "none". */
@@ -53,11 +56,6 @@ export type AlumniFormDefaults = Partial<Alumni> & {
   /** Linked spouse's current display name (from the profile aggregate), used to
    * label the "Linked" chip when editing. */
   spouseAlumniName?: string | null;
-  /** Graduation month is still a writable field (AlumniUpdate), but the profile
-   * READ model no longer returns it, so it can't be prefilled from `...a` — kept
-   * here (decoupled from the read model) so the editor stays type-safe and
-   * renders blank until re-entered. */
-  graduation_month?: number | null;
   contact?: Record<string, string>;
   career?: Record<string, string>;
   education?: Record<string, string>;
@@ -618,27 +616,43 @@ export function AlumniForm({
             error={errors.graduation_year}
             onBlur={handleBlur}
           />
-          <div>
-            <FieldLabel htmlFor="graduation_month">Graduation month</FieldLabel>
-            <Select
-              id="graduation_month"
-              name="graduation_month"
-              defaultValue={defaults?.graduation_month?.toString() ?? ""}
-            >
-              <option value="">—</option>
-              {GRAD_MONTHS.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
-              ))}
-            </Select>
-          </div>
+          <SelectField
+            label="Graduation semester"
+            name="graduation_semester"
+            options={GRAD_SEMESTERS}
+            defaultValue={defaults?.graduation_semester ?? ""}
+          />
+          <Field
+            label="Graduating class"
+            name="graduation_class"
+            type="number"
+            defaultValue={defaults?.graduation_class?.toString() ?? ""}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
           <Field
             label="Gender"
             name="gender"
             defaultValue={defaults?.gender ?? ""}
             error={errors.gender}
             onBlur={handleBlur}
+          />
+          <Field
+            label="Citizenship"
+            name="citizenship"
+            defaultValue={defaults?.citizenship ?? ""}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <Field
+            label="Marital status"
+            name="marital_status"
+            defaultValue={defaults?.marital_status ?? ""}
+          />
+          <Field
+            label="Home country"
+            name="home_country"
+            defaultValue={defaults?.home_country ?? ""}
           />
         </div>
         <Field
@@ -674,6 +688,31 @@ export function AlumniForm({
               {errors.notes}
             </p>
           ) : null}
+        </div>
+        <div>
+          <FieldLabel htmlFor="other_designations">
+            Other designations
+          </FieldLabel>
+          <Textarea
+            id="other_designations"
+            name="other_designations"
+            rows={2}
+            defaultValue={defaults?.other_designations ?? ""}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <Field
+            label="Filled out survey"
+            name="survey_completed_date"
+            type="date"
+            defaultValue={defaults?.survey_completed_date ?? ""}
+          />
+          <Field
+            label="Profile updated date"
+            name="profile_updated_date"
+            type="date"
+            defaultValue={defaults?.profile_updated_date ?? ""}
+          />
         </div>
         <SpousePicker
           selfId={defaults?.alumni_id}
@@ -715,12 +754,20 @@ export function AlumniForm({
             }
           />
         </div>
-        <Field
-          label="Phone"
-          name="contact.phone"
-          defaultValue={contact("phone")}
-          error={errors["contact.phone"]}
-        />
+        <div className="grid grid-cols-2 gap-4">
+          <Field
+            label="Phone"
+            name="contact.phone"
+            defaultValue={contact("phone")}
+            error={errors["contact.phone"]}
+          />
+          <Field
+            label="Best contact (phone or email)"
+            name="contact.best_contact"
+            defaultValue={contact("best_contact")}
+            error={errors["contact.best_contact"]}
+          />
+        </div>
         <Field
           label="Address line 1"
           name="contact.address_line_1"
@@ -761,9 +808,10 @@ export function AlumniForm({
             error={errors["contact.country"]}
           />
         </div>
-        <Field
+        <SelectField
           label="Region"
           name="contact.region"
+          options={withValue(REGIONS, contact("region"))}
           defaultValue={contact("region")}
           error={errors["contact.region"]}
         />
@@ -860,6 +908,15 @@ export function AlumniForm({
           name="career.seniority_level"
           defaultValue={career("seniority_level")}
           error={errors["career.seniority_level"]}
+        />
+        {/* Top-level alumni field (not nested under `career`), so it's named
+            plainly and flows through the core payload — grouped here with the
+            current-role fields for context. */}
+        <Field
+          label="Employment status"
+          name="employment_status"
+          defaultValue={defaults?.employment_status ?? ""}
+          error={errors.employment_status}
         />
       </div>
     </Section>
