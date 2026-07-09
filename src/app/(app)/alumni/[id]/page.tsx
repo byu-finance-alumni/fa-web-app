@@ -97,28 +97,16 @@ function HeaderContact({
    *  view_only role). LinkedIn stays visible to every role. */
   canViewContactDetails: boolean;
 }) {
-  const email = canViewContactDetails
-    ? contact?.personal_email || contact?.work_email || null
-    : null;
-  const phone = canViewContactDetails ? contact?.phone || null : null;
-  const mailing = canViewContactDetails
-    ? place(
-        place(contact?.address_line_1, contact?.address_line_2),
-        place(contact?.city, contact?.state),
-        contact?.zip,
-      )
-    : null;
-
-  // Resolve the flagged preferred method (#301) to a concrete, reachable target,
-  // honoring the SAME PII gate as the rows above: personal/work email + phone are
-  // editor-only, LinkedIn is visible to every role. If the target is empty or
-  // gated away for this viewer we fall back to null (no marker) so we never leak
+  // Surface a SINGLE contact in the header: the flagged preferred method (#301),
+  // else fall back to personal email, then phone. The star stays; the "Preferred"
+  // label is dropped. Email/phone are PII (editor-gated); LinkedIn is visible to
+  // every role. A gated-away or empty target resolves to null so we never leak
   // PII or point at a blank field.
-  let preferred: { label: string; value: string; href: string } | null = null;
+  let primary: { label: string; value: string; href: string } | null = null;
   switch (contact?.preferred_contact_method) {
     case "personal_email":
       if (canViewContactDetails && contact?.personal_email)
-        preferred = {
+        primary = {
           label: "Personal email",
           value: contact.personal_email,
           href: `mailto:${contact.personal_email}`,
@@ -126,7 +114,7 @@ function HeaderContact({
       break;
     case "work_email":
       if (canViewContactDetails && contact?.work_email)
-        preferred = {
+        primary = {
           label: "Work email",
           value: contact.work_email,
           href: `mailto:${contact.work_email}`,
@@ -134,7 +122,7 @@ function HeaderContact({
       break;
     case "phone":
       if (canViewContactDetails && contact?.phone)
-        preferred = {
+        primary = {
           label: "Phone",
           value: contact.phone,
           href: `tel:${contact.phone}`,
@@ -142,60 +130,44 @@ function HeaderContact({
       break;
     case "linkedin":
       if (linkedinUrl)
-        preferred = { label: "LinkedIn", value: "LinkedIn", href: linkedinUrl };
+        primary = { label: "LinkedIn", value: "LinkedIn", href: linkedinUrl };
       break;
     default:
       break;
   }
 
-  if (!email && !phone && !mailing && !linkedinUrl && !preferred) return null;
+  // No (reachable) preferred method → default to personal email, then phone.
+  if (!primary && canViewContactDetails) {
+    if (contact?.personal_email)
+      primary = {
+        label: "Personal email",
+        value: contact.personal_email,
+        href: `mailto:${contact.personal_email}`,
+      };
+    else if (contact?.phone)
+      primary = {
+        label: "Phone",
+        value: contact.phone,
+        href: `tel:${contact.phone}`,
+      };
+  }
+
+  if (!primary) return null;
 
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
-      {preferred ? (
-        <a
-          href={preferred.href}
-          target={preferred.href.startsWith("http") ? "_blank" : undefined}
-          rel={
-            preferred.href.startsWith("http") ? "noopener noreferrer" : undefined
-          }
-          className="inline-flex items-center gap-1 font-semibold text-brand-blue-600 hover:text-brand-blue-500"
-          title={`Preferred contact method: ${preferred.label}`}
-        >
-          <span aria-hidden="true">★</span>
-          {preferred.value}
-          <span className="text-xs font-normal text-gray-500">
-            · Preferred
-          </span>
-        </a>
-      ) : null}
-      {email ? (
-        <a
-          href={`mailto:${email}`}
-          className="font-medium text-brand-blue-600 hover:text-brand-blue-500"
-        >
-          {email}
-        </a>
-      ) : null}
-      {phone ? (
-        <a
-          href={`tel:${phone}`}
-          className="font-medium text-brand-blue-600 hover:text-brand-blue-500"
-        >
-          {phone}
-        </a>
-      ) : null}
-      {linkedinUrl ? (
-        <a
-          href={linkedinUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="font-medium text-brand-blue-600 hover:text-brand-blue-500"
-        >
-          LinkedIn
-        </a>
-      ) : null}
-      {mailing ? <span className="text-gray-600">{mailing}</span> : null}
+      <a
+        href={primary.href}
+        target={primary.href.startsWith("http") ? "_blank" : undefined}
+        rel={
+          primary.href.startsWith("http") ? "noopener noreferrer" : undefined
+        }
+        className="inline-flex items-center gap-1 font-semibold text-brand-blue-600 hover:text-brand-blue-500"
+        title={primary.label}
+      >
+        <span aria-hidden="true">★</span>
+        {primary.value}
+      </a>
     </div>
   );
 }
