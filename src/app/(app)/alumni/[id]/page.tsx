@@ -522,7 +522,8 @@ export default async function AlumniProfilePage({
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-3xl font-semibold text-gray-900">{name}</h2>
                     {a.preferred_first_name &&
-                    a.preferred_first_name !== a.first_name ? (
+                    a.preferred_first_name.trim().toLowerCase() !==
+                      (a.first_name ?? "").trim().toLowerCase() ? (
                       <EngagementChip tone="neutral">
                         Goes by “{a.preferred_first_name}”
                       </EngagementChip>
@@ -672,8 +673,8 @@ export default async function AlumniProfilePage({
                 fmtDate(a.profile_updated_date ?? a.updated_at) ?? "—"
               }
               title={
-                a.profile_updated_by_name
-                  ? `Updated by ${a.profile_updated_by_name}`
+                a.profile_updated_by_name || a.profile_updated_by
+                  ? `Updated by ${a.profile_updated_by_name ?? a.profile_updated_by}`
                   : undefined
               }
             />
@@ -726,9 +727,11 @@ export default async function AlumniProfilePage({
                 )}
               </Panel>
 
-              {/* Contact information */}
+              {/* Contact information — grows to fill the wider column so its
+                  bottom lines up with Personal & family in the right column. */}
               <Panel
                 title="Contact information"
+                className="lg:flex-1"
                 action={canEdit ? <EditLink id={aid} /> : undefined}
               >
                 {c ? (
@@ -762,6 +765,17 @@ export default async function AlumniProfilePage({
                           href={c.phone ? `tel:${c.phone}` : undefined}
                           hrefLabel="Call"
                           preferred={c.preferred_contact_method === "phone"}
+                        />
+                        <ContactField
+                          icon={Mail}
+                          label="Best contact"
+                          value={c.best_contact}
+                          href={
+                            c.best_contact?.includes("@")
+                              ? `mailto:${c.best_contact}`
+                              : undefined
+                          }
+                          hrefLabel="Send"
                         />
                       </>
                     ) : null}
