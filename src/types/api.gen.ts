@@ -2668,6 +2668,8 @@ export interface components {
             survey_completed_date: string | null;
             /** Profile Updated Date */
             profile_updated_date: string | null;
+            /** Profile Updated By */
+            profile_updated_by: string | null;
             /** Mba Program */
             mba_program: string | null;
             /** Law School */
@@ -2987,6 +2989,8 @@ export interface components {
             survey_completed_date: string | null;
             /** Profile Updated Date */
             profile_updated_date: string | null;
+            /** Profile Updated By */
+            profile_updated_by: string | null;
             /** Profile Updated By Name */
             profile_updated_by_name: string | null;
             /** Mba Program */
@@ -3113,6 +3117,8 @@ export interface components {
             survey_completed_date: string | null;
             /** Profile Updated Date */
             profile_updated_date: string | null;
+            /** Profile Updated By */
+            profile_updated_by: string | null;
             /** Profile Updated By Name */
             profile_updated_by_name: string | null;
             /** Mba Program */
@@ -3224,6 +3230,8 @@ export interface components {
             survey_completed_date: string | null;
             /** Profile Updated Date */
             profile_updated_date: string | null;
+            /** Profile Updated By */
+            profile_updated_by: string | null;
             /** Mba Program */
             mba_program: string | null;
             /** Law School */
@@ -3568,6 +3576,8 @@ export interface components {
             region: string | null;
             /** Preferred Contact Method */
             preferred_contact_method: string | null;
+            /** Best Contact */
+            best_contact: string | null;
         };
         /**
          * CountryCount

@@ -673,8 +673,8 @@ export default async function AlumniProfilePage({
                 fmtDate(a.profile_updated_date ?? a.updated_at) ?? "—"
               }
               title={
-                a.profile_updated_by_name
-                  ? `Updated by ${a.profile_updated_by_name}`
+                a.profile_updated_by_name || a.profile_updated_by
+                  ? `Updated by ${a.profile_updated_by_name ?? a.profile_updated_by}`
                   : undefined
               }
             />
@@ -765,6 +765,17 @@ export default async function AlumniProfilePage({
                           href={c.phone ? `tel:${c.phone}` : undefined}
                           hrefLabel="Call"
                           preferred={c.preferred_contact_method === "phone"}
+                        />
+                        <ContactField
+                          icon={Mail}
+                          label="Best contact"
+                          value={c.best_contact}
+                          href={
+                            c.best_contact?.includes("@")
+                              ? `mailto:${c.best_contact}`
+                              : undefined
+                          }
+                          hrefLabel="Send"
                         />
                       </>
                     ) : null}
