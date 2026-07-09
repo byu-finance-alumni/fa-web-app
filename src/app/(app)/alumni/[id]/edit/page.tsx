@@ -112,9 +112,10 @@ export default async function EditAlumniPage({
             hired_finance_intern: eng.hired_finance_intern,
             hired_finance_full_time: eng.hired_finance_full_time,
             piff_donor: eng.piff_donor,
-            cfp_designation: eng.cfp_designation,
-            cfa_designation: eng.cfa_designation,
           },
+          cfp_designation: s(eng.cfp_designation),
+          cfa_designation: s(eng.cfa_designation),
+          cpa_designation: s(eng.cpa_designation),
           engagement_notes: s(eng.engagement_notes),
         }
       : undefined,
