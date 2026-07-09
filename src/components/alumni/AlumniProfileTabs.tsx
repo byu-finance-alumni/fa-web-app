@@ -22,6 +22,7 @@ export function AlumniProfileTabs({
   surveys,
   employment,
   education,
+  designations,
   engagement,
   tasks,
   profileCompleteness,
@@ -41,6 +42,9 @@ export function AlumniProfileTabs({
   /** Employment history — its own tab. */
   employment: ReactNode;
   education?: ReactNode;
+  /** Other designations + certifications (CFA/CFP/CPA) — its own tab. Renders
+   *  its own empty state, so it's shown to every role when passed. */
+  designations?: ReactNode;
   /** Editor-only — pass undefined for view-only roles and the tab is hidden. */
   engagement?: ReactNode;
   tasks?: ReactNode;
@@ -65,6 +69,9 @@ export function AlumniProfileTabs({
         {education ? (
           <TabsTrigger value="education">Education</TabsTrigger>
         ) : null}
+        {designations ? (
+          <TabsTrigger value="designations">Designations</TabsTrigger>
+        ) : null}
         {engagement ? (
           <TabsTrigger value="engagement">Tags</TabsTrigger>
         ) : null}
@@ -87,6 +94,9 @@ export function AlumniProfileTabs({
       <TabsContent value="employment">{employment}</TabsContent>
       {education ? (
         <TabsContent value="education">{education}</TabsContent>
+      ) : null}
+      {designations ? (
+        <TabsContent value="designations">{designations}</TabsContent>
       ) : null}
       {engagement ? (
         <TabsContent value="engagement">{engagement}</TabsContent>

@@ -16,7 +16,12 @@ import { apiGet, ApiError } from "@/lib/api";
 import { daysAgo } from "@/lib/format";
 import type { Contact, Profile } from "@/types/profile";
 import type { UserContext } from "@/types/alumni";
-import { canAddInteraction, canEditAlumni, hasFullAccess } from "@/constants/roles";
+import {
+  canAddInteraction,
+  canEditAlumni,
+  hasFullAccess,
+  isUserAdmin,
+} from "@/constants/roles";
 import { Topbar } from "@/components/shell/Topbar";
 import { TopbarSearch } from "@/components/shared/TopbarSearch";
 import {
@@ -92,39 +97,82 @@ function HeaderContact({
    *  view_only role). LinkedIn stays visible to every role. */
   canViewContactDetails: boolean;
 }) {
-  const email = canViewContactDetails
-    ? contact?.personal_email || contact?.work_email || null
-    : null;
-  const phone = canViewContactDetails ? contact?.phone || null : null;
-  const mailing = canViewContactDetails
-    ? place(
-        place(contact?.address_line_1, contact?.address_line_2),
-        place(contact?.city, contact?.state),
-        contact?.zip,
-      )
-    : null;
+  // Surface a SINGLE contact in the header: the flagged preferred method (#301),
+  // else fall back to personal email, then phone. The star stays; the "Preferred"
+  // label is dropped. Email/phone are PII (editor-gated); LinkedIn is visible to
+  // every role. A gated-away or empty target resolves to null so we never leak
+  // PII or point at a blank field.
+  let primary: { label: string; value: string; href: string } | null = null;
+  switch (contact?.preferred_contact_method) {
+    case "personal_email":
+      if (canViewContactDetails && contact?.personal_email)
+        primary = {
+          label: "Personal email",
+          value: contact.personal_email,
+          href: `mailto:${contact.personal_email}`,
+        };
+      break;
+    case "work_email":
+      if (canViewContactDetails && contact?.work_email)
+        primary = {
+          label: "Work email",
+          value: contact.work_email,
+          href: `mailto:${contact.work_email}`,
+        };
+      break;
+    case "phone":
+      if (canViewContactDetails && contact?.phone)
+        primary = {
+          label: "Phone",
+          value: contact.phone,
+          href: `tel:${contact.phone}`,
+        };
+      break;
+    case "linkedin":
+      if (linkedinUrl)
+        primary = { label: "LinkedIn", value: "LinkedIn", href: linkedinUrl };
+      break;
+    default:
+      break;
+  }
 
-  if (!email && !phone && !mailing && !linkedinUrl) return null;
+  // No (reachable) preferred method → default to personal email, then phone.
+  if (!primary && canViewContactDetails) {
+    if (contact?.personal_email)
+      primary = {
+        label: "Personal email",
+        value: contact.personal_email,
+        href: `mailto:${contact.personal_email}`,
+      };
+    else if (contact?.phone)
+      primary = {
+        label: "Phone",
+        value: contact.phone,
+        href: `tel:${contact.phone}`,
+      };
+  }
+
+  if (!primary && !linkedinUrl) return null;
 
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
-      {email ? (
+      {primary ? (
         <a
-          href={`mailto:${email}`}
-          className="font-medium text-brand-blue-600 hover:text-brand-blue-500"
+          href={primary.href}
+          target={primary.href.startsWith("http") ? "_blank" : undefined}
+          rel={
+            primary.href.startsWith("http") ? "noopener noreferrer" : undefined
+          }
+          className="inline-flex items-center gap-1 font-semibold text-brand-blue-600 hover:text-brand-blue-500"
+          title={primary.label}
         >
-          {email}
+          <span aria-hidden="true">★</span>
+          {primary.value}
         </a>
       ) : null}
-      {phone ? (
-        <a
-          href={`tel:${phone}`}
-          className="font-medium text-brand-blue-600 hover:text-brand-blue-500"
-        >
-          {phone}
-        </a>
-      ) : null}
-      {linkedinUrl ? (
+      {/* LinkedIn stays up top (non-PII, visible to every role) unless it's
+          already the starred primary. */}
+      {linkedinUrl && primary?.href !== linkedinUrl ? (
         <a
           href={linkedinUrl}
           target="_blank"
@@ -134,7 +182,6 @@ function HeaderContact({
           LinkedIn
         </a>
       ) : null}
-      {mailing ? <span className="text-gray-600">{mailing}</span> : null}
     </div>
   );
 }
@@ -171,12 +218,16 @@ function ContactField({
   value,
   href,
   hrefLabel,
+  preferred = false,
 }: {
   icon: LucideIcon;
   label: string;
   value: string | null;
   href?: string;
   hrefLabel?: string;
+  /** When true, marks this row as the alumnus's preferred contact method (#301)
+   *  with a text star (★) next to the label. */
+  preferred?: boolean;
 }) {
   return (
     <div className="flex items-start gap-3">
@@ -186,6 +237,14 @@ function ContactField({
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
           {label}
+          {preferred ? (
+            <span
+              className="ml-1 text-brand-blue-600"
+              title="Preferred contact method"
+            >
+              ★<span className="sr-only"> (preferred)</span>
+            </span>
+          ) : null}
         </p>
         {value && href ? (
           // The value itself is clickable (mailto:/tel:/https:), not just the
@@ -307,6 +366,10 @@ export default async function AlumniProfilePage({
   let canEdit = false;
   let canArchive = false;
   let canAdd = false;
+  // Deleting a donation is now the donations.manage tier (super_admin+), matching
+  // the tightened backend gate — separate from canArchive (full_access) which
+  // still governs archive/notes.
+  let canDeleteDonation = false;
   // Profile-completeness tab is gated by the editable `profile.completeness`
   // capability (default: super_admin + engineer), toggleable per role in the
   // Engineer Console permission editor. NOTE (#189): this is a CLIENT-SIDE
@@ -320,6 +383,7 @@ export default async function AlumniProfilePage({
     const ctx = await apiGet<UserContext>("/auth/context");
     canEdit = canEditAlumni(ctx.roles);
     canArchive = hasFullAccess(ctx.roles);
+    canDeleteDonation = isUserAdmin(ctx.roles);
     canAdd = canAddInteraction(ctx.roles);
     canViewCompleteness = (ctx.capabilities ?? []).includes(
       "profile.completeness",
@@ -444,7 +508,8 @@ export default async function AlumniProfilePage({
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-3xl font-semibold text-gray-900">{name}</h2>
                     {a.preferred_first_name &&
-                    a.preferred_first_name !== a.first_name ? (
+                    a.preferred_first_name.trim().toLowerCase() !==
+                      (a.first_name ?? "").trim().toLowerCase() ? (
                       <EngagementChip tone="neutral">
                         Goes by “{a.preferred_first_name}”
                       </EngagementChip>
@@ -482,6 +547,13 @@ export default async function AlumniProfilePage({
                       <span className="flex items-center gap-1.5">
                         <MapPin className="h-4 w-4 text-gray-400" />
                         {place(c?.city, c?.state)}
+                      </span>
+                    ) : null}
+                    {/* Employment status (#306) — a small text-only label beside
+                        the current-job location; no icon per the design rules. */}
+                    {a.employment_status ? (
+                      <span className="text-sm text-gray-500">
+                        {a.employment_status}
                       </span>
                     ) : null}
                   </div>
@@ -556,25 +628,50 @@ export default async function AlumniProfilePage({
             ) : null}
           </div>
 
-          {/* KPI strip — 6 non-sensitive tiles, shown for every role. */}
+          {/* KPI strip — 6 non-sensitive tiles, shown for every role.
+              "Graduating class" is the named cohort (graduation_class, falling
+              back to graduation_year); "Graduated" is the specific semester +
+              year once both are on file. */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <MetricCard
-              label="Year entered program"
-              value={a.finance_program_year ?? "—"}
+              label="Graduating class"
+              value={
+                a.graduation_class
+                  ? `Class of ${a.graduation_class}`
+                  : a.graduation_year
+                    ? `Class of ${a.graduation_year}`
+                    : "—"
+              }
             />
             <MetricCard
-              label="Graduation year"
-              value={a.graduation_year ?? "—"}
+              label="Graduated"
+              value={
+                a.graduation_semester && a.graduation_year
+                  ? `${a.graduation_semester} ${a.graduation_year}`
+                  : "—"
+              }
             />
             <MetricCard label="Interactions" value={profile.interaction_count} />
             <MetricCard label="Events attended" value={profile.events.length} />
             <MetricCard
               label="Last updated"
-              value={fmtDate(a.updated_at) ?? "—"}
+              value={
+                fmtDate(a.profile_updated_date ?? a.updated_at) ?? "—"
+              }
+              title={
+                a.profile_updated_by_name || a.profile_updated_by
+                  ? `Updated by ${a.profile_updated_by_name ?? a.profile_updated_by}`
+                  : undefined
+              }
             />
             <MetricCard
               label="Last surveyed"
-              value={fmtDate(lastSurveyedIso) ?? "—"}
+              value={fmtDate(a.survey_completed_date ?? lastSurveyedIso) ?? "—"}
+              title={
+                a.survey_completed_date
+                  ? `Survey completed ${fmtDate(a.survey_completed_date)}`
+                  : undefined
+              }
             />
           </div>
 
@@ -616,9 +713,11 @@ export default async function AlumniProfilePage({
                 )}
               </Panel>
 
-              {/* Contact information */}
+              {/* Contact information — grows to fill the wider column so its
+                  bottom lines up with Personal & family in the right column. */}
               <Panel
                 title="Contact information"
+                className="lg:flex-1"
                 action={canEdit ? <EditLink id={aid} /> : undefined}
               >
                 {c ? (
@@ -635,6 +734,7 @@ export default async function AlumniProfilePage({
                           value={c.personal_email}
                           href={c.personal_email ? `mailto:${c.personal_email}` : undefined}
                           hrefLabel="Send"
+                          preferred={c.preferred_contact_method === "personal_email"}
                         />
                         <ContactField
                           icon={Mail}
@@ -642,6 +742,7 @@ export default async function AlumniProfilePage({
                           value={c.work_email}
                           href={c.work_email ? `mailto:${c.work_email}` : undefined}
                           hrefLabel="Send"
+                          preferred={c.preferred_contact_method === "work_email"}
                         />
                         <ContactField
                           icon={Phone}
@@ -649,6 +750,18 @@ export default async function AlumniProfilePage({
                           value={c.phone}
                           href={c.phone ? `tel:${c.phone}` : undefined}
                           hrefLabel="Call"
+                          preferred={c.preferred_contact_method === "phone"}
+                        />
+                        <ContactField
+                          icon={Mail}
+                          label="Best contact"
+                          value={c.best_contact}
+                          href={
+                            c.best_contact?.includes("@")
+                              ? `mailto:${c.best_contact}`
+                              : undefined
+                          }
+                          hrefLabel="Send"
                         />
                       </>
                     ) : null}
@@ -658,6 +771,7 @@ export default async function AlumniProfilePage({
                       value={a.linkedin_url}
                       href={a.linkedin_url ?? undefined}
                       hrefLabel="Open ↗"
+                      preferred={c.preferred_contact_method === "linkedin"}
                     />
                     {canViewContactDetails ? (
                       <ContactField
@@ -677,47 +791,17 @@ export default async function AlumniProfilePage({
                       label="Country"
                       value={c.country}
                     />
+                    {/* ZIP is part of the mailing address (PII) — gate it like the
+                        street address; renders under State / next to Country. */}
+                    {canViewContactDetails ? (
+                      <ContactField icon={MapPin} label="ZIP" value={c.zip} />
+                    ) : null}
                   </div>
                 ) : (
                   <p className="py-6 text-center text-sm text-gray-500">
                     No contact information on file yet.
                   </p>
                 )}
-              </Panel>
-
-              {/* Personal & family — lives in the main column directly under
-                  Contact information so the two panels share the same column
-                  width and align (#269). */}
-              <Panel
-                title="Personal & family"
-                action={canEdit ? <EditLink id={aid} /> : undefined}
-              >
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Field label="Birthday" value={fmtDate(a.birth_date)} />
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      Spouse
-                    </p>
-                    {spouseLinkLabel ? (
-                      a.spouse_alumni_id ? (
-                        <Link
-                          href={`/alumni/${a.spouse_alumni_id}`}
-                          className="text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
-                        >
-                          {spouseLinkLabel} ↗
-                        </Link>
-                      ) : (
-                        <p className="text-sm text-gray-900">{spouseLinkLabel}</p>
-                      )
-                    ) : (
-                      <p className="text-sm text-gray-300">—</p>
-                    )}
-                  </div>
-                  <Field
-                    label="Spouse birthday"
-                    value={fmtDate(a.spouse_birth_date)}
-                  />
-                </div>
               </Panel>
 
             </div>
@@ -786,6 +870,54 @@ export default async function AlumniProfilePage({
                         ))}
                       </ChipRow>
                     </div>
+                  ) : null}
+                </div>
+              </Panel>
+
+              {/* Personal & family — sits under Engagement summary in the right
+                  column and stretches (flex-1) to fill down so its bottom aligns
+                  with Contact information in the main column (replaces the old
+                  #269 placement in the main column). */}
+              <Panel
+                title="Personal & family"
+                action={canEdit ? <EditLink id={aid} /> : undefined}
+                className="flex-1"
+              >
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field label="Birthday" value={fmtDate(a.birth_date)} />
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Spouse
+                    </p>
+                    {spouseLinkLabel ? (
+                      a.spouse_alumni_id ? (
+                        <Link
+                          href={`/alumni/${a.spouse_alumni_id}`}
+                          className="text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
+                        >
+                          {spouseLinkLabel} ↗
+                        </Link>
+                      ) : (
+                        <p className="text-sm text-gray-900">{spouseLinkLabel}</p>
+                      )
+                    ) : (
+                      <p className="text-sm text-gray-300">—</p>
+                    )}
+                  </div>
+                  <Field
+                    label="Spouse birthday"
+                    value={fmtDate(a.spouse_birth_date)}
+                  />
+                  {/* New alumni demographic fields (#305) — only rendered when a
+                      value is on file so the panel stays compact. */}
+                  {a.citizenship ? (
+                    <Field label="Citizenship" value={a.citizenship} />
+                  ) : null}
+                  {a.marital_status ? (
+                    <Field label="Marital status" value={a.marital_status} />
+                  ) : null}
+                  {a.home_country ? (
+                    <Field label="Home country" value={a.home_country} />
                   ) : null}
                 </div>
               </Panel>
@@ -962,8 +1094,104 @@ export default async function AlumniProfilePage({
             }
             surveys={
               profile.surveys.length ? (
-                <Panel title="Survey history">
-                  <div className="overflow-x-auto">
+                (() => {
+                  // Survey summary (#292): most-recent completed survey, the
+                  // nearest upcoming/overdue due date, and the latest survey's
+                  // status, shown above the full history table.
+                  const surveysSorted = [...profile.surveys].sort(
+                    (x, y) =>
+                      (y.survey_year ?? 0) - (x.survey_year ?? 0) ||
+                      (y.survey_due_date ?? "").localeCompare(
+                        x.survey_due_date ?? "",
+                      ),
+                  );
+                  // Most-recent completed survey's completion date; fall back
+                  // to the newest survey's completed_at (may be null → "—").
+                  const lastCompletedIso =
+                    lastSurveyedIso ?? surveysSorted[0]?.completed_at ?? null;
+                  // Nearest not-yet-completed due date; overdue when < today
+                  // (same past-due basis as the table rows below).
+                  const nextDue = profile.surveys
+                    .filter((s) => !s.completed && !!s.survey_due_date)
+                    .sort((x, y) =>
+                      (x.survey_due_date ?? "").localeCompare(
+                        y.survey_due_date ?? "",
+                      ),
+                    )[0];
+                  const nextDueIso = nextDue?.survey_due_date ?? null;
+                  const nextDueOverdue =
+                    !!nextDueIso && new Date(nextDueIso) < new Date();
+                  const latestSurvey = surveysSorted[0];
+                  const latestOverdue =
+                    !!latestSurvey &&
+                    !latestSurvey.completed &&
+                    !!latestSurvey.survey_due_date &&
+                    new Date(latestSurvey.survey_due_date) < new Date();
+                  const latestStatusTone: "success" | "danger" | "warning" =
+                    latestSurvey?.completed
+                      ? "success"
+                      : latestOverdue
+                        ? "danger"
+                        : "warning";
+                  const latestStatusLabel =
+                    latestSurvey?.survey_status ??
+                    (latestSurvey?.completed
+                      ? "Completed"
+                      : latestOverdue
+                        ? "Overdue"
+                        : "Pending");
+                  return (
+                    <Panel
+                      title="Survey history"
+                      action={
+                        // Donation link (#295): quick jump to the Pay It Forward
+                        // ledger to record a gift. Secondary text-only action.
+                        <Button asChild variant="secondary" size="sm">
+                          <Link href="/pay-it-forward">
+                            Pay It Forward — record a donation
+                          </Link>
+                        </Button>
+                      }
+                    >
+                      {/* Summary row (#292) — surfaced above the table. */}
+                      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <MetricCard
+                          label="Last survey completed"
+                          value={fmtDate(lastCompletedIso) ?? "—"}
+                        />
+                        <MetricCard
+                          label="Next survey due"
+                          value={
+                            nextDueIso ? (
+                              <span
+                                className={
+                                  nextDueOverdue
+                                    ? "text-danger-600"
+                                    : undefined
+                                }
+                              >
+                                {fmtDate(nextDueIso)}
+                                {nextDueOverdue ? (
+                                  <span className="block text-xs font-semibold">
+                                    Overdue
+                                  </span>
+                                ) : null}
+                              </span>
+                            ) : (
+                              "—"
+                            )
+                          }
+                        />
+                        <MetricCard
+                          label="Latest survey status"
+                          value={
+                            <Badge variant={latestStatusTone}>
+                              {latestStatusLabel}
+                            </Badge>
+                          }
+                        />
+                      </div>
+                      <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-gray-200 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -1022,8 +1250,10 @@ export default async function AlumniProfilePage({
                           })}
                       </tbody>
                     </table>
-                  </div>
-                </Panel>
+                      </div>
+                    </Panel>
+                  );
+                })()
               ) : undefined
             }
             employment={
@@ -1335,6 +1565,45 @@ export default async function AlumniProfilePage({
                 </div>
               );
             })()}
+            designations={(() => {
+              // Other Designations tab (#307): the free-text `other_designations`
+              // field plus the boolean CFA/CFP/CPA certifications (from
+              // program_engagement) shown for context. Renders a friendly empty
+              // state when nothing is on file, so the tab always appears.
+              const pe = profile.program_engagement;
+              const certs = [
+                pe?.cfa_designation ? "CFA" : null,
+                pe?.cfp_designation ? "CFP" : null,
+                pe?.cpa_designation ? "CPA" : null,
+              ].filter(Boolean) as string[];
+              return (
+                <Panel title="Designations">
+                  {a.other_designations || certs.length ? (
+                    <div className="space-y-5">
+                      {a.other_designations ? (
+                        <ProfileNote
+                          label="Other designations"
+                          value={a.other_designations}
+                        />
+                      ) : null}
+                      {certs.length ? (
+                        <ChipRow label="Certifications">
+                          {certs.map((cert) => (
+                            <EngagementChip key={cert} tone="success">
+                              {cert}
+                            </EngagementChip>
+                          ))}
+                        </ChipRow>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <p className="py-6 text-center text-sm text-gray-500">
+                      No designations on file yet.
+                    </p>
+                  )}
+                </Panel>
+              );
+            })()}
             tasks={
               /* Open tasks — visible to admins (full_access / super_admin) only.
                  Rendered only when canEdit so the Tasks tab itself is omitted for
@@ -1394,12 +1663,11 @@ export default async function AlumniProfilePage({
               // Only present when the alumnus has donations; shown to every role
               // (amounts gated server-side). The tab is omitted otherwise.
               donations ? (
-                // canArchive === hasFullAccess(roles); the admin tier
-                // (full_access+) gets the per-gift delete control (H4), matching
-                // the DELETE /donations/{id} gate and the event-delete gate.
+                // Per-gift delete is now the donations.manage tier (super_admin+),
+                // matching the tightened DELETE /donations/{id} gate (#296).
                 <AlumniPayItForwardPanel
                   data={donations}
-                  canDelete={canArchive}
+                  canDelete={canDeleteDonation}
                 />
               ) : undefined
             }

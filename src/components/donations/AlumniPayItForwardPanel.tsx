@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
+import { MetricCard } from "@/components/shared/MetricCard";
 import type { AlumniDonations } from "@/types/donations";
 import { DeleteDonationButton } from "@/components/donations/DeleteDonationButton";
 
@@ -64,34 +65,18 @@ export function AlumniPayItForwardPanel({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <Card className="p-4">
-          <span className="block text-xs font-semibold uppercase tracking-wide text-gray-500">
-            Lifetime giving
-          </span>
-          <p
-            className={`mt-1.5 text-2xl font-semibold tabular-nums ${
-              showAmounts ? "text-gray-900" : "text-gray-400"
-            }`}
-          >
-            {money(data.lifetime_total)}
-          </p>
-        </Card>
-        <Card className="p-4">
-          <span className="block text-xs font-semibold uppercase tracking-wide text-gray-500">
-            Most recent year
-          </span>
-          <p className="mt-1.5 text-2xl font-semibold tabular-nums text-gray-900">
-            {mostRecentYear ?? "—"}
-          </p>
-        </Card>
-        <Card className="p-4">
-          <span className="block text-xs font-semibold uppercase tracking-wide text-gray-500">
-            Times given
-          </span>
-          <p className="mt-1.5 text-2xl font-semibold tabular-nums text-gray-900">
-            {data.donation_count}
-          </p>
-        </Card>
+        <MetricCard
+          label="Lifetime giving"
+          value={
+            showAmounts ? (
+              money(data.lifetime_total)
+            ) : (
+              <span className="text-gray-400">{money(data.lifetime_total)}</span>
+            )
+          }
+        />
+        <MetricCard label="Most recent year" value={mostRecentYear ?? "—"} />
+        <MetricCard label="Times given" value={data.donation_count} />
       </div>
 
       {!showAmounts && (

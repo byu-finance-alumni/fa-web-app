@@ -324,8 +324,10 @@ export interface paths {
         };
         /**
          * Alumni Import Template
-         * @description Download the bulk-import CSV template: the exact Alumni columns plus one
-         *     example row (full_access). Same column source as the xlsx intake template.
+         * @description Download the bulk-import CSV template (full_access). ``kind=alumni`` (the
+         *     default) returns the full Alumni columns; ``kind=friend`` returns the curated
+         *     friend (non-alumni contact) column set (#294). Same column source as the xlsx
+         *     intake template.
          */
         get: operations["alumni_import_template_alumni_import_template_get"];
         put?: never;
@@ -349,7 +351,8 @@ export interface paths {
          * Preview Import Alumni
          * @description Dry-run a bulk CSV import (full_access, NO writes).
          *
-         *     Parses + maps the uploaded CSV against the Alumni template columns, then
+         *     Parses + maps the uploaded CSV against the template columns for ``kind``
+         *     (``alumni`` default, or ``friend`` for non-alumni contacts, #294), then
          *     evaluates every row (clean + duplicate-detect against the DB and earlier
          *     rows in the file + completeness warnings). Returns the full preview report;
          *     a bad header set surfaces as ``columns_ok: false`` with ``header_errors``.
@@ -372,9 +375,11 @@ export interface paths {
         put?: never;
         /**
          * Import Alumni
-         * @description Commit a bulk CSV import (full_access). Re-evaluates and inserts every
-         *     importable row in one transaction (audit logging fires per row); rejected
-         *     rows are skipped and reported. A bad header set imports nothing.
+         * @description Commit a bulk CSV import (full_access). ``kind=friend`` imports non-alumni
+         *     contacts (``is_alumni=false``, #294); ``kind=alumni`` (default) imports
+         *     alumni. Re-evaluates and inserts every importable row in one transaction
+         *     (audit logging fires per row); rejected rows are skipped and reported. A bad
+         *     header set imports nothing.
          */
         post: operations["import_alumni_alumni_import_post"];
         delete?: never;
@@ -1890,14 +1895,14 @@ export interface paths {
         post?: never;
         /**
          * Delete Donation
-         * @description Delete a donation (full_access and up). 404 if unknown. Audits the write
-         *     (entity_type "donation", action "delete") with the actor's user id — the
-         *     DB trigger snapshots the actor email for the FERPA trail. Returns 204.
+         * @description Delete a donation (donations.manage tier: super_admin / engineer). 404 if
+         *     unknown. Audits the write (entity_type "donation", action "delete") with the
+         *     actor's user id — the DB trigger snapshots the actor email for the FERPA
+         *     trail. Returns 204.
          *
-         *     Gated to the ``alumni.full`` admin tier (full_access / super_admin /
-         *     engineer), matching the other destructive data-management writes (event
-         *     delete, alumni archive). Broadened from the original super_admin-only gate
-         *     during QA hardening (H4).
+         *     Gated to the ``donations.manage`` tier (super_admin / engineer), matching the
+         *     other donation writes (add / update). Tightened back from the temporary
+         *     ``alumni.full`` gate so full_access can no longer delete donations.
          */
         delete: operations["delete_donation_donations__donation_id__delete"];
         options?: never;
@@ -2431,6 +2436,29 @@ export interface paths {
         patch: operations["update_vocabulary_term_admin_vocabulary__term_id__patch"];
         trace?: never;
     };
+    "/admin/vocabulary/{term_id}/permanent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Vocabulary Term
+         * @description Permanently remove a term (hard delete), unlike the soft-delete DELETE
+         *     above. Existing records that already stored this value keep it — only the
+         *     managed option is removed, so it no longer appears in any admin list or
+         *     dropdown and cannot be restored. Writes an audit row. 404 if missing.
+         */
+        delete: operations["delete_vocabulary_term_admin_vocabulary__term_id__permanent_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/support-contacts": {
         parameters: {
             query?: never;
@@ -2616,10 +2644,32 @@ export interface components {
             birth_date: string | null;
             /** Graduation Year */
             graduation_year: number | null;
+            /** Graduation Month */
+            graduation_month: number | null;
+            /** Graduation Semester */
+            graduation_semester: string | null;
+            /** Graduation Class */
+            graduation_class: number | null;
             /** Finance Program Year */
             finance_program_year: number | null;
             /** Graduate Degree */
             graduate_degree: string | null;
+            /** Citizenship */
+            citizenship: string | null;
+            /** Marital Status */
+            marital_status: string | null;
+            /** Home Country */
+            home_country: string | null;
+            /** Employment Status */
+            employment_status: string | null;
+            /** Other Designations */
+            other_designations: string | null;
+            /** Survey Completed Date */
+            survey_completed_date: string | null;
+            /** Profile Updated Date */
+            profile_updated_date: string | null;
+            /** Profile Updated By */
+            profile_updated_by: string | null;
             /** Mba Program */
             mba_program: string | null;
             /** Law School */
@@ -2654,6 +2704,8 @@ export interface components {
             career: components["schemas"]["CareerCreate"] | null;
             education: components["schemas"]["app__schemas__alumni__EducationCreate"] | null;
             engagement: components["schemas"]["EngagementCreate"] | null;
+            former: components["schemas"]["FormerCreate"] | null;
+            leadership: components["schemas"]["app__schemas__alumni__LeadershipCreate"] | null;
         };
         /**
          * AlumniExportFilters
@@ -2915,10 +2967,32 @@ export interface components {
             birth_date: string | null;
             /** Graduation Year */
             graduation_year: number | null;
+            /** Graduation Semester */
+            graduation_semester: string | null;
+            /** Graduation Class */
+            graduation_class: number | null;
             /** Finance Program Year */
             finance_program_year: number | null;
             /** Graduate Degree */
             graduate_degree: string | null;
+            /** Citizenship */
+            citizenship: string | null;
+            /** Marital Status */
+            marital_status: string | null;
+            /** Home Country */
+            home_country: string | null;
+            /** Employment Status */
+            employment_status: string | null;
+            /** Other Designations */
+            other_designations: string | null;
+            /** Survey Completed Date */
+            survey_completed_date: string | null;
+            /** Profile Updated Date */
+            profile_updated_date: string | null;
+            /** Profile Updated By */
+            profile_updated_by: string | null;
+            /** Profile Updated By Name */
+            profile_updated_by_name: string | null;
             /** Mba Program */
             mba_program: string | null;
             /** Law School */
@@ -3021,10 +3095,32 @@ export interface components {
             birth_date: string | null;
             /** Graduation Year */
             graduation_year: number | null;
+            /** Graduation Semester */
+            graduation_semester: string | null;
+            /** Graduation Class */
+            graduation_class: number | null;
             /** Finance Program Year */
             finance_program_year: number | null;
             /** Graduate Degree */
             graduate_degree: string | null;
+            /** Citizenship */
+            citizenship: string | null;
+            /** Marital Status */
+            marital_status: string | null;
+            /** Home Country */
+            home_country: string | null;
+            /** Employment Status */
+            employment_status: string | null;
+            /** Other Designations */
+            other_designations: string | null;
+            /** Survey Completed Date */
+            survey_completed_date: string | null;
+            /** Profile Updated Date */
+            profile_updated_date: string | null;
+            /** Profile Updated By */
+            profile_updated_by: string | null;
+            /** Profile Updated By Name */
+            profile_updated_by_name: string | null;
             /** Mba Program */
             mba_program: string | null;
             /** Law School */
@@ -3110,10 +3206,32 @@ export interface components {
             birth_date: string | null;
             /** Graduation Year */
             graduation_year: number | null;
+            /** Graduation Month */
+            graduation_month: number | null;
+            /** Graduation Semester */
+            graduation_semester: string | null;
+            /** Graduation Class */
+            graduation_class: number | null;
             /** Finance Program Year */
             finance_program_year: number | null;
             /** Graduate Degree */
             graduate_degree: string | null;
+            /** Citizenship */
+            citizenship: string | null;
+            /** Marital Status */
+            marital_status: string | null;
+            /** Home Country */
+            home_country: string | null;
+            /** Employment Status */
+            employment_status: string | null;
+            /** Other Designations */
+            other_designations: string | null;
+            /** Survey Completed Date */
+            survey_completed_date: string | null;
+            /** Profile Updated Date */
+            profile_updated_date: string | null;
+            /** Profile Updated By */
+            profile_updated_by: string | null;
             /** Mba Program */
             mba_program: string | null;
             /** Law School */
@@ -3427,6 +3545,10 @@ export interface components {
             country?: string | null;
             /** Region */
             region?: string | null;
+            /** Preferred Contact Method */
+            preferred_contact_method?: string | null;
+            /** Best Contact */
+            best_contact?: string | null;
         };
         /** ContactRead */
         ContactRead: {
@@ -3452,6 +3574,10 @@ export interface components {
             country: string | null;
             /** Region */
             region: string | null;
+            /** Preferred Contact Method */
+            preferred_contact_method: string | null;
+            /** Best Contact */
+            best_contact: string | null;
         };
         /**
          * CountryCount
@@ -4317,6 +4443,21 @@ export interface components {
             /** Assigned To */
             assigned_to: string | null;
         };
+        /**
+         * FormerCreate
+         * @description A single PRIOR (non-current) role -> one ``employment_history`` row.
+         *
+         *     max_length mirrors database/schema.sql column widths (see ContactCreate).
+         *     The service persists this with ``is_current=False``.
+         */
+        FormerCreate: {
+            /** Employer Name */
+            employer_name?: string | null;
+            /** Employment Title */
+            employment_title?: string | null;
+            /** Employment Industry */
+            employment_industry?: string | null;
+        };
         /** GeoAlumniPage */
         GeoAlumniPage: {
             /** Items */
@@ -4495,16 +4636,6 @@ export interface components {
             interaction_date_time?: string | null;
             /** Interaction Notes */
             interaction_notes?: string | null;
-        };
-        /**
-         * LeadershipCreate
-         * @description Add a Finance Society leadership entry to an alumnus's record.
-         */
-        LeadershipCreate: {
-            /** Leadership Role */
-            leadership_role: string;
-            /** Role Year */
-            role_year?: number | null;
         };
         /** LeadershipRead */
         LeadershipRead: {
@@ -5252,6 +5383,18 @@ export interface components {
             degree_year?: number | null;
         };
         /**
+         * LeadershipCreate
+         * @description A student finance-society leadership role -> one
+         *     ``finance_society_leadership`` row. ``leadership_role`` is required on that
+         *     model; ``role_year`` is optional.
+         */
+        app__schemas__alumni__LeadershipCreate: {
+            /** Leadership Role */
+            leadership_role?: string | null;
+            /** Role Year */
+            role_year?: number | null;
+        };
+        /**
          * EducationCreate
          * @description Add an education entry to an alumnus's record (Education panel).
          */
@@ -5270,6 +5413,16 @@ export interface components {
             degree_status?: string | null;
             /** Degree Year */
             degree_year?: number | null;
+        };
+        /**
+         * LeadershipCreate
+         * @description Add a Finance Society leadership entry to an alumnus's record.
+         */
+        app__schemas__profile__LeadershipCreate: {
+            /** Leadership Role */
+            leadership_role: string;
+            /** Role Year */
+            role_year?: number | null;
         };
     };
     responses: never;
@@ -5671,7 +5824,9 @@ export interface operations {
     };
     alumni_import_template_alumni_import_template_get: {
         parameters: {
-            query?: never;
+            query?: {
+                kind?: "alumni" | "friend";
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5687,11 +5842,22 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     preview_import_alumni_alumni_import_preview_post: {
         parameters: {
-            query?: never;
+            query?: {
+                kind?: "alumni" | "friend";
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5724,7 +5890,9 @@ export interface operations {
     };
     import_alumni_alumni_import_post: {
         parameters: {
-            query?: never;
+            query?: {
+                kind?: "alumni" | "friend";
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -6352,7 +6520,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["LeadershipCreate"];
+                "application/json": components["schemas"]["app__schemas__profile__LeadershipCreate"];
             };
         };
         responses: {
@@ -8975,6 +9143,35 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["VocabularyTermRead"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_vocabulary_term_admin_vocabulary__term_id__permanent_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                term_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

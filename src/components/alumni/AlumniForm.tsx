@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { FormState, PreviewState } from "@/app/(app)/alumni/actions";
 import type { Alumni, HygienePreview } from "@/types/alumni";
 import { INDUSTRY_OPTIONS } from "@/constants/dropdowns";
+import { useVocabOptions, withValue } from "@/hooks/useVocabOptions";
 import { SpousePicker } from "@/components/alumni/SpousePicker";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,26 @@ import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 
 type Action = (prev: FormState, formData: FormData) => Promise<FormState>;
+
+/** Season options for the graduation-semester picker. Values are the plain
+ *  season names the backend `graduation_semester` string stores; a blank value
+ *  means "none". Replaces the former month picker — the profile READ model
+ *  exposes semester, not month. */
+const GRAD_SEMESTERS = ["Fall", "Winter", "Spring", "Summer"] as const;
+
+/** Canonical U.S. regions for the contact `region` select. Enforced on manual
+ *  edits so free-text region values don't drift; an existing value outside this
+ *  set is preserved on load via `withValue` (shown selected). */
+const REGIONS = ["Northeast", "Southeast", "Midwest", "Southwest", "West"] as const;
+
+/** Options for the "Preferred contact method" picker (#301). Values match the
+ *  backend `contact.preferred_contact_method` enum; a blank value means "none". */
+const PREFERRED_CONTACT_METHODS = [
+  { value: "personal_email", label: "Personal email" },
+  { value: "work_email", label: "Work email" },
+  { value: "phone", label: "Phone" },
+  { value: "linkedin", label: "LinkedIn" },
+] as const;
 
 /** Runs the server-side hygiene preview for the current form's FormData. The
  * Add page binds {@link previewAlumni}; the Edit page binds
@@ -198,22 +219,36 @@ function Field({
   label,
   name,
   defaultValue,
+  value,
   type = "text",
   error,
   onBlur,
+  onChange,
   required,
   placeholder,
+  hint,
 }: {
   label: string;
   name: string;
   defaultValue?: string;
+  /** When provided, the input renders CONTROLLED (value + onChange). Leave
+   * undefined for the default uncontrolled (`defaultValue`) behavior. */
+  value?: string;
   type?: string;
   error?: string;
   onBlur?: (name: string, value: string) => void;
+  /** Fires on every keystroke with the field's current value. Works for both
+   * controlled fields (to update state) and uncontrolled ones (to react to
+   * changes without owning the value). */
+  onChange?: (name: string, value: string) => void;
   required?: boolean;
   placeholder?: string;
+  /** Optional muted helper line shown under the field (non-error). */
+  hint?: string;
 }) {
   const errorId = error ? `${name}-error` : undefined;
+  const hintId = hint ? `${name}-hint` : undefined;
+  const controlled = value !== undefined;
   return (
     <div>
       <FieldLabel htmlFor={name} required={required}>
@@ -223,15 +258,18 @@ function Field({
         id={name}
         name={name}
         type={type}
-        defaultValue={defaultValue}
+        // Controlled when `value` is supplied; otherwise uncontrolled via
+        // `defaultValue` (React forbids passing both).
+        {...(controlled ? { value } : { defaultValue })}
         placeholder={placeholder}
         // Off so the browser can't inject/duplicate autofill text into these
         // uncontrolled fields (the only path that could render e.g. a doubled
         // "FinanceFinance" department value; the stored data is single).
         autoComplete="off"
         aria-invalid={error ? true : undefined}
-        aria-describedby={errorId}
+        aria-describedby={errorId ?? hintId}
         onBlur={onBlur ? (e) => onBlur(name, e.target.value) : undefined}
+        onChange={onChange ? (e) => onChange(name, e.target.value) : undefined}
         className={cn(
           error && "border-danger-600 focus-visible:ring-danger-600",
         )}
@@ -239,6 +277,10 @@ function Field({
       {error ? (
         <p id={errorId} className="mt-1 text-xs text-danger-600">
           {error}
+        </p>
+      ) : hint ? (
+        <p id={hintId} className="mt-1 text-xs text-brand-blue-600">
+          {hint}
         </p>
       ) : null}
     </div>
@@ -478,9 +520,47 @@ export function AlumniForm({
   // the section (or field) is absent, so the Add page renders blank inputs.
   const contact = (name: string) => defaults?.contact?.[name] ?? "";
   const career = (name: string) => defaults?.career?.[name] ?? "";
+  // Industry options come from the editable vocabulary (Admin → Vocabulary), not
+  // the hardcoded constant, so admin edits show up here. Falls back to the
+  // constant until the fetch resolves / on error so the select is never blank.
+  const industryOptions = useVocabOptions("industry", INDUSTRY_OPTIONS);
   const education = (name: string) => defaults?.education?.[name] ?? "";
   const flag = (name: string) =>
     defaults?.engagement?.flags?.[name] ?? false;
+
+  // --- Work email follows the current employer (#293) ---------------------
+  // A stored work email is tied to the old employer's domain, so when the
+  // current employer changes on an EXISTING record we clear the work email and
+  // prompt for the new one — a stale address is worse than a blank one.
+  //
+  // Only relevant when editing (an alumni id is present); a brand-new blank
+  // form has no prior employer/email to reconcile. The work email is rendered
+  // controlled off `workEmail` so we can clear it; the employer stays
+  // uncontrolled and just notifies us on change. `initialEmployer` is captured
+  // from props (stable for this record) as the baseline to diverge from.
+  const isEdit = defaults?.alumni_id != null;
+  const initialEmployer = (defaults?.career?.current_employer ?? "").trim();
+  const [workEmail, setWorkEmail] = useState(contact("work_email"));
+  const [workEmailCleared, setWorkEmailCleared] = useState(false);
+
+  const handleEmployerChange = (_name: string, value: string) => {
+    if (!isEdit) return;
+    const changed = value.trim() !== initialEmployer;
+    if (changed) {
+      // Employer diverged from the stored one — drop the now-stale work email
+      // once and surface the prompt. Guarded so we don't fight the user if
+      // they start typing a replacement address.
+      if (!workEmailCleared) {
+        setWorkEmail("");
+        setWorkEmailCleared(true);
+      }
+    } else if (workEmailCleared) {
+      // Reverted to the original employer — restore the original email and
+      // dismiss the prompt.
+      setWorkEmail(contact("work_email"));
+      setWorkEmailCleared(false);
+    }
+  };
 
   /* --- Core section (shared by add + edit) ------------------------------- */
   const coreSection = (
@@ -527,7 +607,7 @@ export function AlumniForm({
             onBlur={handleBlur}
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <Field
             label="Graduation year"
             name="graduation_year"
@@ -536,12 +616,43 @@ export function AlumniForm({
             error={errors.graduation_year}
             onBlur={handleBlur}
           />
+          <SelectField
+            label="Graduation semester"
+            name="graduation_semester"
+            options={GRAD_SEMESTERS}
+            defaultValue={defaults?.graduation_semester ?? ""}
+          />
+          <Field
+            label="Graduating class"
+            name="graduation_class"
+            type="number"
+            defaultValue={defaults?.graduation_class?.toString() ?? ""}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
           <Field
             label="Gender"
             name="gender"
             defaultValue={defaults?.gender ?? ""}
             error={errors.gender}
             onBlur={handleBlur}
+          />
+          <Field
+            label="Citizenship"
+            name="citizenship"
+            defaultValue={defaults?.citizenship ?? ""}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <Field
+            label="Marital status"
+            name="marital_status"
+            defaultValue={defaults?.marital_status ?? ""}
+          />
+          <Field
+            label="Home country"
+            name="home_country"
+            defaultValue={defaults?.home_country ?? ""}
           />
         </div>
         <Field
@@ -578,6 +689,31 @@ export function AlumniForm({
             </p>
           ) : null}
         </div>
+        <div>
+          <FieldLabel htmlFor="other_designations">
+            Other designations
+          </FieldLabel>
+          <Textarea
+            id="other_designations"
+            name="other_designations"
+            rows={2}
+            defaultValue={defaults?.other_designations ?? ""}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <Field
+            label="Filled out survey"
+            name="survey_completed_date"
+            type="date"
+            defaultValue={defaults?.survey_completed_date ?? ""}
+          />
+          <Field
+            label="Profile updated date"
+            name="profile_updated_date"
+            type="date"
+            defaultValue={defaults?.profile_updated_date ?? ""}
+          />
+        </div>
         <SpousePicker
           selfId={defaults?.alumni_id}
           errors={errors}
@@ -608,16 +744,30 @@ export function AlumniForm({
             label="Work email"
             name="contact.work_email"
             type="email"
-            defaultValue={contact("work_email")}
+            value={workEmail}
+            onChange={(_n, v) => setWorkEmail(v)}
             error={errors["contact.work_email"]}
+            hint={
+              workEmailCleared
+                ? "Cleared — the previous work email was tied to the old employer. Add the new one."
+                : undefined
+            }
           />
         </div>
-        <Field
-          label="Phone"
-          name="contact.phone"
-          defaultValue={contact("phone")}
-          error={errors["contact.phone"]}
-        />
+        <div className="grid grid-cols-2 gap-4">
+          <Field
+            label="Phone"
+            name="contact.phone"
+            defaultValue={contact("phone")}
+            error={errors["contact.phone"]}
+          />
+          <Field
+            label="Best contact (phone or email)"
+            name="contact.best_contact"
+            defaultValue={contact("best_contact")}
+            error={errors["contact.best_contact"]}
+          />
+        </div>
         <Field
           label="Address line 1"
           name="contact.address_line_1"
@@ -658,12 +808,30 @@ export function AlumniForm({
             error={errors["contact.country"]}
           />
         </div>
-        <Field
+        <SelectField
           label="Region"
           name="contact.region"
+          options={withValue(REGIONS, contact("region"))}
           defaultValue={contact("region")}
           error={errors["contact.region"]}
         />
+        <div>
+          <FieldLabel htmlFor="contact.preferred_contact_method">
+            Preferred contact method
+          </FieldLabel>
+          <Select
+            id="contact.preferred_contact_method"
+            name="contact.preferred_contact_method"
+            defaultValue={contact("preferred_contact_method")}
+          >
+            <option value="">— None —</option>
+            {PREFERRED_CONTACT_METHODS.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </Select>
+        </div>
       </div>
     </Section>
   );
@@ -677,6 +845,9 @@ export function AlumniForm({
             name="career.current_employer"
             defaultValue={career("current_employer")}
             error={errors["career.current_employer"]}
+            // When the employer changes on an existing record, clear the stale
+            // work email tied to the old company (#293).
+            onChange={handleEmployerChange}
           />
           <Field
             label="Title"
@@ -689,14 +860,17 @@ export function AlumniForm({
           <SelectField
             label="Industry"
             name="career.current_industry"
-            options={INDUSTRY_OPTIONS}
+            options={withValue(industryOptions, career("current_industry"))}
             defaultValue={career("current_industry")}
             error={errors["career.current_industry"]}
           />
           <SelectField
             label="Secondary industry"
             name="career.current_industry_secondary"
-            options={INDUSTRY_OPTIONS}
+            options={withValue(
+              industryOptions,
+              career("current_industry_secondary"),
+            )}
             defaultValue={career("current_industry_secondary")}
             error={errors["career.current_industry_secondary"]}
           />
@@ -734,6 +908,15 @@ export function AlumniForm({
           name="career.seniority_level"
           defaultValue={career("seniority_level")}
           error={errors["career.seniority_level"]}
+        />
+        {/* Top-level alumni field (not nested under `career`), so it's named
+            plainly and flows through the core payload — grouped here with the
+            current-role fields for context. */}
+        <Field
+          label="Employment status"
+          name="employment_status"
+          defaultValue={defaults?.employment_status ?? ""}
+          error={errors.employment_status}
         />
       </div>
     </Section>

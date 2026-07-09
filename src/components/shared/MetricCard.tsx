@@ -19,9 +19,12 @@ export function MetricCard({
   href,
   linkLabel,
   onClick,
+  title,
 }: {
   label: string;
   value: React.ReactNode;
+  /** Native hover tooltip on the tile (e.g. who last updated the record). */
+  title?: string;
   /** @deprecated no longer rendered. */
   icon?: LucideIcon;
   /** @deprecated no longer rendered. */
@@ -73,6 +76,7 @@ export function MetricCard({
         href={href}
         aria-label={linkLabel ?? `${label}: view details`}
         className={interactive}
+        title={title}
       >
         {inner}
       </Link>
@@ -86,11 +90,16 @@ export function MetricCard({
         onClick={onClick}
         aria-label={linkLabel ?? `${label}: view details`}
         className={cn(interactive, "w-full")}
+        title={title}
       >
         {inner}
       </button>
     );
   }
 
-  return <div className={base}>{inner}</div>;
+  return (
+    <div className={base} title={title}>
+      {inner}
+    </div>
+  );
 }

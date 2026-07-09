@@ -309,8 +309,9 @@ export default async function DashboardPage() {
   // dashboard.
   let filterOptions: FilterOptions | null = null;
   let presets: DashboardPreset[] = [];
+  let industryVocab: string[] | null = null;
   if (!notProvisioned) {
-    [filterOptions, presets] = await Promise.all([
+    [filterOptions, presets, industryVocab] = await Promise.all([
       apiGet<FilterOptions>("/alumni/filter-options", {
         revalidate: 300,
         tags: ["alumni-filter-options"],
@@ -319,7 +320,24 @@ export default async function DashboardPage() {
         revalidate: 60,
         tags: ["dashboard-presets"],
       }).catch(() => []),
+      // Advanced-search Industry facet offers the admin-curated vocabulary
+      // (Admin → Vocabulary), same as the alumni list filter — so a vocab edit
+      // shows up here instead of only the industries already present in data.
+      apiGet<{ category: string; values: string[] }>("/vocabulary/industry", {
+        revalidate: 300,
+        tags: ["vocabulary"],
+      })
+        .then((r) => r.values)
+        .catch(() => null),
     ]);
+    // Overlay the vocabulary onto the industry facet (mirrors AlumniRoster).
+    if (
+      filterOptions &&
+      Array.isArray(industryVocab) &&
+      industryVocab.length > 0
+    ) {
+      filterOptions = { ...filterOptions, industries: industryVocab };
+    }
   }
 
   // "Welcome, Marcus" — name from the auth context (or a first name derived from

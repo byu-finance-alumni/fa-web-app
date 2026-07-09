@@ -355,6 +355,15 @@ export function AlumniFilters({
           </Button>
         ) : null}
 
+        {/* Friends CSV bulk import (#294) — text-only, mirrors the alumni import
+            entry point under Admin. Full access only, and the backend re-enforces
+            it on the import endpoints. */}
+        {isFriend && canCreate ? (
+          <Button asChild variant="secondary">
+            <Link href="/friends/import">Import CSV</Link>
+          </Button>
+        ) : null}
+
         <form
           onSubmit={onSearchSubmit}
           role="search"
