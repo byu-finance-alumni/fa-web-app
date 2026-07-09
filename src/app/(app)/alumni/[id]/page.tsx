@@ -152,22 +152,36 @@ function HeaderContact({
       };
   }
 
-  if (!primary) return null;
+  if (!primary && !linkedinUrl) return null;
 
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
-      <a
-        href={primary.href}
-        target={primary.href.startsWith("http") ? "_blank" : undefined}
-        rel={
-          primary.href.startsWith("http") ? "noopener noreferrer" : undefined
-        }
-        className="inline-flex items-center gap-1 font-semibold text-brand-blue-600 hover:text-brand-blue-500"
-        title={primary.label}
-      >
-        <span aria-hidden="true">★</span>
-        {primary.value}
-      </a>
+      {primary ? (
+        <a
+          href={primary.href}
+          target={primary.href.startsWith("http") ? "_blank" : undefined}
+          rel={
+            primary.href.startsWith("http") ? "noopener noreferrer" : undefined
+          }
+          className="inline-flex items-center gap-1 font-semibold text-brand-blue-600 hover:text-brand-blue-500"
+          title={primary.label}
+        >
+          <span aria-hidden="true">★</span>
+          {primary.value}
+        </a>
+      ) : null}
+      {/* LinkedIn stays up top (non-PII, visible to every role) unless it's
+          already the starred primary. */}
+      {linkedinUrl && primary?.href !== linkedinUrl ? (
+        <a
+          href={linkedinUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-brand-blue-600 hover:text-brand-blue-500"
+        >
+          LinkedIn
+        </a>
+      ) : null}
     </div>
   );
 }
@@ -777,6 +791,11 @@ export default async function AlumniProfilePage({
                       label="Country"
                       value={c.country}
                     />
+                    {/* ZIP is part of the mailing address (PII) — gate it like the
+                        street address; renders under State / next to Country. */}
+                    {canViewContactDetails ? (
+                      <ContactField icon={MapPin} label="ZIP" value={c.zip} />
+                    ) : null}
                   </div>
                 ) : (
                   <p className="py-6 text-center text-sm text-gray-500">
