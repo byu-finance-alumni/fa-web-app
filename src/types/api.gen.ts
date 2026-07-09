@@ -2646,10 +2646,28 @@ export interface components {
             graduation_year: number | null;
             /** Graduation Month */
             graduation_month: number | null;
+            /** Graduation Semester */
+            graduation_semester: string | null;
+            /** Graduation Class */
+            graduation_class: number | null;
             /** Finance Program Year */
             finance_program_year: number | null;
             /** Graduate Degree */
             graduate_degree: string | null;
+            /** Citizenship */
+            citizenship: string | null;
+            /** Marital Status */
+            marital_status: string | null;
+            /** Home Country */
+            home_country: string | null;
+            /** Employment Status */
+            employment_status: string | null;
+            /** Other Designations */
+            other_designations: string | null;
+            /** Survey Completed Date */
+            survey_completed_date: string | null;
+            /** Profile Updated Date */
+            profile_updated_date: string | null;
             /** Mba Program */
             mba_program: string | null;
             /** Law School */
@@ -2684,6 +2702,8 @@ export interface components {
             career: components["schemas"]["CareerCreate"] | null;
             education: components["schemas"]["app__schemas__alumni__EducationCreate"] | null;
             engagement: components["schemas"]["EngagementCreate"] | null;
+            former: components["schemas"]["FormerCreate"] | null;
+            leadership: components["schemas"]["app__schemas__alumni__LeadershipCreate"] | null;
         };
         /**
          * AlumniExportFilters
@@ -3182,10 +3202,28 @@ export interface components {
             graduation_year: number | null;
             /** Graduation Month */
             graduation_month: number | null;
+            /** Graduation Semester */
+            graduation_semester: string | null;
+            /** Graduation Class */
+            graduation_class: number | null;
             /** Finance Program Year */
             finance_program_year: number | null;
             /** Graduate Degree */
             graduate_degree: string | null;
+            /** Citizenship */
+            citizenship: string | null;
+            /** Marital Status */
+            marital_status: string | null;
+            /** Home Country */
+            home_country: string | null;
+            /** Employment Status */
+            employment_status: string | null;
+            /** Other Designations */
+            other_designations: string | null;
+            /** Survey Completed Date */
+            survey_completed_date: string | null;
+            /** Profile Updated Date */
+            profile_updated_date: string | null;
             /** Mba Program */
             mba_program: string | null;
             /** Law School */
@@ -3501,6 +3539,8 @@ export interface components {
             region?: string | null;
             /** Preferred Contact Method */
             preferred_contact_method?: string | null;
+            /** Best Contact */
+            best_contact?: string | null;
         };
         /** ContactRead */
         ContactRead: {
@@ -4393,6 +4433,21 @@ export interface components {
             /** Assigned To */
             assigned_to: string | null;
         };
+        /**
+         * FormerCreate
+         * @description A single PRIOR (non-current) role -> one ``employment_history`` row.
+         *
+         *     max_length mirrors database/schema.sql column widths (see ContactCreate).
+         *     The service persists this with ``is_current=False``.
+         */
+        FormerCreate: {
+            /** Employer Name */
+            employer_name?: string | null;
+            /** Employment Title */
+            employment_title?: string | null;
+            /** Employment Industry */
+            employment_industry?: string | null;
+        };
         /** GeoAlumniPage */
         GeoAlumniPage: {
             /** Items */
@@ -4571,16 +4626,6 @@ export interface components {
             interaction_date_time?: string | null;
             /** Interaction Notes */
             interaction_notes?: string | null;
-        };
-        /**
-         * LeadershipCreate
-         * @description Add a Finance Society leadership entry to an alumnus's record.
-         */
-        LeadershipCreate: {
-            /** Leadership Role */
-            leadership_role: string;
-            /** Role Year */
-            role_year?: number | null;
         };
         /** LeadershipRead */
         LeadershipRead: {
@@ -5328,6 +5373,18 @@ export interface components {
             degree_year?: number | null;
         };
         /**
+         * LeadershipCreate
+         * @description A student finance-society leadership role -> one
+         *     ``finance_society_leadership`` row. ``leadership_role`` is required on that
+         *     model; ``role_year`` is optional.
+         */
+        app__schemas__alumni__LeadershipCreate: {
+            /** Leadership Role */
+            leadership_role?: string | null;
+            /** Role Year */
+            role_year?: number | null;
+        };
+        /**
          * EducationCreate
          * @description Add an education entry to an alumnus's record (Education panel).
          */
@@ -5346,6 +5403,16 @@ export interface components {
             degree_status?: string | null;
             /** Degree Year */
             degree_year?: number | null;
+        };
+        /**
+         * LeadershipCreate
+         * @description Add a Finance Society leadership entry to an alumnus's record.
+         */
+        app__schemas__profile__LeadershipCreate: {
+            /** Leadership Role */
+            leadership_role: string;
+            /** Role Year */
+            role_year?: number | null;
         };
     };
     responses: never;
@@ -6443,7 +6510,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["LeadershipCreate"];
+                "application/json": components["schemas"]["app__schemas__profile__LeadershipCreate"];
             };
         };
         responses: {

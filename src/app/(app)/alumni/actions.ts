@@ -94,8 +94,16 @@ function buildPayload(formData: FormData): Record<string, unknown> {
     net_id: str("net_id"),
     birth_date: str("birth_date"),
     graduation_year: num("graduation_year"),
-    graduation_month: num("graduation_month"),
+    graduation_semester: str("graduation_semester"),
+    graduation_class: num("graduation_class"),
     gender: str("gender"),
+    citizenship: str("citizenship"),
+    marital_status: str("marital_status"),
+    home_country: str("home_country"),
+    employment_status: str("employment_status"),
+    other_designations: str("other_designations"),
+    survey_completed_date: str("survey_completed_date"),
+    profile_updated_date: str("profile_updated_date"),
     spouse_first_name: str("spouse_first_name"),
     spouse_last_name: str("spouse_last_name"),
     spouse_birth_date: str("spouse_birth_date"),
@@ -168,6 +176,8 @@ function buildCreatePayload(formData: FormData): Record<string, unknown> {
     // when the picker's "— None —" option is selected). Flows through the
     // contact section to ContactCreate.preferred_contact_method (#301).
     { name: "preferred_contact_method" },
+    // Free-text "best way to reach me" (phone or email) → ContactCreate.best_contact.
+    { name: "best_contact" },
   ]);
 
   const career = buildSection(formData, "career", [
