@@ -357,11 +357,17 @@ export default async function DashboardPage() {
     href?: string;
     muted?: boolean;
   }[] = (() => {
-    const shown = industries.slice(0, 5).map((i) => ({
-      label: i.industry,
-      count: i.count,
-      href: `/alumni?industry=${encodeURIComponent(i.industry)}`,
-    }));
+    // Keep the literal "Other" industry OUT of the named slices so it folds
+    // into the single grey "Other" bucket below — otherwise the chart shows two
+    // "Other" entries (the real industry value + the reconciliation bucket).
+    const shown = industries
+      .filter((i) => (i.industry ?? "").trim().toLowerCase() !== "other")
+      .slice(0, 5)
+      .map((i) => ({
+        label: i.industry,
+        count: i.count,
+        href: `/alumni?industry=${encodeURIComponent(i.industry)}`,
+      }));
     const total = s?.total_alumni ?? 0;
     const shownSum = shown.reduce((acc, r) => acc + r.count, 0);
     const other = total - shownSum;
