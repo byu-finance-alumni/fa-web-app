@@ -32,6 +32,9 @@ import {
 /** Image types the backend accepts; also used for client-side pre-validation. */
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const ACCEPT_ATTR = ACCEPTED_TYPES.join(",");
+// Matches the backend upload cap; reject client-side so an oversize file fails
+// with a friendly message instead of a Server Action 413 (which crashes the UI).
+const MAX_HEADSHOT_BYTES = 4 * 1024 * 1024;
 
 export function ProfileHeadshot({
   alumniId,
@@ -67,6 +70,10 @@ export function ProfileHeadshot({
     if (!file) return;
     if (!ACCEPTED_TYPES.includes(file.type)) {
       toast.error("That image type isn't supported. Use a JPEG, PNG, or WebP.");
+      return;
+    }
+    if (file.size > MAX_HEADSHOT_BYTES) {
+      toast.error("That image is too large. Please use one under 4 MB.");
       return;
     }
     const fd = new FormData();
