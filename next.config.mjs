@@ -34,9 +34,9 @@ const nextConfig = {
   poweredByHeader: false,
   experimental: {
     // Headshot uploads run through a Server Action; raise the default 1 MB body
-    // limit above the app's image cap (4 MB) so normal photos aren't rejected
+    // limit above the app's image cap (20 MB) so normal photos aren't rejected
     // with a framework-level 413 before our own validation can run.
-    serverActions: { bodySizeLimit: "5mb" },
+    serverActions: { bodySizeLimit: "21mb" },
   },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
