@@ -182,6 +182,28 @@ export async function apiPostForm<T>(
 }
 
 /**
+ * Server-side multipart PUT. Sends the given `FormData` (e.g. a headshot image)
+ * with the user's Bearer token. Like {@link apiPostForm} we deliberately DON'T
+ * set `Content-Type` — fetch derives the correct `multipart/form-data;
+ * boundary=…` header from the FormData body. Used by the alumni headshot upload
+ * (PUT /alumni/{id}/headshot), which returns 204.
+ */
+export async function apiPutForm<T>(
+  path: string,
+  formData: FormData,
+): Promise<T> {
+  if (!API_URL) throw new ApiError(0, "API URL is not configured.");
+  return handle<T>(
+    await fetch(`${API_URL}${path}`, {
+      method: "PUT",
+      headers: await authHeaders(),
+      body: formData,
+      cache: "no-store",
+    }),
+  );
+}
+
+/**
  * Server-side GET that returns the raw response body as text (not JSON) — used
  * for file downloads such as the CSV import template, which the client then
  * turns into a Blob download. Auth header is attached like every other call.
