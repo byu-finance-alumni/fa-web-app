@@ -5718,6 +5718,8 @@ export interface operations {
                 cfa?: boolean;
                 /** @description Only alumni holding the CPA designation. */
                 cpa?: boolean;
+                /** @description Only alumni with a graduate degree recorded. */
+                graduate_degree?: boolean;
                 /** @description Only alumni with no contact-info email on file. */
                 missing_email?: boolean;
                 /** @description Only alumni with no current employer on file. */
