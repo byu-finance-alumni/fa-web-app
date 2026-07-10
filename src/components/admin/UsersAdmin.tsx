@@ -66,11 +66,14 @@ export function UsersAdmin({
   users,
   currentUserId,
   canAssignEngineer,
+  actorRoles,
   initialQ = "",
 }: {
   users: AdminUser[];
   currentUserId: number | null;
   canAssignEngineer: boolean;
+  /** The signed-in admin's roles — drives the Create User role dropdown. */
+  actorRoles?: readonly string[];
   /** Search term read from the URL (`?q=`) by the server component. */
   initialQ?: string;
 }) {
@@ -112,7 +115,7 @@ export function UsersAdmin({
             className="pl-9"
           />
         </div>
-        <CreateUserDialog />
+        <CreateUserDialog actorRoles={actorRoles} />
       </div>
 
       {filtered.length === 0 ? (
