@@ -315,6 +315,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/alumni/{alumni_id}/headshot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Headshot
+         * @description Return a short-lived signed URL for the alumnus's headshot, or
+         *     ``{"url": null}`` when none is set. Any authenticated view role may fetch it
+         *     (the headshot shows on the profile); the bucket is private so the signed URL
+         *     is the only way to view the image and it expires within the hour.
+         */
+        get: operations["get_headshot_alumni__alumni_id__headshot_get"];
+        /**
+         * Upload Headshot
+         * @description Upload or replace an alumnus's headshot (full_access and up).
+         *
+         *     Stored PRIVATELY in the ``headshots`` bucket, keyed by the alumnus's net ID,
+         *     overwriting any existing image. Only JPEG/PNG/WebP within the upload cap are
+         *     accepted; the image is only ever served back via a short-lived signed URL.
+         */
+        put: operations["upload_headshot_alumni__alumni_id__headshot_put"];
+        post?: never;
+        /**
+         * Delete Headshot
+         * @description Remove an alumnus's headshot (full_access and up). A missing image is a
+         *     no-op (still 204).
+         */
+        delete: operations["delete_headshot_alumni__alumni_id__headshot_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/alumni/import/template": {
         parameters: {
             query?: never;
@@ -3433,6 +3469,11 @@ export interface components {
             /** Event Notes */
             event_notes?: string | null;
         };
+        /** Body_upload_headshot_alumni__alumni_id__headshot_put */
+        Body_upload_headshot_alumni__alumni_id__headshot_put: {
+            /** File */
+            file: string;
+        };
         /** Breakdown */
         Breakdown: {
             /** Dimension */
@@ -5818,6 +5859,101 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FilterOptions"];
+                };
+            };
+        };
+    };
+    get_headshot_alumni__alumni_id__headshot_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alumni_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_headshot_alumni__alumni_id__headshot_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alumni_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_headshot_alumni__alumni_id__headshot_put"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_headshot_alumni__alumni_id__headshot_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alumni_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
