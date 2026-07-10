@@ -821,14 +821,22 @@ export default async function AlumniProfilePage({
                     <p className="mt-0.5 text-2xl font-semibold text-gray-900">
                       {daysAgo(lastContactedIso)}
                     </p>
-                    {fmtDate(lastContactedIso) ? (
-                      <p className="text-sm text-gray-500">
-                        {fmtDate(lastContactedIso)}
-                      </p>
-                    ) : null}
-                    {lastContactedIso !== null &&
-                    lastInteraction?.interaction_type ? (
-                      <div className="mt-2">
+                    {/* Always render the date sub-line so the block keeps the
+                        same height whether or not a contact date exists — an
+                        em-dash placeholder (muted) stands in when the alumnus
+                        has never been contacted. */}
+                    <p
+                      className={`text-sm ${fmtDate(lastContactedIso) ? "text-gray-500" : "text-gray-300"}`}
+                    >
+                      {fmtDate(lastContactedIso) ?? "—"}
+                    </p>
+                    {/* Always render a status chip too — the interaction type
+                        when one exists, otherwise a neutral "No interactions
+                        yet" placeholder — so the never-contacted state has the
+                        same row count (and height) as the contacted state. */}
+                    <div className="mt-2">
+                      {lastContactedIso !== null &&
+                      lastInteraction?.interaction_type ? (
                         <EngagementChip tone={contactTone}>
                           {contactTone === "warning"
                             ? "Stale · "
@@ -837,8 +845,12 @@ export default async function AlumniProfilePage({
                               : ""}
                           {lastInteraction.interaction_type}
                         </EngagementChip>
-                      </div>
-                    ) : null}
+                      ) : (
+                        <EngagementChip tone="neutral">
+                          No interactions yet
+                        </EngagementChip>
+                      )}
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 border-t border-gray-100 pt-4">
