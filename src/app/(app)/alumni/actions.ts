@@ -1156,10 +1156,10 @@ export async function getHeadshotUploadUrl(
 }
 
 /**
- * Confirm a direct-to-storage headshot upload completed (POST
+ * Confirm a direct-to-storage headshot upload landed (POST
  * /alumni/{id}/headshot/confirm; full_access+). The backend verifies the object
- * landed and writes the audit entry; we then revalidate the profile so a server
- * re-render also picks up the new photo.
+ * exists and re-checks its type/size; the upload is already audited at mint
+ * time. We then revalidate the profile so a server re-render picks up the photo.
  */
 export async function confirmHeadshotUpload(
   alumniId: number,
