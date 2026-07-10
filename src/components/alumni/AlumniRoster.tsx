@@ -99,6 +99,7 @@ export async function AlumniRoster({
     speaker: isTrue(sp.speaker),
     cfa: isTrue(sp.cfa),
     cpa: isTrue(sp.cpa),
+    graduateDegree: isTrue(sp.graduate_degree),
     archived: isTrue(sp.archived),
     deceased: isTrue(sp.deceased)
       ? "only"
@@ -156,6 +157,7 @@ export async function AlumniRoster({
   if (filters.speaker) params.set("guest_speaker_willing", "true");
   if (filters.cfa) params.set("cfa", "true");
   if (filters.cpa) params.set("cpa", "true");
+  if (filters.graduateDegree) params.set("graduate_degree", "true");
   const isoDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
   const spokeAfter = one(sp.spoke_after);
   const spokeBefore = one(sp.spoke_before);

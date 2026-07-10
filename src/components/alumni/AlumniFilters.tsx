@@ -41,6 +41,7 @@ export interface AlumniFilterState {
   speaker: boolean;
   cfa: boolean;
   cpa: boolean;
+  graduateDegree: boolean;
   archived: boolean;
   deceased: "" | "only" | "exclude";
   missingEmail: boolean;
@@ -78,6 +79,7 @@ export const EMPTY_FILTERS: AlumniFilterState = {
   speaker: false,
   cfa: false,
   cpa: false,
+  graduateDegree: false,
   archived: false,
   deceased: "",
   missingEmail: false,
@@ -128,6 +130,7 @@ function toQs(f: AlumniFilterState): string {
   if (f.speaker) p.set("speaker", "1");
   if (f.cfa) p.set("cfa", "1");
   if (f.cpa) p.set("cpa", "1");
+  if (f.graduateDegree) p.set("graduate_degree", "1");
   if (f.archived) p.set("archived", "1");
   if (f.deceased === "only") p.set("deceased", "1");
   if (f.deceased === "exclude") p.set("deceased", "0");
@@ -278,6 +281,7 @@ export function AlumniFilters({
     (f.speaker ? 1 : 0) +
     (f.cfa ? 1 : 0) +
     (f.cpa ? 1 : 0) +
+    (f.graduateDegree ? 1 : 0) +
     (f.archived ? 1 : 0) +
     (f.deceased ? 1 : 0) +
     (f.missingEmail ? 1 : 0) +
@@ -318,6 +322,11 @@ export function AlumniFilters({
   if (f.speaker) chips.push({ label: "Willing to guest speak", remove: () => set("speaker", false) });
   if (f.cfa) chips.push({ label: "CFA", remove: () => set("cfa", false) });
   if (f.cpa) chips.push({ label: "CPA", remove: () => set("cpa", false) });
+  if (f.graduateDegree)
+    chips.push({
+      label: "Graduate degree",
+      remove: () => set("graduateDegree", false),
+    });
   if (f.missingEmail) chips.push({ label: "Missing email", remove: () => set("missingEmail", false) });
   if (f.missingEmployer) chips.push({ label: "Missing employer", remove: () => set("missingEmployer", false) });
   if (f.duplicate) chips.push({ label: "Duplicate", remove: () => set("duplicate", false) });
@@ -329,7 +338,7 @@ export function AlumniFilters({
     });
 
   const checkboxRow = (
-    key: "attended" | "donor" | "mentor" | "speaker" | "cfa" | "cpa" | "archived" | "neverContacted" | "missingEmail" | "missingEmployer" | "duplicate",
+    key: "attended" | "donor" | "mentor" | "speaker" | "cfa" | "cpa" | "graduateDegree" | "archived" | "neverContacted" | "missingEmail" | "missingEmployer" | "duplicate",
     label: string,
   ) => (
     <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -558,6 +567,7 @@ export function AlumniFilters({
                   {checkboxRow("speaker", "Willing to guest speak")}
                   {checkboxRow("cfa", "CFA designation")}
                   {checkboxRow("cpa", "CPA designation")}
+                  {checkboxRow("graduateDegree", "Graduate degree")}
                 </div>
               </div>
 
