@@ -261,7 +261,7 @@ function DonutChart({
                 </Link>
               ) : (
                 <div
-                  className="flex items-center gap-3 px-2 py-1.5"
+                  className="-mx-2 flex items-center gap-3 px-2 py-1.5"
                   title={`${r.label}: ${r.count}`}
                 >
                   {body}
