@@ -1354,9 +1354,14 @@ export interface paths {
          *         role is at or below the actor's own highest tier (ranked via
          *         ROLE_ORDER) — so only an engineer may delete an engineer, and only
          *         super_admin/engineer may delete a super_admin.
-         *       * Last-holder guard: you cannot delete the final holder of a top role
-         *         (super_admin / engineer), which would lock administration out for
-         *         everyone.
+         *       * Last-holder guard: you cannot delete the final holder of a top role when
+         *         that would lock administration out of the system. The last ENGINEER is
+         *         always protected (the engineer holds unique vocab/database powers no
+         *         other role can). The last SUPER_ADMIN is protected only when NO engineer
+         *         remains — the engineer tier is a superset of super_admin (engineer ⊇
+         *         super_admin), so as long as an engineer exists, user administration is
+         *         still available and the sole super_admin CAN be deleted (notably, an
+         *         engineer deleting it).
          *
          *     Order of operations: the DB row (plus a ``delete_user`` audit entry,
          *     attributed to the actor and recording the deleted user's email) is committed
@@ -3623,11 +3628,13 @@ export interface components {
         };
         /**
          * CreateUserRequest
-         * @description Provision a new login user. ``role_name`` is restricted to the
-         *     non-privileged roles (full_access / student / view_only) — the top roles
-         *     (engineer, super_admin) are NOT bootstrappable here — so an unknown or
-         *     disallowed role is a 422 before any query runs; names follow the alumni NAME
-         *     rules (≤100 chars). ``extra='forbid'`` rejects unknown keys.
+         * @description Provision a new login user. ``role_name`` accepts any known role; WHICH
+         *     role the creator may actually assign is enforced in the handler by the
+         *     privilege-ceiling guard (an actor can only create a user at or below their
+         *     own tier) — mirroring the assign-role endpoint, so a super_admin still can't
+         *     bootstrap an engineer above their own tier. An unknown role is a 422; names
+         *     follow the alumni NAME rules (≤100 chars). ``extra='forbid'`` rejects unknown
+         *     keys.
          */
         CreateUserRequest: {
             /** Email */
