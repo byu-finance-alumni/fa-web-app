@@ -1127,6 +1127,55 @@ export async function uploadHeadshot(
   }
 }
 
+/**
+ * Mint a signed URL the browser PUTs the headshot to DIRECTLY (POST
+ * /alumni/{id}/headshot/upload-url; full_access+). Uploading through a Server
+ * Action or the API would 413 on files over ~4.5 MB — Vercel's serverless
+ * request-body cap — so large photos must go straight to Supabase Storage. The
+ * token is scoped to this alumnus's object key; the browser never sees the
+ * service key. Follow a successful direct PUT with {@link confirmHeadshotUpload}.
+ */
+export async function getHeadshotUploadUrl(
+  alumniId: number,
+): Promise<
+  { ok: true; uploadUrl: string } | { ok: false; error: string }
+> {
+  try {
+    const res = await apiPost<{ upload_url: string; object_key: string }>(
+      `/alumni/${alumniId}/headshot/upload-url`,
+      {},
+    );
+    return { ok: true, uploadUrl: res.upload_url };
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof ApiError ? e.message : "Couldn't start the upload — try again.",
+    };
+  }
+}
+
+/**
+ * Confirm a direct-to-storage headshot upload completed (POST
+ * /alumni/{id}/headshot/confirm; full_access+). The backend verifies the object
+ * landed and writes the audit entry; we then revalidate the profile so a server
+ * re-render also picks up the new photo.
+ */
+export async function confirmHeadshotUpload(
+  alumniId: number,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await apiPost<void>(`/alumni/${alumniId}/headshot/confirm`, {});
+    revalidatePath(`/alumni/${alumniId}`);
+    return { ok: true };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Couldn't save the photo — try again.",
+    };
+  }
+}
+
 /** Remove an alumnus's headshot (DELETE /alumni/{id}/headshot, full_access+). */
 export async function deleteHeadshot(
   alumniId: number,
