@@ -47,7 +47,7 @@ import type { Note } from "@/types/notes";
 import { ExportProfileButton } from "@/components/alumni/ExportProfileButton";
 import { DrawerList } from "@/components/alumni/DrawerList";
 import { MetricCard } from "@/components/shared/MetricCard";
-import { Avatar } from "@/components/shared/Avatar";
+import { ProfileHeadshot } from "@/components/alumni/ProfileHeadshot";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -355,6 +355,17 @@ export default async function AlumniProfilePage({
     /* no donations / endpoint error — the tab is simply not shown */
   }
 
+  // Headshot: a short-lived signed URL for the profile photo, readable by every
+  // role (the bucket is private, so the signed URL is the only way to view it).
+  // A failure here just falls back to the initials avatar — never breaks the page.
+  let headshotUrl: string | null = null;
+  try {
+    const h = await apiGet<{ url: string | null }>(`/alumni/${id}/headshot`);
+    headshotUrl = h?.url ?? null;
+  } catch {
+    /* no headshot / endpoint error — the initials fallback is shown */
+  }
+
   // `canEdit` covers editing the EXISTING record + nested data — students get
   // this (mirrors backend require_alumni_edit). `canArchive` is the narrower
   // create/archive tier (full_access and up) used only for the Archive control,
@@ -497,12 +508,14 @@ export default async function AlumniProfilePage({
           <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-card">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div className="flex items-center gap-4">
-                <Avatar
-                  netId={a.net_id}
-                  initials={initials}
+                <ProfileHeadshot
+                  alumniId={aid}
+                  initialUrl={headshotUrl}
                   name={name}
+                  initials={initials}
                   size="h-48 w-48 text-5xl"
                   colorClass={avatarColor(initials)}
+                  canManage={canArchive}
                 />
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">

@@ -8,6 +8,7 @@ import {
   apiPatch,
   apiDelete,
   apiPostForm,
+  apiPutForm,
   apiGetText,
   apiPostText,
   ApiError,
@@ -1054,6 +1055,90 @@ export async function deleteNote(
     return {
       ok: false,
       error: e instanceof ApiError ? e.message : "Couldn't delete the note.",
+    };
+  }
+}
+
+// --- Alumni headshot (profile photo) -----------------------------------------
+//
+// The headshot lives in a PRIVATE bucket; the backend only ever hands back a
+// short-lived signed URL (GET), which the profile header renders. Uploading /
+// replacing (PUT, multipart `file`) and removing (DELETE) are full_access+ and
+// re-enforced server-side. Reads are open to any authenticated role.
+
+/**
+ * Fetch the current signed headshot URL for an alumnus (GET
+ * /alumni/{id}/headshot). Returns `url: null` when none is on file. Used to
+ * re-fetch a fresh signed URL after an upload without a full page reload.
+ */
+export async function getHeadshotUrl(
+  alumniId: number,
+): Promise<{ ok: true; url: string | null } | { ok: false; error: string }> {
+  try {
+    const res = await apiGet<{ url: string | null }>(
+      `/alumni/${alumniId}/headshot`,
+    );
+    return { ok: true, url: res?.url ?? null };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Couldn't load the photo.",
+    };
+  }
+}
+
+/**
+ * Upload / replace an alumnus's headshot (PUT /alumni/{id}/headshot, multipart
+ * `file`; full_access+). Maps the two expected rejections to friendly copy:
+ * 422 = unsupported image type, 413 = file too large. On success the profile is
+ * revalidated so a server re-render also picks up the new photo.
+ */
+export async function uploadHeadshot(
+  alumniId: number,
+  formData: FormData,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, error: "Choose an image to upload." };
+  }
+  const fd = new FormData();
+  fd.append("file", file, file.name);
+  try {
+    await apiPutForm<void>(`/alumni/${alumniId}/headshot`, fd);
+    revalidatePath(`/alumni/${alumniId}`);
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof ApiError) {
+      if (e.status === 422) {
+        return {
+          ok: false,
+          error: "That image type isn't supported. Use a JPEG, PNG, or WebP.",
+        };
+      }
+      if (e.status === 413) {
+        return {
+          ok: false,
+          error: "That image is too large. Choose a smaller file.",
+        };
+      }
+      return { ok: false, error: e.message };
+    }
+    return { ok: false, error: "Couldn't upload the photo — try again." };
+  }
+}
+
+/** Remove an alumnus's headshot (DELETE /alumni/{id}/headshot, full_access+). */
+export async function deleteHeadshot(
+  alumniId: number,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await apiDelete(`/alumni/${alumniId}/headshot`);
+    revalidatePath(`/alumni/${alumniId}`);
+    return { ok: true };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Couldn't remove the photo.",
     };
   }
 }
