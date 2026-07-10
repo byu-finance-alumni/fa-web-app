@@ -24,16 +24,16 @@ import { useRef, useState, useTransition } from "react";
 import { AvatarLightbox } from "@/components/shared/AvatarLightbox";
 import { useToast } from "@/components/ui/Toast";
 import {
+  confirmHeadshotUpload,
   deleteHeadshot,
+  getHeadshotUploadUrl,
   getHeadshotUrl,
-  uploadHeadshot,
 } from "@/app/(app)/alumni/actions";
 
 /** Image types the backend accepts; also used for client-side pre-validation. */
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const ACCEPT_ATTR = ACCEPTED_TYPES.join(",");
-// Matches the backend upload cap; reject client-side so an oversize file fails
-// with a friendly message instead of a Server Action 413 (which crashes the UI).
+// Matches the bucket's size limit; reject client-side for a friendly message.
 const MAX_HEADSHOT_BYTES = 20 * 1024 * 1024;
 
 export function ProfileHeadshot({
@@ -76,12 +76,42 @@ export function ProfileHeadshot({
       toast.error("That image is too large. Please use one under 20 MB.");
       return;
     }
-    const fd = new FormData();
-    fd.append("file", file, file.name);
     startTransition(async () => {
-      const res = await uploadHeadshot(alumniId, fd);
-      if (!res.ok) {
-        toast.error(res.error);
+      // 1) Ask the backend for a signed URL scoped to this alumnus's object.
+      const urlRes = await getHeadshotUploadUrl(alumniId);
+      if (!urlRes.ok) {
+        toast.error(urlRes.error);
+        return;
+      }
+      // 2) PUT the image straight to Supabase Storage from the browser — this
+      //    bypasses the ~4.5 MB serverless request-body cap that made large
+      //    photos 413. Supabase enforces the bucket's size + type allow-list.
+      try {
+        const put = await fetch(urlRes.uploadUrl, {
+          method: "PUT",
+          headers: {
+            "content-type": file.type,
+            "x-upsert": "true",
+            apikey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "",
+          },
+          body: file,
+        });
+        if (!put.ok) {
+          toast.error(
+            put.status === 413
+              ? "That image is too large. Please use one under 20 MB."
+              : "Couldn't upload the photo — try again.",
+          );
+          return;
+        }
+      } catch {
+        toast.error("Couldn't upload the photo — try again.");
+        return;
+      }
+      // 3) Confirm so the backend audits the upload + revalidates the profile.
+      const confirmed = await confirmHeadshotUpload(alumniId);
+      if (!confirmed.ok) {
+        toast.error(confirmed.error);
         return;
       }
       // Re-fetch a fresh signed URL so the new photo shows immediately.

@@ -351,6 +351,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/alumni/{alumni_id}/headshot/upload-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Headshot Upload Url
+         * @description Mint a short-lived signed URL the browser PUTs the image to DIRECTLY
+         *     (full_access and up). This bypasses the ~4.5 MB request-body cap on our
+         *     serverless functions, so headshots up to the bucket limit (20 MB) work.
+         *
+         *     The token is scoped to exactly this alumnus's object key (their net ID), so
+         *     the browser can only write that one path and never sees the service key.
+         *     Supabase enforces the bucket's size + JPEG/PNG/WebP allow-list on the PUT;
+         *     the caller then hits ``/headshot/confirm`` so the upload is audited.
+         */
+        post: operations["create_headshot_upload_url_alumni__alumni_id__headshot_upload_url_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alumni/{alumni_id}/headshot/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Headshot Upload
+         * @description Record that a direct-to-storage headshot upload completed (full_access and
+         *     up). Verifies the object now exists before writing the audit entry so a
+         *     stray confirm can't forge an FERPA trail, then leaves the same
+         *     ``upload_headshot`` audit the classic PUT path writes.
+         */
+        post: operations["confirm_headshot_upload_alumni__alumni_id__headshot_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/alumni/import/template": {
         parameters: {
             query?: never;
@@ -5930,6 +5980,68 @@ export interface operations {
         };
     };
     delete_headshot_alumni__alumni_id__headshot_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alumni_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_headshot_upload_url_alumni__alumni_id__headshot_upload_url_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alumni_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_headshot_upload_alumni__alumni_id__headshot_confirm_post: {
         parameters: {
             query?: never;
             header?: never;
