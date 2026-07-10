@@ -22,6 +22,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { AvatarLightbox } from "@/components/shared/AvatarLightbox";
+import { HeadshotCropper } from "@/components/alumni/HeadshotCropper";
 import { useToast } from "@/components/ui/Toast";
 import {
   confirmHeadshotUpload,
@@ -35,6 +36,8 @@ const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const ACCEPT_ATTR = ACCEPTED_TYPES.join(",");
 // Matches the bucket's size limit; reject client-side for a friendly message.
 const MAX_HEADSHOT_BYTES = 20 * 1024 * 1024;
+// Publishable (browser-safe) key, sent on the direct-to-storage PUT.
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
 
 export function ProfileHeadshot({
   alumniId,
@@ -61,11 +64,23 @@ export function ProfileHeadshot({
   const [url, setUrl] = useState<string | null>(initialUrl);
   const [errored, setErrored] = useState(false);
   const [showLightbox, setShowLightbox] = useState(false);
+  // Object URL of the image currently open in the cropper (from a picked file
+  // or the fetched current photo), or null when the cropper is closed.
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const hasPhoto = !!url && !errored;
 
+  const closeCropper = () => {
+    setCropSrc((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+  };
+
+  // A picked file is validated, then opened in the cropper (so every photo gets
+  // positioned in the circle before it's saved) rather than uploaded as-is.
   const onPick = (file: File | null) => {
     if (!file) return;
     if (!ACCEPTED_TYPES.includes(file.type)) {
@@ -76,25 +91,44 @@ export function ProfileHeadshot({
       toast.error("That image is too large. Please use one under 20 MB.");
       return;
     }
+    setCropSrc(URL.createObjectURL(file));
+  };
+
+  // Re-open the cropper on the CURRENT photo so its circular crop can be
+  // adjusted. The signed URL is fetched to a local blob first — drawing a
+  // cross-origin image to a canvas would taint it and break the export.
+  const onEdit = () => {
+    if (!url) return;
     startTransition(async () => {
-      // 1) Ask the backend for a signed URL scoped to this alumnus's object.
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error();
+        setCropSrc(URL.createObjectURL(await res.blob()));
+      } catch {
+        toast.error("Couldn't open the photo to edit — try again.");
+      }
+    });
+  };
+
+  // Shared direct-to-storage upload: mint a signed URL, PUT the (cropped) image
+  // straight to Supabase — bypassing the ~4.5 MB serverless request-body cap —
+  // then confirm so the backend audits it + revalidates the profile.
+  const onCropSave = (blob: Blob) => {
+    startTransition(async () => {
       const urlRes = await getHeadshotUploadUrl(alumniId);
       if (!urlRes.ok) {
         toast.error(urlRes.error);
         return;
       }
-      // 2) PUT the image straight to Supabase Storage from the browser — this
-      //    bypasses the ~4.5 MB serverless request-body cap that made large
-      //    photos 413. Supabase enforces the bucket's size + type allow-list.
       try {
         const put = await fetch(urlRes.uploadUrl, {
           method: "PUT",
           headers: {
-            "content-type": file.type,
+            "content-type": "image/jpeg",
             "x-upsert": "true",
-            apikey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "",
+            apikey: SUPABASE_KEY,
           },
-          body: file,
+          body: blob,
         });
         if (!put.ok) {
           toast.error(
@@ -108,7 +142,6 @@ export function ProfileHeadshot({
         toast.error("Couldn't upload the photo — try again.");
         return;
       }
-      // 3) Confirm so the backend audits the upload + revalidates the profile.
       const confirmed = await confirmHeadshotUpload(alumniId);
       if (!confirmed.ok) {
         toast.error(confirmed.error);
@@ -120,6 +153,7 @@ export function ProfileHeadshot({
         setErrored(false);
         setUrl(fresh.url);
       }
+      closeCropper();
       toast.success("Photo updated.");
     });
   };
@@ -192,6 +226,17 @@ export function ProfileHeadshot({
               </span>
               <button
                 type="button"
+                onClick={onEdit}
+                disabled={pending}
+                className="font-medium text-brand-blue-600 hover:text-brand-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Edit
+              </button>
+              <span aria-hidden="true" className="text-gray-300">
+                ·
+              </span>
+              <button
+                type="button"
                 onClick={onRemove}
                 disabled={pending}
                 className="font-medium text-gray-500 hover:text-danger-600 disabled:cursor-not-allowed disabled:opacity-60"
@@ -201,6 +246,15 @@ export function ProfileHeadshot({
             </>
           ) : null}
         </div>
+      ) : null}
+
+      {cropSrc ? (
+        <HeadshotCropper
+          src={cropSrc}
+          busy={pending}
+          onCancel={closeCropper}
+          onSave={onCropSave}
+        />
       ) : null}
 
       {showLightbox && hasPhoto ? (
