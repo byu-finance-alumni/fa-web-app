@@ -368,8 +368,14 @@ export interface paths {
          *
          *     The token is scoped to exactly this alumnus's object key (their net ID), so
          *     the browser can only write that one path and never sees the service key.
-         *     Supabase enforces the bucket's size + JPEG/PNG/WebP allow-list on the PUT;
-         *     the caller then hits ``/headshot/confirm`` so the upload is audited.
+         *     Supabase enforces the bucket's size + JPEG/PNG/WebP allow-list on the PUT.
+         *
+         *     We log an ``upload_headshot_started`` audit HERE: minting is the necessary
+         *     precondition for any image change and is fully attributable, so the FERPA
+         *     trail can't be lost if the browser never reaches confirm (dropped connection
+         *     / closed tab). Confirm writes the terminal ``upload_headshot`` (success) or
+         *     ``upload_headshot_rejected`` once the object is validated, so this "started"
+         *     row never masquerades as a completed, conforming upload.
          */
         post: operations["create_headshot_upload_url_alumni__alumni_id__headshot_upload_url_post"];
         delete?: never;
@@ -389,10 +395,18 @@ export interface paths {
         put?: never;
         /**
          * Confirm Headshot Upload
-         * @description Record that a direct-to-storage headshot upload completed (full_access and
-         *     up). Verifies the object now exists before writing the audit entry so a
-         *     stray confirm can't forge an FERPA trail, then leaves the same
-         *     ``upload_headshot`` audit the classic PUT path writes.
+         * @description Validate + record the outcome of a direct-to-storage headshot upload
+         *     (full_access and up). Writes the terminal audit so the trail reflects reality:
+         *     ``upload_headshot`` when a conforming object is present, or
+         *     ``upload_headshot_rejected`` when the uploaded object violates the contract
+         *     (the attribution for the attempt is already on the mint's
+         *     ``upload_headshot_started`` row).
+         *
+         *     Defense-in-depth: the bucket's own allow-list/size-limit is the primary guard
+         *     on the direct PUT, but we re-check the object's type + size here and delete
+         *     anything outside the contract, so a bucket misconfig can't silently let a bad
+         *     file through. The probe FAILS OPEN — if it can't read the object we fall back
+         *     to a plain existence check rather than reject a legitimate upload.
          */
         post: operations["confirm_headshot_upload_alumni__alumni_id__headshot_confirm_post"];
         delete?: never;
