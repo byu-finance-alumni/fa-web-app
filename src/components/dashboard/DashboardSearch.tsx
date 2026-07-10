@@ -22,6 +22,8 @@ import type { FilterOptions } from "@/types/filters";
  * Searches navigate to /alumni so the existing results table, sorting,
  * pagination, and export stay the single source of truth (per the field params
  * added to GET /alumni). Empty inputs are omitted so they never narrow results.
+ * Quick search also has a "Friends of the program" toggle that routes the same
+ * params to /friends (is_alumni=false) instead — the app scopes friends by route.
  */
 
 interface Identity {
@@ -200,17 +202,26 @@ function Shortcuts({ items }: { items: Shortcut[] }) {
   );
 }
 
-/** "Friends of the program" — placeholder; the feature isn't built yet. */
-function FriendsPlaceholder() {
+/** "Friends of the program" toggle. When checked, the Quick search targets the
+ *  Friends roster (/friends — is_alumni=false via the backend `kind=friend`
+ *  param) instead of Alumni. This mirrors how the rest of the app scopes to
+ *  friends: by route, carrying the same identity + grad-year query params. */
+function FriendsToggle({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+}) {
   return (
-    <label className="flex items-center gap-2 text-sm text-gray-400">
+    <label className="flex items-center gap-2 text-sm text-gray-700">
       <input
         type="checkbox"
-        disabled
-        className="h-4 w-4 rounded border-gray-300"
+        className="h-4 w-4 rounded border-gray-300 accent-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
       />
       Friends of the program
-      <span className="text-xs italic text-gray-400">(coming soon)</span>
     </label>
   );
 }
@@ -228,6 +239,9 @@ export function DashboardSearch({
   const [quick, setQuick] = useState<Identity>(EMPTY_IDENTITY);
   const [quickYear, setQuickYear] = useState({ ymin: "", ymax: "" });
   const [quickYearError, setQuickYearError] = useState<string | null>(null);
+  // When true, Quick search targets the Friends roster (/friends) instead of
+  // Alumni — same params, different route (the app scopes friends by route).
+  const [quickFriends, setQuickFriends] = useState(false);
 
   // --- Advanced search -------------------------------------------------------
   const [adv, setAdv] = useState<Identity>(EMPTY_IDENTITY);
@@ -257,12 +271,16 @@ export function DashboardSearch({
     const p = new URLSearchParams();
     identityParams(p, quick);
     yearParams(p, quickYear);
-    router.push(p.toString() ? `/alumni?${p.toString()}` : "/alumni");
+    // Same identity + grad-year params, but route to the Friends roster when the
+    // toggle is on (both routes read these params identically).
+    const base = quickFriends ? "/friends" : "/alumni";
+    router.push(p.toString() ? `${base}?${p.toString()}` : base);
   }
   function resetQuick() {
     setQuick(EMPTY_IDENTITY);
     setQuickYear({ ymin: "", ymax: "" });
     setQuickYearError(null);
+    setQuickFriends(false);
   }
 
   function runAdvanced() {
@@ -312,7 +330,7 @@ export function DashboardSearch({
               }}
               error={quickYearError}
             />
-            <FriendsPlaceholder />
+            <FriendsToggle checked={quickFriends} onChange={setQuickFriends} />
           </div>
           <div className="flex gap-2 pt-1">
             <Button type="button" onClick={runQuick}>
