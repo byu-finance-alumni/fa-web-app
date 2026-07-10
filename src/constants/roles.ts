@@ -142,9 +142,23 @@ export const ASSIGNABLE_ROLES: { value: RoleId; label: string }[] = [
 ];
 
 /**
- * Roles offered at account-creation time. The top roles (engineer, super_admin)
- * are NOT bootstrappable here — the backend 422s them — so they can only be
- * granted to an existing account afterward via {@link ASSIGNABLE_ROLES}.
+ * Roles the given actor may assign when creating a user — {@link
+ * ASSIGNABLE_ROLES} filtered to the actor's own tier and below, mirroring the
+ * backend privilege ceiling. An engineer gets every role; a super_admin gets
+ * everything except engineer.
+ */
+export function assignableRolesFor(
+  actorRoles: readonly string[] | null | undefined,
+): { value: RoleId; label: string }[] {
+  const ceiling = ROLE_ORDER.indexOf(highestRole(actorRoles) as RoleId);
+  if (ceiling < 0) return [];
+  return ASSIGNABLE_ROLES.filter((r) => ROLE_ORDER.indexOf(r.value) >= ceiling);
+}
+
+/**
+ * Fallback roles for the Create User dialog when the actor's tier is unknown.
+ * The backend enforces the privilege ceiling regardless; the dialog prefers
+ * {@link assignableRolesFor} when it knows the actor's roles.
  */
 export const CREATABLE_ROLES: { value: RoleId; label: string }[] = [
   { value: ROLE.FULL_ACCESS, label: ROLE_LABEL[ROLE.FULL_ACCESS] },

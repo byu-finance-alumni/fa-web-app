@@ -88,7 +88,7 @@ export default async function AdminPage({
           <>
             {capabilities && <RoleCapabilitiesTable matrix={capabilities} />}
             <div className="mb-4 flex items-center justify-end">
-              <CreateUserDialog />
+              <CreateUserDialog actorRoles={gate.roles} />
             </div>
             <Card className="p-10 text-center text-sm text-gray-500">
               No users provisioned yet.
@@ -101,6 +101,7 @@ export default async function AdminPage({
               users={users!}
               currentUserId={currentUserId}
               canAssignEngineer={canAssignEngineer}
+              actorRoles={gate.roles}
               initialQ={initialQ}
             />
           </>

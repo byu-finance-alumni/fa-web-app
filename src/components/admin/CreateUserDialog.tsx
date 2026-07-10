@@ -9,7 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { CREATABLE_ROLES, type CreatableRoleId } from "@/constants/roles";
+import {
+  CREATABLE_ROLES,
+  assignableRolesFor,
+  type RoleId,
+} from "@/constants/roles";
 
 /**
  * Super-admin "Create user" flow. Opens a dialog to provision a new account
@@ -24,18 +28,22 @@ import { CREATABLE_ROLES, type CreatableRoleId } from "@/constants/roles";
  * errors = `danger-600`, monospace credential = `font-mono`.
  */
 
-// Creatable roles only: view_only ("Professor", default), student, or
-// full_access. The top roles (engineer, super_admin) are intentionally NOT
-// creatable here (the backend 422s them) — they can only be granted to an
-// existing user via the role manager, so a new account can never be
-// bootstrapped into a privileged role. See @/constants/roles.
-const ROLES = CREATABLE_ROLES;
-
-type RoleValue = CreatableRoleId;
+// The role dropdown lists every role the signed-in admin may assign — their own
+// tier and below (assignableRolesFor), mirroring the backend privilege ceiling:
+// an engineer can create any role incl. super_admin/engineer; a super_admin can
+// create everything except engineer. Falls back to the non-privileged creatable
+// set when the actor's roles aren't provided.
+type RoleValue = RoleId;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export function CreateUserDialog() {
+export function CreateUserDialog({
+  actorRoles,
+}: {
+  /** The signed-in admin's roles — drives which roles they may assign. */
+  actorRoles?: readonly string[];
+} = {}) {
+  const ROLES = actorRoles ? assignableRolesFor(actorRoles) : CREATABLE_ROLES;
   const { toast } = useToast();
   const router = useRouter();
   const [open, setOpen] = useState(false);
