@@ -395,12 +395,19 @@ export default async function DashboardPage() {
           color: CHART_MUTED_COLOR,
           href: `/alumni?industry_group=other`,
         },
-        {
-          label: "Unknown",
-          count: breakdown.unknown,
-          color: CHART_UNKNOWN_COLOR,
-          href: `/alumni?industry_group=unknown`,
-        },
+        // Unknown = alumni with no industry on file: a "needs fixing" bucket,
+        // not a standard category. Only surface it when non-empty so the wheel
+        // shows just the 14 + Other otherwise (Tanya, 2026-07-11).
+        ...(breakdown.unknown > 0
+          ? [
+              {
+                label: "Unknown",
+                count: breakdown.unknown,
+                color: CHART_UNKNOWN_COLOR,
+                href: `/alumni?industry_group=unknown`,
+              },
+            ]
+          : []),
       ]
     : [];
 
