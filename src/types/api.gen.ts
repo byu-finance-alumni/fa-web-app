@@ -351,6 +351,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/alumni/{alumni_id}/headshot/upload-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Headshot Upload Url
+         * @description Mint a short-lived signed URL the browser PUTs the image to DIRECTLY
+         *     (full_access and up). This bypasses the ~4.5 MB request-body cap on our
+         *     serverless functions, so headshots up to the bucket limit (20 MB) work.
+         *
+         *     The token is scoped to exactly this alumnus's object key (their net ID), so
+         *     the browser can only write that one path and never sees the service key.
+         *     Supabase enforces the bucket's size + JPEG/PNG/WebP allow-list on the PUT.
+         *
+         *     We log an ``upload_headshot_started`` audit HERE: minting is the necessary
+         *     precondition for any image change and is fully attributable, so the FERPA
+         *     trail can't be lost if the browser never reaches confirm (dropped connection
+         *     / closed tab). Confirm writes the terminal ``upload_headshot`` (success) or
+         *     ``upload_headshot_rejected`` once the object is validated, so this "started"
+         *     row never masquerades as a completed, conforming upload.
+         */
+        post: operations["create_headshot_upload_url_alumni__alumni_id__headshot_upload_url_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alumni/{alumni_id}/headshot/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Headshot Upload
+         * @description Validate + record the outcome of a direct-to-storage headshot upload
+         *     (full_access and up). Writes the terminal audit so the trail reflects reality:
+         *     ``upload_headshot`` when a conforming object is present, or
+         *     ``upload_headshot_rejected`` when the uploaded object violates the contract
+         *     (the attribution for the attempt is already on the mint's
+         *     ``upload_headshot_started`` row).
+         *
+         *     Defense-in-depth: the bucket's own allow-list/size-limit is the primary guard
+         *     on the direct PUT, but we re-check the object's type + size here and delete
+         *     anything outside the contract, so a bucket misconfig can't silently let a bad
+         *     file through. The probe FAILS OPEN — if it can't read the object we fall back
+         *     to a plain existence check rather than reject a legitimate upload.
+         */
+        post: operations["confirm_headshot_upload_alumni__alumni_id__headshot_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/alumni/import/template": {
         parameters: {
             query?: never;
@@ -2776,6 +2840,10 @@ export interface components {
             grad_year_max: number | null;
             /** Deceased */
             deceased: boolean | null;
+            /** Gender */
+            gender: string | null;
+            /** Industry Group */
+            industry_group: string | null;
             /** Employer */
             employer: string[] | null;
             /** Past Employer */
@@ -3020,6 +3088,8 @@ export interface components {
             citizenship: string | null;
             /** Marital Status */
             marital_status: string | null;
+            /** Hometown */
+            hometown: string | null;
             /** Home Country */
             home_country: string | null;
             /** Employment Status */
@@ -3093,6 +3163,27 @@ export interface components {
             current_state: string | null;
         };
         /**
+         * AlumniLocation
+         * @description Interpretation of a natural-language location search (#358).
+         *
+         *     Returned on ``AlumniPage.location`` only when the list request carried a
+         *     ``near`` phrase. ``label`` is a short human string ("Los Angeles, CA within
+         *     50 mi"); ``radius_miles`` is the effective radius; ``resolved`` is ``False``
+         *     when the phrase couldn't be pinpointed (the list then falls back to the
+         *     normal search and the UI shows a soft note).
+         */
+        AlumniLocation: {
+            /** Label */
+            label: string;
+            /** Radius Miles */
+            radius_miles: number | null;
+            /**
+             * Resolved
+             * @default true
+             */
+            resolved: boolean;
+        };
+        /**
          * AlumniPage
          * @description A page of alumni plus the pagination envelope.
          */
@@ -3105,6 +3196,7 @@ export interface components {
             limit: number;
             /** Offset */
             offset: number;
+            location: components["schemas"]["AlumniLocation"] | null;
         };
         /** AlumniRead */
         AlumniRead: {
@@ -3148,6 +3240,8 @@ export interface components {
             citizenship: string | null;
             /** Marital Status */
             marital_status: string | null;
+            /** Hometown */
+            hometown: string | null;
             /** Home Country */
             home_country: string | null;
             /** Employment Status */
@@ -3720,6 +3814,8 @@ export interface components {
             current_industry: string | null;
             /** Current Industry Secondary */
             current_industry_secondary: string | null;
+            /** Company Address */
+            company_address: string | null;
             /** Current City */
             current_city: string | null;
             /** Current State */
@@ -3757,6 +3853,34 @@ export interface components {
         DashboardGradYearCount: {
             /** Year */
             year: number;
+            /** Count */
+            count: number;
+        };
+        /**
+         * DashboardIndustryBreakdown
+         * @description Industry breakdown for the dashboard wheel (#351/#352/#353).
+         *
+         *     ``industries`` covers EVERY canonical finance industry (from the controlled
+         *     vocab) — including ones with a count of 0 — so the legend can list them all.
+         *     ``other`` (the catch-all "Other" vocab value + any non-canonical value) and
+         *     ``unknown`` (active alumni with NO industry on file) are SEPARATE buckets,
+         *     distinct from each other.
+         */
+        DashboardIndustryBreakdown: {
+            /** Industries */
+            industries: components["schemas"]["DashboardIndustryCount"][];
+            /** Other */
+            other: number;
+            /** Unknown */
+            unknown: number;
+        };
+        /**
+         * DashboardIndustryCount
+         * @description One finance-industry bucket in the industry breakdown (#353).
+         */
+        DashboardIndustryCount: {
+            /** Industry */
+            industry: string;
             /** Count */
             count: number;
         };
@@ -3854,6 +3978,7 @@ export interface components {
             top_employers: components["schemas"]["DashboardEmployerCount"][];
             /** By State */
             by_state: components["schemas"]["DashboardStateCount"][];
+            industry_breakdown: components["schemas"]["DashboardIndustryBreakdown"];
         };
         /**
          * DataQuality
@@ -5720,6 +5845,10 @@ export interface operations {
                 grad_year_max?: number | null;
                 /** @description Filter by deceased flag. */
                 deceased?: boolean | null;
+                /** @description Gender facet (#360): 'M' or 'F'. Combinable with the industry filter (and every other filter). Matches on the first letter of the stored gender value, so 'Male'/'M' and 'Female'/'F' both match. */
+                gender?: ("M" | "F") | null;
+                /** @description Industry-bucket facet (#351/#352) for the dashboard drill-downs: 'unknown' — alumni with a blank/missing primary industry; 'other' — alumni whose primary industry is NOT one of the canonical finance industries (the 'Other' bucket). Distinct from the exact 'industry' facet, which matches a specific industry name. */
+                industry_group?: ("unknown" | "other") | null;
                 /** @description Current employer(s) — repeatable (OR), exact match. */
                 employer?: string[] | null;
                 /** @description Prior employer(s) from employment history — repeatable. */
@@ -5779,8 +5908,12 @@ export interface operations {
                 include_archived?: boolean;
                 /** @description Which records to return (#218): 'alumni' (default) — only graduates (is_alumni=true); 'friend' — only friends of the program (is_alumni=false); 'all' — both. Defaults to 'alumni' so the Alumni page is unchanged. */
                 kind?: "alumni" | "friend" | "all";
-                /** @description Sort order: name | grad_desc | grad_asc. */
-                sort?: "name" | "grad_desc" | "grad_asc";
+                /** @description Natural-language location search (#358): a place phrase such as 'near Los Angeles, CA', 'within 50 miles of Provo', or a region alias like 'Bay Area'. Resolved to a set of nearby cities via the geocoding module; results are restricted to alumni located there. An unresolvable phrase falls back to the normal (non-location) search and the response's 'location.resolved' is false. */
+                near?: string | null;
+                /** @description Optional radius override (miles) for the 'near' location search. When provided it overrides the radius inferred from the phrase. */
+                radius?: number | null;
+                /** @description Sort order: name | grad_desc | grad_asc | industry | city | state. */
+                sort?: "name" | "grad_desc" | "grad_asc" | "industry" | "city" | "state";
                 limit?: number;
                 offset?: number;
             };
@@ -5930,6 +6063,68 @@ export interface operations {
         };
     };
     delete_headshot_alumni__alumni_id__headshot_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alumni_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_headshot_upload_url_alumni__alumni_id__headshot_upload_url_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alumni_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_headshot_upload_alumni__alumni_id__headshot_confirm_post: {
         parameters: {
             query?: never;
             header?: never;

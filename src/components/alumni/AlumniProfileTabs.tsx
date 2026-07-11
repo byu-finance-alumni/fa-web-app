@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 /**
@@ -55,8 +56,21 @@ export function AlumniProfileTabs({
    *  and the tab is hidden. Shown to every role when present (amounts gated). */
   payItForward?: ReactNode;
 }) {
+  // URL-controlled so panels can deep-link to a tab (e.g. Career Snapshot's
+  // "View all" -> ?tab=employment). Defaults to Overview when no ?tab is set.
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const active = searchParams.get("tab") || "overview";
+  const setTab = (value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value === "overview") params.delete("tab");
+    else params.set("tab", value);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
   return (
-    <Tabs defaultValue="overview" className="w-full">
+    <Tabs value={active} onValueChange={setTab} className="w-full">
       <TabsList className="w-full">
         <TabsTrigger value="overview">Overview</TabsTrigger>
         <TabsTrigger value="interactions">Interactions</TabsTrigger>

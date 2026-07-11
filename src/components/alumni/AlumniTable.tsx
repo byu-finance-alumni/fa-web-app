@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
 import { AlumniRowActions } from "@/components/alumni/AlumniRowActions";
+import { abbreviateState } from "@/lib/usStates";
 import type { Alumni } from "@/types/alumni";
 
 function fullName(a: Alumni): string {
@@ -35,6 +36,18 @@ function currentLocation(a: Alumni): { city: string | null; state: string | null
     current_state?: string | null;
   };
   return { city: row.current_city ?? null, state: row.current_state ?? null };
+}
+
+/**
+ * Compact gender label for a list row (#359). The stored value comes from the
+ * import (free-text), so normalize the common spellings to a single letter:
+ * "Male"/"male"/"M" → "M", "Female"/"F" → "F". Anything else (blank/unknown)
+ * yields "" so the cell renders an em-dash instead of a stray value.
+ */
+function genderLabel(value: string | null | undefined): string {
+  if (!value) return "";
+  const c = value.trim()[0]?.toUpperCase();
+  return c === "M" || c === "F" ? c : "";
 }
 
 /** Desktop alumni table. The entire row is clickable (navigates to the
@@ -68,6 +81,9 @@ export function AlumniTable({
             </th>
             <th className="sticky top-0 z-10 w-20 bg-gray-50 px-4 py-2.5 text-right">
               Grad
+            </th>
+            <th className="sticky top-0 z-10 w-16 bg-gray-50 px-4 py-2.5">
+              Gender
             </th>
             <th className="sticky top-0 z-10 w-[20%] bg-gray-50 px-4 py-2.5">
               Current company
@@ -113,6 +129,11 @@ export function AlumniTable({
               <td className="px-4 py-2.5 text-right tabular-nums text-gray-700">
                 {a.graduation_year ?? "—"}
               </td>
+              <td className="px-4 py-2.5 text-gray-700">
+                {genderLabel(a.gender) || (
+                  <span className="text-gray-300">—</span>
+                )}
+              </td>
               <td className="truncate px-4 py-2.5 text-gray-700">
                 {a.current_employer ?? (
                   <span className="text-gray-300">—</span>
@@ -131,7 +152,9 @@ export function AlumniTable({
                       {city ?? <span className="text-gray-300">—</span>}
                     </td>
                     <td className="truncate px-4 py-2.5 text-gray-700">
-                      {state ?? <span className="text-gray-300">—</span>}
+                      {abbreviateState(state) || (
+                        <span className="text-gray-300">—</span>
+                      )}
                     </td>
                   </>
                 );
