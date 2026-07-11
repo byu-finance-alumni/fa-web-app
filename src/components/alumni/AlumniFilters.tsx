@@ -31,6 +31,13 @@ export interface AlumniFilterState {
   statusLabel: string[];
   leadership: string[];
   surveyStatus: string[];
+  /** Gender filter (#360): "" = all, else the single-letter code. Combinable
+   *  with every other facet (e.g. females in a given industry). */
+  gender: "" | "M" | "F";
+  /** Industry grouping deep-link (dashboard → list): "other" = non-finance/Other
+   *  bucket, "unknown" = missing industry. Mutually exclusive with picking
+   *  specific industries; "" = no grouping filter. */
+  industryGroup: "" | "other" | "unknown";
   // Last-contacted (derived from interactions).
   contactedAfter: string;
   contactedBefore: string;
@@ -53,7 +60,7 @@ export interface AlumniFilterState {
    *  URL, owns it), but it DOES flow into the export filters so an export from
    *  that page covers exactly the due set. */
   needsSurvey: boolean;
-  sort: "name" | "grad_desc" | "grad_asc";
+  sort: "name" | "grad_desc" | "grad_asc" | "industry" | "city" | "state";
 }
 
 export const EMPTY_FILTERS: AlumniFilterState = {
@@ -70,6 +77,8 @@ export const EMPTY_FILTERS: AlumniFilterState = {
   statusLabel: [],
   leadership: [],
   surveyStatus: [],
+  gender: "",
+  industryGroup: "",
   contactedAfter: "",
   contactedBefore: "",
   neverContacted: false,
@@ -121,6 +130,8 @@ function toQs(f: AlumniFilterState): string {
   for (const facet of FACETS) {
     for (const v of f[facet.key] as string[]) p.append(facet.param, v);
   }
+  if (f.gender) p.set("gender", f.gender);
+  if (f.industryGroup) p.set("industry_group", f.industryGroup);
   if (f.contactedAfter) p.set("contacted_after", f.contactedAfter);
   if (f.contactedBefore) p.set("contacted_before", f.contactedBefore);
   if (f.neverContacted) p.set("never_contacted", "1");
@@ -271,6 +282,8 @@ export function AlumniFilters({
   );
   const activeCount =
     facetCount +
+    (f.gender ? 1 : 0) +
+    (f.industryGroup ? 1 : 0) +
     (f.ymin.trim() || f.ymax.trim() ? 1 : 0) +
     (f.contactedAfter ? 1 : 0) +
     (f.contactedBefore ? 1 : 0) +
@@ -303,6 +316,21 @@ export function AlumniFilters({
           ),
       });
     }
+  }
+  if (f.gender) {
+    chips.push({
+      label: `Gender: ${f.gender === "F" ? "Female (F)" : "Male (M)"}`,
+      remove: () => set("gender", ""),
+    });
+  }
+  if (f.industryGroup) {
+    chips.push({
+      label:
+        f.industryGroup === "other"
+          ? "Industry: Other (non-finance)"
+          : "Industry: Missing",
+      remove: () => set("industryGroup", ""),
+    });
   }
   if (f.ymin || f.ymax) {
     chips.push({
@@ -411,6 +439,9 @@ export function AlumniFilters({
           <option value="name">Sort: Name (A–Z)</option>
           <option value="grad_desc">Sort: Grad year (newest)</option>
           <option value="grad_asc">Sort: Grad year (oldest)</option>
+          <option value="industry">Sort: Industry (A–Z)</option>
+          <option value="city">Sort: City (A–Z)</option>
+          <option value="state">Sort: State (A–Z)</option>
         </Select>
 
         <Button type="button" variant="secondary" onClick={() => setOpen(true)}>
@@ -501,6 +532,43 @@ export function AlumniFilters({
                   onChange={(next) => set(facet.key, next as never)}
                 />
               ))}
+
+              <div>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Gender
+                </p>
+                <Select
+                  value={f.gender}
+                  onChange={(e) =>
+                    set("gender", e.target.value as AlumniFilterState["gender"])
+                  }
+                  aria-label="Filter by gender"
+                >
+                  <option value="">All</option>
+                  <option value="F">Female (F)</option>
+                  <option value="M">Male (M)</option>
+                </Select>
+              </div>
+
+              <div>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Industry group
+                </p>
+                <Select
+                  value={f.industryGroup}
+                  onChange={(e) =>
+                    set(
+                      "industryGroup",
+                      e.target.value as AlumniFilterState["industryGroup"],
+                    )
+                  }
+                  aria-label="Filter by industry group"
+                >
+                  <option value="">Any</option>
+                  <option value="other">Other (non-finance)</option>
+                  <option value="unknown">Missing industry</option>
+                </Select>
+              </div>
 
               <div>
                 <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">

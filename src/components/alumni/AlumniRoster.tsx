@@ -18,6 +18,19 @@ const LIMIT = 25;
  *  fixed by the route, not a URL query param. */
 export type RosterKind = "alumni" | "friend";
 
+/**
+ * How the backend interpreted a plain-English location search (#358). Optional
+ * envelope field on `GET /alumni`: `label` is the resolved place ("Los Angeles,
+ * CA"), `radius_miles` the applied radius, `resolved` whether geocoding
+ * succeeded. All optional so the UI degrades gracefully before the backend
+ * ships it.
+ */
+type LocationContext = {
+  label?: string | null;
+  radius_miles?: number | null;
+  resolved?: boolean | null;
+};
+
 function fullName(a: Alumni): string {
   const last = a.last_name ?? "";
   const first = a.preferred_first_name ?? a.first_name ?? "";
@@ -50,10 +63,16 @@ const isTrue = (v: string | string[] | undefined): boolean => {
   return s === "1" || s === "true";
 };
 
-const GRAD_SORTS = ["grad_desc", "grad_asc"] as const;
+const SORT_VALUES = [
+  "grad_desc",
+  "grad_asc",
+  "industry",
+  "city",
+  "state",
+] as const;
 
 function parseSort(raw: string): AlumniFilterState["sort"] {
-  return (GRAD_SORTS as readonly string[]).includes(raw)
+  return (SORT_VALUES as readonly string[]).includes(raw)
     ? (raw as AlumniFilterState["sort"])
     : "name";
 }
@@ -90,6 +109,18 @@ export async function AlumniRoster({
     statusLabel: arr(sp.status_label),
     leadership: arr(sp.leadership_role),
     surveyStatus: arr(sp.survey_status),
+    gender:
+      one(sp.gender).toUpperCase() === "F"
+        ? "F"
+        : one(sp.gender).toUpperCase() === "M"
+          ? "M"
+          : "",
+    industryGroup:
+      one(sp.industry_group).toLowerCase() === "other"
+        ? "other"
+        : one(sp.industry_group).toLowerCase() === "unknown"
+          ? "unknown"
+          : "",
     contactedAfter: one(sp.contacted_after),
     contactedBefore: one(sp.contacted_before),
     neverContacted: isTrue(sp.never_contacted),
@@ -148,6 +179,14 @@ export async function AlumniRoster({
   appendAll("status_label", filters.statusLabel);
   appendAll("leadership_role", filters.leadership);
   appendAll("survey_status", filters.surveyStatus);
+  if (filters.gender) params.set("gender", filters.gender);
+  if (filters.industryGroup) params.set("industry_group", filters.industryGroup);
+  // Plain-English location search (#358): the backend geocodes `near` and does
+  // the radius filter; `radius` (miles) is optional and only sent when parsed.
+  const near = one(sp.near).trim();
+  if (near) params.set("near", near);
+  const radius = one(sp.radius).trim();
+  if (/^\d{1,4}$/.test(radius)) params.set("radius", radius);
   if (filters.contactedAfter) params.set("contacted_after", filters.contactedAfter);
   if (filters.contactedBefore) params.set("contacted_before", filters.contactedBefore);
   if (filters.neverContacted) params.set("never_contacted", "true");
@@ -210,6 +249,18 @@ export async function AlumniRoster({
   const canEditRows = canEditAlumni(roles);
   const canAddInteractionRows = canAddInteraction(roles);
 
+  // Location-search interpretation (#358). The backend geocodes `near` and may
+  // echo how it read the query on the page envelope. Read it defensively so the
+  // banner lights up once the backend adds it and stays silent until then.
+  const locationCtx =
+    (data as (AlumniPage & { location?: LocationContext }) | null)?.location ??
+    null;
+  const locationLabel = locationCtx?.label?.trim() || "";
+  const locationRadius =
+    typeof locationCtx?.radius_miles === "number" ? locationCtx.radius_miles : null;
+  const locationUnresolved =
+    !!near && !locationLabel && locationCtx?.resolved === false;
+
   const from = data && data.total > 0 ? offset + 1 : 0;
   const to = data ? Math.min(offset + LIMIT, data.total) : 0;
   const hasPrev = offset > 0;
@@ -240,6 +291,22 @@ export async function AlumniRoster({
           basePath={basePath}
           isFriend={isFriend}
         />
+
+        {locationLabel ? (
+          <div className="mb-3 rounded-lg border border-brand-blue-300 bg-brand-blue-50 px-4 py-2.5 text-sm text-gray-700">
+            Showing {noun} near{" "}
+            <span className="font-semibold text-gray-900">{locationLabel}</span>
+            {locationRadius ? ` (within ${locationRadius} mi)` : ""}
+          </div>
+        ) : locationUnresolved ? (
+          <div className="mb-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-600">
+            Couldn&apos;t pinpoint a location for{" "}
+            <span className="font-semibold text-gray-900">
+              &ldquo;{near}&rdquo;
+            </span>
+            . Showing keyword matches instead.
+          </div>
+        ) : null}
 
         {error ? (
           <Card className="p-10 text-center">
