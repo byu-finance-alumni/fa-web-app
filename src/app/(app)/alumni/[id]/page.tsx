@@ -1,19 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  Building2,
-  Mail,
-  Phone,
-  Link2,
-  MapPin,
-  Home,
-  Flag,
-  CircleAlert,
-  Check,
-  type LucideIcon,
-} from "lucide-react";
+import { CircleAlert, Check } from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
-import { daysAgo } from "@/lib/format";
 import type { Contact, Profile } from "@/types/profile";
 import type { UserContext } from "@/types/alumni";
 import {
@@ -76,6 +64,18 @@ function monthDay(iso: string | null): { mon: string; day: string } | null {
 const place = (...parts: (string | null | undefined)[]) =>
   parts.filter(Boolean).join(", ") || null;
 
+/** Whole-dollar USD (no cents), matching the Pay It Forward panel. `null` (a
+ *  withheld/absent amount) renders as an em-dash rather than "$0". */
+function money(value: number | null): string {
+  if (value === null) return "—";
+  return value.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
+}
+
 /* -------------------------------------------------------- server components */
 
 /**
@@ -98,8 +98,9 @@ function HeaderContact({
   canViewContactDetails: boolean;
 }) {
   // Surface a SINGLE contact in the header: the flagged preferred method (#301),
-  // else fall back to personal email, then phone. The star stays; the "Preferred"
-  // label is dropped. Email/phone are PII (editor-gated); LinkedIn is visible to
+  // else fall back to personal email, then phone. No star here (the preferred
+  // star lives on the Overview contact rows below); the "Preferred" label is
+  // dropped too. Email/phone are PII (editor-gated); LinkedIn is visible to
   // every role. A gated-away or empty target resolves to null so we never leak
   // PII or point at a blank field.
   let primary: { label: string; value: string; href: string } | null = null;
@@ -166,7 +167,6 @@ function HeaderContact({
           className="inline-flex items-center gap-1 font-semibold text-brand-blue-600 hover:text-brand-blue-500"
           title={primary.label}
         >
-          <span aria-hidden="true">★</span>
           {primary.value}
         </a>
       ) : null}
@@ -213,14 +213,12 @@ function Panel({
 }
 
 function ContactField({
-  icon: Icon,
   label,
   value,
   href,
   hrefLabel,
   preferred = false,
 }: {
-  icon: LucideIcon;
   label: string;
   value: string | null;
   href?: string;
@@ -229,11 +227,10 @@ function ContactField({
    *  with a text star (★) next to the label. */
   preferred?: boolean;
 }) {
+  // Text-only (no icon chip) per the design rules — the label, the actionable
+  // value, and the Send/Call/Open action carry all the meaning.
   return (
     <div className="flex items-start gap-3">
-      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-500">
-        <Icon className="h-4 w-4" aria-hidden="true" />
-      </span>
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
           {label}
@@ -414,14 +411,6 @@ export default async function AlumniProfilePage({
   const c = profile.contact;
   const career = profile.current_career;
   const aid = a.alumni_id;
-  // Spouse display: the typed name, plus a deep-link label when linked to
-  // another alumni record (prefer that alumnus's current name).
-  const spouseName =
-    [a.spouse_first_name, a.spouse_last_name].filter(Boolean).join(" ") || null;
-  const spouseLinkLabel =
-    profile.spouse_alumni_name ||
-    spouseName ||
-    (a.spouse_alumni_id ? `Alumnus #${a.spouse_alumni_id}` : null);
   const name =
     [a.preferred_first_name ?? a.first_name, a.last_name]
       .filter(Boolean)
@@ -444,30 +433,64 @@ export default async function AlumniProfilePage({
         (y.completed_at ?? "").localeCompare(x.completed_at ?? ""),
       )[0]?.completed_at ?? null;
 
-  // Last-contacted is derived client-side from the newest interaction
-  // (interactions arrive newest-first), NOT a backend "score".
-  const lastInteraction = profile.interactions[0];
-  const lastContactedIso = lastInteraction?.interaction_date_time ?? null;
-  // Whole-day difference between calendar dates (same basis as daysAgo), so the
-  // tone and the "N days ago" label can never disagree near a threshold.
-  const lastContactedDays = (() => {
-    if (!lastContactedIso) return null;
-    const then = new Date(lastContactedIso);
-    if (Number.isNaN(then.getTime())) return null;
-    const startOfDay = (d: Date) =>
-      new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-    return Math.round((startOfDay(new Date()) - startOfDay(then)) / 864e5);
-  })();
-  // Stale = no contact in > 180 days; recent = within ~30 days. Tone always
-  // pairs with a text label so we never rely on color alone.
-  const contactTone: "warning" | "success" | "neutral" =
-    lastContactedDays === null
-      ? "warning"
-      : lastContactedDays > 180
-        ? "warning"
-        : lastContactedDays <= 30
-          ? "success"
-          : "neutral";
+  // ---- Backend contract (profile detail payload) --------------------------
+  // Fields a separate backend agent is adding to `GET /alumni/{id}/profile`.
+  // Read via optional access (typed extension casts) so a not-yet-deployed
+  // backend simply renders an em-dash instead of failing to compile.
+  const aExtra = a as typeof a & { hometown?: string | null };
+  const careerExtra = career as
+    | (NonNullable<typeof career> & { company_address?: string | null })
+    | null;
+  const profileExtra = profile as typeof profile & {
+    next_survey_date?: string | null;
+  };
+
+  // Pay It Forward tile (#365) — derived from the already-fetched donations
+  // payload so amount gating is reused verbatim: `lifetime_total` is null when
+  // the caller may not see dollar figures.
+  const lastDonatedYear = donations?.donations.length
+    ? Math.max(...donations.donations.map((d) => d.year))
+    : null;
+  const totalGiven = donations?.lifetime_total ?? null;
+
+  // Next scheduled survey (#364) — prefer a backend-provided date, else derive
+  // the nearest not-yet-completed due date from the survey list.
+  const nextSurveyIso =
+    profileExtra.next_survey_date ??
+    profile.surveys
+      .filter((s) => !s.completed && !!s.survey_due_date)
+      .sort((x, y) =>
+        (x.survey_due_date ?? "").localeCompare(y.survey_due_date ?? ""),
+      )[0]?.survey_due_date ??
+    null;
+
+  // Career Snapshot employment (#367): the current role (from current_career,
+  // falling back to the flagged current employment-history row) plus the two
+  // most-recent previous roles from employment history.
+  const currentEmp =
+    profile.employment_history.find((e) => e.is_current) ?? null;
+  const currentJob = career
+    ? {
+        title: career.current_title,
+        company: career.current_employer,
+        city: career.current_city,
+        state: career.current_state,
+      }
+    : currentEmp
+      ? {
+          title: currentEmp.employment_title,
+          company: currentEmp.employer_name,
+          city: currentEmp.city,
+          state: currentEmp.state,
+        }
+      : null;
+  const previousJobsAll = [...profile.employment_history]
+    .filter((e) => !e.is_current)
+    .sort(
+      (x, y) =>
+        (y.end_year ?? y.start_year ?? 0) - (x.end_year ?? x.start_year ?? 0),
+    );
+  const previousJobs = previousJobsAll.slice(0, 2);
 
   // Completeness checks (mirror the Figma checklist)
   const checks: { label: string; ok: boolean }[] = [
@@ -534,40 +557,35 @@ export default async function AlumniProfilePage({
                       </Badge>
                     ) : null}
                   </div>
-                  <p className="mt-1 text-base text-gray-500">
-                    {[
-                      a.graduation_year ? `Class of ${a.graduation_year}` : null,
-                      a.byu_id ? `BYU ID ${a.byu_id}` : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </p>
-                  {a.net_id ? (
-                    <p className="mt-0.5 text-base text-gray-500">
-                      BYU Net ID {a.net_id}
+                  {/* BYU ID and BYU Net ID removed from the header (#361) — the
+                      Net ID now lives in the Personal & family box; the BYU ID
+                      number is not rendered in the UI at all. */}
+                  {a.graduation_year ? (
+                    <p className="mt-1 text-base text-gray-500">
+                      Class of {a.graduation_year}
                     </p>
                   ) : null}
-                  <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-base text-gray-600">
-                    {career?.current_employer || career?.current_title ? (
-                      <span className="flex items-center gap-1.5">
-                        <Building2 className="h-4 w-4 text-gray-400" />
-                        {[career?.current_title, career?.current_employer]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </span>
+                  {/* Job title on its own line, company name underneath (#363);
+                      the job/city icons are removed (#362). */}
+                  <div className="mt-1.5 space-y-0.5 text-base text-gray-600">
+                    {career?.current_title ? (
+                      <p className="font-medium text-gray-900">
+                        {career.current_title}
+                      </p>
+                    ) : null}
+                    {career?.current_employer ? (
+                      <p>{career.current_employer}</p>
                     ) : null}
                     {place(c?.city, c?.state) ? (
-                      <span className="flex items-center gap-1.5">
-                        <MapPin className="h-4 w-4 text-gray-400" />
+                      <p className="text-sm text-gray-500">
                         {place(c?.city, c?.state)}
-                      </span>
+                      </p>
                     ) : null}
-                    {/* Employment status (#306) — a small text-only label beside
-                        the current-job location; no icon per the design rules. */}
+                    {/* Employment status (#306) — text-only label. */}
                     {a.employment_status ? (
-                      <span className="text-sm text-gray-500">
+                      <p className="text-sm text-gray-500">
                         {a.employment_status}
-                      </span>
+                      </p>
                     ) : null}
                   </div>
 
@@ -666,23 +684,35 @@ export default async function AlumniProfilePage({
             />
             <MetricCard label="Interactions" value={profile.interaction_count} />
             <MetricCard label="Events attended" value={profile.events.length} />
-            <MetricCard
-              label="Last updated"
-              value={
-                fmtDate(a.profile_updated_date ?? a.updated_at) ?? "—"
+            {/* Pay It Forward giving (#365) — amounts arrive pre-gated from the
+                backend (Total given shows a restricted note when withheld). */}
+            <StackedTile
+              topLabel="Last donated"
+              topValue={lastDonatedYear ?? "—"}
+              bottomLabel="Total given"
+              bottomValue={
+                donations ? (
+                  totalGiven !== null ? (
+                    money(totalGiven)
+                  ) : (
+                    <span className="text-gray-400">Restricted</span>
+                  )
+                ) : (
+                  "—"
+                )
               }
+              title="Pay It Forward giving"
+            />
+            {/* Last updated + Next survey combined into one stacked tile (#364),
+                kept as the last tile in the row. */}
+            <StackedTile
+              topLabel="Last updated"
+              topValue={fmtDate(a.profile_updated_date ?? a.updated_at) ?? "—"}
+              bottomLabel="Next survey"
+              bottomValue={fmtDate(nextSurveyIso) ?? "—"}
               title={
                 a.profile_updated_by_name || a.profile_updated_by
                   ? `Updated by ${a.profile_updated_by_name ?? a.profile_updated_by}`
-                  : undefined
-              }
-            />
-            <MetricCard
-              label="Last surveyed"
-              value={fmtDate(a.survey_completed_date ?? lastSurveyedIso) ?? "—"}
-              title={
-                a.survey_completed_date
-                  ? `Survey completed ${fmtDate(a.survey_completed_date)}`
                   : undefined
               }
             />
@@ -695,260 +725,184 @@ export default async function AlumniProfilePage({
               the client. */}
           <AlumniProfileTabs
             overview={
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                  {/* Main column (wider). */}
-                  <div className="flex flex-col gap-4 lg:col-span-2">
-              {/* Career snapshot — lead with what they do (before contact info) */}
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+              {/* Current employment contact information (#366). Work email is
+                  contact PII (editor-gated); LinkedIn and directory-like company
+                  location stay visible to every role. */}
+              <Panel
+                title="Current employment contact information"
+                action={canEdit ? <EditLink id={aid} /> : undefined}
+                className="lg:col-span-2"
+              >
+                {/* Split into two columns of three (#profile tweak): work email
+                    + address + city on the left, state + country + ZIP on the
+                    right. LinkedIn moved to Personal & family. */}
+                <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+                  <div className="space-y-4">
+                    {canViewContactDetails ? (
+                      <ContactField
+                        label="Work email"
+                        value={c?.work_email ?? null}
+                        href={c?.work_email ? `mailto:${c.work_email}` : undefined}
+                        hrefLabel="Send"
+                        preferred={c?.preferred_contact_method === "work_email"}
+                      />
+                    ) : null}
+                    <Field
+                      label="Company address"
+                      value={careerExtra?.company_address ?? null}
+                    />
+                    <Field
+                      label="Company city"
+                      value={career?.current_city ?? null}
+                    />
+                  </div>
+                  <div className="space-y-4">
+                    <Field
+                      label="Company state"
+                      value={career?.current_state ?? null}
+                    />
+                    <Field
+                      label="Company country"
+                      value={career?.current_country ?? null}
+                    />
+                    <Field label="Company ZIP" value={career?.current_zip ?? null} />
+                  </div>
+                </div>
+                {/* LinkedIn spans the full width at the bottom of the box. */}
+                <div className="mt-4">
+                  <ContactField
+                    label="LinkedIn profile"
+                    value={a.linkedin_url}
+                    href={a.linkedin_url ?? undefined}
+                    hrefLabel="Open ↗"
+                    preferred={c?.preferred_contact_method === "linkedin"}
+                  />
+                </div>
+              </Panel>
+
+              {/* Career snapshot (#367): current role on top, then the two most
+                  recent previous roles under a "Previous employment" heading.
+                  Seniority level removed; employment drawn from employment history. */}
               <Panel
                 title="Career snapshot"
                 action={canEdit ? <EditLink id={aid} /> : undefined}
+                className="lg:col-span-1"
               >
-                {career ? (
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <Field label="Current employer" value={career.current_employer} />
-                    <Field label="Current title" value={career.current_title} />
-                    <Field label="Industry" value={career.current_industry} />
-                    <Field label="Seniority level" value={career.seniority_level} />
-                    <Field
-                      label="Graduate degree"
-                      value={a.graduate_degree}
-                    />
-                    <Field
-                      label="Location"
-                      value={place(career.current_city, career.current_state)}
-                    />
-                  </div>
-                ) : (
-                  <p className="py-6 text-center text-sm text-gray-500">
-                    No current employment on file yet.
-                  </p>
-                )}
-              </Panel>
-
-              {/* Contact information — grows to fill the wider column so its
-                  bottom lines up with Personal & family in the right column. */}
-              <Panel
-                title="Contact information"
-                className="lg:flex-1"
-                action={canEdit ? <EditLink id={aid} /> : undefined}
-              >
-                {c ? (
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    {/* Contact PII (email, phone, street address) is editor-only
-                        — defense-in-depth for #166. The backend nulls these for
-                        view_only; we simply don't render the rows. LinkedIn and
-                        directory-like City/State/Country stay visible to all. */}
-                    {canViewContactDetails ? (
-                      <>
-                        <ContactField
-                          icon={Mail}
-                          label="Personal email"
-                          value={c.personal_email}
-                          href={c.personal_email ? `mailto:${c.personal_email}` : undefined}
-                          hrefLabel="Send"
-                          preferred={c.preferred_contact_method === "personal_email"}
-                        />
-                        <ContactField
-                          icon={Mail}
-                          label="Work email"
-                          value={c.work_email}
-                          href={c.work_email ? `mailto:${c.work_email}` : undefined}
-                          hrefLabel="Send"
-                          preferred={c.preferred_contact_method === "work_email"}
-                        />
-                        <ContactField
-                          icon={Phone}
-                          label="Phone"
-                          value={c.phone}
-                          href={c.phone ? `tel:${c.phone}` : undefined}
-                          hrefLabel="Call"
-                          preferred={c.preferred_contact_method === "phone"}
-                        />
-                        <ContactField
-                          icon={Mail}
-                          label="Best contact"
-                          value={c.best_contact}
-                          href={
-                            c.best_contact?.includes("@")
-                              ? `mailto:${c.best_contact}`
-                              : undefined
-                          }
-                          hrefLabel="Send"
-                        />
-                      </>
-                    ) : null}
-                    <ContactField
-                      icon={Link2}
-                      label="LinkedIn"
-                      value={a.linkedin_url}
-                      href={a.linkedin_url ?? undefined}
-                      hrefLabel="Open ↗"
-                      preferred={c.preferred_contact_method === "linkedin"}
-                    />
-                    {canViewContactDetails ? (
-                      <ContactField
-                        icon={Home}
-                        label="Address"
-                        value={place(c.address_line_1, c.address_line_2)}
-                      />
-                    ) : null}
-                    <ContactField icon={MapPin} label="City" value={c.city} />
-                    <ContactField
-                      icon={MapPin}
-                      label="State"
-                      value={c.state}
-                    />
-                    <ContactField
-                      icon={Flag}
-                      label="Country"
-                      value={c.country}
-                    />
-                    {/* ZIP is part of the mailing address (PII) — gate it like the
-                        street address; renders under State / next to Country. */}
-                    {canViewContactDetails ? (
-                      <ContactField icon={MapPin} label="ZIP" value={c.zip} />
-                    ) : null}
-                  </div>
-                ) : (
-                  <p className="py-6 text-center text-sm text-gray-500">
-                    No contact information on file yet.
-                  </p>
-                )}
-              </Panel>
-
-            </div>
-
-            {/* Right sidebar (narrower). */}
-            <div className="flex flex-col gap-4">
-              {/* Engagement summary — non-sensitive metrics + tags + derived
-                  last-contacted. Shown for all roles (same gating posture as
-                  "Engagement & tags"). Last-contacted comes from the newest
-                  interaction, not a backend score. */}
-              <Panel title="Engagement summary">
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      Last contacted
+                <div className="flex h-full flex-col">
+                  {currentJob || previousJobs.length ? (
+                    <div className="space-y-4">
+                      {currentJob ? (
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {currentJob.title ?? "—"}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            {currentJob.company ?? "—"}
+                          </p>
+                          {place(currentJob.city, currentJob.state) ? (
+                            <p className="mt-0.5 text-xs text-gray-500">
+                              {place(currentJob.city, currentJob.state)}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      {previousJobs.length ? (
+                        <div className="border-t border-gray-100 pt-4">
+                          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            Previous employment
+                          </p>
+                          <div className="space-y-3">
+                            {previousJobs.map((e) => (
+                              <div key={e.employment_history_id}>
+                                <div className="flex items-start justify-between gap-2">
+                                  <p className="text-sm font-semibold text-gray-900">
+                                    {e.employment_title ?? "—"}
+                                  </p>
+                                  <span className="shrink-0 text-xs tabular-nums text-gray-500">
+                                    {e.start_year ?? "—"} – {e.end_year ?? "—"}
+                                  </span>
+                                </div>
+                                <p className="text-sm text-gray-600">
+                                  {e.employer_name ?? "—"}
+                                </p>
+                                {place(e.city, e.state) ? (
+                                  <p className="mt-0.5 text-xs text-gray-500">
+                                    {place(e.city, e.state)}
+                                  </p>
+                                ) : null}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <p className="py-6 text-center text-sm text-gray-500">
+                      No employment on file yet.
                     </p>
-                    <p className="mt-0.5 text-2xl font-semibold text-gray-900">
-                      {daysAgo(lastContactedIso)}
-                    </p>
-                    {/* Always render the date sub-line so the block keeps the
-                        same height whether or not a contact date exists — an
-                        em-dash placeholder (muted) stands in when the alumnus
-                        has never been contacted. */}
-                    <p
-                      className={`text-sm ${fmtDate(lastContactedIso) ? "text-gray-500" : "text-gray-300"}`}
-                    >
-                      {fmtDate(lastContactedIso) ?? "—"}
-                    </p>
-                    {/* Always render a status chip too — the interaction type
-                        when one exists, otherwise a neutral "No interactions
-                        yet" placeholder — so the never-contacted state has the
-                        same row count (and height) as the contacted state. */}
-                    <div className="mt-2">
-                      {lastContactedIso !== null &&
-                      lastInteraction?.interaction_type ? (
-                        <EngagementChip tone={contactTone}>
-                          {contactTone === "warning"
-                            ? "Stale · "
-                            : contactTone === "success"
-                              ? "Recent · "
-                              : ""}
-                          {lastInteraction.interaction_type}
-                        </EngagementChip>
-                      ) : (
-                        <EngagementChip tone="neutral">
-                          No interactions yet
-                        </EngagementChip>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 border-t border-gray-100 pt-4">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                        Interactions
-                      </p>
-                      <p className="mt-0.5 text-xl font-semibold tabular-nums text-gray-900">
-                        {profile.interaction_count}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                        Events attended
-                      </p>
-                      <p className="mt-0.5 text-xl font-semibold tabular-nums text-gray-900">
-                        {profile.events.length}
-                      </p>
-                    </div>
-                  </div>
-
-                  {profile.tags.length ? (
-                    <div className="border-t border-gray-100 pt-4">
-                      <ChipRow label="Tags">
-                        {profile.tags.map((t) => (
-                          <EngagementChip key={t} tone="tag">
-                            {t}
-                          </EngagementChip>
-                        ))}
-                      </ChipRow>
-                    </div>
-                  ) : null}
+                  )}
+                  {/* Persistent link to the full Employment tab. */}
+                  <Link
+                    href="?tab=employment"
+                    className="mt-auto pt-4 text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
+                  >
+                    View full employment history →
+                  </Link>
                 </div>
               </Panel>
 
-              {/* Personal & family — sits under Engagement summary in the right
-                  column and stretches (flex-1) to fill down so its bottom aligns
-                  with Contact information in the main column (replaces the old
-                  #269 placement in the main column). */}
+              {/* Personal & family (#366). BYU Net ID is the primary identifier
+                  (moved out of the header, #361). Personal email + cell phone are
+                  contact PII (editor-gated). Spouse shows the FIRST name only —
+                  never a last name. Spouse birthday removed. */}
               <Panel
                 title="Personal & family"
                 action={canEdit ? <EditLink id={aid} /> : undefined}
-                className="flex-1"
+                className="lg:col-span-3"
               >
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Field label="Birthday" value={fmtDate(a.birth_date)} />
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      Spouse
-                    </p>
-                    {spouseLinkLabel ? (
-                      a.spouse_alumni_id ? (
-                        <Link
-                          href={`/alumni/${a.spouse_alumni_id}`}
-                          className="text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
-                        >
-                          {spouseLinkLabel} ↗
-                        </Link>
-                      ) : (
-                        <p className="text-sm text-gray-900">{spouseLinkLabel}</p>
-                      )
-                    ) : (
-                      <p className="text-sm text-gray-300">—</p>
-                    )}
+                {/* Three sections: contact IDs · household · origin. */}
+                <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-3">
+                  <div className="space-y-4">
+                    <Field label="BYU Net ID" value={a.net_id} />
+                    {canViewContactDetails ? (
+                      <>
+                        <ContactField
+                          label="Personal email"
+                          value={c?.personal_email ?? null}
+                          href={
+                            c?.personal_email
+                              ? `mailto:${c.personal_email}`
+                              : undefined
+                          }
+                          hrefLabel="Send"
+                          preferred={
+                            c?.preferred_contact_method === "personal_email"
+                          }
+                        />
+                        <ContactField
+                          label="Cell phone"
+                          value={c?.phone ?? null}
+                          href={c?.phone ? `tel:${c.phone}` : undefined}
+                          hrefLabel="Call"
+                          preferred={c?.preferred_contact_method === "phone"}
+                        />
+                      </>
+                    ) : null}
                   </div>
-                  <Field
-                    label="Spouse birthday"
-                    value={fmtDate(a.spouse_birth_date)}
-                  />
-                  {/* New alumni demographic fields (#305) — only rendered when a
-                      value is on file so the panel stays compact. */}
-                  {a.citizenship ? (
-                    <Field label="Citizenship" value={a.citizenship} />
-                  ) : null}
-                  {a.marital_status ? (
+                  <div className="space-y-4">
+                    <Field label="Birthday" value={fmtDate(a.birth_date)} />
                     <Field label="Marital status" value={a.marital_status} />
-                  ) : null}
-                  {a.home_country ? (
+                    {/* First name ONLY — never render the spouse's last name. */}
+                    <Field label="Spouse" value={a.spouse_first_name} />
+                  </div>
+                  <div className="space-y-4">
+                    <Field label="Gender" value={a.gender} />
+                    <Field label="Hometown" value={aExtra.hometown ?? null} />
                     <Field label="Home country" value={a.home_country} />
-                  ) : null}
+                  </div>
                 </div>
               </Panel>
-
-                  </div>
-                </div>
               </div>
             }
             profileCompleteness={
@@ -1288,7 +1242,7 @@ export default async function AlumniProfilePage({
                   title="Employment history"
                   action={canEdit ? <AddRoleButton alumniId={aid} /> : undefined}
                 >
-                  {profile.employment_history.length ? (
+                  {career || profile.employment_history.length ? (
                     <DrawerList
                       title="Employment history"
                       ordered
@@ -1298,6 +1252,38 @@ export default async function AlumniProfilePage({
                         canEdit ? <AddRoleButton alumniId={aid} /> : undefined
                       }
                     >
+                      {/* Current role lives in current-employment (not history),
+                          so surface it here so the tab lists the current job. */}
+                      {career ? (
+                        <li className="flex gap-3 border-b border-gray-100 py-3 last:border-0">
+                          <span
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white ${avatarColor(career.current_employer ?? "?")}`}
+                          >
+                            {(career.current_employer ?? "?")[0]?.toUpperCase()}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-sm font-semibold text-gray-900">
+                                {career.current_employer ?? "—"}
+                                <Badge variant="success" className="ml-2">
+                                  Current
+                                </Badge>
+                              </p>
+                              <span className="text-xs tabular-nums text-gray-500">
+                                Present
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-600">
+                              {career.current_title ?? "—"}
+                            </p>
+                            {place(career.current_city, career.current_state) ? (
+                              <p className="text-xs text-gray-500">
+                                {place(career.current_city, career.current_state)}
+                              </p>
+                            ) : null}
+                          </div>
+                        </li>
+                      ) : null}
                       {profile.employment_history.map((e) => (
                         <li
                           key={e.employment_history_id}
@@ -1707,6 +1693,47 @@ export default async function AlumniProfilePage({
 
 /* ----------------------------------------------------- small server helpers */
 
+/** A KPI-strip tile with two stacked label/value rows (top + bottom), matching
+ *  the MetricCard surface. Used for the combined "Last updated / Next survey"
+ *  tile (#364) and the "Pay It Forward" giving tile (#365). */
+function StackedTile({
+  topLabel,
+  topValue,
+  bottomLabel,
+  bottomValue,
+  title,
+}: {
+  topLabel: string;
+  topValue: React.ReactNode;
+  bottomLabel: string;
+  bottomValue: React.ReactNode;
+  title?: string;
+}) {
+  return (
+    <div
+      className="flex h-full flex-col justify-center gap-2 rounded-lg border border-gray-200 bg-white p-4 shadow-card"
+      title={title}
+    >
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+          {topLabel}
+        </p>
+        <p className="mt-0.5 text-sm font-semibold tabular-nums text-gray-900">
+          {topValue}
+        </p>
+      </div>
+      <div className="border-t border-gray-100 pt-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+          {bottomLabel}
+        </p>
+        <p className="mt-0.5 text-sm font-semibold tabular-nums text-gray-900">
+          {bottomValue}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function Field({ label, value }: { label: string; value: string | null }) {
   return (
     <div>
@@ -1743,7 +1770,7 @@ function ChipRow({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <span className="w-16 shrink-0 pt-0.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+      <span className="shrink-0 whitespace-nowrap pt-0.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
         {label}
       </span>
       <div className="flex flex-wrap gap-2">{children}</div>

@@ -2840,6 +2840,10 @@ export interface components {
             grad_year_max: number | null;
             /** Deceased */
             deceased: boolean | null;
+            /** Gender */
+            gender: string | null;
+            /** Industry Group */
+            industry_group: string | null;
             /** Employer */
             employer: string[] | null;
             /** Past Employer */
@@ -3084,6 +3088,8 @@ export interface components {
             citizenship: string | null;
             /** Marital Status */
             marital_status: string | null;
+            /** Hometown */
+            hometown: string | null;
             /** Home Country */
             home_country: string | null;
             /** Employment Status */
@@ -3157,6 +3163,27 @@ export interface components {
             current_state: string | null;
         };
         /**
+         * AlumniLocation
+         * @description Interpretation of a natural-language location search (#358).
+         *
+         *     Returned on ``AlumniPage.location`` only when the list request carried a
+         *     ``near`` phrase. ``label`` is a short human string ("Los Angeles, CA within
+         *     50 mi"); ``radius_miles`` is the effective radius; ``resolved`` is ``False``
+         *     when the phrase couldn't be pinpointed (the list then falls back to the
+         *     normal search and the UI shows a soft note).
+         */
+        AlumniLocation: {
+            /** Label */
+            label: string;
+            /** Radius Miles */
+            radius_miles: number | null;
+            /**
+             * Resolved
+             * @default true
+             */
+            resolved: boolean;
+        };
+        /**
          * AlumniPage
          * @description A page of alumni plus the pagination envelope.
          */
@@ -3169,6 +3196,7 @@ export interface components {
             limit: number;
             /** Offset */
             offset: number;
+            location: components["schemas"]["AlumniLocation"] | null;
         };
         /** AlumniRead */
         AlumniRead: {
@@ -3212,6 +3240,8 @@ export interface components {
             citizenship: string | null;
             /** Marital Status */
             marital_status: string | null;
+            /** Hometown */
+            hometown: string | null;
             /** Home Country */
             home_country: string | null;
             /** Employment Status */
@@ -3784,6 +3814,8 @@ export interface components {
             current_industry: string | null;
             /** Current Industry Secondary */
             current_industry_secondary: string | null;
+            /** Company Address */
+            company_address: string | null;
             /** Current City */
             current_city: string | null;
             /** Current State */
@@ -3821,6 +3853,34 @@ export interface components {
         DashboardGradYearCount: {
             /** Year */
             year: number;
+            /** Count */
+            count: number;
+        };
+        /**
+         * DashboardIndustryBreakdown
+         * @description Industry breakdown for the dashboard wheel (#351/#352/#353).
+         *
+         *     ``industries`` covers EVERY canonical finance industry (from the controlled
+         *     vocab) — including ones with a count of 0 — so the legend can list them all.
+         *     ``other`` (the catch-all "Other" vocab value + any non-canonical value) and
+         *     ``unknown`` (active alumni with NO industry on file) are SEPARATE buckets,
+         *     distinct from each other.
+         */
+        DashboardIndustryBreakdown: {
+            /** Industries */
+            industries: components["schemas"]["DashboardIndustryCount"][];
+            /** Other */
+            other: number;
+            /** Unknown */
+            unknown: number;
+        };
+        /**
+         * DashboardIndustryCount
+         * @description One finance-industry bucket in the industry breakdown (#353).
+         */
+        DashboardIndustryCount: {
+            /** Industry */
+            industry: string;
             /** Count */
             count: number;
         };
@@ -3918,6 +3978,7 @@ export interface components {
             top_employers: components["schemas"]["DashboardEmployerCount"][];
             /** By State */
             by_state: components["schemas"]["DashboardStateCount"][];
+            industry_breakdown: components["schemas"]["DashboardIndustryBreakdown"];
         };
         /**
          * DataQuality
@@ -5784,6 +5845,10 @@ export interface operations {
                 grad_year_max?: number | null;
                 /** @description Filter by deceased flag. */
                 deceased?: boolean | null;
+                /** @description Gender facet (#360): 'M' or 'F'. Combinable with the industry filter (and every other filter). Matches on the first letter of the stored gender value, so 'Male'/'M' and 'Female'/'F' both match. */
+                gender?: ("M" | "F") | null;
+                /** @description Industry-bucket facet (#351/#352) for the dashboard drill-downs: 'unknown' — alumni with a blank/missing primary industry; 'other' — alumni whose primary industry is NOT one of the canonical finance industries (the 'Other' bucket). Distinct from the exact 'industry' facet, which matches a specific industry name. */
+                industry_group?: ("unknown" | "other") | null;
                 /** @description Current employer(s) — repeatable (OR), exact match. */
                 employer?: string[] | null;
                 /** @description Prior employer(s) from employment history — repeatable. */
@@ -5843,8 +5908,12 @@ export interface operations {
                 include_archived?: boolean;
                 /** @description Which records to return (#218): 'alumni' (default) — only graduates (is_alumni=true); 'friend' — only friends of the program (is_alumni=false); 'all' — both. Defaults to 'alumni' so the Alumni page is unchanged. */
                 kind?: "alumni" | "friend" | "all";
-                /** @description Sort order: name | grad_desc | grad_asc. */
-                sort?: "name" | "grad_desc" | "grad_asc";
+                /** @description Natural-language location search (#358): a place phrase such as 'near Los Angeles, CA', 'within 50 miles of Provo', or a region alias like 'Bay Area'. Resolved to a set of nearby cities via the geocoding module; results are restricted to alumni located there. An unresolvable phrase falls back to the normal (non-location) search and the response's 'location.resolved' is false. */
+                near?: string | null;
+                /** @description Optional radius override (miles) for the 'near' location search. When provided it overrides the radius inferred from the phrase. */
+                radius?: number | null;
+                /** @description Sort order: name | grad_desc | grad_asc | industry | city | state. */
+                sort?: "name" | "grad_desc" | "grad_asc" | "industry" | "city" | "state";
                 limit?: number;
                 offset?: number;
             };

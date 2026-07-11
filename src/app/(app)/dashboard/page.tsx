@@ -7,7 +7,6 @@ import { SearchHero } from "@/components/dashboard/SearchHero";
 import { DashboardSearch } from "@/components/dashboard/DashboardSearch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DATA_VIZ_PALETTE, CHART_MUTED_COLOR } from "@/constants/chart";
-import type { GeoSummary } from "@/types/geography";
 import type { UserContext } from "@/types/alumni";
 import type { FilterOptions } from "@/types/filters";
 import type { components } from "@/types/api.gen";
@@ -15,10 +14,9 @@ import type { components } from "@/types/api.gen";
 type DashboardPreset = components["schemas"]["DashboardPresetRead"];
 
 /**
- * `/dashboard/summary` has no `response_model` on the backend, so it isn't in
- * the generated OpenAPI types — keep this hand-written shape in sync with the
- * API. Everything the redesigned launchpad reads comes from here + the geography
- * summary (top industries).
+ * Hand-written shape for `/dashboard/summary` — keep it in sync with the API
+ * (the redesigned launchpad reads everything it charts from here, including the
+ * industry breakdown that powers the wheel).
  */
 interface Summary {
   total_alumni: number;
@@ -37,7 +35,26 @@ interface Summary {
   by_graduation_year: { year: number; count: number }[];
   top_employers: { employer: string; count: number }[];
   by_state: { state: string; count: number }[];
+  /**
+   * Industry breakdown (#351/#352/#353). `industries` covers EVERY canonical
+   * finance industry — including zero-count ones — so the legend can list them
+   * all. `other` (the catch-all "Other" value) and `unknown` (no industry on
+   * file) are separate, distinct buckets.
+   */
+  industry_breakdown: {
+    industries: { industry: string; count: number }[];
+    other: number;
+    unknown: number;
+  };
 }
+
+/**
+ * Distinct muted tone for the "Unknown" (no industry on file) bucket, so it
+ * reads differently from the grey "Other" catch-all and nudges staff to fill in
+ * the missing data. A warm amber — deliberately NOT one of the brand-blue
+ * data-viz accents — signaling "needs attention", not a real category.
+ */
+const CHART_UNKNOWN_COLOR = "#D97706"; // amber-600
 
 /* ------------------------------------------------------------- date helpers -- */
 
@@ -74,13 +91,16 @@ function Panel({
   title,
   action,
   children,
+  className,
 }: {
   title: string;
   action?: React.ReactNode;
   children: React.ReactNode;
+  /** Extra classes on the Card (e.g. `flex-1` to grow, else natural height). */
+  className?: string;
 }) {
   return (
-    <Card className="flex flex-1 flex-col">
+    <Card className={`flex flex-col ${className ?? ""}`}>
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         {action}
@@ -103,7 +123,7 @@ function BarList({
     return <p className="py-4 text-sm text-gray-400">{emptyLabel}</p>;
   const max = Math.max(1, ...rows.map((r) => r.count));
   return (
-    <ul className="space-y-3.5">
+    <ul className="space-y-1">
       {rows.map((r) => {
         const row = (
           <>
@@ -128,7 +148,7 @@ function BarList({
                 href={r.href}
                 aria-label={`View ${r.label} (${r.count}) in alumni list`}
                 title={`${r.label}: ${r.count}`}
-                className="-mx-2 flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1 transition hover:bg-brand-blue-50/40"
+                className="-mx-2 flex cursor-pointer items-center gap-3 rounded-lg px-2 py-0.5 transition hover:bg-brand-blue-50/40"
               >
                 {row}
               </Link>
@@ -147,20 +167,24 @@ function BarList({
   );
 }
 
-/** Hand-built SVG donut + legend. Slice colors come from the UX-UI.md data-viz
- *  palette (chart-only use). Center shows the total; each legend row links to
- *  the filtered alumni list. */
+/** Hand-built SVG donut + legend. Each row carries its own `color` (resolved by
+ *  the caller from the UX-UI.md data-viz palette). The wheel draws only the
+ *  non-zero slices; the legend lists EVERY row (incl. zero-count industries,
+ *  shown as 0). Center shows the total; each row links to the filtered alumni
+ *  list. */
 function DonutChart({
   rows,
   emptyLabel,
 }: {
-  rows: { label: string; count: number; href?: string; muted?: boolean }[];
+  rows: { label: string; count: number; color: string; href?: string }[];
   emptyLabel: string;
 }) {
   if (rows.length === 0)
     return <p className="py-4 text-sm text-gray-400">{emptyLabel}</p>;
 
   const total = rows.reduce((sum, r) => sum + r.count, 0);
+  // The wheel only renders slices with a real share; the legend still lists all.
+  const slices = rows.filter((r) => r.count > 0);
   const size = 184;
   const stroke = 30;
   const radius = (size - stroke) / 2;
@@ -168,14 +192,14 @@ function DonutChart({
   let acc = 0;
 
   return (
-    <div className="flex w-full items-center gap-6">
+    <div className="flex w-full items-start gap-6">
       <svg
         width={size}
         height={size}
         viewBox={`0 0 ${size} ${size}`}
         className="shrink-0"
         role="img"
-        aria-label="Top industries distribution"
+        aria-label="Industry distribution"
       >
         <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
           {total === 0 ? (
@@ -188,7 +212,7 @@ function DonutChart({
               strokeWidth={stroke}
             />
           ) : (
-            rows.map((r, i) => {
+            slices.map((r) => {
               const arc = (r.count / total) * circumference;
               const pct = Math.round((r.count / total) * 100);
               const seg = (
@@ -198,11 +222,7 @@ function DonutChart({
                   cy={size / 2}
                   r={radius}
                   fill="none"
-                  stroke={
-                    r.muted
-                      ? CHART_MUTED_COLOR
-                      : DATA_VIZ_PALETTE[i % DATA_VIZ_PALETTE.length]
-                  }
+                  stroke={r.color}
                   strokeWidth={stroke}
                   strokeDasharray={`${arc} ${circumference - arc}`}
                   strokeDashoffset={-acc}
@@ -227,23 +247,27 @@ function DonutChart({
           {total}
         </text>
       </svg>
-      <ul className="min-w-0 flex-1 space-y-3">
-        {rows.map((r, i) => {
+      <ul className="grid min-w-0 flex-1 grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2">
+        {rows.map((r) => {
           const body = (
             <>
               <span
                 className="h-3 w-3 shrink-0 rounded-sm"
-                style={{
-                  backgroundColor: r.muted
-                    ? CHART_MUTED_COLOR
-                    : DATA_VIZ_PALETTE[i % DATA_VIZ_PALETTE.length],
-                }}
+                style={{ backgroundColor: r.color }}
                 aria-hidden="true"
               />
-              <span className="min-w-0 flex-1 truncate text-base text-gray-700">
+              <span
+                className={`min-w-0 flex-1 truncate text-sm ${
+                  r.count === 0 ? "text-gray-400" : "text-gray-700"
+                }`}
+              >
                 {r.label}
               </span>
-              <span className="shrink-0 text-base font-medium tabular-nums text-gray-900">
+              <span
+                className={`shrink-0 text-sm font-medium tabular-nums ${
+                  r.count === 0 ? "text-gray-400" : "text-gray-900"
+                }`}
+              >
                 {r.count}
               </span>
             </>
@@ -255,13 +279,13 @@ function DonutChart({
                   href={r.href}
                   aria-label={`View ${r.label} (${r.count}) in alumni list`}
                   title={`${r.label}: ${r.count}`}
-                  className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-1.5 transition hover:bg-brand-blue-50/40"
+                  className="-mx-2 flex items-center gap-2.5 rounded-lg px-2 py-1 transition hover:bg-brand-blue-50/40"
                 >
                   {body}
                 </Link>
               ) : (
                 <div
-                  className="-mx-2 flex items-center gap-3 px-2 py-1.5"
+                  className="-mx-2 flex items-center gap-2.5 px-2 py-1"
                   title={`${r.label}: ${r.count}`}
                 >
                   {body}
@@ -282,18 +306,13 @@ export default async function DashboardPage() {
   const today = isoToday();
 
   let s: Summary | null = null;
-  let geoSum: GeoSummary | null = null;
   let ctx: UserContext | null = null;
   let notProvisioned = false;
   try {
-    [s, geoSum, ctx] = await Promise.all([
+    [s, ctx] = await Promise.all([
       apiGet<Summary>("/dashboard/summary", {
         revalidate: 60,
         tags: ["dashboard"],
-      }),
-      apiGet<GeoSummary>("/geography/summary", {
-        revalidate: 60,
-        tags: ["geography"],
       }),
       // Per-user, not cacheable — used only to greet the signed-in user by name.
       // Tolerated separately below so a context hiccup never blanks the page.
@@ -346,36 +365,44 @@ export default async function DashboardPage() {
   const firstName = resolveFirstName(ctx);
   const greeting = firstName ? `Welcome, ${firstName}` : "Welcome";
 
-  const industries = geoSum?.top_industries ?? [];
-  // Reconcile the industry breakdown to the total alumni count (#251): show the
-  // top few industries, then a single "Other" bucket for everyone else (smaller
-  // industries + alumni with no industry on file) so the slices add up to the
-  // total instead of a smaller partial sum.
+  // Industry wheel (#351/#352/#353): the backend returns EVERY canonical finance
+  // industry (incl. zero-count) plus separate "Other" (catch-all value) and
+  // "Unknown" (no industry on file) buckets. The legend lists them all; the
+  // wheel only draws non-zero slices. Colors are stable per row: finance
+  // industries cycle the data-viz palette, "Other" is muted grey, and "Unknown"
+  // gets its own amber tone so it reads as distinct from "Other". Each row is
+  // clickable — finance industries deep-link to `?industry=<name>`, "Other" to
+  // `?industry_group=other`, and "Unknown" to `?industry_group=unknown` so staff
+  // can open and fix the profiles that are missing an industry.
+  const breakdown = s?.industry_breakdown;
+  let financeIdx = 0;
   const industryRows: {
     label: string;
     count: number;
+    color: string;
     href?: string;
-    muted?: boolean;
-  }[] = (() => {
-    // Keep the literal "Other" industry OUT of the named slices so it folds
-    // into the single grey "Other" bucket below — otherwise the chart shows two
-    // "Other" entries (the real industry value + the reconciliation bucket).
-    const shown = industries
-      .filter((i) => (i.industry ?? "").trim().toLowerCase() !== "other")
-      .slice(0, 5)
-      .map((i) => ({
-        label: i.industry,
-        count: i.count,
-        href: `/alumni?industry=${encodeURIComponent(i.industry)}`,
-      }));
-    const total = s?.total_alumni ?? 0;
-    const shownSum = shown.reduce((acc, r) => acc + r.count, 0);
-    const other = total - shownSum;
-    if (other > 0) {
-      return [...shown, { label: "Other", count: other, muted: true }];
-    }
-    return shown;
-  })();
+  }[] = breakdown
+    ? [
+        ...breakdown.industries.map((i) => ({
+          label: i.industry,
+          count: i.count,
+          color: DATA_VIZ_PALETTE[financeIdx++ % DATA_VIZ_PALETTE.length],
+          href: `/alumni?industry=${encodeURIComponent(i.industry)}`,
+        })),
+        {
+          label: "Other",
+          count: breakdown.other,
+          color: CHART_MUTED_COLOR,
+          href: `/alumni?industry_group=other`,
+        },
+        {
+          label: "Unknown",
+          count: breakdown.unknown,
+          color: CHART_UNKNOWN_COLOR,
+          href: `/alumni?industry_group=unknown`,
+        },
+      ]
+    : [];
 
   // Quick-filter presets on the Quick search tab — engineer/super-admin-managed
   // (GET /dashboard/presets), each a common compound search deep-linking into
@@ -445,8 +472,26 @@ export default async function DashboardPage() {
                   linkLabel="View events held this month"
                 />
               </div>
+              {/* Industry wheel on top, spanning the column and growing to fill
+                  the space (#354); the smaller Top Employers box sits beneath. */}
               <Panel
-                title="Top employers"
+                title="Industry breakdown"
+                action={
+                  <span className="text-xs font-medium text-gray-500">
+                    Click to filter
+                  </span>
+                }
+                className="flex-1"
+              >
+                <div className="flex w-full flex-1 items-start">
+                  <DonutChart
+                    rows={industryRows}
+                    emptyLabel="No industry data yet."
+                  />
+                </div>
+              </Panel>
+              <Panel
+                title="Top Employers (last 5 years)"
                 action={
                   <span className="text-xs font-medium text-gray-500">
                     Click to filter
@@ -461,21 +506,6 @@ export default async function DashboardPage() {
                   }))}
                   emptyLabel="No employer data yet."
                 />
-              </Panel>
-              <Panel
-                title="Top industries"
-                action={
-                  <span className="text-xs font-medium text-gray-500">
-                    Click to filter
-                  </span>
-                }
-              >
-                <div className="flex w-full flex-1 items-center">
-                  <DonutChart
-                    rows={industryRows}
-                    emptyLabel="No industry data yet."
-                  />
-                </div>
               </Panel>
             </div>
           </div>

@@ -35,6 +35,10 @@ export function toExportFilters(f: AlumniFilterState): AlumniExportFilters {
     employer: null,
     past_employer: orNull(f.pastEmployer),
     industry: orNull(f.industry),
+    // Gender + industry-group facets mirror the list's URL params so an export
+    // matches the filtered view (#360 / #351-#352).
+    gender: f.gender || null,
+    industry_group: f.industryGroup || null,
     title: orNull(f.title),
     seniority: orNull(f.seniority),
     city: orNull(f.city),
