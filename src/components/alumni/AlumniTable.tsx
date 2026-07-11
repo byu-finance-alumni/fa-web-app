@@ -140,7 +140,12 @@ export function AlumniTable({
                 )}
               </td>
               <td className="truncate px-4 py-2.5 text-gray-700">
-                {a.current_industry ?? (
+                {/* For "Other" alumni, show their secondary (non-finance)
+                    industry instead of just "Other" (Tanya, 2026-07-11). */}
+                {(a.current_industry?.toLowerCase() === "other" &&
+                a.current_industry_secondary
+                  ? a.current_industry_secondary
+                  : a.current_industry) ?? (
                   <span className="text-gray-300">—</span>
                 )}
               </td>

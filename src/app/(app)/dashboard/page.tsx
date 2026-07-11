@@ -185,14 +185,14 @@ function DonutChart({
   const total = rows.reduce((sum, r) => sum + r.count, 0);
   // The wheel only renders slices with a real share; the legend still lists all.
   const slices = rows.filter((r) => r.count > 0);
-  const size = 184;
-  const stroke = 30;
+  const size = 300;
+  const stroke = 46;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   let acc = 0;
 
   return (
-    <div className="flex w-full items-start gap-6">
+    <div className="flex w-full items-center gap-6">
       <svg
         width={size}
         height={size}
@@ -215,9 +215,8 @@ function DonutChart({
             slices.map((r) => {
               const arc = (r.count / total) * circumference;
               const pct = Math.round((r.count / total) * 100);
-              const seg = (
+              const circle = (
                 <circle
-                  key={r.label}
                   cx={size / 2}
                   cy={size / 2}
                   r={radius}
@@ -226,11 +225,29 @@ function DonutChart({
                   strokeWidth={stroke}
                   strokeDasharray={`${arc} ${circumference - arc}`}
                   strokeDashoffset={-acc}
+                  className={
+                    r.href
+                      ? "cursor-pointer transition-opacity hover:opacity-75"
+                      : undefined
+                  }
                 >
                   {/* Native SVG tooltip on hover — exact count + its share of the
                       charted total (a real proportion, not a trend metric). */}
                   <title>{`${r.label}: ${r.count} (${pct}%)`}</title>
                 </circle>
+              );
+              // Clicking a slice drills into the same filtered alumni list its
+              // legend row links to.
+              const seg = r.href ? (
+                <a
+                  key={r.label}
+                  href={r.href}
+                  aria-label={`View ${r.label} (${r.count}) in alumni list`}
+                >
+                  {circle}
+                </a>
+              ) : (
+                <g key={r.label}>{circle}</g>
               );
               acc += arc;
               return seg;
@@ -395,12 +412,19 @@ export default async function DashboardPage() {
           color: CHART_MUTED_COLOR,
           href: `/alumni?industry_group=other`,
         },
-        {
-          label: "Unknown",
-          count: breakdown.unknown,
-          color: CHART_UNKNOWN_COLOR,
-          href: `/alumni?industry_group=unknown`,
-        },
+        // Unknown = alumni with no industry on file: a "needs fixing" bucket,
+        // not a standard category. Only surface it when non-empty so the wheel
+        // shows just the 14 + Other otherwise (Tanya, 2026-07-11).
+        ...(breakdown.unknown > 0
+          ? [
+              {
+                label: "Unknown",
+                count: breakdown.unknown,
+                color: CHART_UNKNOWN_COLOR,
+                href: `/alumni?industry_group=unknown`,
+              },
+            ]
+          : []),
       ]
     : [];
 
@@ -483,7 +507,7 @@ export default async function DashboardPage() {
                 }
                 className="flex-1"
               >
-                <div className="flex w-full flex-1 items-start">
+                <div className="flex w-full flex-1 items-center">
                   <DonutChart
                     rows={industryRows}
                     emptyLabel="No industry data yet."
