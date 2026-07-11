@@ -3157,6 +3157,8 @@ export interface components {
             current_employer: string | null;
             /** Current Industry */
             current_industry: string | null;
+            /** Current Industry Secondary */
+            current_industry_secondary: string | null;
             /** Current City */
             current_city: string | null;
             /** Current State */
