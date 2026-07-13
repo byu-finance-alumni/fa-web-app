@@ -99,6 +99,11 @@ export default async function GeographyPage({
   const counts: Record<string, number> = {};
   for (const s of states) counts[s.state] = s.alumni_count;
 
+  // USPS → full state name for the Top-10 states widget (#379). Same `states`
+  // source the choropleth counts come from — no extra fetch.
+  const stateNames: Record<string, string> = {};
+  for (const s of states) stateNames[s.state] = s.state_name;
+
   const countyCounts: Record<string, number> = {};
   for (const c of counties) countyCounts[c.county_fips] = c.count;
 
@@ -239,6 +244,7 @@ export default async function GeographyPage({
             counts={counts}
             countyCounts={countyCounts}
             countryCounts={countryCounts}
+            stateNames={stateNames}
             hasCenter={hasCenter || forbidden || loadError}
             matchCounties={matchCounties}
             radius={{

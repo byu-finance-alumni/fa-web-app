@@ -4,7 +4,11 @@ import cityCrosswalk from "@/lib/geo/city-crosswalk.json";
 import majorCities from "@/lib/geo/major-cities.json";
 import { lookupCityGeo, STATE_FIPS } from "@/lib/geo/counties-data";
 import { apiGet, ApiError } from "@/lib/api";
-import type { CountryDetail, GeoAlumniPage } from "@/types/geography";
+import type {
+  CountryDetail,
+  GeoAlumniPage,
+  StateDetail,
+} from "@/types/geography";
 
 const GEO_FILTER_KEYS = [
   "industry",
@@ -81,6 +85,38 @@ export async function getCountryAlumni(
     return { ok: true, page };
   } catch (e) {
     return { ok: false, forbidden: e instanceof ApiError && e.status === 403 };
+  }
+}
+
+/**
+ * Top cities (by alumni count) for one US state, for the map's contextual ranked
+ * widget when a state is focused. Reuses the SAME `/geography/states/{code}`
+ * endpoint the state-detail page already renders its top-cities rail from — the
+ * per-city breakdown isn't in the per-state/per-county data already flowing to
+ * the map, so this is a client-triggered read of an existing endpoint (no
+ * backend/API change), passing the active map filters so the ranking matches the
+ * shading. Never throws — returns [] on any error so the widget degrades quietly.
+ */
+export async function getStateTopCities(
+  code: string,
+  filters: Partial<Record<(typeof GEO_FILTER_KEYS)[number], string>> = {},
+): Promise<{ city: string; count: number }[]> {
+  const usps = (code ?? "").trim().toUpperCase();
+  if (!usps) return [];
+  const p = new URLSearchParams();
+  for (const k of GEO_FILTER_KEYS) {
+    const v = filters[k];
+    if (v) p.set(k, v);
+  }
+  const qs = p.toString();
+  try {
+    const detail = await apiGet<StateDetail>(
+      `/geography/states/${encodeURIComponent(usps)}${qs ? `?${qs}` : ""}`,
+      { revalidate: 60, tags: ["geography"] },
+    );
+    return [...(detail.cities ?? [])].sort((a, b) => b.count - a.count);
+  } catch {
+    return [];
   }
 }
 
