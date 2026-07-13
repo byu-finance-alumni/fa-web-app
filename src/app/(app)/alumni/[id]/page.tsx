@@ -497,12 +497,22 @@ export default async function AlumniProfilePage({
 
   // Completeness checks (mirror the Figma checklist)
   const checks: { label: string; ok: boolean }[] = [
-    { label: "Contact information", ok: Boolean(c?.personal_email || c?.work_email) },
-    { label: "Employment history", ok: profile.employment_history.length > 0 },
+    { label: "Profile photo", ok: Boolean(headshotUrl) },
+    {
+      label: "At least one job",
+      ok: Boolean(career?.current_employer) || profile.employment_history.length > 0,
+    },
+    { label: "Email", ok: Boolean(c?.personal_email || c?.work_email) },
+    { label: "Cell phone", ok: Boolean(c?.phone) },
+    { label: "City & state", ok: Boolean(c?.city && c?.state) },
     { label: "Mailing ZIP code", ok: Boolean(c?.zip) },
-    { label: "Graduate degree", ok: Boolean(a.graduate_degree) },
-    { label: "Home phone", ok: Boolean(c?.phone) },
-    { label: "Profile photo", ok: false },
+    { label: "LinkedIn", ok: Boolean(a.linkedin_url) },
+    { label: "Graduation year", ok: Boolean(a.graduation_year) },
+    { label: "Current industry", ok: Boolean(career?.current_industry) },
+    { label: "Gender", ok: Boolean(a.gender) },
+    { label: "Birthday", ok: Boolean(a.birth_date) },
+    { label: "Marital status", ok: Boolean(a.marital_status) },
+    { label: "Home country", ok: Boolean(a.home_country) },
   ];
   const completeCount = checks.filter((x) => x.ok).length;
   const completeness = Math.round((completeCount / checks.length) * 100);
