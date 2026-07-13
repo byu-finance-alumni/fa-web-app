@@ -880,20 +880,11 @@ export function AlumniForm({
             error={errors["career.current_industry_secondary"]}
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <Field
-            label="City"
-            name="career.current_city"
-            defaultValue={career("current_city")}
-            error={errors["career.current_city"]}
-          />
-          <Field
-            label="State"
-            name="career.current_state"
-            defaultValue={career("current_state")}
-            error={errors["career.current_state"]}
-          />
-        </div>
+        {/* Current city/state are edited once in the Contact section
+            (contact.city / contact.state) — the single source of truth for the
+            person's location. The career current_city/current_state pair (an
+            employer-location field the import never populates) is intentionally
+            not exposed here to avoid two fields writing the same location. */}
         <div className="grid grid-cols-2 gap-4">
           <Field
             label="Country"

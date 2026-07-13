@@ -473,8 +473,12 @@ export default async function AlumniProfilePage({
     ? {
         title: career.current_title,
         company: career.current_employer,
-        city: career.current_city,
-        state: career.current_state,
+        // Location comes from the contact record (single source of truth for the
+        // person's current city/state, populated by import) — the career
+        // current_city/current_state pair is an employer field the import never
+        // writes and is almost always blank.
+        city: c?.city,
+        state: c?.state,
       }
     : currentEmp
       ? {
@@ -753,14 +757,14 @@ export default async function AlumniProfilePage({
                       value={careerExtra?.company_address ?? null}
                     />
                     <Field
-                      label="Company city"
-                      value={career?.current_city ?? null}
+                      label="Current city"
+                      value={c?.city ?? null}
                     />
                   </div>
                   <div className="space-y-4">
                     <Field
-                      label="Company state"
-                      value={career?.current_state ?? null}
+                      label="Current state"
+                      value={c?.state ?? null}
                     />
                     <Field
                       label="Company country"
@@ -1276,9 +1280,9 @@ export default async function AlumniProfilePage({
                             <p className="text-sm text-gray-600">
                               {career.current_title ?? "—"}
                             </p>
-                            {place(career.current_city, career.current_state) ? (
+                            {place(c?.city, c?.state) ? (
                               <p className="text-xs text-gray-500">
-                                {place(career.current_city, career.current_state)}
+                                {place(c?.city, c?.state)}
                               </p>
                             ) : null}
                           </div>
