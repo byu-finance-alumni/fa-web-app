@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   geoAlbersUsa,
   geoCircle,
@@ -43,11 +43,23 @@ const WIDTH = 960;
 const HEIGHT = 600;
 const MIN_K = 1;
 const MAX_K = 12;
+/** Per-notch wheel zoom tuning (#377) — gentle enough to frame a single state
+ *  (e.g. California) without overshooting. `SENSITIVITY` scales normalized wheel
+ *  pixels into an exponential zoom step; `MAX_STEP` caps any single event so a
+ *  fast trackpad fling can't leap past the target. */
+const WHEEL_ZOOM_SENSITIVITY = 0.0015;
+const MAX_WHEEL_STEP = 0.08;
 /** Zoom level at which the map switches from state shading to COUNTY shading
  *  (zoomed out = shaded states only; zoom in a little = shaded counties). */
 const COUNTY_ZOOM = 2;
 /** Zoom level at which major-city dots + labels start rendering. */
 const CITY_ZOOM = 4;
+/** At/above this zoom the radius map is "viewing a single state" (#378 follow-up):
+ *  alumni city dots are visible and a click on land drops a radius pin. BELOW it
+ *  (the US overview) a click on a state focuses/zooms into that state instead —
+ *  so pin-drop only becomes available AFTER you've drilled into a state. Tied to
+ *  the dot-reveal zoom so "pin-drop" and "populated areas visible" coincide. */
+const FOCUS_ZOOM = CITY_ZOOM;
 
 const BUCKETS: { min: number; fill: string; label: string }[] = [
   { min: 100, fill: "#1C2E54", label: "100+" },
@@ -98,6 +110,17 @@ export interface UsGeoMapProps {
   onPick?: (lat: number, lng: number) => void;
   /** Clear the current radius center/pin (renders a "Reset pin" button). */
   onResetCenter?: () => void;
+  /** Fires with the focused state when the user zooms into one on the map (the
+   *  in-map focus flow), and null when they zoom back out to the overview. Lets a
+   *  parent drive a contextual "top cities for this state" panel. */
+  onFocusChange?: (focus: { code: string } | null) => void;
+  /** Imperative focus request from the parent (e.g. a ranked-state row click).
+   *  The bumped nonce re-triggers even when the same state is requested again. */
+  focusRequest?: { code: string; n: number } | null;
+  /** Draw the county BOUNDARY LINE overlay (the county mesh strokes) when zoomed
+   *  into county detail. Default true; false hides just the lines — the county
+   *  choropleth shading, matched-alumni rings, and city dots are unaffected. */
+  showCountyLines?: boolean;
   /** 5-digit county FIPS that contain a matched alumnus — ringed at all zooms. */
   matchCounties?: string[];
 }
@@ -114,6 +137,9 @@ export function UsGeoMap({
   onStateClick,
   onPick,
   onResetCenter,
+  onFocusChange,
+  focusRequest,
+  showCountyLines = true,
   matchCounties,
 }: UsGeoMapProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -127,23 +153,35 @@ export function UsGeoMap({
 
   // Zoom/pan transform applied to the map group (g-space -> outer viewBox).
   const [view, setView] = useState({ k: 1, x: 0, y: 0 });
+  // Which state the map is currently framing (null on the US overview). Set by
+  // the in-map focus flow, cleared on zoom-out; mirrored to the parent so it can
+  // switch its ranked widget from "top states" to "top cities" for this state.
+  const [focusedCode, setFocusedCode] = useState<string | null>(null);
   // Drag state + a "did we actually drag" flag so a drag never fires a click.
-  const drag = useRef<{ active: boolean; ox: number; oy: number; moved: boolean }>(
-    { active: false, ox: 0, oy: 0, moved: false },
-  );
+  // `captured` mirrors WorldGeoMap: we defer pointer-capture until a real drag
+  // starts, because capturing on pointerdown redirects the click to the SVG and
+  // a plain click would never reach the state <path> (where focus-a-state lives).
+  const drag = useRef<{
+    active: boolean;
+    ox: number;
+    oy: number;
+    moved: boolean;
+    captured: boolean;
+  }>({ active: false, ox: 0, oy: 0, moved: false, captured: false });
 
   // Level-of-detail: shaded STATES when zoomed out, shaded COUNTIES once you
   // zoom in past COUNTY_ZOOM. Gates both the county-topojson load and rendering.
   const showCounties = view.k >= COUNTY_ZOOM;
 
-  const { paths, projection, features } = useMemo(() => {
+  const { paths, projection, features, boundsByUsps } = useMemo(() => {
     const topo = statesTopo as unknown as Topology;
     const fc = feature(
       topo,
       topo.objects.states,
     ) as unknown as FeatureCollection<Geometry>;
-    // Generous padding so the whole US starts comfortably in view (zoomed out)
-    // and the landmass sits clear of the floating control panels in the corners.
+    // Symmetric padding so the whole US sits CENTERED in the full-width map area
+    // (the controls now float top-left over the ocean rather than stealing a
+    // column). The AK/HI insets are part of the fitted bounds, so nothing clips.
     const proj = geoAlbersUsa().fitExtent(
       [
         [110, 80],
@@ -152,13 +190,18 @@ export function UsGeoMap({
       fc,
     );
     const path = geoPath(proj);
+    // Per-state projected bounding box (g-space) — used to frame a state on
+    // click (#378 follow-up: click-to-focus computes a fit-to-state zoom).
+    const bounds: Record<string, [[number, number], [number, number]]> = {};
     const ds = fc.features
       .map((f, i) => {
         const fips = String(f.id ?? i).padStart(2, "0");
+        const usps = FIPS_TO_USPS[fips] ?? "";
         const props = (f.properties ?? {}) as { name?: string };
+        if (usps) bounds[usps] = path.bounds(f as Feature);
         return {
           id: fips,
-          usps: FIPS_TO_USPS[fips] ?? "",
+          usps,
           name: props.name ?? "",
           d: path(f),
         };
@@ -168,6 +211,7 @@ export function UsGeoMap({
       paths: ds,
       projection: proj as GeoProjection,
       features: fc.features as Feature[],
+      boundsByUsps: bounds,
     };
   }, []);
 
@@ -211,7 +255,9 @@ export function UsGeoMap({
   // topojson is dynamically imported (never in the initial bundle).
   const [countyMesh, setCountyMesh] = useState<string | null>(null);
   useEffect(() => {
-    if (!showCounties) return;
+    // Skip the mesh entirely when county lines are toggled off (#2) — no reason
+    // to build the ~800KB border path we won't draw.
+    if (!showCounties || !showCountyLines) return;
     let cancelled = false;
     loadCounties().then((topo) => {
       if (cancelled) return;
@@ -226,7 +272,7 @@ export function UsGeoMap({
     return () => {
       cancelled = true;
     };
-  }, [projection, showCounties]);
+  }, [projection, showCounties, showCountyLines]);
 
   // --- County choropleth fills (lazy) -----------------------------------------
   // Shade ONLY the counties where alumni work, by `countyCounts` (5-digit FIPS →
@@ -327,6 +373,47 @@ export function UsGeoMap({
     return [p.x, p.y];
   }
 
+  // In-map focus (#378 follow-up): zoom/pan to frame a single state from the US
+  // overview, reusing the state's projected bounding box. We always land at
+  // >= FOCUS_ZOOM (its alumni city dots become visible + land clicks now drop a
+  // radius pin) and at most MAX_K, centered on the state. This replaces a route
+  // navigation so the radius pin/results stack stays intact underneath, and marks
+  // the state focused so the parent can show its top cities.
+  const focusStateInMap = useCallback(
+    (usps: string) => {
+      const b = boundsByUsps[usps];
+      if (!b) return;
+      const [[x0, y0], [x1, y1]] = b;
+      const w = x1 - x0;
+      const h = y1 - y0;
+      if (!(w > 0) || !(h > 0)) return;
+      const PAD = 1.25; // ~12% breathing room around the state on each axis
+      const fitK = Math.min(WIDTH / (w * PAD), HEIGHT / (h * PAD));
+      const k = Math.min(MAX_K, Math.max(FOCUS_ZOOM, fitK));
+      const cx = (x0 + x1) / 2;
+      const cy = (y0 + y1) / 2;
+      setView({ k, x: WIDTH / 2 - k * cx, y: HEIGHT / 2 - k * cy });
+      setFocusedCode(usps);
+      onFocusChange?.({ code: usps });
+    },
+    [boundsByUsps, onFocusChange],
+  );
+
+  // Zooming back out to the overview clears the focused state (reverting the
+  // parent's widget to "top states").
+  useEffect(() => {
+    if (view.k < FOCUS_ZOOM && focusedCode !== null) {
+      setFocusedCode(null);
+      onFocusChange?.(null);
+    }
+  }, [view.k, focusedCode, onFocusChange]);
+
+  // Parent-driven focus (e.g. a ranked-state row click). The nonce bump re-runs
+  // this even when the same state is requested again after zooming out.
+  useEffect(() => {
+    if (focusRequest) focusStateInMap(focusRequest.code);
+  }, [focusRequest, focusStateInMap]);
+
   // Wheel zoom toward the cursor. Native non-passive listener so we can
   // preventDefault (stop the page from scrolling).
   useEffect(() => {
@@ -337,8 +424,19 @@ export function UsGeoMap({
       const outer = toOuter(e.clientX, e.clientY);
       if (!outer) return;
       const [mx, my] = outer;
+      // Gentle, clamped multiplicative step so one wheel notch nudges the zoom
+      // instead of leaping (#377 — was a fixed ×1.2 per notch, which overshot a
+      // single state). Normalize by deltaMode so line/page-mode wheels don't
+      // jump, and cap the per-event magnitude so a fast fling can't blow past.
+      let delta = e.deltaY;
+      if (e.deltaMode === 1) delta *= 16; // lines -> px
+      else if (e.deltaMode === 2) delta *= HEIGHT; // pages -> px
+      const step = Math.max(
+        -MAX_WHEEL_STEP,
+        Math.min(MAX_WHEEL_STEP, -delta * WHEEL_ZOOM_SENSITIVITY),
+      );
+      const factor = Math.exp(step);
       setView((v) => {
-        const factor = e.deltaY < 0 ? 1.2 : 1 / 1.2;
         const k = Math.min(MAX_K, Math.max(MIN_K, v.k * factor));
         if (k === MIN_K) return { k: 1, x: 0, y: 0 };
         const ratio = k / v.k;
@@ -356,8 +454,15 @@ export function UsGeoMap({
   function onPointerDown(e: React.PointerEvent<SVGSVGElement>) {
     const outer = toOuter(e.clientX, e.clientY);
     if (!outer) return;
-    drag.current = { active: true, ox: outer[0], oy: outer[1], moved: false };
-    e.currentTarget.setPointerCapture(e.pointerId);
+    // Don't capture yet (see `drag` note) — capture only once a real drag begins
+    // so a plain click still lands on the state <path> under the cursor.
+    drag.current = {
+      active: true,
+      ox: outer[0],
+      oy: outer[1],
+      moved: false,
+      captured: false,
+    };
   }
   function onPointerMove(e: React.PointerEvent<SVGSVGElement>) {
     if (!drag.current.active) return;
@@ -365,17 +470,25 @@ export function UsGeoMap({
     if (!outer) return;
     const dx = outer[0] - drag.current.ox;
     const dy = outer[1] - drag.current.oy;
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.current.moved = true;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+      drag.current.moved = true;
+      // Now that we're really panning, capture so movement off the SVG tracks.
+      if (!drag.current.captured) {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        drag.current.captured = true;
+      }
+    }
     drag.current.ox = outer[0];
     drag.current.oy = outer[1];
     setView((v) => ({ ...v, x: v.x + dx, y: v.y + dy }));
   }
   function onPointerUp(e: React.PointerEvent<SVGSVGElement>) {
-    if (e.currentTarget.hasPointerCapture(e.pointerId))
+    if (drag.current.captured && e.currentTarget.hasPointerCapture(e.pointerId))
       e.currentTarget.releasePointerCapture(e.pointerId);
     // Defer clearing `active` so the click handler (fires right after) can read
     // `moved` to suppress a pin/state click that was really a drag.
     drag.current.active = false;
+    drag.current.captured = false;
   }
 
   function handleSvgClick(e: React.MouseEvent<SVGSVGElement>) {
@@ -384,6 +497,11 @@ export function UsGeoMap({
       return;
     }
     if (mode !== "radius" || !onPick) return;
+    // Pin-drop only once ZOOMED IN to a state (#378 follow-up). On the US
+    // overview (below FOCUS_ZOOM) a land click focuses a state instead — the
+    // per-state onClick handles that and stops propagation, so a stray click
+    // that reaches here while zoomed out (e.g. an ocean click) drops nothing.
+    if (view.k < FOCUS_ZOOM) return;
     const outer = toOuter(e.clientX, e.clientY);
     if (!outer) return;
     // Outer -> g-space (undo the zoom transform) -> projection.invert.
@@ -415,15 +533,21 @@ export function UsGeoMap({
       <svg
         ref={svgRef}
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+        // Center the map in its (now full-width) area. Click→coords math uses
+        // getScreenCTM().inverse(), so it stays correct under any alignment.
         preserveAspectRatio="xMidYMid meet"
         className={`absolute inset-0 h-full w-full touch-none select-none ${
-          view.k > 1 ? "cursor-grab" : mode === "radius" ? "cursor-crosshair" : ""
+          view.k >= FOCUS_ZOOM && mode === "radius"
+            ? "cursor-crosshair" // zoomed into a state: click a location to pin
+            : view.k > 1
+              ? "cursor-grab"
+              : "" // overview: hover a state (pointer) to focus it
         }`}
         role="img"
         aria-label={
           isExplore
             ? "US alumni distribution by state. Scroll to zoom, drag to pan."
-            : "Click the map to set the search center. Scroll to zoom, drag to pan."
+            : "Click a state to zoom in and reveal its alumni, then click a location to set the search center. Scroll to zoom, drag to pan."
         }
         onClick={handleSvgClick}
         onPointerDown={onPointerDown}
@@ -433,7 +557,11 @@ export function UsGeoMap({
         <g transform={`translate(${view.x}, ${view.y}) scale(${view.k})`}>
           {paths.map((p) => {
             const count = counts[p.usps] ?? 0;
-            const interactive = isExplore && !!p.usps;
+            // States are hoverable/clickable in both modes (#378). In explore mode
+            // a click drills into the state's detail page; on the radius map a
+            // click from the US OVERVIEW focuses/zooms into the state, and once
+            // zoomed in the click falls through to drop a radius pin instead.
+            const interactive = !!p.usps;
             return (
               <path
                 key={p.id}
@@ -456,12 +584,26 @@ export function UsGeoMap({
                 onClick={
                   interactive
                     ? (e) => {
-                        e.stopPropagation();
                         if (drag.current.moved) {
+                          // A drag ended on this state — swallow the click so it
+                          // neither focuses the state nor bubbles to drop a pin.
                           drag.current.moved = false;
+                          e.stopPropagation();
                           return;
                         }
-                        onStateClick?.(p.usps);
+                        // Explore mode: drill into the state's detail page.
+                        if (isExplore) {
+                          e.stopPropagation();
+                          onStateClick?.(p.usps);
+                          return;
+                        }
+                        // Radius map, US overview (zoomed out): focus this state.
+                        // Zoomed in: don't stop propagation — let the click reach
+                        // the SVG handler so it drops a radius pin here instead.
+                        if (view.k < FOCUS_ZOOM) {
+                          e.stopPropagation();
+                          focusStateInMap(p.usps);
+                        }
                       }
                     : undefined
                 }
@@ -470,7 +612,8 @@ export function UsGeoMap({
                     ? (e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
-                          onStateClick?.(p.usps);
+                          if (isExplore) onStateClick?.(p.usps);
+                          else if (view.k < FOCUS_ZOOM) focusStateInMap(p.usps);
                         }
                       }
                     : undefined
@@ -494,7 +637,7 @@ export function UsGeoMap({
           {/* All county borders — drawn at the same weight/color as the state
               borders, on top of the shading so every county reads uniformly.
               Only once zoomed in (zoomed out is state outlines only). */}
-          {showCounties && countyMesh ? (
+          {showCounties && showCountyLines && countyMesh ? (
             <path
               className="pointer-events-none"
               d={countyMesh}
