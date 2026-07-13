@@ -513,6 +513,8 @@ export default async function AlumniProfilePage({
     { label: "Birthday", ok: Boolean(a.birth_date) },
     { label: "Marital status", ok: Boolean(a.marital_status) },
     { label: "Home country", ok: Boolean(a.home_country) },
+    { label: "Work email", ok: Boolean(c?.work_email) },
+    { label: "Company address", ok: Boolean(careerExtra?.company_address) },
   ];
   const completeCount = checks.filter((x) => x.ok).length;
   const completeness = Math.round((completeCount / checks.length) * 100);
