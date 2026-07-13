@@ -26,6 +26,7 @@ import type { Topology } from "topojson-specification";
 import {
   geocodePlace,
   getCountryAlumni,
+  getStateTopCities,
   resolveState,
   reverseGeocode,
   type CountryAlumniResult,
@@ -82,6 +83,7 @@ export function GeographyExplorer({
   counts,
   countyCounts,
   countryCounts,
+  stateNames,
   radius,
   filters,
   results,
@@ -93,6 +95,9 @@ export function GeographyExplorer({
   countyCounts?: Record<string, number>;
   /** Per-country alumni counts (country name → count) for the world view. */
   countryCounts?: Record<string, number>;
+  /** USPS code → full state name, for the Top-10 states widget (#379). Derived
+   *  from the same per-state data the map shades by. */
+  stateNames?: Record<string, string>;
   radius: RadiusState;
   /** The grouped "Filters" control (industry/year/region/tag). */
   filters: ReactNode;
@@ -121,6 +126,10 @@ export function GeographyExplorer({
   // world view is wired behind a `WorldGeoMap` that loads a world topojson when
   // the asset is present (see note in that component).
   const [mapView, setMapView] = useState<"us" | "world">("us");
+  // County boundary LINE overlay on/off (#2) — default ON (today's behavior:
+  // county borders appear once zoomed past COUNTY_ZOOM). Toggling off hides just
+  // the boundary strokes; county shading + everything else is untouched.
+  const [showCountyLines, setShowCountyLines] = useState(true);
   // Seed the box with the active employer/industry filter or the resolved place
   // so it reflects the current URL state.
   const [searchInput, setSearchInput] = useState(
@@ -190,6 +199,111 @@ export function GeographyExplorer({
     return `/map?${p.toString()}`;
   }, [radius]);
 
+  // Focus a single state — the "drill into the state" navigation the search box
+  // already uses when you type a state name (#214). Extracted so the map's
+  // state-click (#378) reuses the exact same behavior instead of duplicating it:
+  // it lands on /map/state/CODE, which auto-zooms to the state and renders its
+  // alumni city markers + info rail.
+  const focusState = useCallback(
+    (code: string) => {
+      startTransition(() => router.push(`/map/state/${code.toUpperCase()}`));
+    },
+    [router],
+  );
+
+  // Top 10 states by alumni at their CURRENT LOCATION (#379) — reuses the same
+  // per-state `counts` the map shades by; drop empty states and rank high→low.
+  const top10States = useMemo(
+    () =>
+      Object.entries(counts)
+        .filter(([, c]) => c > 0)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10),
+    [counts],
+  );
+  const [topOpen, setTopOpen] = useState(true);
+
+  // --- State focus → contextual ranked widget --------------------------------
+  // UsGeoMap reports which state is focused (via its in-map focusStateInMap flow)
+  // and clears it when the user zooms back out. When a state is focused, the
+  // ranked widget switches from "Top states" to "Top cities" for that state.
+  const [focusedState, setFocusedState] = useState<{ code: string } | null>(
+    null,
+  );
+  const handleFocusChange = useCallback(
+    (f: { code: string } | null) => setFocusedState(f),
+    [],
+  );
+  // Leaving the US view drops any focused state (the world map has no states).
+  useEffect(() => {
+    if (mapView !== "us") setFocusedState(null);
+  }, [mapView]);
+
+  // Floating controls box visibility. Defaults OPEN on the overview; auto-hides
+  // when a state is focused/zoomed-in (via the same focus signal) so it doesn't
+  // cover the state, and re-opens on zoom-out. This effect only re-runs when the
+  // focus itself changes, so a manual show/hide (below) sticks until the user
+  // next focuses or zooms out — user intent wins in between.
+  const [controlsOpen, setControlsOpen] = useState(true);
+  useEffect(() => {
+    setControlsOpen(!focusedState);
+  }, [focusedState]);
+
+  // Ask the map to focus/zoom a state — used by the "Top states" widget rows so a
+  // ranked click behaves like clicking that state on the map. The bumped nonce
+  // lets the same state be re-focused after zooming back out.
+  const [focusReq, setFocusReq] = useState<{ code: string; n: number } | null>(
+    null,
+  );
+  const requestFocus = useCallback(
+    (code: string) =>
+      setFocusReq((r) => ({ code: code.toUpperCase(), n: (r?.n ?? 0) + 1 })),
+    [],
+  );
+
+  // Top cities for the focused state — fetched from the SAME endpoint the state
+  // detail page uses (`/geography/states/{code}` → cities), with the active map
+  // filters applied so the ranking matches the shading. Per-city alumni counts
+  // are NOT in the per-state/per-county data already flowing here, so this is the
+  // one place the widget reads an (existing) endpoint. Degrades to [] on error.
+  const [cityRows, setCityRows] = useState<
+    { city: string; count: number }[] | null
+  >(null);
+  const [citiesLoading, setCitiesLoading] = useState(false);
+  useEffect(() => {
+    const code = focusedState?.code;
+    if (!code) {
+      setCityRows(null);
+      setCitiesLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setCitiesLoading(true);
+    getStateTopCities(code, {
+      industry: radius.industry,
+      employer: radius.employer,
+      year: radius.year,
+      region: radius.region,
+      tag: radius.tag,
+    })
+      .then((rows) => {
+        if (!cancelled) setCityRows(rows);
+      })
+      .finally(() => {
+        if (!cancelled) setCitiesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    focusedState?.code,
+    radius.industry,
+    radius.employer,
+    radius.year,
+    radius.region,
+    radius.tag,
+  ]);
+
   // Unified map search (#214): one box, resolved in priority order — US state
   // (name/code) → known industry → city (geocode → radius center) → otherwise a
   // company (employer) filter. An empty submit clears the industry/employer
@@ -210,7 +324,7 @@ export function GeographyExplorer({
       // 1) A US state (full name or 2-letter code) → drill into its map.
       const state = await resolveState(query);
       if (state.ok) {
-        startTransition(() => router.push(`/map/state/${state.code}`));
+        focusState(state.code);
         return;
       }
 
@@ -305,102 +419,51 @@ export function GeographyExplorer({
 
   return (
     <div className="relative min-h-0 flex-1">
-      {/* Full-bleed map — the hero. Click to drop a pin, scroll to zoom, drag to
-          pan; counties + city labels fade in as you zoom. Toggle to the world
-          view (#213) swaps in the world map. */}
-      <div className="absolute inset-0">
-        {mapView === "us" ? (
-          <UsGeoMap
-            mode="radius"
-            counts={counts}
-            countyCounts={countyCounts}
-            center={center}
-            miles={miles}
-            onPick={onPick}
-            onResetCenter={resetCenter}
-            matchCounties={matchCounties}
-          />
-        ) : (
-          <WorldGeoMap
-            countryCounts={countryCounts ?? {}}
-            filters={{
-              industry: radius.industry,
-              employer: radius.employer,
-              year: radius.year,
-              region: radius.region,
-              tag: radius.tag,
-            }}
-          />
-        )}
-      </div>
-
-      {/* Top-center: US / World view toggle — text-style segmented control. */}
-      <div className="absolute left-1/2 top-4 z-20 -translate-x-1/2">
-        <div
-          role="tablist"
-          aria-label="Map view"
-          className="flex gap-1 rounded-lg bg-white/95 p-1 shadow-card"
-        >
-          {(["us", "world"] as const).map((v) => {
-            const active = mapView === v;
-            return (
-              <button
-                key={v}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => setMapView(v)}
-                className={cn(
-                  "rounded-md px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
-                  active
-                    ? "bg-brand-blue-600 text-white"
-                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
-                )}
-              >
-                {v === "us" ? "United States" : "World"}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Global pending shimmer over the whole map. */}
-      {pending ? (
-        <div className="pointer-events-none absolute inset-0 z-30 flex items-start justify-center pt-6">
-          <span className="flex items-center gap-2 rounded-full bg-white/90 px-3 py-1.5 text-xs font-medium text-gray-700 shadow-card">
-            <Loader2
-              className="h-4 w-4 animate-spin text-brand-blue-600"
-              aria-hidden="true"
-            />
-            Updating…
+      {/* FLOATING CONTROLS BOX — search + filters + drop-pin radius + county-lines
+          switch, stacked vertically, over the TOP-LEFT of the full-width map (the
+          Pacific/ocean side). z-30 keeps it above the map; the inner Cards supply
+          the surfaces. Auto-hides on state focus/zoom-in (see `controlsOpen`) and
+          collapses to a compact "Search & filters" button in its place. */}
+      {controlsOpen ? (
+      <div className="absolute left-4 top-4 z-30 flex w-72 flex-col gap-3">
+        {/* Header — label + a "Hide" affordance to collapse the box. */}
+        <div className="flex items-center justify-between rounded-lg bg-white/95 px-3 py-1.5 shadow-card">
+          <span className="text-xs font-semibold text-gray-700">
+            Search &amp; filters
           </span>
+          <button
+            type="button"
+            onClick={() => setControlsOpen(false)}
+            className="rounded text-xs font-medium text-brand-blue-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
+          >
+            Hide
+          </button>
         </div>
-      ) : null}
-
-      {/* Top-left: multi-dimension search (City / State / Industry / Company) +
-          grouped Filters, floating over the map. */}
-      <div className="absolute left-4 top-4 z-20 w-[min(24rem,calc(100%-2rem))]">
-        <Card className="p-3">
+        {/* Search + active filters + current center + grouped Filters popover. */}
+        <Card className="space-y-2 p-3">
           <form onSubmit={onSearch} className="space-y-2">
-            <div className="flex items-start gap-2">
-              <div className="min-w-0 flex-1">
-                <Input
-                  value={searchInput}
-                  onChange={(e) => {
-                    setSearchInput(e.target.value);
-                    if (geoError) setGeoError(null);
-                  }}
-                  placeholder="Search a city, state, industry, or company"
-                  aria-label="Search the map by city, state, industry, or company"
-                  aria-invalid={geoError ? true : undefined}
-                />
-                {geoError ? (
-                  <p className="mt-1.5 text-xs text-danger-600">{geoError}</p>
-                ) : null}
-                {geoNote ? (
-                  <p className="mt-1.5 text-xs text-gray-500">{geoNote}</p>
-                ) : null}
-              </div>
+            {/* Normal-sized search field, full width of the box — same control
+                height + text size as the Filters button, so the full
+                placeholder/value reads without truncating. */}
+            <Input
+              value={searchInput}
+              onChange={(e) => {
+                setSearchInput(e.target.value);
+                if (geoError) setGeoError(null);
+              }}
+              placeholder="Search a city, state, industry, or company"
+              aria-label="Search the map by city, state, industry, or company"
+              aria-invalid={geoError ? true : undefined}
+            />
+            {geoError ? (
+              <p className="text-xs text-danger-600">{geoError}</p>
+            ) : null}
+            {geoNote ? (
+              <p className="text-xs text-gray-500">{geoNote}</p>
+            ) : null}
+            {/* Filters on the left, Search on the right — under the search bar. */}
+            <div className="flex items-center justify-between gap-2">
+              {filters}
               <Button type="submit" disabled={searching || pending}>
                 {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 Search
@@ -410,7 +473,7 @@ export function GeographyExplorer({
 
           {/* Active map-wide filters (Company/Industry) — clearable inline. */}
           {radius.employer || radius.industry ? (
-            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+            <div className="flex flex-wrap items-center gap-1.5 text-xs">
               {radius.employer ? (
                 <button
                   type="button"
@@ -442,68 +505,283 @@ export function GeographyExplorer({
             </div>
           ) : null}
 
-          <div className="mt-2.5 flex items-center justify-between gap-2">
+          {/* Pinned-location indicator — only shown once a place/center is set. */}
+          {radius.place || hasCenter ? (
             <p className="min-w-0 truncate text-xs">
               {radius.place ? (
                 <span className="font-medium text-gray-900">{radius.place}</span>
-              ) : hasCenter ? (
-                <span className="font-medium text-gray-900">Pinned location</span>
               ) : (
-                <span className="text-gray-500">Click the map to drop a pin.</span>
+                <span className="font-medium text-gray-900">Pinned location</span>
               )}
             </p>
-            {filters}
-          </div>
+          ) : null}
         </Card>
 
-        {/* Radius distance control — US/radius view only. */}
+        {/* Drop-pin radius distance — US/radius view only. */}
         {mapView === "us" ? (
-        <Card className="mt-3 p-3">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-medium text-gray-700">Radius</span>
-            <span className="text-sm font-semibold tabular-nums text-gray-900">
-              {miles} mi
-            </span>
-          </div>
-          <div className="mt-2 flex flex-wrap gap-1">
-            {RADIUS_PRESETS.map((p) => {
-              const active = miles === p;
+          <Card className="p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium text-gray-700">Radius</span>
+              <span className="text-sm font-semibold tabular-nums text-gray-900">
+                {miles} mi
+              </span>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1">
+              {RADIUS_PRESETS.map((p) => {
+                const active = miles === p;
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => {
+                      setMiles(p);
+                      applyMiles(p);
+                    }}
+                    className={cn(
+                      "rounded-md px-2.5 py-1 text-xs font-semibold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
+                      active
+                        ? "bg-brand-blue-600 text-white"
+                        : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
+                    )}
+                  >
+                    {p} mi
+                  </button>
+                );
+              })}
+            </div>
+            <input
+              type="range"
+              min={MIN_MILES}
+              max={MAX_MILES}
+              value={miles}
+              onChange={(e) => onSlider(Number(e.target.value))}
+              aria-label="Search radius in miles"
+              className={cn(
+                "mt-3 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-gray-200 accent-brand-blue-600",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
+              )}
+            />
+          </Card>
+        ) : null}
+
+        {/* County-lines toggle SWITCH (#1) — a sliding on/off switch with a text
+            label. No design-system Switch exists, so this is a minimal accessible
+            one (role="switch" + aria-checked; a <button> is keyboard-toggleable).
+            US view only; toggles just the county boundary line overlay. */}
+        {mapView === "us" ? (
+          <Card className="p-3">
+            <div className="flex items-center justify-between gap-3">
+              <span
+                id="county-lines-label"
+                className="text-sm font-medium text-gray-700"
+              >
+                County lines
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={showCountyLines}
+                aria-labelledby="county-lines-label"
+                onClick={() => setShowCountyLines((v) => !v)}
+                title="Show or hide county boundary lines on the map"
+                className={cn(
+                  "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
+                  showCountyLines ? "bg-brand-blue-600" : "bg-gray-300",
+                )}
+              >
+                <span
+                  className={cn(
+                    "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform",
+                    showCountyLines ? "translate-x-4" : "translate-x-0.5",
+                  )}
+                />
+              </button>
+            </div>
+          </Card>
+        ) : null}
+      </div>
+      ) : (
+        // Collapsed — a compact text button in the same top-left spot that
+        // re-opens the full controls box (auto-collapsed on state focus).
+        <div className="absolute left-4 top-4 z-30">
+          <button
+            type="button"
+            onClick={() => setControlsOpen(true)}
+            className="rounded-lg bg-white/95 px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-card hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
+          >
+            Search &amp; filters
+          </button>
+        </div>
+      )}
+
+      {/* US / World view toggle — a centered pill floating ABOVE THE CENTER of
+          the map (prod look). Sits in the top padding above the landmass, clear
+          of the top-left controls box on desktop widths. */}
+        <div className="absolute left-1/2 top-4 z-20 -translate-x-1/2">
+          <div
+            role="tablist"
+            aria-label="Map view"
+            className="flex gap-1 rounded-lg bg-white/95 p-1 shadow-card"
+          >
+            {(["us", "world"] as const).map((v) => {
+              const active = mapView === v;
               return (
                 <button
-                  key={p}
+                  key={v}
                   type="button"
-                  aria-pressed={active}
-                  onClick={() => {
-                    setMiles(p);
-                    applyMiles(p);
-                  }}
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setMapView(v)}
                   className={cn(
-                    "rounded-md px-2.5 py-1 text-xs font-semibold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
+                    "rounded-md px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
                     active
                       ? "bg-brand-blue-600 text-white"
                       : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
                   )}
                 >
-                  {p} mi
+                  {v === "us" ? "United States" : "World"}
                 </button>
               );
             })}
           </div>
-          <input
-            type="range"
-            min={MIN_MILES}
-            max={MAX_MILES}
-            value={miles}
-            onChange={(e) => onSlider(Number(e.target.value))}
-            aria-label="Search radius in miles"
-            className={cn(
-              "mt-3 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-gray-200 accent-brand-blue-600",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
-            )}
-          />
-        </Card>
-        ) : null}
-      </div>
+        </div>
+
+        {/* Full-bleed map — the hero. From the US overview, click a state to
+            zoom/focus into it and reveal its alumni dots (#378); once zoomed into
+            a state, click a populated area to drop a radius pin. Scroll to zoom,
+            drag to pan; counties + city labels fade in as you zoom. Toggle to the
+            world view (#213) swaps in the world map. */}
+        <div className="absolute inset-0">
+          {mapView === "us" ? (
+            <UsGeoMap
+              mode="radius"
+              counts={counts}
+              countyCounts={countyCounts}
+              center={center}
+              miles={miles}
+              onPick={onPick}
+              onResetCenter={resetCenter}
+              onFocusChange={handleFocusChange}
+              focusRequest={focusReq}
+              showCountyLines={showCountyLines}
+              matchCounties={matchCounties}
+            />
+          ) : (
+            <WorldGeoMap
+              countryCounts={countryCounts ?? {}}
+              filters={{
+                industry: radius.industry,
+                employer: radius.employer,
+                year: radius.year,
+                region: radius.region,
+                tag: radius.tag,
+              }}
+            />
+          )}
+        </div>
+
+      {/* Global pending shimmer over the whole map. */}
+      {pending ? (
+        <div className="pointer-events-none absolute inset-0 z-30 flex items-start justify-center pt-6">
+          <span className="flex items-center gap-2 rounded-full bg-white/90 px-3 py-1.5 text-xs font-medium text-gray-700 shadow-card">
+            <Loader2
+              className="h-4 w-4 animate-spin text-brand-blue-600"
+              aria-hidden="true"
+            />
+            Updating…
+          </span>
+        </div>
+      ) : null}
+
+      {/* Bottom-right (or bottom-left when results are shown): the ranked widget.
+          Lists "Top states by alumni" on the overview; when a state is focused it
+          switches to "Top cities" for that state. Compact + collapsible. */}
+      {mapView === "us" && (focusedState || top10States.length > 0) ? (
+        <div
+          className={cn(
+            "absolute bottom-4 z-20 w-[min(15rem,calc(100%-2rem))]",
+            hasCenterProp ? "left-4" : "right-4",
+          )}
+        >
+          <Card className="overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setTopOpen((o) => !o)}
+              aria-expanded={topOpen}
+              className="flex w-full items-center justify-between gap-2 border-b border-gray-200 px-3 py-2 text-left hover:bg-gray-50"
+            >
+              <span className="min-w-0 truncate text-xs font-semibold text-gray-900">
+                {focusedState
+                  ? `Top cities — ${stateNames?.[focusedState.code] ?? focusedState.code}`
+                  : "Top states by alumni"}
+              </span>
+              <span className="shrink-0 text-xs font-medium text-brand-blue-600">
+                {topOpen ? "Hide" : "Show"}
+              </span>
+            </button>
+            {topOpen ? (
+              focusedState ? (
+                /* Cities mode — top cities for the focused state. */
+                citiesLoading && !cityRows ? (
+                  <p className="px-3 py-2 text-xs text-gray-500">
+                    Loading cities…
+                  </p>
+                ) : cityRows && cityRows.length ? (
+                  <ol className="max-h-[min(40vh,20rem)] overflow-y-auto p-1.5">
+                    {cityRows.slice(0, 10).map((c, i) => (
+                      <li
+                        key={`${c.city}-${i}`}
+                        className="flex items-center gap-2 rounded-md px-2 py-1"
+                        title={`${c.city}: ${c.count.toLocaleString()} alumni`}
+                      >
+                        <span className="w-4 shrink-0 text-xs tabular-nums text-gray-400">
+                          {i + 1}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-xs font-medium text-gray-700">
+                          {c.city}
+                        </span>
+                        <span className="shrink-0 text-xs font-semibold tabular-nums text-gray-900">
+                          {c.count.toLocaleString()}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p className="px-3 py-2 text-xs text-gray-500">
+                    No city data for this state yet.
+                  </p>
+                )
+              ) : (
+                /* States mode — top states; a row click focuses that state on
+                   the map (which flips this widget to that state's cities). */
+                <ol className="max-h-[min(40vh,20rem)] overflow-y-auto p-1.5">
+                  {top10States.map(([code, count], i) => (
+                    <li key={code}>
+                      <button
+                        type="button"
+                        onClick={() => requestFocus(code)}
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-gray-50"
+                        title={`Focus ${stateNames?.[code] ?? code}`}
+                      >
+                        <span className="w-4 shrink-0 text-xs tabular-nums text-gray-400">
+                          {i + 1}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-xs font-medium text-gray-700">
+                          {stateNames?.[code] ?? code}
+                        </span>
+                        <span className="shrink-0 text-xs font-semibold tabular-nums text-gray-900">
+                          {count.toLocaleString()}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              )
+            ) : null}
+          </Card>
+        </div>
+      ) : null}
 
       {/* Bottom-right: radius results, floating + scrollable + collapsible. Only
           when a center is set (US/radius view) — otherwise the map stays clear. */}
