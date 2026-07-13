@@ -179,13 +179,19 @@ export function UsGeoMap({
       topo,
       topo.objects.states,
     ) as unknown as FeatureCollection<Geometry>;
-    // Symmetric padding so the whole US sits CENTERED in the full-width map area
-    // (the controls now float top-left over the ocean rather than stealing a
-    // column). The AK/HI insets are part of the fitted bounds, so nothing clips.
+    // Zoomed-OUT default framing: generous padding shrinks the landmass into the
+    // middle of the viewBox with wide margins on every side, so the floating
+    // overlays never sit on the US at the overview — extra room on the LEFT (the
+    // controls box) and at top/bottom corners (view toggle + ranked widget /
+    // radius results). Slightly more left than right inset nudges the landmass a
+    // touch right of the controls while still reading centered. The AK/HI insets
+    // are part of the fitted bounds, so the larger padding never clips them. This
+    // only sets the OVERVIEW frame; click-to-focus recomputes its own zoom from
+    // the (same) projection, so FOCUS_ZOOM / dot-reveal / pin-drop are unchanged.
     const proj = geoAlbersUsa().fitExtent(
       [
-        [110, 80],
-        [WIDTH - 110, HEIGHT - 80],
+        [260, 150],
+        [WIDTH - 190, HEIGHT - 150],
       ],
       fc,
     );

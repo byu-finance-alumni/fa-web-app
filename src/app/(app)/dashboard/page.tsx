@@ -144,7 +144,7 @@ function IndustryBarList({
   const max = Math.max(1, ...ordered.map((r) => r.count));
 
   return (
-    <ul className="space-y-1">
+    <ul className="space-y-0.5">
       {ordered.map((r) => {
         const muted = r.count === 0;
         // "Unknown" is a data-gap bucket: always drawn in danger red (label +
@@ -176,7 +176,7 @@ function IndustryBarList({
                 {r.count}
               </span>
             </div>
-            <div className="mt-1 h-2 overflow-hidden rounded-full bg-gray-100">
+            <div className="mt-0.5 h-2 overflow-hidden rounded-full bg-gray-100">
               {/* Per-industry fill colour (matches the old wheel slice); a
                   zero-count row draws no bar but keeps its muted label + 0. */}
               <div
@@ -196,12 +196,12 @@ function IndustryBarList({
                 href={r.href}
                 aria-label={`View ${r.label} (${r.count}) in alumni list`}
                 title={`${r.label}: ${r.count}`}
-                className="-mx-2 block rounded-lg px-2 py-0.5 transition hover:bg-brand-blue-50/40"
+                className="block rounded-lg px-1.5 py-[1.75px] transition hover:bg-brand-blue-50/40"
               >
                 {body}
               </Link>
             ) : (
-              <div className="-mx-2 px-2 py-0.5" title={`${r.label}: ${r.count}`}>
+              <div className="px-1.5 py-[1.75px]" title={`${r.label}: ${r.count}`}>
                 {body}
               </div>
             )}
