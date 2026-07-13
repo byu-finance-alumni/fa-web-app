@@ -401,7 +401,7 @@ export default async function DashboardPage() {
                 }
                 className="min-h-0 flex-1"
               >
-                <div className="min-h-0 w-full flex-1">
+                <div className="min-h-0 w-full flex-1 overflow-y-auto">
                   <IndustryBarList
                     rows={industryRows}
                     emptyLabel="No industry data yet."
