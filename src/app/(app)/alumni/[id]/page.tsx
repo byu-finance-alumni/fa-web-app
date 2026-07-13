@@ -437,7 +437,6 @@ export default async function AlumniProfilePage({
   // Fields a separate backend agent is adding to `GET /alumni/{id}/profile`.
   // Read via optional access (typed extension casts) so a not-yet-deployed
   // backend simply renders an em-dash instead of failing to compile.
-  const aExtra = a as typeof a & { hometown?: string | null };
   const careerExtra = career as
     | (NonNullable<typeof career> & { company_address?: string | null })
     | null;
@@ -902,7 +901,6 @@ export default async function AlumniProfilePage({
                   </div>
                   <div className="space-y-4">
                     <Field label="Gender" value={a.gender} />
-                    <Field label="Hometown" value={aExtra.hometown ?? null} />
                     <Field label="Home country" value={a.home_country} />
                   </div>
                 </div>
