@@ -31,6 +31,11 @@ export interface AlumniFilterState {
   statusLabel: string[];
   leadership: string[];
   surveyStatus: string[];
+  /** Professional-designation filter (#404): multi-select over CFP/CFA/CPA with
+   *  OR semantics (an alumnus holding ANY selected designation matches). Sent to
+   *  GET /alumni as repeatable `designations=` params. Distinct from the cfa/cpa
+   *  booleans below, which each AND-narrow to holders of that single designation. */
+  designations: string[];
   /** Gender filter (#360): "" = all, else the single-letter code. Combinable
    *  with every other facet (e.g. females in a given industry). */
   gender: "" | "M" | "F";
@@ -77,6 +82,7 @@ export const EMPTY_FILTERS: AlumniFilterState = {
   statusLabel: [],
   leadership: [],
   surveyStatus: [],
+  designations: [],
   gender: "",
   industryGroup: "",
   contactedAfter: "",
@@ -121,6 +127,11 @@ const FACETS: {
   { key: "surveyStatus", label: "Survey status", param: "survey_status", optKey: "survey_statuses" },
 ];
 
+/** Fixed professional-designation vocabulary for the #404 filter. Static (not
+ *  drawn from FilterOptions) — the backend validates values against exactly
+ *  CFP|CFA|CPA (case-insensitive) and 422s anything else. */
+const DESIGNATION_OPTIONS = ["CFP", "CFA", "CPA"];
+
 /** Serialize filter state to the canonical /alumni query string. */
 function toQs(f: AlumniFilterState): string {
   const p = new URLSearchParams();
@@ -130,6 +141,8 @@ function toQs(f: AlumniFilterState): string {
   for (const facet of FACETS) {
     for (const v of f[facet.key] as string[]) p.append(facet.param, v);
   }
+  // Designations (#404): repeated param, OR semantics server-side.
+  for (const v of f.designations) p.append("designations", v);
   if (f.gender) p.set("gender", f.gender);
   if (f.industryGroup) p.set("industry_group", f.industryGroup);
   if (f.contactedAfter) p.set("contacted_after", f.contactedAfter);
@@ -282,6 +295,7 @@ export function AlumniFilters({
   );
   const activeCount =
     facetCount +
+    f.designations.length +
     (f.gender ? 1 : 0) +
     (f.industryGroup ? 1 : 0) +
     (f.ymin.trim() || f.ymax.trim() ? 1 : 0) +
@@ -316,6 +330,16 @@ export function AlumniFilters({
           ),
       });
     }
+  }
+  for (const v of f.designations) {
+    chips.push({
+      label: `Designation: ${v}`,
+      remove: () =>
+        set(
+          "designations",
+          f.designations.filter((x) => x !== v),
+        ),
+    });
   }
   if (f.gender) {
     chips.push({
@@ -532,6 +556,15 @@ export function AlumniFilters({
                   onChange={(next) => set(facet.key, next as never)}
                 />
               ))}
+
+              {/* Professional designations (#404): static CFP/CFA/CPA vocabulary,
+                  OR semantics — an alumnus holding ANY selected designation matches. */}
+              <MultiSelect
+                label="Designations"
+                options={DESIGNATION_OPTIONS}
+                selected={f.designations}
+                onChange={(next) => set("designations", next)}
+              />
 
               <div>
                 <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
