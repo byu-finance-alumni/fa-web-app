@@ -249,6 +249,25 @@ export async function AlumniRoster({
   const canEditRows = canEditAlumni(roles);
   const canAddInteractionRows = canAddInteraction(roles);
 
+  // Row headshots (#398). The headshot bucket is private, so each photo needs its
+  // own short-lived signed URL — the SAME GET /alumni/{id}/headshot the profile
+  // header uses. Mint them server-side for just the visible page (≤LIMIT rows) in
+  // parallel; any failure or missing/absent-net_id photo resolves to null and the
+  // table falls back to the initials avatar. Keyed by alumni_id.
+  const headshotUrls: Record<number, string | null> = {};
+  if (data && data.items.length > 0) {
+    const photoResults = await Promise.allSettled(
+      data.items.map((a) =>
+        apiGet<{ url: string | null }>(`/alumni/${a.alumni_id}/headshot`),
+      ),
+    );
+    data.items.forEach((a, i) => {
+      const r = photoResults[i];
+      headshotUrls[a.alumni_id] =
+        r.status === "fulfilled" ? (r.value?.url ?? null) : null;
+    });
+  }
+
   // Location-search interpretation (#358). The backend geocodes `near` and may
   // echo how it read the query on the page envelope. Read it defensively so the
   // banner lights up once the backend adds it and stays silent until then.
@@ -360,6 +379,7 @@ export async function AlumniRoster({
               items={data!.items}
               canEdit={canEditRows}
               canAdd={canAddInteractionRows}
+              headshotUrls={headshotUrls}
             />
 
             <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
