@@ -109,6 +109,7 @@ export async function AlumniRoster({
     statusLabel: arr(sp.status_label),
     leadership: arr(sp.leadership_role),
     surveyStatus: arr(sp.survey_status),
+    designations: arr(sp.designations),
     gender:
       one(sp.gender).toUpperCase() === "F"
         ? "F"
@@ -179,6 +180,10 @@ export async function AlumniRoster({
   appendAll("status_label", filters.statusLabel);
   appendAll("leadership_role", filters.leadership);
   appendAll("survey_status", filters.surveyStatus);
+  // Designations (#404): repeated param; backend applies OR semantics and 422s
+  // any value outside CFP|CFA|CPA. The UI only emits those three, so uppercase
+  // values flow straight through.
+  appendAll("designations", filters.designations);
   if (filters.gender) params.set("gender", filters.gender);
   if (filters.industryGroup) params.set("industry_group", filters.industryGroup);
   // Plain-English location search (#358): the backend geocodes `near` and does
