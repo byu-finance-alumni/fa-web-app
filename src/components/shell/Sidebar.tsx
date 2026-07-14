@@ -63,7 +63,7 @@ const NAV: NavItem[] = [
       // Vocabulary is capability-gated (not role-locked), so a super_admin (or
       // any role) granted the vocab capability sees and can open it here.
       { href: "/vocabulary", label: "Vocabulary", vocabOnly: true },
-      { href: "/admin/import", label: "Import CSV", fullAccessOnly: true },
+      { href: "/admin/import", label: "Import", fullAccessOnly: true },
     ],
   },
   // Engineer console — its own home for every engineer-only tool (#162). The
