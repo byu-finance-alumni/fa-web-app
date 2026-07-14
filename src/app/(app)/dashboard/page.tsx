@@ -287,6 +287,22 @@ export default async function DashboardPage() {
   // clickable — finance industries deep-link to `?industry=<name>`, "Other" to
   // `?industry_group=other`, and "Unknown" to `?industry_group=unknown` so staff
   // can open and fix the profiles that are missing an industry.
+  //
+  // #397 ("Financial Services" as its own bar): this list is intentionally
+  // backend-driven — it renders exactly the industries the API surfaces in
+  // `industry_breakdown.industries` (the backend's WHEEL_INDUSTRIES set), each
+  // as its own distinctly-coloured, deep-linked bar. So the moment a new
+  // industry (e.g. "Financial Services") is present in that set it shows up here
+  // automatically with no further frontend change. We deliberately do NOT
+  // overlay the full `/vocabulary/industry` list onto this chart: that vocab
+  // includes the non-wheel values (Law, Corporate Banking, FP&A, Sales and
+  // Trading, Credit Risk) the backend purposely folds into "Other" (Tanya,
+  // 2026-07-11), so overlaying would resurrect them as misleading zero bars and
+  // double-count against "Other". Making "Financial Services" its own bar
+  // therefore requires the human/backend change of adding it to the industry
+  // vocabulary AND to INDUSTRIES + WHEEL_INDUSTRIES in fa-web-api — it is
+  // genuinely absent today (it exists only as the "Financial Services
+  // Conference" event type, never as an industry vocab value).
   const breakdown = s?.industry_breakdown;
   let financeIdx = 0;
   const industryRows: {

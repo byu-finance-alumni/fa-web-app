@@ -35,6 +35,10 @@ const NAV: NavItem[] = [
   // contacts, backend is_alumni=false).
   { href: "/friends", label: "Friends" },
   { href: "/map", label: "Map" },
+  // #400 Statistics — placeholder analytics workspace. No gating flags, so it's
+  // visible to EVERY role (engineer / super_admin / admin / student / professor);
+  // the page itself is a public-to-all "Under construction" notice for now.
+  { href: "/statistics", label: "Statistics" },
   { href: "/events", label: "Events" },
   // Pay It Forward is a data-management surface — the backend requires the
   // full_access tier (alumni.full) to read the donor ledger at all (#278), so
