@@ -415,6 +415,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/alumni/headshots/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bulk Upload Headshots
+         * @description Bulk-upload alumni headshots (full_access and up, #401).
+         *
+         *     Accepts EITHER a single ``.zip`` of images OR several image files in one
+         *     multipart request. For each image the net_id is the file name minus its
+         *     extension; the alumnus is looked up by net_id (case-insensitive) and, when
+         *     matched, the JPEG/PNG/WebP is stored in the private ``headshots`` bucket under
+         *     the net_id key (overwriting any existing image) — the SAME validation, bucket,
+         *     and key as the single-headshot upload. Returns a per-file report; a matched
+         *     upload is audited (``upload_headshot``). Per-file (20 MB) and total (200 MB)
+         *     size caps apply; an oversized batch or bad archive is a 413 / 400.
+         */
+        post: operations["bulk_upload_headshots_alumni_headshots_bulk_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/alumni/import/template": {
         parameters: {
             query?: never;
@@ -572,7 +601,8 @@ export interface paths {
         /**
          * Get Alumni Profile
          * @description Full profile aggregate (core + contact, career, employment, leadership,
-         *     engagement, surveys, interactions, tasks, attachments, audit) for the tabs.
+         *     engagement, surveys, interactions, tasks, attachments, Pay It Forward, audit)
+         *     for the tabs.
          *
          *     Archived records 404. Follow-up tasks are edit-only: view_only ("Professor")
          *     users get an empty ``tasks`` list AND a FERPA-minimized aggregate (sensitive
@@ -580,6 +610,10 @@ export interface paths {
          *     just hidden in the UI. Anyone with edit access — engineer / super_admin /
          *     full_access / student — sees all. The disclosure is audit-logged
          *     (``view_profile``).
+         *
+         *     The ``pay_it_forward`` roll-up (#403) always includes the donation count and
+         *     last-gift date, but its dollar amounts are gated to amount-viewers
+         *     (``alumni.full`` — full_access+), mirroring the donations endpoints.
          */
         get: operations["get_alumni_profile_alumni__alumni_id__profile_get"];
         put?: never;
@@ -3515,6 +3549,14 @@ export interface components {
             /** Birth Day */
             birth_day: number | null;
         };
+        /** Body_bulk_upload_headshots_alumni_headshots_bulk_post */
+        Body_bulk_upload_headshots_alumni_headshots_bulk_post: {
+            /**
+             * Files
+             * @description Either a single .zip of images OR multiple image files. Each image's net_id is its file name minus extension.
+             */
+            files: string[];
+        };
         /** Body_import_alumni_alumni_import_post */
         Body_import_alumni_alumni_import_post: {
             /** File */
@@ -4691,6 +4733,46 @@ export interface components {
             /** Detail */
             detail: components["schemas"]["ValidationError"][];
         };
+        /**
+         * HeadshotBulkItem
+         * @description Per-file outcome in a bulk headshot import (#401).
+         *
+         *     ``status`` is one of:
+         *       * ``matched``  — net_id resolved to an alumnus and the image was uploaded;
+         *       * ``no_match`` — no alumnus has that net_id (nothing uploaded);
+         *       * ``invalid``  — bad MIME type, empty file, or over the per-file size cap;
+         *       * ``error``    — storage upload failed (transient / service error).
+         *     ``net_id`` is the value derived from the file name (basename minus extension),
+         *     echoed even when unmatched so the caller can reconcile.
+         */
+        HeadshotBulkItem: {
+            /** Filename */
+            filename: string;
+            /** Net Id */
+            net_id: string | null;
+            /** Status */
+            status: string;
+            /** Message */
+            message: string;
+        };
+        /**
+         * HeadshotBulkResult
+         * @description ``POST /alumni/headshots/bulk`` per-file report + tallies.
+         */
+        HeadshotBulkResult: {
+            /** Total */
+            total: number;
+            /** Matched */
+            matched: number;
+            /** No Match */
+            no_match: number;
+            /** Invalid */
+            invalid: number;
+            /** Errors */
+            errors: number;
+            /** Items */
+            items: components["schemas"]["HeadshotBulkItem"][];
+        };
         /** HealthResponse */
         HealthResponse: {
             /** Status */
@@ -5009,6 +5091,32 @@ export interface components {
             status: string;
         };
         /**
+         * PayItForwardSummary
+         * @description Per-alumnus Pay It Forward Fund roll-up shown on the profile (#403).
+         *
+         *     Aggregated from the donations ledger. ``last_donation_amount`` and
+         *     ``total_lifetime_amount`` are DOLLAR amounts, gated to amount-viewers
+         *     (full_access+) exactly like the donations endpoints — they are ``null`` for a
+         *     caller without that capability, while ``donation_count`` and
+         *     ``last_donation_date`` stay visible. ``last_donation_date`` is month-level:
+         *     the ledger records a year + optional month (no day), so the day is always the
+         *     1st and the month defaults to January when only a year is on file. A
+         *     non-donor has ``donation_count == 0`` and every other field ``null``.
+         */
+        PayItForwardSummary: {
+            /** Last Donation Amount */
+            last_donation_amount: number | null;
+            /** Last Donation Date */
+            last_donation_date: string | null;
+            /** Total Lifetime Amount */
+            total_lifetime_amount: number | null;
+            /**
+             * Donation Count
+             * @default 0
+             */
+            donation_count: number;
+        };
+        /**
          * PermissionMatrix
          * @description The full permission config: every capability and every role's grants.
          *
@@ -5124,6 +5232,7 @@ export interface components {
              * @default []
              */
             events: components["schemas"]["EventAttendedRead"][];
+            pay_it_forward: components["schemas"]["PayItForwardSummary"];
             /**
              * Audit
              * @default []
@@ -5897,6 +6006,8 @@ export interface operations {
                 cfa?: boolean;
                 /** @description Only alumni holding the CPA designation. */
                 cpa?: boolean;
+                /** @description Professional-designation filter (#404): repeatable or comma-separated, values among CFP, CFA, CPA (case-insensitive). Returns alumni holding ANY of the requested designations (OR). An unknown value is a 422. */
+                designations?: string[] | null;
                 /** @description Only alumni with a graduate degree recorded. */
                 graduate_degree?: boolean;
                 /** @description Only alumni with no contact-info email on file. */
@@ -6143,6 +6254,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bulk_upload_headshots_alumni_headshots_bulk_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_bulk_upload_headshots_alumni_headshots_bulk_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HeadshotBulkResult"];
+                };
             };
             /** @description Validation Error */
             422: {
