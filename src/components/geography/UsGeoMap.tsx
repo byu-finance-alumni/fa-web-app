@@ -117,6 +117,9 @@ export interface UsGeoMapProps {
   /** Imperative focus request from the parent (e.g. a ranked-state row click).
    *  The bumped nonce re-triggers even when the same state is requested again. */
   focusRequest?: { code: string; n: number } | null;
+  /** Imperative "frame this lat/lng" request (map search → zoom, #406). Zooms to
+   *  a city-level view centered on the point. Bumped nonce re-triggers. */
+  focusPoint?: { lat: number; lng: number; n: number } | null;
   /** Draw the county BOUNDARY LINE overlay (the county mesh strokes) when zoomed
    *  into county detail. Default true; false hides just the lines — the county
    *  choropleth shading, matched-alumni rings, and city dots are unaffected. */
@@ -139,6 +142,7 @@ export function UsGeoMap({
   onResetCenter,
   onFocusChange,
   focusRequest,
+  focusPoint,
   showCountyLines = true,
   matchCounties,
 }: UsGeoMapProps) {
@@ -419,6 +423,24 @@ export function UsGeoMap({
   useEffect(() => {
     if (focusRequest) focusStateInMap(focusRequest.code);
   }, [focusRequest, focusStateInMap]);
+
+  // Parent-driven point focus (map search → zoom, #406): frame a lat/lng at a
+  // city-level zoom, clearing any focused-state context. The nonce bump re-runs
+  // this even when the same point is requested again.
+  const focusPointInMap = useCallback(
+    (lat: number, lng: number) => {
+      const pt = projection([lng, lat]);
+      if (!pt || !Number.isFinite(pt[0]) || !Number.isFinite(pt[1])) return;
+      const k = Math.min(MAX_K, 6);
+      setView({ k, x: WIDTH / 2 - k * pt[0], y: HEIGHT / 2 - k * pt[1] });
+      setFocusedCode(null);
+      onFocusChange?.(null);
+    },
+    [projection, onFocusChange],
+  );
+  useEffect(() => {
+    if (focusPoint) focusPointInMap(focusPoint.lat, focusPoint.lng);
+  }, [focusPoint, focusPointInMap]);
 
   // Wheel zoom toward the cursor. Native non-passive listener so we can
   // preventDefault (stop the page from scrolling).

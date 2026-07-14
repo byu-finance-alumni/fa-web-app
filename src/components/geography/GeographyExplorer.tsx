@@ -32,12 +32,18 @@ import {
   type CountryAlumniResult,
 } from "@/app/(app)/map/actions";
 import type { GeoAlumniRow } from "@/types/geography";
+import type { Alumni, AlumniPage } from "@/types/alumni";
 import { INDUSTRY_OPTIONS } from "@/constants/dropdowns";
 import {
   FALLBACK_CENTROIDS,
   normalizeCountryName,
   US_CANONICAL,
 } from "@/lib/geo/world-countries";
+import {
+  buildLocalSuggestions,
+  type MapSuggestion,
+} from "@/lib/geo/mapSearchSuggestions";
+import { clientGet } from "@/lib/api-client";
 import { UsGeoMap } from "./UsGeoMap";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -56,6 +62,30 @@ const FILTER_KEYS = ["industry", "employer", "year", "region", "tag"] as const;
 // state; a term matching a known industry re-shades the map by industry; a
 // place geocodes to a radius center; anything else is treated as a company
 // (employer) filter. See onSearch for the logic.
+
+/** Section header shown above each group of local autocomplete suggestions. */
+const GROUP_LABEL: Record<MapSuggestion["kind"], string> = {
+  city: "Cities",
+  state: "States",
+  country: "Countries",
+  industry: "Industries",
+  company: "Company",
+};
+
+/** "Preferred First Last" for an alumni search row (falls back gracefully). */
+function alumniDisplayName(a: Alumni): string {
+  const first = a.preferred_first_name ?? a.first_name ?? "";
+  return [first, a.last_name].filter(Boolean).join(" ") || "Unnamed alumnus";
+}
+
+/** A short location subtitle for an alumni suggestion ("Los Angeles, CA"). */
+function alumniLocationLabel(a: Alumni): string | null {
+  const us = [a.current_city, a.current_state].filter(Boolean).join(", ");
+  if (us) return us;
+  if (a.home_country && normalizeCountryName(a.home_country) !== US_CANONICAL)
+    return a.home_country;
+  return null;
+}
 
 export interface RadiusState {
   lat?: string;
@@ -304,12 +334,276 @@ export function GeographyExplorer({
     radius.tag,
   ]);
 
+  // --- Autocomplete + place/country/alumni zoom (#406) -----------------------
+  // Imperative "frame this point/country" requests handed to the maps. A bumped
+  // nonce re-triggers the same target after a manual zoom-out, mirroring the
+  // existing state `focusReq` pattern.
+  const [usFocusReq, setUsFocusReq] = useState<{
+    lat: number;
+    lng: number;
+    n: number;
+  } | null>(null);
+  const requestUsFocus = useCallback(
+    (lat: number, lng: number) =>
+      setUsFocusReq((r) => ({ lat, lng, n: (r?.n ?? 0) + 1 })),
+    [],
+  );
+  const [worldFocusReq, setWorldFocusReq] = useState<{
+    key: string;
+    n: number;
+  } | null>(null);
+  const requestWorldFocus = useCallback(
+    (key: string) =>
+      setWorldFocusReq((r) => ({ key, n: (r?.n ?? 0) + 1 })),
+    [],
+  );
+
+  // Country display names the world map knows about — the topojson spellings plus
+  // any extra spellings the backend counts arrive under — so a typed/selected
+  // country resolves to a canonical key even with zero alumni. Client-safe: the
+  // topojson is already bundled for the world view.
+  const worldCountryNames = useMemo(() => {
+    const names = new Set<string>();
+    try {
+      const topo = worldTopo as unknown as Topology;
+      const obj = topo.objects?.countries;
+      if (obj) {
+        const fc = feature(topo, obj) as unknown as FeatureCollection<Geometry>;
+        for (const f of fc.features) {
+          const name = (f.properties as { name?: string } | null)?.name;
+          if (name && normalizeCountryName(name) !== US_CANONICAL)
+            names.add(name);
+        }
+      }
+    } catch {
+      /* topojson parse issues just yield fewer country suggestions */
+    }
+    for (const raw of Object.keys(countryCounts ?? {})) {
+      if (raw && normalizeCountryName(raw) !== US_CANONICAL) names.add(raw);
+    }
+    return Array.from(names);
+  }, [countryCounts]);
+
+  // Debounced alumni-name matches (locate-on-map). Mirrors TopbarSearch: a short
+  // debounce keeps the request rate inside the WAF limit; a monotonic sequence
+  // guards against out-of-order responses. `kind=all` so program friends surface
+  // too. Degrades silently on error — local suggestions still show.
+  const [alumniMatches, setAlumniMatches] = useState<Alumni[]>([]);
+  const alumniSeq = useRef(0);
+  useEffect(() => {
+    const term = searchInput.trim();
+    if (term.length < 2) {
+      alumniSeq.current++;
+      setAlumniMatches([]);
+      return;
+    }
+    const seq = ++alumniSeq.current;
+    const timer = setTimeout(async () => {
+      try {
+        const page = await clientGet<AlumniPage>(
+          `/alumni?q=${encodeURIComponent(term)}&kind=all&limit=4&offset=0`,
+        );
+        if (seq === alumniSeq.current) setAlumniMatches(page.items);
+      } catch {
+        if (seq === alumniSeq.current) setAlumniMatches([]);
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  const localSuggestions = useMemo(
+    () =>
+      buildLocalSuggestions({
+        query: searchInput,
+        countryNames: worldCountryNames,
+        worldActive: mapView === "world",
+      }),
+    [searchInput, worldCountryNames, mapView],
+  );
+
+  // One flat, keyboard-navigable list: alumni matches first (locate is a headline
+  // action), then the local place/industry suggestions.
+  const suggestions = useMemo<
+    (
+      | { type: "alumni"; alumnus: Alumni }
+      | { type: "local"; suggestion: MapSuggestion }
+    )[]
+  >(() => {
+    const trimmed = searchInput.trim();
+    const rows: (
+      | { type: "alumni"; alumnus: Alumni }
+      | { type: "local"; suggestion: MapSuggestion }
+    )[] = [
+      ...alumniMatches.map((a) => ({ type: "alumni" as const, alumnus: a })),
+      ...localSuggestions.map((s) => ({
+        type: "local" as const,
+        suggestion: s,
+      })),
+    ];
+    // Always offer an explicit "filter by company" escape hatch for free text.
+    if (trimmed) {
+      rows.push({
+        type: "local",
+        suggestion: { kind: "company", label: trimmed, value: trimmed },
+      });
+    }
+    return rows;
+  }, [alumniMatches, localSuggestions, searchInput]);
+
+  const [acOpen, setAcOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const searchWrapRef = useRef<HTMLDivElement>(null);
+  // Reset the highlighted row whenever the list changes so it never points past
+  // the end.
+  useEffect(() => setActiveIndex(-1), [suggestions.length]);
+  // Close the dropdown on any outside click.
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (
+        searchWrapRef.current &&
+        !searchWrapRef.current.contains(e.target as Node)
+      )
+        setAcOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+
+  // Jump/zoom the map to one alumnus's location. US city/state → geocode to a
+  // radius center + frame it; international home country → world view + frame the
+  // country. Nothing on file → a soft note.
+  const locateAlumnus = useCallback(
+    async (a: Alumni) => {
+      setGeoError(null);
+      setGeoNote(null);
+      setAcOpen(false);
+      const name = alumniDisplayName(a);
+      const city = a.current_city?.trim();
+      const state = a.current_state?.trim();
+      if (state) {
+        // US alumnus — geocode "City, ST" when we have a city, else frame the
+        // whole state.
+        if (city) {
+          const geo = await geocodePlace(`${city}, ${state}`).catch(() => null);
+          if (geo && geo.ok) {
+            setMapView("us");
+            setSearchInput(geo.label);
+            requestUsFocus(geo.lat, geo.lng);
+            startTransition(() =>
+              router.push(
+                buildRadiusUrl({
+                  lat: String(geo.lat),
+                  lng: String(geo.lng),
+                  place: geo.label,
+                }),
+              ),
+            );
+            return;
+          }
+        }
+        const st = await resolveState(state);
+        if (st.ok) {
+          setMapView("us");
+          setSearchInput(name);
+          focusState(st.code);
+          return;
+        }
+      }
+      const country = a.home_country?.trim();
+      if (country && normalizeCountryName(country) !== US_CANONICAL) {
+        setMapView("world");
+        setSearchInput(name);
+        requestWorldFocus(normalizeCountryName(country));
+        return;
+      }
+      setGeoNote(`No location on file for ${name} to place on the map.`);
+    },
+    [buildRadiusUrl, focusState, requestUsFocus, requestWorldFocus, router],
+  );
+
+  // Act on a picked local suggestion — dispatched by kind, no re-resolution.
+  const applyLocalSuggestion = useCallback(
+    (s: MapSuggestion) => {
+      setGeoError(null);
+      setGeoNote(null);
+      setAcOpen(false);
+      switch (s.kind) {
+        case "city":
+          setMapView("us");
+          setSearchInput(s.label);
+          requestUsFocus(s.lat, s.lng);
+          startTransition(() =>
+            router.push(
+              buildRadiusUrl({
+                lat: s.lat.toFixed(5),
+                lng: s.lng.toFixed(5),
+                place: s.label,
+              }),
+            ),
+          );
+          return;
+        case "state":
+          setMapView("us");
+          setSearchInput(s.label);
+          focusState(s.code);
+          return;
+        case "country":
+          setMapView("world");
+          setSearchInput(s.display);
+          requestWorldFocus(s.key);
+          return;
+        case "industry":
+          setSearchInput(s.value);
+          startTransition(() =>
+            router.push(buildFilterUrl("industry", s.value)),
+          );
+          return;
+        case "company":
+          setSearchInput(s.value);
+          startTransition(() =>
+            router.push(buildFilterUrl("employer", s.value)),
+          );
+          return;
+      }
+    },
+    [buildFilterUrl, buildRadiusUrl, focusState, requestUsFocus, requestWorldFocus, router],
+  );
+
+  function applyActiveSuggestion(index: number) {
+    const item = suggestions[index];
+    if (!item) return;
+    if (item.type === "alumni") void locateAlumnus(item.alumnus);
+    else applyLocalSuggestion(item.suggestion);
+  }
+
+  function onSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (!acOpen || suggestions.length === 0) {
+      if (e.key === "Escape") setAcOpen(false);
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((i) => (i + 1) % suggestions.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
+    } else if (e.key === "Enter" && activeIndex >= 0) {
+      e.preventDefault();
+      applyActiveSuggestion(activeIndex);
+    } else if (e.key === "Escape") {
+      setAcOpen(false);
+      setActiveIndex(-1);
+    }
+  }
+
   // Unified map search (#214): one box, resolved in priority order — US state
-  // (name/code) → known industry → city (geocode → radius center) → otherwise a
-  // company (employer) filter. An empty submit clears the industry/employer
-  // shading.
+  // (name/code) → known industry → matching country → city (geocode → radius
+  // center) → otherwise a company (employer) filter. An empty submit clears the
+  // industry/employer shading. Used when the user submits free text without
+  // picking an autocomplete row.
   async function onSearch(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setAcOpen(false);
     const query = searchInput.trim();
     setGeoError(null);
     setGeoNote(null);
@@ -324,6 +618,7 @@ export function GeographyExplorer({
       // 1) A US state (full name or 2-letter code) → drill into its map.
       const state = await resolveState(query);
       if (state.ok) {
+        setMapView("us");
         focusState(state.code);
         return;
       }
@@ -338,7 +633,18 @@ export function GeographyExplorer({
         return;
       }
 
-      // 3) A place → geocode to a radius center.
+      // 3) An exact country name (world map) → switch to the world view and
+      //    frame that country.
+      const country = worldCountryNames.find(
+        (c) => c.toLowerCase() === query.toLowerCase(),
+      );
+      if (country) {
+        setMapView("world");
+        requestWorldFocus(normalizeCountryName(country));
+        return;
+      }
+
+      // 4) A place → geocode to a radius center and frame it on the US map.
       const geo = await geocodePlace(query);
       if (geo.ok) {
         if (geo.spannedStates && geo.spannedStates.length) {
@@ -348,6 +654,8 @@ export function GeographyExplorer({
             `"${geo.label.split(",")[0]}" is also in ${shown}${more}. Showing ${geo.label} — add a state to pick another.`,
           );
         }
+        setMapView("us");
+        requestUsFocus(geo.lat, geo.lng);
         startTransition(() =>
           router.push(
             buildRadiusUrl({
@@ -360,7 +668,7 @@ export function GeographyExplorer({
         return;
       }
 
-      // 4) Otherwise treat it as a company (employer) filter.
+      // 5) Otherwise treat it as a company (employer) filter.
       startTransition(() => router.push(buildFilterUrl("employer", query)));
     } finally {
       setSearching(false);
@@ -425,7 +733,7 @@ export function GeographyExplorer({
           the surfaces. Auto-hides on state focus/zoom-in (see `controlsOpen`) and
           collapses to a compact "Search & filters" button in its place. */}
       {controlsOpen ? (
-      <div className="absolute left-4 top-4 z-30 flex w-72 flex-col gap-3">
+      <div className="absolute left-4 top-4 z-30 flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-3">
         {/* Header — label + a "Hide" affordance to collapse the box. */}
         <div className="flex items-center justify-between rounded-lg bg-white/95 px-3 py-1.5 shadow-card">
           <span className="text-xs font-semibold text-gray-700">
@@ -440,21 +748,114 @@ export function GeographyExplorer({
           </button>
         </div>
         {/* Search + active filters + current center + grouped Filters popover. */}
-        <Card className="space-y-2 p-3">
-          <form onSubmit={onSearch} className="space-y-2">
-            {/* Normal-sized search field, full width of the box — same control
-                height + text size as the Filters button, so the full
-                placeholder/value reads without truncating. */}
-            <Input
-              value={searchInput}
-              onChange={(e) => {
-                setSearchInput(e.target.value);
-                if (geoError) setGeoError(null);
-              }}
-              placeholder="Search a city, state, industry, or company"
-              aria-label="Search the map by city, state, industry, or company"
-              aria-invalid={geoError ? true : undefined}
-            />
+        <Card className="space-y-2.5 p-3.5">
+          <form onSubmit={onSearch} className="space-y-2.5">
+            {/* Prominent search field with type-ahead suggestions (#406). The
+                autocomplete listbox floats over the map below the input; picking a
+                row jumps/zooms the map or applies the matching filter. */}
+            <div ref={searchWrapRef} className="relative">
+              <Input
+                value={searchInput}
+                onChange={(e) => {
+                  setSearchInput(e.target.value);
+                  if (geoError) setGeoError(null);
+                  setAcOpen(true);
+                }}
+                onFocus={() => {
+                  if (suggestions.length > 0) setAcOpen(true);
+                }}
+                onKeyDown={onSearchKeyDown}
+                placeholder="Search alumni, city, state, country, industry…"
+                aria-label="Search the map by alumni, city, state, country, industry, or company"
+                aria-invalid={geoError ? true : undefined}
+                role="combobox"
+                aria-expanded={acOpen}
+                aria-controls="map-search-listbox"
+                aria-autocomplete="list"
+                aria-activedescendant={
+                  activeIndex >= 0
+                    ? `map-search-option-${activeIndex}`
+                    : undefined
+                }
+                autoComplete="off"
+                className="h-10 text-sm"
+              />
+              {acOpen && suggestions.length > 0 ? (
+                <ul
+                  id="map-search-listbox"
+                  role="listbox"
+                  aria-label="Map search suggestions"
+                  className="absolute left-0 right-0 top-full z-50 mt-1.5 max-h-80 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+                >
+                  {suggestions.map((item, i) => {
+                    const group =
+                      item.type === "alumni"
+                        ? "Alumni"
+                        : GROUP_LABEL[item.suggestion.kind];
+                    const prevGroup =
+                      i === 0
+                        ? null
+                        : suggestions[i - 1].type === "alumni"
+                          ? "Alumni"
+                          : GROUP_LABEL[
+                              (
+                                suggestions[i - 1] as {
+                                  suggestion: MapSuggestion;
+                                }
+                              ).suggestion.kind
+                            ];
+                    const showHeader = group !== prevGroup;
+                    const active = i === activeIndex;
+                    return (
+                      <li key={`${group}-${i}`} role="none">
+                        {showHeader ? (
+                          <p className="px-3 pb-0.5 pt-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                            {group}
+                          </p>
+                        ) : null}
+                        <button
+                          type="button"
+                          id={`map-search-option-${i}`}
+                          role="option"
+                          aria-selected={active}
+                          onMouseEnter={() => setActiveIndex(i)}
+                          onClick={() => applyActiveSuggestion(i)}
+                          className={cn(
+                            "flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm",
+                            active ? "bg-brand-blue-50" : "hover:bg-gray-50",
+                          )}
+                        >
+                          {item.type === "alumni" ? (
+                            <>
+                              <span className="min-w-0 truncate font-medium text-gray-900">
+                                {alumniDisplayName(item.alumnus)}
+                              </span>
+                              <span className="shrink-0 truncate text-xs text-gray-500">
+                                {alumniLocationLabel(item.alumnus) ??
+                                  (item.alumnus.graduation_year
+                                    ? `Class of ${item.alumnus.graduation_year}`
+                                    : "")}
+                              </span>
+                            </>
+                          ) : item.suggestion.kind === "company" ? (
+                            <span className="min-w-0 truncate text-gray-700">
+                              Filter by company:{" "}
+                              <span className="font-medium text-gray-900">
+                                {item.suggestion.value}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="min-w-0 truncate font-medium text-gray-900">
+                              {item.suggestion.label}
+                            </span>
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+            </div>
             {geoError ? (
               <p className="text-xs text-danger-600">{geoError}</p>
             ) : null}
@@ -664,12 +1065,14 @@ export function GeographyExplorer({
               onResetCenter={resetCenter}
               onFocusChange={handleFocusChange}
               focusRequest={focusReq}
+              focusPoint={usFocusReq}
               showCountyLines={showCountyLines}
               matchCounties={matchCounties}
             />
           ) : (
             <WorldGeoMap
               countryCounts={countryCounts ?? {}}
+              focusRequest={worldFocusReq}
               filters={{
                 industry: radius.industry,
                 employer: radius.employer,
@@ -874,9 +1277,13 @@ type WorldFilters = {
 function WorldGeoMap({
   countryCounts,
   filters,
+  focusRequest,
 }: {
   countryCounts: Record<string, number>;
   filters: WorldFilters;
+  /** Imperative "frame this country" request (map search → zoom, #406). Bumped
+   *  nonce re-triggers the same country after a manual pan/zoom. */
+  focusRequest?: { key: string; n: number } | null;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -948,6 +1355,18 @@ function WorldGeoMap({
       })
       .filter((c) => c.d);
   }, [projection]);
+
+  // Canonical key → centroid [lng, lat], from the topojson polygons plus the
+  // hand-kept fallbacks (finance hubs too small for the 110m atlas). Drives the
+  // parent-requested country focus (#406).
+  const centroidByKey = useMemo(() => {
+    const m = new Map<string, [number, number]>();
+    for (const c of countries) m.set(c.key, c.centroid);
+    for (const [key, lnglat] of Object.entries(FALLBACK_CENTROIDS)) {
+      if (!m.has(key)) m.set(key, lnglat);
+    }
+    return m;
+  }, [countries]);
 
   // Fold the incoming counts by canonical key (dropping the US + zeros), keeping
   // a display spelling for labels/drill-down.
@@ -1111,6 +1530,27 @@ function WorldGeoMap({
       y: e.clientY - (rect?.top ?? 0),
     });
   }
+
+  // Parent-requested country focus (map search → zoom, #406): project the
+  // country's centroid, frame it at a mid zoom, and open its drill-down when it
+  // has alumni. The nonce bump re-frames the same country after a manual pan.
+  useEffect(() => {
+    if (!focusRequest) return;
+    const lnglat = centroidByKey.get(focusRequest.key);
+    if (!lnglat) return;
+    const pt = projection(lnglat);
+    if (!pt || !Number.isFinite(pt[0]) || !Number.isFinite(pt[1])) return;
+    const k = Math.min(WORLD_MAX_K, 4);
+    setView({ k, x: WORLD_W / 2 - k * pt[0], y: WORLD_H / 2 - k * pt[1] });
+    const entry = countsByKey.get(focusRequest.key);
+    if (entry) {
+      setSelected({ name: entry.display, count: entry.count });
+      setAlumniResult(null);
+      setAlumniItems([]);
+      fetchAlumniPage(entry.display, 0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusRequest]);
 
   return (
     <div ref={wrapRef} className="relative h-full w-full overflow-hidden">
