@@ -40,6 +40,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { designationFullName, splitDesignations } from "@/lib/designations";
 
 /* ----------------------------------------------------------------- helpers */
 
@@ -59,6 +60,16 @@ function monthDay(iso: string | null): { mon: string; day: string } | null {
     mon: d.toLocaleDateString("en-US", { month: "short" }).toUpperCase(),
     day: d.toLocaleDateString("en-US", { day: "2-digit" }),
   };
+}
+
+/** Month-level date ("Mon YYYY") for the Pay It Forward summary (#403). The
+ *  ledger stores a year + optional month (day is always the 1st), so the day is
+ *  never surfaced. Parsed as local time (T00:00:00) so a "YYYY-MM-01" value never
+ *  shifts back a month in negative-offset timezones. */
+function monthYear(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00`);
+  return d.toLocaleDateString("en-US", { year: "numeric", month: "short" });
 }
 
 const place = (...parts: (string | null | undefined)[]) =>
@@ -495,6 +506,29 @@ export default async function AlumniProfilePage({
     );
   const previousJobs = previousJobsAll.slice(0, 2);
 
+  // Graduate degrees & designations box (#399/#405): graduate degree/school from
+  // the alumni record, plus held certifications from program engagement (a
+  // non-empty free-text value = held) surfaced as their standard abbreviation
+  // with a full-name tooltip. `other_designations` is rendered as free text.
+  const pe = profile.program_engagement;
+  const heldDesignations = [
+    pe?.cfp_designation ? "CFP" : null,
+    pe?.cfa_designation ? "CFA" : null,
+    pe?.cpa_designation ? "CPA" : null,
+  ].filter(Boolean) as string[];
+  const hasGradContent = Boolean(
+    a.graduate_degree ||
+      a.graduate_school ||
+      heldDesignations.length ||
+      a.other_designations,
+  );
+
+  // Pay It Forward summary (#403) — always present on the profile payload.
+  // `last_donation_amount` / `total_lifetime_amount` are DOLLAR amounts gated
+  // server-side (null for callers without full access); `donation_count` and
+  // `last_donation_date` stay visible to every role.
+  const pif = profile.pay_it_forward;
+
   // Completeness checks (mirror the Figma checklist)
   const checks: { label: string; ok: boolean }[] = [
     { label: "Profile photo", ok: Boolean(headshotUrl) },
@@ -741,64 +775,10 @@ export default async function AlumniProfilePage({
           <AlumniProfileTabs
             overview={
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-              {/* Current employment contact information (#366). Work email is
-                  contact PII (editor-gated); LinkedIn and directory-like company
-                  location stay visible to every role. */}
-              <Panel
-                title="Current employment contact information"
-                action={canEdit ? <EditLink id={aid} /> : undefined}
-                className="lg:col-span-2"
-              >
-                {/* Split into two columns of three (#profile tweak): work email
-                    + address + city on the left, state + country + ZIP on the
-                    right. LinkedIn moved to Personal & family. */}
-                <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-                  <div className="space-y-4">
-                    {canViewContactDetails ? (
-                      <ContactField
-                        label="Work email"
-                        value={c?.work_email ?? null}
-                        href={c?.work_email ? `mailto:${c.work_email}` : undefined}
-                        hrefLabel="Send"
-                        preferred={c?.preferred_contact_method === "work_email"}
-                      />
-                    ) : null}
-                    <Field
-                      label="Company address"
-                      value={careerExtra?.company_address ?? null}
-                    />
-                    <Field
-                      label="Current city"
-                      value={c?.city ?? null}
-                    />
-                  </div>
-                  <div className="space-y-4">
-                    <Field
-                      label="Current state"
-                      value={c?.state ?? null}
-                    />
-                    <Field
-                      label="Company country"
-                      value={career?.current_country ?? null}
-                    />
-                    <Field label="Company ZIP" value={career?.current_zip ?? null} />
-                  </div>
-                </div>
-                {/* LinkedIn spans the full width at the bottom of the box. */}
-                <div className="mt-4">
-                  <ContactField
-                    label="LinkedIn profile"
-                    value={a.linkedin_url}
-                    href={a.linkedin_url ?? undefined}
-                    hrefLabel="Open ↗"
-                    preferred={c?.preferred_contact_method === "linkedin"}
-                  />
-                </div>
-              </Panel>
-
-              {/* Career snapshot (#367): current role on top, then the two most
-                  recent previous roles under a "Previous employment" heading.
-                  Seniority level removed; employment drawn from employment history. */}
+              {/* LEFT column, row 1 — Career snapshot (#399: swapped with Current
+                  employment, which now sits on the right). Current role on top,
+                  then the two most recent previous roles under a "Previous
+                  employment" heading. Employment drawn from employment history. */}
               <Panel
                 title="Career snapshot"
                 action={canEdit ? <EditLink id={aid} /> : undefined}
@@ -867,19 +847,118 @@ export default async function AlumniProfilePage({
                 </div>
               </Panel>
 
-              {/* Personal & family (#366). BYU Net ID is the primary identifier
-                  (moved out of the header, #361). Personal email + cell phone are
-                  contact PII (editor-gated). Spouse shows the FIRST name only —
-                  never a last name. Spouse birthday removed. */}
+              {/* RIGHT column, row 1 — Current employment contact information
+                  (#366, #399: swapped to the right, keeps its 2-col width). Work
+                  email is contact PII (editor-gated); LinkedIn and directory-like
+                  company location stay visible to every role. */}
+              <Panel
+                title="Current employment contact information"
+                action={canEdit ? <EditLink id={aid} /> : undefined}
+                className="lg:col-span-2"
+              >
+                {/* Split into two columns of three (#profile tweak): work email
+                    + address + city on the left, state + country + ZIP on the
+                    right. LinkedIn moved to Personal & family. */}
+                <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+                  <div className="space-y-4">
+                    {canViewContactDetails ? (
+                      <ContactField
+                        label="Work email"
+                        value={c?.work_email ?? null}
+                        href={c?.work_email ? `mailto:${c.work_email}` : undefined}
+                        hrefLabel="Send"
+                        preferred={c?.preferred_contact_method === "work_email"}
+                      />
+                    ) : null}
+                    <Field
+                      label="Company address"
+                      value={careerExtra?.company_address ?? null}
+                    />
+                    <Field
+                      label="Current city"
+                      value={c?.city ?? null}
+                    />
+                  </div>
+                  <div className="space-y-4">
+                    <Field
+                      label="Current state"
+                      value={c?.state ?? null}
+                    />
+                    <Field
+                      label="Company country"
+                      value={career?.current_country ?? null}
+                    />
+                    <Field label="Company ZIP" value={career?.current_zip ?? null} />
+                  </div>
+                </div>
+                {/* LinkedIn spans the full width at the bottom of the box. */}
+                <div className="mt-4">
+                  <ContactField
+                    label="LinkedIn profile"
+                    value={a.linkedin_url}
+                    href={a.linkedin_url ?? undefined}
+                    hrefLabel="Open ↗"
+                    preferred={c?.preferred_contact_method === "linkedin"}
+                  />
+                </div>
+              </Panel>
+
+              {/* LEFT column, row 2 — Graduate degrees & designations (#399 new
+                  box, same 1-col width as Career snapshot above it). Populated
+                  from existing profile fields; designation abbreviations carry a
+                  full-name tooltip (#405). */}
+              <Panel
+                title="Graduate degrees & designations"
+                action={canEdit ? <EditLink id={aid} /> : undefined}
+                className="lg:col-span-1"
+              >
+                {hasGradContent ? (
+                  <div className="space-y-4">
+                    {a.graduate_degree || a.graduate_school ? (
+                      <div className="space-y-4">
+                        <Field
+                          label="Graduate degree"
+                          value={a.graduate_degree}
+                        />
+                        <Field
+                          label="Graduate school"
+                          value={a.graduate_school}
+                        />
+                      </div>
+                    ) : null}
+                    {heldDesignations.length ? (
+                      <ChipRow label="Designations">
+                        {heldDesignations.map((d) => (
+                          <EngagementChip key={d} tone="success">
+                            <DesignationAbbr token={d} />
+                          </EngagementChip>
+                        ))}
+                      </ChipRow>
+                    ) : null}
+                    {a.other_designations ? (
+                      <OtherDesignations text={a.other_designations} />
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="py-6 text-center text-sm text-gray-500">
+                    No graduate degrees or designations on file yet.
+                  </p>
+                )}
+              </Panel>
+
+              {/* RIGHT column, row 2 — Personal & family (#366, #399: shrunk from
+                  full width to the same 2-col width as Current employment).
+                  Fields arranged into three columns (#402): contact · household ·
+                  identity/origin. Personal email + cell phone are contact PII
+                  (editor-gated). Spouse shows the FIRST name only. */}
               <Panel
                 title="Personal & family"
                 action={canEdit ? <EditLink id={aid} /> : undefined}
-                className="lg:col-span-3"
+                className="lg:col-span-2"
               >
-                {/* Three sections: contact IDs · household · origin. */}
                 <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-3">
+                  {/* Col 1: personal email · cell phone · gender */}
                   <div className="space-y-4">
-                    <Field label="BYU Net ID" value={a.net_id} />
                     {canViewContactDetails ? (
                       <>
                         <ContactField
@@ -904,19 +983,28 @@ export default async function AlumniProfilePage({
                         />
                       </>
                     ) : null}
+                    <Field label="Gender" value={a.gender} />
                   </div>
+                  {/* Col 2: marital status · spouse · birthday */}
                   <div className="space-y-4">
-                    <Field label="Birthday" value={fmtDate(a.birth_date)} />
                     <Field label="Marital status" value={a.marital_status} />
                     {/* First name ONLY — never render the spouse's last name. */}
                     <Field label="Spouse" value={a.spouse_first_name} />
+                    <Field label="Birthday" value={fmtDate(a.birth_date)} />
                   </div>
+                  {/* Col 3: net id · home country */}
                   <div className="space-y-4">
-                    <Field label="Gender" value={a.gender} />
+                    <Field label="BYU Net ID" value={a.net_id} />
                     <Field label="Home country" value={a.home_country} />
                   </div>
                 </div>
               </Panel>
+
+              {/* Full-width, row 3 — Pay It Forward summary (#403). Compact stat
+                  strip. Dollar amounts arrive pre-gated from the backend (null for
+                  callers without full access): amounts render only when present,
+                  never as $0; the count and last-gift month always show. */}
+              <PayItForwardSummary pif={pif} className="lg:col-span-3" />
               </div>
             }
             profileCompleteness={
@@ -1772,6 +1860,120 @@ function ProfileNote({ label, value }: { label: string; value: string }) {
       </p>
       <p className="whitespace-pre-wrap text-sm text-gray-900">{value}</p>
     </div>
+  );
+}
+
+/** Renders a designation abbreviation with a full-name tooltip on hover (#405).
+ *  Uses a native `<abbr title>` — accessible, text-only, no dependency, matching
+ *  the app's existing `title=` tooltip convention. Unknown tokens render as plain
+ *  text with no tooltip. */
+function DesignationAbbr({ token }: { token: string }) {
+  const full = designationFullName(token);
+  if (!full) return <>{token}</>;
+  return (
+    <abbr title={full} className="cursor-help no-underline">
+      {token}
+    </abbr>
+  );
+}
+
+/** Free-text `other_designations` (#405) rendered token-by-token so recognized
+ *  designations (e.g. "Series 7") pick up a full-name tooltip. When the value
+ *  has no delimiters it falls back to a single plain (line-break-preserving)
+ *  block. */
+function OtherDesignations({ text }: { text: string }) {
+  const tokens = splitDesignations(text);
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+        Other designations
+      </p>
+      {tokens.length > 1 ? (
+        <p className="text-sm text-gray-900">
+          {tokens.map((tok, i) => (
+            <span key={`${tok}-${i}`}>
+              {i > 0 ? ", " : ""}
+              <DesignationAbbr token={tok} />
+            </span>
+          ))}
+        </p>
+      ) : (
+        <p className="whitespace-pre-wrap text-sm text-gray-900">
+          <DesignationAbbr token={text.trim()} />
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** One labelled stat in the Pay It Forward summary strip. */
+function PifStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+        {label}
+      </p>
+      <p className="mt-0.5 text-lg font-semibold tabular-nums text-gray-900">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+/** Compact Pay It Forward giving summary for the profile overview (#403), built
+ *  from the `pay_it_forward` roll-up on the profile payload. Dollar amounts are
+ *  gated server-side — `last_donation_amount` / `total_lifetime_amount` are null
+ *  for callers without full access. Amounts render only when present (never as
+ *  $0); a null amount shows a restrained "Amount hidden". The donation count and
+ *  last-gift month stay visible to every role. */
+function PayItForwardSummary({
+  pif,
+  className = "",
+}: {
+  pif: Profile["pay_it_forward"];
+  className?: string;
+}) {
+  const hidden = (
+    <span className="text-sm font-normal text-gray-400">Amount hidden</span>
+  );
+  return (
+    <Panel title="Pay It Forward" className={className}>
+      {pif.donation_count > 0 ? (
+        <div className="flex flex-wrap items-start gap-x-12 gap-y-4">
+          <PifStat label="Donations" value={pif.donation_count} />
+          <PifStat
+            label="Last gift"
+            value={monthYear(pif.last_donation_date) ?? "—"}
+          />
+          <PifStat
+            label="Last gift amount"
+            value={
+              pif.last_donation_amount !== null
+                ? money(pif.last_donation_amount)
+                : hidden
+            }
+          />
+          <PifStat
+            label="Lifetime giving"
+            value={
+              pif.total_lifetime_amount !== null
+                ? money(pif.total_lifetime_amount)
+                : hidden
+            }
+          />
+        </div>
+      ) : (
+        <p className="py-6 text-center text-sm text-gray-500">
+          No Pay It Forward gifts on file yet.
+        </p>
+      )}
+    </Panel>
   );
 }
 
