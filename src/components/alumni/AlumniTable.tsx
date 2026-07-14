@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ExternalLink } from "lucide-react";
-import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
+import { RowAvatar } from "@/components/shared/RowAvatar";
 import { AlumniRowActions } from "@/components/alumni/AlumniRowActions";
 import { abbreviateState } from "@/lib/usStates";
 import type { Alumni } from "@/types/alumni";
@@ -50,6 +50,21 @@ function genderLabel(value: string | null | undefined): string {
   return c === "M" || c === "F" ? c : "";
 }
 
+/**
+ * "Last Updated" label for a list row (#398): the month + year the record last
+ * changed, from `updated_at` (a required, non-null date-time on the list item).
+ * Formatted "Mon YYYY" (e.g. "Jul 2026"), matching the app's other short-date
+ * cells. Read defensively so a missing/blank/invalid value degrades to "" (the
+ * cell then renders an em-dash) instead of "Invalid Date" — if the backend ever
+ * drops `updated_at` from the list payload the column simply shows "—".
+ */
+function lastUpdatedLabel(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+}
+
 /** Desktop alumni table. The entire row is clickable (navigates to the
  *  profile); the name stays a real link for keyboard/focus, and the LinkedIn
  *  link stops propagation so it opens externally instead of the profile. */
@@ -57,6 +72,7 @@ export function AlumniTable({
   items,
   canEdit = false,
   canAdd = false,
+  headshotUrls,
 }: {
   items: Alumni[];
   /** Role gates threaded from the server page — drive the per-row action menu's
@@ -64,6 +80,10 @@ export function AlumniTable({
    *  the table never offers an action the backend would reject. */
   canEdit?: boolean;
   canAdd?: boolean;
+  /** Signed headshot URLs keyed by `alumni_id`, minted server-side for the
+   *  visible page (the headshot bucket is private). A missing/null entry renders
+   *  the initials fallback. */
+  headshotUrls?: Record<number, string | null>;
 }) {
   const router = useRouter();
   const showActions = canEdit || canAdd;
@@ -97,6 +117,9 @@ export function AlumniTable({
             <th className="sticky top-0 z-10 w-16 bg-gray-50 px-4 py-2.5">
               State
             </th>
+            <th className="sticky top-0 z-10 w-28 bg-gray-50 px-4 py-2.5">
+              Last Updated
+            </th>
             <th className="sticky top-0 z-10 w-24 bg-gray-50 px-4 py-2.5">
               LinkedIn
             </th>
@@ -116,7 +139,10 @@ export function AlumniTable({
             >
               <td className="px-4 py-2.5">
                 <div className="flex min-w-0 items-center gap-3">
-                  <InitialsAvatar name={avatarName(a)} size="sm" />
+                  <RowAvatar
+                    url={headshotUrls?.[a.alumni_id] ?? null}
+                    name={avatarName(a)}
+                  />
                   <Link
                     href={`/alumni/${a.alumni_id}`}
                     onClick={(e) => e.stopPropagation()}
@@ -164,6 +190,11 @@ export function AlumniTable({
                   </>
                 );
               })()}
+              <td className="truncate px-4 py-2.5 tabular-nums text-gray-700">
+                {lastUpdatedLabel(a.updated_at) || (
+                  <span className="text-gray-300">—</span>
+                )}
+              </td>
               <td className="px-4 py-2.5">
                 {a.linkedin_url ? (
                   <a
