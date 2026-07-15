@@ -697,8 +697,11 @@ export default async function AlumniProfilePage({
 
           {/* KPI strip — 6 non-sensitive tiles, shown for every role.
               "Graduating class" is the named cohort (graduation_class, falling
-              back to graduation_year); "Graduated" is the specific semester +
-              year once both are on file. */}
+              back to graduation_year). The industry tile is split: the top is
+              the primary industry (one of the 15 controlled categories) and the
+              bottom is the free-text secondary/"Other" detail (e.g. primary
+              "Other", secondary "Healthcare"). Replaces the old "Graduated"
+              tile — the graduating-class tile already covers cohort year. */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <MetricCard
               label="Graduating class"
@@ -710,12 +713,14 @@ export default async function AlumniProfilePage({
                     : "—"
               }
             />
-            <MetricCard
-              label="Graduated"
-              value={
-                a.graduation_semester && a.graduation_year
-                  ? `${a.graduation_semester} ${a.graduation_year}`
-                  : "—"
+            <StackedTile
+              topLabel="Industry"
+              topValue={career?.current_industry ?? "—"}
+              bottomLabel="Secondary industry"
+              bottomValue={career?.current_industry_secondary ?? "—"}
+              title={
+                "Primary industry (one of the 15 categories); secondary industry " +
+                'holds any further detail, e.g. primary "Other" with a secondary of "Healthcare".'
               }
             />
             <MetricCard label="Interactions" value={profile.interaction_count} />
