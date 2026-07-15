@@ -6,7 +6,7 @@ Finance program. Built with Next.js (App Router), TypeScript, Tailwind CSS, and 
 See `CLAUDE.md` for architecture/context and `UX-UI.md` for the design system. The running
 checklist of work lives in `NEXT-STEPS.md`.
 
-**Live:** https://finance-alumni-database.vercel.app (deployed on Vercel)
+**Live:** https://finance.alumni.byu.edu (deployed on Vercel as `finance-alumni-database`)
 
 ## Local development
 
