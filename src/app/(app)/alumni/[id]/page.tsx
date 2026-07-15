@@ -66,12 +66,6 @@ function monthDay(iso: string | null): { mon: string; day: string } | null {
  *  ledger stores a year + optional month (day is always the 1st), so the day is
  *  never surfaced. Parsed as local time (T00:00:00) so a "YYYY-MM-01" value never
  *  shifts back a month in negative-offset timezones. */
-function monthYear(iso: string | null): string | null {
-  if (!iso) return null;
-  const d = new Date(`${iso.slice(0, 10)}T00:00:00`);
-  return d.toLocaleDateString("en-US", { year: "numeric", month: "short" });
-}
-
 const place = (...parts: (string | null | undefined)[]) =>
   parts.filter(Boolean).join(", ") || null;
 
@@ -455,13 +449,6 @@ export default async function AlumniProfilePage({
     next_survey_date?: string | null;
   };
 
-  // Pay It Forward tile (#365) — derived from the already-fetched donations
-  // payload so amount gating is reused verbatim: `lifetime_total` is null when
-  // the caller may not see dollar figures.
-  const lastDonatedYear = donations?.donations.length
-    ? Math.max(...donations.donations.map((d) => d.year))
-    : null;
-  const totalGiven = donations?.lifetime_total ?? null;
 
   // Next scheduled survey (#364) — prefer a backend-provided date, else derive
   // the nearest not-yet-completed due date from the survey list.
@@ -733,16 +720,27 @@ export default async function AlumniProfilePage({
             />
             <MetricCard label="Interactions" value={profile.interaction_count} />
             <MetricCard label="Events attended" value={profile.events.length} />
-            {/* Pay It Forward giving (#365) — amounts arrive pre-gated from the
-                backend (Total given shows a restricted note when withheld). */}
+            {/* Pay It Forward giving (#365/#403) — last gift amount + lifetime
+                total, both pre-gated by the backend (Restricted when the caller
+                may not see dollar figures; em-dash when there are no gifts). */}
             <StackedTile
               topLabel="Last donated"
-              topValue={lastDonatedYear ?? "—"}
+              topValue={
+                pif.donation_count > 0 ? (
+                  pif.last_donation_amount !== null ? (
+                    money(pif.last_donation_amount)
+                  ) : (
+                    <span className="text-gray-400">Restricted</span>
+                  )
+                ) : (
+                  "—"
+                )
+              }
               bottomLabel="Total given"
               bottomValue={
-                donations ? (
-                  totalGiven !== null ? (
-                    money(totalGiven)
+                pif.donation_count > 0 ? (
+                  pif.total_lifetime_amount !== null ? (
+                    money(pif.total_lifetime_amount)
                   ) : (
                     <span className="text-gray-400">Restricted</span>
                   )
@@ -1000,11 +998,6 @@ export default async function AlumniProfilePage({
                 </div>
               </Panel>
 
-              {/* Full-width, row 3 — Pay It Forward summary (#403). Compact stat
-                  strip. Dollar amounts arrive pre-gated from the backend (null for
-                  callers without full access): amounts render only when present,
-                  never as $0; the count and last-gift month always show. */}
-              <PayItForwardSummary pif={pif} className="lg:col-span-3" />
               </div>
             }
             profileCompleteness={
@@ -1903,77 +1896,6 @@ function OtherDesignations({ text }: { text: string }) {
         </p>
       )}
     </div>
-  );
-}
-
-/** One labelled stat in the Pay It Forward summary strip. */
-function PifStat({
-  label,
-  value,
-}: {
-  label: string;
-  value: React.ReactNode;
-}) {
-  return (
-    <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-        {label}
-      </p>
-      <p className="mt-0.5 text-lg font-semibold tabular-nums text-gray-900">
-        {value}
-      </p>
-    </div>
-  );
-}
-
-/** Compact Pay It Forward giving summary for the profile overview (#403), built
- *  from the `pay_it_forward` roll-up on the profile payload. Dollar amounts are
- *  gated server-side — `last_donation_amount` / `total_lifetime_amount` are null
- *  for callers without full access. Amounts render only when present (never as
- *  $0); a null amount shows a restrained "Amount hidden". The donation count and
- *  last-gift month stay visible to every role. */
-function PayItForwardSummary({
-  pif,
-  className = "",
-}: {
-  pif: Profile["pay_it_forward"];
-  className?: string;
-}) {
-  const hidden = (
-    <span className="text-sm font-normal text-gray-400">Amount hidden</span>
-  );
-  return (
-    <Panel title="Pay It Forward" className={className}>
-      {pif.donation_count > 0 ? (
-        <div className="flex flex-wrap items-start gap-x-12 gap-y-4">
-          <PifStat label="Donations" value={pif.donation_count} />
-          <PifStat
-            label="Last gift"
-            value={monthYear(pif.last_donation_date) ?? "—"}
-          />
-          <PifStat
-            label="Last gift amount"
-            value={
-              pif.last_donation_amount !== null
-                ? money(pif.last_donation_amount)
-                : hidden
-            }
-          />
-          <PifStat
-            label="Lifetime giving"
-            value={
-              pif.total_lifetime_amount !== null
-                ? money(pif.total_lifetime_amount)
-                : hidden
-            }
-          />
-        </div>
-      ) : (
-        <p className="py-6 text-center text-sm text-gray-500">
-          No Pay It Forward gifts on file yet.
-        </p>
-      )}
-    </Panel>
   );
 }
 
