@@ -25,6 +25,7 @@ export const INDUSTRY_OPTIONS = [
   "Valuation & Advisory",
   "Venture Capital",
   "Wealth Management",
+  "Financial Services",
   "Law",
   "Corporate Banking",
   "FP&A",
