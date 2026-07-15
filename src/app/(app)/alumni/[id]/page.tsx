@@ -697,8 +697,13 @@ export default async function AlumniProfilePage({
 
           {/* KPI strip — 6 non-sensitive tiles, shown for every role.
               "Graduating class" is the named cohort (graduation_class, falling
-              back to graduation_year); "Graduated" is the specific semester +
-              year once both are on file. */}
+              back to graduation_year). The industry tile shows the primary
+              industry (one of the 15 controlled categories); when the alumnus
+              also has a free-text secondary/"Other" detail it splits into a
+              stacked tile (top "Industry", bottom "Secondary industry", e.g.
+              primary "Other" / secondary "Healthcare"), otherwise it stays a
+              plain single-value tile. Replaces the old "Graduated" tile — the
+              graduating-class tile already covers cohort year. */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <MetricCard
               label="Graduating class"
@@ -710,14 +715,24 @@ export default async function AlumniProfilePage({
                     : "—"
               }
             />
-            <MetricCard
-              label="Graduated"
-              value={
-                a.graduation_semester && a.graduation_year
-                  ? `${a.graduation_semester} ${a.graduation_year}`
-                  : "—"
-              }
-            />
+            {career?.current_industry_secondary ? (
+              <StackedTile
+                topLabel="Industry"
+                topValue={career.current_industry ?? "—"}
+                bottomLabel="Secondary industry"
+                bottomValue={career.current_industry_secondary}
+                title={
+                  "Primary industry (one of the 15 categories); secondary industry " +
+                  'holds any further detail, e.g. primary "Other" with a secondary of "Healthcare".'
+                }
+              />
+            ) : (
+              <MetricCard
+                label="Industry"
+                value={career?.current_industry ?? "—"}
+                title="Primary industry (one of the 15 categories)."
+              />
+            )}
             <MetricCard label="Interactions" value={profile.interaction_count} />
             <MetricCard label="Events attended" value={profile.events.length} />
             {/* Pay It Forward giving (#365/#403) — last gift amount + lifetime

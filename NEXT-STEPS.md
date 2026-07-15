@@ -24,7 +24,7 @@ Update as work progresses. Scope and rules live in `CLAUDE.md` (architecture) an
       `Secret scan (gitleaks)`) on `dev`/`prod`; prod-only `Dependency audit (npm audit)` on `prod`
 - [x] Branch protection (rulesets): PR required on both branches; base checks required on `dev`,
       base + audit on `prod`; "require branches up to date" disabled to avoid the promotion treadmill
-- [x] **Live on Vercel** → https://finance-alumni-database.vercel.app — **two projects, one per branch**
+- [x] **Live on Vercel** → https://finance.alumni.byu.edu (prod custom domain) — **two projects, one per branch**
       (`dev-fa-web-app` builds `dev` + PR previews; `finance-alumni-database` builds `prod` only),
       scoped via each project's *Ignored Build Step*
 
@@ -104,7 +104,7 @@ Required states for every data screen: **loading (skeleton), empty, error, view-
 
 ## Deployment
 
-- **Live URL:** https://finance-alumni-database.vercel.app
+- **Live URL:** https://finance.alumni.byu.edu (prod; Vercel project `finance-alumni-database`)
 - **Auto-deploy:** Git-connected, two projects — merge to `prod` deploys `finance-alumni-database`;
   `dev` + PRs deploy `dev-fa-web-app` (per-branch *Ignored Build Step*).
 - [ ] Set `NEXT_PUBLIC_API_URL` in Vercel — the backend is now live
@@ -112,7 +112,7 @@ Required states for every data screen: **loading (skeleton), empty, error, view-
       the API badge shows "not reachable" on the live site
 - [x] Vercel deploys scoped per branch via each project's *Ignored Build Step* (replaces the old
       single "Production Branch" setting)
-- [ ] Add a custom domain when ready
+- [x] Add a custom domain when ready — live at `https://finance.alumni.byu.edu`
 
 ---
 
