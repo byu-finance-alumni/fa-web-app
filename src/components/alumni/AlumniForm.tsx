@@ -7,13 +7,18 @@ import type { Alumni, HygienePreview } from "@/types/alumni";
 import { INDUSTRY_OPTIONS } from "@/constants/dropdowns";
 import { useVocabOptions, withValue } from "@/hooks/useVocabOptions";
 import { SpousePicker } from "@/components/alumni/SpousePicker";
+import {
+  Field,
+  FieldLabel,
+  SelectField,
+  Checkbox,
+  Section,
+} from "@/components/alumni/form-fields";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
 
 type Action = (prev: FormState, formData: FormData) => Promise<FormState>;
 
@@ -199,180 +204,6 @@ function validateAll(formData: FormData): Record<string, string> {
     if (msg) errors[name] = msg;
   }
   return errors;
-}
-
-/* --------------------------------------------------------------- field ----- */
-
-function FieldLabel({
-  htmlFor,
-  children,
-  required,
-}: {
-  htmlFor: string;
-  children: React.ReactNode;
-  required?: boolean;
-}) {
-  return (
-    <Label htmlFor={htmlFor} className="mb-1.5">
-      {children}
-      {required ? <span className="text-danger-600"> *</span> : null}
-    </Label>
-  );
-}
-
-function Field({
-  label,
-  name,
-  defaultValue,
-  value,
-  type = "text",
-  error,
-  onBlur,
-  onChange,
-  required,
-  placeholder,
-  hint,
-}: {
-  label: string;
-  name: string;
-  defaultValue?: string;
-  /** When provided, the input renders CONTROLLED (value + onChange). Leave
-   * undefined for the default uncontrolled (`defaultValue`) behavior. */
-  value?: string;
-  type?: string;
-  error?: string;
-  onBlur?: (name: string, value: string) => void;
-  /** Fires on every keystroke with the field's current value. Works for both
-   * controlled fields (to update state) and uncontrolled ones (to react to
-   * changes without owning the value). */
-  onChange?: (name: string, value: string) => void;
-  required?: boolean;
-  placeholder?: string;
-  /** Optional muted helper line shown under the field (non-error). */
-  hint?: string;
-}) {
-  const errorId = error ? `${name}-error` : undefined;
-  const hintId = hint ? `${name}-hint` : undefined;
-  const controlled = value !== undefined;
-  return (
-    <div>
-      <FieldLabel htmlFor={name} required={required}>
-        {label}
-      </FieldLabel>
-      <Input
-        id={name}
-        name={name}
-        type={type}
-        // Controlled when `value` is supplied; otherwise uncontrolled via
-        // `defaultValue` (React forbids passing both).
-        {...(controlled ? { value } : { defaultValue })}
-        placeholder={placeholder}
-        // Off so the browser can't inject/duplicate autofill text into these
-        // uncontrolled fields (the only path that could render e.g. a doubled
-        // "FinanceFinance" department value; the stored data is single).
-        autoComplete="off"
-        aria-invalid={error ? true : undefined}
-        aria-describedby={errorId ?? hintId}
-        onBlur={onBlur ? (e) => onBlur(name, e.target.value) : undefined}
-        onChange={onChange ? (e) => onChange(name, e.target.value) : undefined}
-        className={cn(
-          error && "border-danger-600 focus-visible:ring-danger-600",
-        )}
-      />
-      {error ? (
-        <p id={errorId} className="mt-1 text-xs text-danger-600">
-          {error}
-        </p>
-      ) : hint ? (
-        <p id={hintId} className="mt-1 text-xs text-brand-blue-600">
-          {hint}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function SelectField({
-  label,
-  name,
-  options,
-  error,
-  defaultValue = "",
-}: {
-  label: string;
-  name: string;
-  options: readonly string[];
-  error?: string;
-  defaultValue?: string;
-}) {
-  const errorId = error ? `${name}-error` : undefined;
-  return (
-    <div>
-      <FieldLabel htmlFor={name}>{label}</FieldLabel>
-      <Select
-        id={name}
-        name={name}
-        defaultValue={defaultValue}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={errorId}
-        className={cn(
-          error && "border-danger-600 focus-visible:ring-danger-600",
-        )}
-      >
-        <option value="">—</option>
-        {options.map((opt) => (
-          <option key={opt} value={opt}>
-            {opt}
-          </option>
-        ))}
-      </Select>
-      {error ? (
-        <p id={errorId} className="mt-1 text-xs text-danger-600">
-          {error}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function Checkbox({
-  label,
-  name,
-  defaultChecked,
-}: {
-  label: string;
-  name: string;
-  defaultChecked?: boolean;
-}) {
-  return (
-    <label className="flex items-center gap-2 text-sm text-gray-700">
-      <input
-        type="checkbox"
-        name={name}
-        value="true"
-        defaultChecked={defaultChecked}
-        className="h-4 w-4 rounded border-gray-300 text-brand-blue-600 focus:ring-brand-blue-500"
-      />
-      {label}
-    </label>
-  );
-}
-
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
-  );
 }
 
 /* -------------------------------------------------------- review helpers --- */

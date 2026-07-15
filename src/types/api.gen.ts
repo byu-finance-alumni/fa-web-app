@@ -2793,6 +2793,8 @@ export interface components {
             finance_program_year: number | null;
             /** Graduate Degree */
             graduate_degree: string | null;
+            /** Graduate Graduation Year */
+            graduate_graduation_year: number | null;
             /** Citizenship */
             citizenship: string | null;
             /** Marital Status */
@@ -3118,6 +3120,8 @@ export interface components {
             finance_program_year: number | null;
             /** Graduate Degree */
             graduate_degree: string | null;
+            /** Graduate Graduation Year */
+            graduate_graduation_year: number | null;
             /** Citizenship */
             citizenship: string | null;
             /** Marital Status */
@@ -3272,6 +3276,8 @@ export interface components {
             finance_program_year: number | null;
             /** Graduate Degree */
             graduate_degree: string | null;
+            /** Graduate Graduation Year */
+            graduate_graduation_year: number | null;
             /** Citizenship */
             citizenship: string | null;
             /** Marital Status */
@@ -3387,6 +3393,8 @@ export interface components {
             finance_program_year: number | null;
             /** Graduate Degree */
             graduate_degree: string | null;
+            /** Graduate Graduation Year */
+            graduate_graduation_year: number | null;
             /** Citizenship */
             citizenship: string | null;
             /** Marital Status */
@@ -3659,6 +3667,8 @@ export interface components {
             current_industry?: string | null;
             /** Current Industry Secondary */
             current_industry_secondary?: string | null;
+            /** Company Address */
+            company_address?: string | null;
             /** Current City */
             current_city?: string | null;
             /** Current State */
