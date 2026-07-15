@@ -1,31 +1,36 @@
 import { redirect } from "next/navigation";
 import { Topbar } from "@/components/shell/Topbar";
 import { getAuthContext } from "@/lib/auth-context";
-import { hasFullAccess } from "@/constants/roles";
-import { ImportWizard } from "@/components/alumni/import/ImportWizard";
+import { hasFullAccess, isUserAdmin } from "@/constants/roles";
+import { ImportHub } from "@/components/alumni/import/ImportHub";
 
 /**
- * CSV bulk-import screen, under the Admin dropdown. Full access and up
- * (engineer / super_admin / full_access) — the same gate the Admin → "Import
- * CSV" nav item uses, and the backend enforces it too (all three import
- * endpoints require full access). View-only and student users are redirected
- * back to the list rather than shown a dead-end page.
+ * Import hub (#401), under the Admin dropdown. The user first picks an import
+ * TYPE — CSV Alumni, CSV Friends, Photos, or Pay It Forward — then the matching
+ * wizard renders inline. Full access and up may reach the page (mirroring the
+ * Admin → "Import" nav item); the Pay It Forward option is additionally
+ * limited to super_admin, matching the donations import gate. Every gate is
+ * re-enforced by the backend on each request. View-only and student users are
+ * redirected back to the list rather than shown a dead-end page.
  */
-export default async function ImportAlumniPage() {
-  let canImport = false;
+export default async function ImportHubPage() {
+  let canFullAccess = false;
+  let canDonations = false;
   try {
     const ctx = await getAuthContext();
-    canImport = hasFullAccess(ctx.roles);
+    canFullAccess = hasFullAccess(ctx.roles);
+    canDonations = isUserAdmin(ctx.roles);
   } catch {
-    canImport = false;
+    canFullAccess = false;
+    canDonations = false;
   }
-  if (!canImport) redirect("/alumni");
+  if (!canFullAccess) redirect("/alumni");
 
   return (
     <>
-      <Topbar breadcrumb={[{ label: "Admin" }, { label: "Import CSV" }]} />
+      <Topbar breadcrumb={[{ label: "Admin" }, { label: "Import" }]} />
       <main className="flex-1 overflow-auto p-6">
-        <ImportWizard />
+        <ImportHub canFullAccess={canFullAccess} canDonations={canDonations} />
       </main>
     </>
   );

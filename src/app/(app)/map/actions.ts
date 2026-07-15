@@ -3,6 +3,7 @@
 import cityCrosswalk from "@/lib/geo/city-crosswalk.json";
 import majorCities from "@/lib/geo/major-cities.json";
 import { lookupCityGeo, STATE_FIPS } from "@/lib/geo/counties-data";
+import { STATE_NAME_TO_USPS } from "@/lib/geo/us-states";
 import { apiGet, ApiError } from "@/lib/api";
 import type {
   CountryDetail,
@@ -253,64 +254,6 @@ export async function geocodePlace(place: string): Promise<GeocodeResult> {
     ...(otherStates.length ? { spannedStates: otherStates } : {}),
   };
 }
-
-/** Full state name → USPS abbreviation, for the map's State search (#214). DC
- *  included so the typed search covers the same 51 the crosswalk does. */
-const STATE_NAME_TO_USPS: Record<string, string> = {
-  alabama: "AL",
-  alaska: "AK",
-  arizona: "AZ",
-  arkansas: "AR",
-  california: "CA",
-  colorado: "CO",
-  connecticut: "CT",
-  delaware: "DE",
-  "district of columbia": "DC",
-  "washington dc": "DC",
-  "washington d.c.": "DC",
-  florida: "FL",
-  georgia: "GA",
-  hawaii: "HI",
-  idaho: "ID",
-  illinois: "IL",
-  indiana: "IN",
-  iowa: "IA",
-  kansas: "KS",
-  kentucky: "KY",
-  louisiana: "LA",
-  maine: "ME",
-  maryland: "MD",
-  massachusetts: "MA",
-  michigan: "MI",
-  minnesota: "MN",
-  mississippi: "MS",
-  missouri: "MO",
-  montana: "MT",
-  nebraska: "NE",
-  nevada: "NV",
-  "new hampshire": "NH",
-  "new jersey": "NJ",
-  "new mexico": "NM",
-  "new york": "NY",
-  "north carolina": "NC",
-  "north dakota": "ND",
-  ohio: "OH",
-  oklahoma: "OK",
-  oregon: "OR",
-  pennsylvania: "PA",
-  "rhode island": "RI",
-  "south carolina": "SC",
-  "south dakota": "SD",
-  tennessee: "TN",
-  texas: "TX",
-  utah: "UT",
-  vermont: "VT",
-  virginia: "VA",
-  washington: "WA",
-  "west virginia": "WV",
-  wisconsin: "WI",
-  wyoming: "WY",
-};
 
 /**
  * Resolve a typed state (a 2-letter USPS code OR a full state name) to its USPS

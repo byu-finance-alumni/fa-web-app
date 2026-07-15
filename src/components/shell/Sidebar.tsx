@@ -35,6 +35,10 @@ const NAV: NavItem[] = [
   // contacts, backend is_alumni=false).
   { href: "/friends", label: "Friends" },
   { href: "/map", label: "Map" },
+  // #400 Statistics — placeholder analytics workspace. No gating flags, so it's
+  // visible to EVERY role (engineer / super_admin / admin / student / professor);
+  // the page itself is a public-to-all "Under construction" notice for now.
+  { href: "/statistics", label: "Statistics" },
   { href: "/events", label: "Events" },
   // Pay It Forward is a data-management surface — the backend requires the
   // full_access tier (alumni.full) to read the donor ledger at all (#278), so
@@ -59,7 +63,7 @@ const NAV: NavItem[] = [
       // Vocabulary is capability-gated (not role-locked), so a super_admin (or
       // any role) granted the vocab capability sees and can open it here.
       { href: "/vocabulary", label: "Vocabulary", vocabOnly: true },
-      { href: "/admin/import", label: "Import CSV", fullAccessOnly: true },
+      { href: "/admin/import", label: "Import", fullAccessOnly: true },
     ],
   },
   // Engineer console — its own home for every engineer-only tool (#162). The
