@@ -28,6 +28,14 @@ type NavItem = NavLeaf & {
   children?: NavLeaf[];
 };
 
+// Gating legend (see `canSee` for the predicates):
+//   (no flag)      → every role
+//   hideViewOnly   → student and up (hidden from view_only / "Professor")
+//   fullAccessOnly → full_access, super_admin, engineer
+//   superAdminOnly → super_admin, engineer
+//   vocabOnly      → holders of the vocab_admin capability (engineer + granted)
+//   engineerOnly   → engineer only
+// A group is shown only when the role can see ≥1 child, so no empty headers.
 const NAV: NavItem[] = [
   // --- Browse: the everyday find/view surfaces. Flat and (almost) ungated so
   // every role gets a short, scannable list at the top. ---
