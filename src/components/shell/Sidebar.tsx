@@ -42,9 +42,10 @@ const NAV: NavItem[] = [
   // visible to EVERY role (engineer / super_admin / full_access / student /
   // professor); the page itself is a public-to-all "Under construction" notice.
   { href: "/statistics", label: "Statistics" },
-  // Activity feed — hidden from view_only ("Professor"), shown to student and
-  // every higher tier (it only errors for unprovisioned/read-only users).
-  { href: "/activity", label: "Activity", hideViewOnly: true },
+  // Activity feed — full_access+ only. The backend /dashboard/activity route is
+  // RequireFullAccess (student and view_only are 403'd), so gate the nav to
+  // match rather than leaving student/professor a link that just errors.
+  { href: "/activity", label: "Activity", fullAccessOnly: true },
 
   // --- Manage: the full_access work tools, gathered into one collapsible group.
   // Every child is fullAccessOnly, so the whole group is dropped for
