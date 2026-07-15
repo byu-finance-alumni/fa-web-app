@@ -29,41 +29,60 @@ type NavItem = NavLeaf & {
 };
 
 const NAV: NavItem[] = [
+  // --- Browse: the everyday find/view surfaces. Flat and (almost) ungated so
+  // every role gets a short, scannable list at the top. ---
   { href: "/dashboard", label: "Dashboard" },
   { href: "/alumni", label: "Alumni" },
   // #218 Friends of the finance program — its own /friends route (non-alumni
   // contacts, backend is_alumni=false).
   { href: "/friends", label: "Friends" },
+  { href: "/events", label: "Events" },
   { href: "/map", label: "Map" },
   // #400 Statistics — placeholder analytics workspace. No gating flags, so it's
-  // visible to EVERY role (engineer / super_admin / admin / student / professor);
-  // the page itself is a public-to-all "Under construction" notice for now.
+  // visible to EVERY role (engineer / super_admin / full_access / student /
+  // professor); the page itself is a public-to-all "Under construction" notice.
   { href: "/statistics", label: "Statistics" },
-  { href: "/events", label: "Events" },
-  // Pay It Forward is a data-management surface — the backend requires the
-  // full_access tier (alumni.full) to read the donor ledger at all (#278), so
-  // student and view_only ("Professor") are 403'd. Gate the nav to full_access+
-  // to match, rather than only hiding it from view_only (which would leave a
-  // student a link that just errors). The backend re-enforces the route.
-  { href: "/pay-it-forward", label: "Pay It Forward", fullAccessOnly: true },
+  // Activity feed — hidden from view_only ("Professor"), shown to student and
+  // every higher tier (it only errors for unprovisioned/read-only users).
   { href: "/activity", label: "Activity", hideViewOnly: true },
-  { href: "/tasks", label: "Tasks", fullAccessOnly: true },
+
+  // --- Manage: the full_access work tools, gathered into one collapsible group.
+  // Every child is fullAccessOnly, so the whole group is dropped for
+  // student/view_only rather than showing an empty header. ---
   {
-    href: "/needs-surveying",
-    label: "Needs Surveying",
+    href: "/manage",
+    label: "Manage",
     fullAccessOnly: true,
+    children: [
+      { href: "/tasks", label: "Tasks", fullAccessOnly: true },
+      {
+        href: "/needs-surveying",
+        label: "Needs Surveying",
+        fullAccessOnly: true,
+      },
+      // Pay It Forward donor ledger — the backend requires the full_access tier
+      // (alumni.full) to read it at all (#278), so gate the nav to match rather
+      // than leaving lower tiers a link that just 403s.
+      { href: "/pay-it-forward", label: "Pay It Forward", fullAccessOnly: true },
+      { href: "/data-quality", label: "Data quality", fullAccessOnly: true },
+      // Import CSV lives here — it's a full_access DATA operation, not user/audit
+      // administration. Keeping it out of Admin means Admin stays a true
+      // super-admin section (no lone "Import" link for full_access).
+      { href: "/admin/import", label: "Import", fullAccessOnly: true },
+    ],
   },
-  { href: "/data-quality", label: "Data quality", fullAccessOnly: true },
+
+  // --- Admin: user & audit administration (super_admin+). Vocabulary is
+  // capability-gated (not role-locked): the engineer always, plus any role an
+  // engineer grants the vocab capability. Users/Audit keep the group non-empty
+  // for super_admin, so Vocabulary is never a lone item here. ---
   {
     href: "/admin",
     label: "Admin",
     children: [
       { href: "/admin", label: "Users", superAdminOnly: true },
       { href: "/audit", label: "Audit", superAdminOnly: true },
-      // Vocabulary is capability-gated (not role-locked), so a super_admin (or
-      // any role) granted the vocab capability sees and can open it here.
       { href: "/vocabulary", label: "Vocabulary", vocabOnly: true },
-      { href: "/admin/import", label: "Import", fullAccessOnly: true },
     ],
   },
   // Engineer console — its own home for every engineer-only tool (#162). The
