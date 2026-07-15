@@ -4,10 +4,16 @@ import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { ImportWizard } from "@/components/alumni/import/ImportWizard";
+import { UpdateImportWizard } from "@/components/alumni/import/UpdateImportWizard";
 import { PhotoImportWizard } from "@/components/alumni/import/PhotoImportWizard";
 import { DonationsImportWizard } from "@/components/donations/DonationsImportWizard";
 
-type ImportType = "alumni" | "friends" | "photos" | "pay-it-forward";
+type ImportType =
+  | "alumni"
+  | "update"
+  | "friends"
+  | "photos"
+  | "pay-it-forward";
 
 type Option = {
   value: ImportType;
@@ -20,6 +26,12 @@ const ALL_OPTIONS: Option[] = [
     value: "alumni",
     label: "CSV — Alumni",
     description: "Bulk-add or update alumni from a spreadsheet.",
+  },
+  {
+    value: "update",
+    label: "Update existing (CSV)",
+    description:
+      "Upload an edited cohort CSV to update existing profiles (matched by BYU/Net ID).",
   },
   {
     value: "friends",
@@ -92,6 +104,7 @@ export function ImportHub({
       </div>
 
       {selected === "alumni" && <ImportWizard kind="alumni" />}
+      {selected === "update" && <UpdateImportWizard />}
       {selected === "friends" && <ImportWizard kind="friend" />}
       {selected === "photos" && <PhotoImportWizard />}
       {selected === "pay-it-forward" && <DonationsImportWizard />}

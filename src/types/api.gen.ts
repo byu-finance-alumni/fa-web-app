@@ -517,6 +517,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/alumni/import/update/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Update Import Alumni
+         * @description Dry-run a bulk UPDATE from a round-trip CSV (full_access, NO writes).
+         *
+         *     Parses + maps the uploaded CSV against the alumni template columns, then for
+         *     each row resolves the match (BYU ID -> Net ID, active only) and computes a
+         *     per-field diff against the CURRENT stored values. Returns the structured
+         *     preview; a bad header set surfaces as ``columns_ok: false``.
+         */
+        post: operations["preview_update_import_alumni_alumni_import_update_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alumni/import/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Update Import Alumni
+         * @description Commit a bulk UPDATE from a round-trip CSV (full_access).
+         *
+         *     Re-evaluates and applies every matched, changed row in one transaction, each
+         *     through the single-record edit path (so cleaning + provenance + per-field
+         *     audit fire). Blank cells are left unchanged; unmatched rows are reported,
+         *     never created; rows with no effective change are reported ``unchanged``. A bad
+         *     header set updates nothing.
+         */
+        post: operations["update_import_alumni_alumni_import_update_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/alumni/export/columns": {
         parameters: {
             query?: never;
@@ -3349,6 +3400,24 @@ export interface components {
             updated_at: string;
         };
         /**
+         * AlumniUpdateFieldChange
+         * @description One field a matched row would change: ``old`` -> ``new``. ``old``/``new``
+         *     are free-form (``Any``) since a cell can hold a string, int, bool, or date.
+         */
+        AlumniUpdateFieldChange: {
+            /** Field */
+            field: string;
+            /**
+             * Section
+             * @default core
+             */
+            section: string;
+            /** Old */
+            old: unknown;
+            /** New */
+            new: unknown;
+        };
+        /**
          * AlumniUpdateFull
          * @description Update payload: optional core fields plus optional nested sections.
          *
@@ -3445,6 +3514,96 @@ export interface components {
             career: components["schemas"]["CareerCreate"] | null;
             education: components["schemas"]["app__schemas__alumni__EducationCreate"] | null;
             engagement: components["schemas"]["EngagementCreate"] | null;
+        };
+        /**
+         * AlumniUpdatePreview
+         * @description ``POST /alumni/import/update/preview`` dry-run report.
+         */
+        AlumniUpdatePreview: {
+            /** Columns Ok */
+            columns_ok: boolean;
+            /** Header Errors */
+            header_errors: string[];
+            summary: components["schemas"]["AlumniUpdateSummary"];
+            /** Rows */
+            rows: components["schemas"]["AlumniUpdateRowReport"][];
+        };
+        /**
+         * AlumniUpdateResult
+         * @description ``POST /alumni/import/update`` commit result.
+         */
+        AlumniUpdateResult: {
+            /** Updated */
+            updated: number;
+            /** Unchanged */
+            unchanged: number;
+            /** Unmatched */
+            unmatched: number;
+            /** Errors */
+            errors: number;
+            /** Updated Ids */
+            updated_ids: number[];
+            /** Results */
+            results: components["schemas"]["AlumniUpdateRowResult"][];
+        };
+        /**
+         * AlumniUpdateRowReport
+         * @description Per-row detail in an update preview.
+         *
+         *     ``status`` is one of ``update`` (matched, has changes), ``no_changes``
+         *     (matched, nothing differs), ``unmatched`` (no active match — not created),
+         *     ``unmatched_archived`` (matches only an archived record — not updated), or
+         *     ``error`` (mapping/validation failure). ``message`` explains an unmatched
+         *     row; ``error`` carries a mapping/validation message.
+         */
+        AlumniUpdateRowReport: {
+            /** Row */
+            row: number;
+            /** Name */
+            name: string | null;
+            /** Alumni Id */
+            alumni_id: number | null;
+            /** Status */
+            status: string;
+            /**
+             * Changes
+             * @default []
+             */
+            changes: components["schemas"]["AlumniUpdateFieldChange"][];
+            /** Error */
+            error: string | null;
+            /** Message */
+            message: string | null;
+        };
+        /**
+         * AlumniUpdateRowResult
+         * @description Per-row outcome in an update commit. ``status`` is ``updated``,
+         *     ``unchanged``, ``unmatched``, ``unmatched_archived``, or ``error``.
+         */
+        AlumniUpdateRowResult: {
+            /** Row */
+            row: number;
+            /** Name */
+            name: string | null;
+            /** Alumni Id */
+            alumni_id: number | null;
+            /** Status */
+            status: string;
+            /** Message */
+            message: string | null;
+        };
+        /** AlumniUpdateSummary */
+        AlumniUpdateSummary: {
+            /** Total */
+            total: number;
+            /** Matched */
+            matched: number;
+            /** Unmatched */
+            unmatched: number;
+            /** With Changes */
+            with_changes: number;
+            /** Errors */
+            errors: number;
         };
         /** AttachmentRead */
         AttachmentRead: {
@@ -3614,6 +3773,16 @@ export interface components {
             event_location?: string | null;
             /** Event Notes */
             event_notes?: string | null;
+        };
+        /** Body_preview_update_import_alumni_alumni_import_update_preview_post */
+        Body_preview_update_import_alumni_alumni_import_update_preview_post: {
+            /** File */
+            file: string;
+        };
+        /** Body_update_import_alumni_alumni_import_update_post */
+        Body_update_import_alumni_alumni_import_update_post: {
+            /** File */
+            file: string;
         };
         /** Body_upload_headshot_alumni__alumni_id__headshot_put */
         Body_upload_headshot_alumni__alumni_id__headshot_put: {
@@ -6397,6 +6566,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AlumniImportResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_update_import_alumni_alumni_import_update_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_preview_update_import_alumni_alumni_import_update_preview_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlumniUpdatePreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_import_alumni_alumni_import_update_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_update_import_alumni_alumni_import_update_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlumniUpdateResult"];
                 };
             };
             /** @description Validation Error */

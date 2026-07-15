@@ -17,6 +17,8 @@ import type {
   HygienePreview,
   ImportPreview,
   ImportResult,
+  UpdateImportPreview,
+  UpdateImportResult,
 } from "@/types/alumni";
 import type {
   AlumniExportRequest,
@@ -1047,6 +1049,74 @@ export async function downloadImportTemplate(
       error:
         e instanceof ApiError ? e.message : "Couldn't download the template.",
     };
+  }
+}
+
+/* ------------------------------------------ CSV bulk UPDATE (round-trip) ----- */
+//
+// A separate flow from the create-import above: staff export a cohort, edit the
+// cells, and upload it back to mass-UPDATE existing profiles (matched by
+// BYU/Net ID). Blank cells are left unchanged; unmatched rows are reported,
+// never created. Same multipart `file` upload contract; distinct endpoints and
+// typed (response_model) result shapes.
+
+/** Discriminated result for the two update-import steps. */
+export type UpdateImportPreviewState =
+  | { ok: true; data: UpdateImportPreview }
+  | { ok: false; error: string };
+
+export type UpdateImportResultState =
+  | { ok: true; data: UpdateImportResult }
+  | { ok: false; error: string };
+
+/**
+ * Dry-run an uploaded CSV against POST /alumni/import/update/preview (multipart
+ * `file`). Returns the per-row change report verbatim, or a mapped error with a
+ * retry. The same File is re-uploaded to `commitUpdateImport` on confirm.
+ */
+export async function previewUpdateImport(
+  formData: FormData,
+): Promise<UpdateImportPreviewState> {
+  const fd = importFormData(formData);
+  if (!fd) return { ok: false, error: "Choose a .csv file to check." };
+  try {
+    const data = await apiPostForm<UpdateImportPreview>(
+      "/alumni/import/update/preview",
+      fd,
+    );
+    return { ok: true, data };
+  } catch (e) {
+    const fs = toFormState(e, "Couldn't read the file — try again.");
+    return {
+      ok: false,
+      error: fs?.error ?? "Couldn't read the file — try again.",
+    };
+  }
+}
+
+/**
+ * Commit the update via POST /alumni/import/update (multipart `file`) — the SAME
+ * file the preview validated. Returns the per-row outcome, or a mapped error. On
+ * success refresh the alumni list plus the dashboard/geography aggregates the
+ * mass-update may have moved.
+ */
+export async function commitUpdateImport(
+  formData: FormData,
+): Promise<UpdateImportResultState> {
+  const fd = importFormData(formData);
+  if (!fd) return { ok: false, error: "Choose a .csv file to update from." };
+  try {
+    const data = await apiPostForm<UpdateImportResult>(
+      "/alumni/import/update",
+      fd,
+    );
+    revalidatePath("/alumni");
+    revalidateTag("dashboard");
+    revalidateTag("geography");
+    return { ok: true, data };
+  } catch (e) {
+    const fs = toFormState(e, "Update failed — try again.");
+    return { ok: false, error: fs?.error ?? "Update failed — try again." };
   }
 }
 
