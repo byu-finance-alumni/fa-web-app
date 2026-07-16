@@ -416,6 +416,9 @@ export default async function AlumniProfilePage({
   const c = profile.contact;
   const career = profile.current_career;
   const aid = a.alumni_id;
+  // Render-time year, used to flag education the alumnus is STILL pursuing
+  // (expected graduation is in the future, or the status says in-progress).
+  const nowYear = new Date().getFullYear();
   const name =
     [a.preferred_first_name ?? a.first_name, a.last_name]
       .filter(Boolean)
@@ -1492,6 +1495,19 @@ export default async function AlumniProfilePage({
                           ]
                             .filter(Boolean)
                             .join(" · ");
+                          // "Current" = still attending: an expected graduation
+                          // year in the future, OR a status that reads as
+                          // in-progress (and not already completed/graduated).
+                          const status = (ed.degree_status ?? "").toLowerCase();
+                          const stillAttending =
+                            (typeof ed.degree_year === "number" &&
+                              ed.degree_year > nowYear) ||
+                            (/in.?progress|enrolled|pursuing|ongoing|attending|expected|anticipated|current/.test(
+                              status,
+                            ) &&
+                              !/complet|graduat|finished|awarded|conferred/.test(
+                                status,
+                              ));
                           return (
                             <li
                               key={ed.education_id}
@@ -1514,6 +1530,9 @@ export default async function AlumniProfilePage({
                                   ) : null}
                                 </div>
                                 <div className="flex shrink-0 items-center gap-2">
+                                  {stillAttending ? (
+                                    <Badge variant="success">Current</Badge>
+                                  ) : null}
                                   {ed.degree_year ? (
                                     <Badge variant="neutral">
                                       {ed.degree_year}
