@@ -34,7 +34,6 @@ export default async function EmploymentEditPage({
             current_title: s(career?.current_title),
             current_industry: s(career?.current_industry),
             current_industry_secondary: s(career?.current_industry_secondary),
-            company_address: s(career?.company_address),
             current_city: s(career?.current_city),
             current_state: s(career?.current_state),
             current_country: s(career?.current_country),

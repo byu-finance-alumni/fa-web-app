@@ -451,9 +451,6 @@ export default async function AlumniProfilePage({
   // Fields a separate backend agent is adding to `GET /alumni/{id}/profile`.
   // Read via optional access (typed extension casts) so a not-yet-deployed
   // backend simply renders an em-dash instead of failing to compile.
-  const careerExtra = career as
-    | (NonNullable<typeof career> & { company_address?: string | null })
-    | null;
   const profileExtra = profile as typeof profile & {
     next_survey_date?: string | null;
   };
@@ -556,7 +553,6 @@ export default async function AlumniProfilePage({
     { label: "Marital status", ok: Boolean(a.marital_status) },
     { label: "Home country", ok: Boolean(a.home_country) },
     { label: "Work email", ok: Boolean(c?.work_email) },
-    { label: "Company address", ok: Boolean(careerExtra?.company_address) },
   ];
   const completeCount = checks.filter((x) => x.ok).length;
   const completeness = Math.round((completeCount / checks.length) * 100);
@@ -906,9 +902,11 @@ export default async function AlumniProfilePage({
                 action={canEdit ? <EditLink id={aid} /> : undefined}
                 className="lg:col-span-2"
               >
-                {/* Split into two columns of three (#profile tweak): work email
-                    + address + city on the left, state + country + ZIP on the
-                    right. LinkedIn moved to Personal & family. */}
+                {/* Split into two columns (#profile tweak): work email + city on
+                    the left, state + country + ZIP on the right. LinkedIn moved
+                    to Personal & family. The left column lost its Company
+                    address row when that field was retired (#287) — it was never
+                    fed by the intake sheet and was empty for every alum. */}
                 <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
                   <div className="space-y-4">
                     {canViewContactDetails ? (
@@ -920,10 +918,6 @@ export default async function AlumniProfilePage({
                         preferred={c?.preferred_contact_method === "work_email"}
                       />
                     ) : null}
-                    <Field
-                      label="Company address"
-                      value={careerExtra?.company_address ?? null}
-                    />
                     <Field
                       label="Current city"
                       value={c?.city ?? null}

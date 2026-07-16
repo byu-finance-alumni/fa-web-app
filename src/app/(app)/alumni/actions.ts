@@ -345,7 +345,6 @@ export async function updateEmploymentSection(
     { name: "current_title" },
     { name: "current_industry" },
     { name: "current_industry_secondary" },
-    { name: "company_address" },
     { name: "current_city" },
     { name: "current_state" },
     { name: "current_country" },
