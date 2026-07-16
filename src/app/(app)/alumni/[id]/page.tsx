@@ -464,6 +464,18 @@ export default async function AlumniProfilePage({
       )[0]?.survey_due_date ??
     null;
 
+  // Display location (#450): the header and Career Snapshot both lead with the
+  // EMPLOYMENT city/state and fall back to the residence (contact) location when
+  // that's blank, so retired/unemployed alumni still show a place. Resolved as a
+  // pair — a half-filled work location never pairs its city with the residence
+  // state. Note the CSV import mirrors the sheet's single (contact) location
+  // block onto career.current_city/current_state, so for imported rows both
+  // sources hold the same value; they only diverge once a real work location is
+  // entered by hand.
+  const residencePlace = place(c?.city, c?.state);
+  const workPlace = place(career?.current_city, career?.current_state);
+  const headerPlace = workPlace ?? residencePlace;
+
   // Career Snapshot employment (#367): the current role (from current_career,
   // falling back to the flagged current employment-history row) plus the two
   // most-recent previous roles from employment history.
@@ -473,19 +485,13 @@ export default async function AlumniProfilePage({
     ? {
         title: career.current_title,
         company: career.current_employer,
-        // Location comes from the contact record (single source of truth for the
-        // person's current city/state, populated by import) — the career
-        // current_city/current_state pair is an employer field the import never
-        // writes and is almost always blank.
-        city: c?.city,
-        state: c?.state,
+        location: headerPlace,
       }
     : currentEmp
       ? {
           title: currentEmp.employment_title,
           company: currentEmp.employer_name,
-          city: currentEmp.city,
-          state: currentEmp.state,
+          location: place(currentEmp.city, currentEmp.state) ?? residencePlace,
         }
       : null;
   const previousJobsAll = [...profile.employment_history]
@@ -615,10 +621,8 @@ export default async function AlumniProfilePage({
                     {career?.current_employer ? (
                       <p>{career.current_employer}</p>
                     ) : null}
-                    {place(c?.city, c?.state) ? (
-                      <p className="text-sm text-gray-500">
-                        {place(c?.city, c?.state)}
-                      </p>
+                    {headerPlace ? (
+                      <p className="text-sm text-gray-500">{headerPlace}</p>
                     ) : null}
                     {/* Employment status (#306) — text-only label. */}
                     {a.employment_status ? (
@@ -811,9 +815,9 @@ export default async function AlumniProfilePage({
                           <p className="text-sm text-gray-600">
                             {currentJob.company ?? "—"}
                           </p>
-                          {place(currentJob.city, currentJob.state) ? (
+                          {currentJob.location ? (
                             <p className="mt-0.5 text-xs text-gray-500">
-                              {place(currentJob.city, currentJob.state)}
+                              {currentJob.location}
                             </p>
                           ) : null}
                         </div>
