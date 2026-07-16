@@ -43,6 +43,12 @@ const TOOLS: Tool[] = [
       "Every sign-in with its captured location, newest first — the security history behind each account.",
   },
   {
+    href: "/engineer/login-failures",
+    title: "Login failures",
+    description:
+      "Every failed sign-in attempt — who, when, from what IP, and why — newest first. The attempted email may not match any account.",
+  },
+  {
     href: "/engineer/support-contacts",
     title: "Support contacts",
     description:

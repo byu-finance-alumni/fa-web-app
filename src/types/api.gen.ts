@@ -266,6 +266,13 @@ export interface paths {
          *
          *     The ``locked`` flag the service returns is intentionally NOT echoed to the
          *     client (anti-enumeration); only the coarse ``reason`` is.
+         *
+         *     On a failure, in addition to bumping the rolling counter, a per-attempt
+         *     ``login_failures`` row is logged (attempted email snapshotted + forwarded IP /
+         *     geo / reason) so the engineer Login-failures tab can show who failed, when,
+         *     and from where. That insert is BEST-EFFORT: a logging failure is swallowed so
+         *     it can never break the throttle response, and it is a pure side-effect — the
+         *     response body is unchanged, preserving the anti-enumeration behavior.
          */
         post: operations["login_record_auth_login_record_post"];
         delete?: never;
@@ -1501,6 +1508,41 @@ export interface paths {
          *     an engineer cannot use this endpoint (or any other) to erase their own trail.
          */
         delete: operations["purge_logins_admin_logins_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/login-failures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Login Failures
+         * @description List recorded FAILED sign-in attempts, newest first (paginated). Engineer
+         *     only.
+         *
+         *     Backs the Admin -> Login-failures tab. Rows come from ``login_failures``
+         *     (written by POST /auth/login/record on each failure); the snapshotted email
+         *     is the address that was ATTEMPTED, which may not belong to any account (a
+         *     probe/typo). Engineer-gated (RequireEngineer) exactly like GET /admin/logins,
+         *     and paginated (default 50, hard cap 200 — mirrors the logins/users/audit
+         *     endpoints) so one request can't enumerate the whole log. Reading the log is
+         *     itself audited (``read_login_failure_log``; actor + applied limit/offset) —
+         *     the returned rows are not logged.
+         *
+         *     Unlike GET /admin/logins (which filters to rows WITH a captured IP), this
+         *     returns ALL failures: an attempt with no IP (local dev, or a client that
+         *     forwarded no context) is still a meaningful failure to surface, and dropping
+         *     it would hide real activity from a security log.
+         */
+        get: operations["list_login_failures_admin_login_failures_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -5114,12 +5156,12 @@ export interface components {
         };
         /**
          * LoginContext
-         * @description Optional client context for a sign-in, forwarded by the frontend login
-         *     action from the incoming request — the client IP (``x-forwarded-for``) and
-         *     Vercel's IP-geolocation headers. All optional and length-bounded; purely
+         * @description Optional client context for a sign-in attempt, forwarded by the frontend
+         *     login action from the incoming request — the client IP (``x-forwarded-for``)
+         *     and Vercel's IP-geolocation headers. All optional and length-bounded; purely
          *     informational (never trusted for authorization), stored on the
-         *     ``login_events`` row for the engineer Logins tab. ``extra='forbid'`` rejects
-         *     unknown keys.
+         *     ``login_events`` row (success) or ``login_failures`` row (failure) for the
+         *     engineer Logins tabs. ``extra='forbid'`` rejects unknown keys.
          */
         LoginContext: {
             /** Ip Address */
@@ -5174,6 +5216,49 @@ export interface components {
             country: string | null;
         };
         /**
+         * LoginFailurePage
+         * @description A page of login failures, newest first, with the total for pagination.
+         */
+        LoginFailurePage: {
+            /** Items */
+            items: components["schemas"]["LoginFailureRow"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+        };
+        /**
+         * LoginFailureRow
+         * @description One recorded FAILED sign-in for the engineer Login-failures tab. ``email``
+         *     is the attempted address, snapshotted at the attempt (it may not belong to any
+         *     account — a probe/typo). ``ip_address`` + ``city``/``region``/``country`` are
+         *     the approximate (IP-based) origin, and ``reason`` a coarse failure code; any
+         *     may be null.
+         */
+        LoginFailureRow: {
+            /** Login Failure Id */
+            login_failure_id: number;
+            /** Email */
+            email: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Ip Address */
+            ip_address: string | null;
+            /** City */
+            city: string | null;
+            /** Region */
+            region: string | null;
+            /** Country */
+            country: string | null;
+            /** Reason */
+            reason: string | null;
+        };
+        /**
          * LoginPrecheckRequest
          * @description Email to evaluate the pre-login throttle/lock state for.
          */
@@ -5192,12 +5277,20 @@ export interface components {
         /**
          * LoginRecordRequest
          * @description Outcome of a login attempt, to update the rolling failed-login counter.
+         *
+         *     On a FAILURE the optional ``context`` (client IP + geo) and coarse ``reason``
+         *     are also logged as a per-attempt ``login_failures`` row (the engineer
+         *     Login-failures tab). Both are ignored on success. ``extra='forbid'`` rejects
+         *     unknown keys.
          */
         LoginRecordRequest: {
             /** Email */
             email: string;
             /** Success */
             success: boolean;
+            context?: components["schemas"]["LoginContext"] | null;
+            /** Reason */
+            reason?: string | null;
         };
         /**
          * LoginRecordedResponse
@@ -8078,6 +8171,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LoginPurgeResult"];
+                };
+            };
+        };
+    };
+    list_login_failures_admin_login_failures_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginFailurePage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
