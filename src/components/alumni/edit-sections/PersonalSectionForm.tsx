@@ -7,6 +7,7 @@ import {
 } from "@/app/(app)/alumni/actions";
 import { FocusedEditForm } from "@/components/alumni/FocusedEditForm";
 import { PreferredContactPicker } from "@/components/alumni/PreferredContactPicker";
+import { StateCombobox } from "@/components/alumni/StateCombobox";
 import { Field } from "@/components/alumni/form-fields";
 
 export type PersonalDefaults = {
@@ -112,7 +113,10 @@ export function PersonalSectionForm({
           defaultValue={defaults.city}
           error={errors["contact.city"]}
         />
-        <Field
+        {/* No region auto-fill here, deliberately: region tracks the state the
+            alum WORKS in (#283, edited in the Employment section), so driving it
+            off the home address would contradict what the server persists. */}
+        <StateCombobox
           label="Resident State"
           name="contact.state"
           defaultValue={defaults.state}
