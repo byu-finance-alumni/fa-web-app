@@ -127,9 +127,22 @@ export function useStateRegions(enabled = true): StateRegions {
           setRegionByState(res.region_by_state);
         }
       })
-      .catch(() => {
+      .catch((err) => {
         // Keep the fallback regions and leave `regionByState` null — the form
         // stays fully usable, region just doesn't auto-fill.
+        //
+        // But SAY SO. Swallowing this silently cost real debugging time: the
+        // Region dropdown still renders (REGION_OPTIONS covers it) and every
+        // other vocab dropdown has a fallback constant too, so a dead crosswalk
+        // is invisible everywhere EXCEPT auto-fill quietly never firing —
+        // indistinguishable from a wiring bug. The degrade is deliberate; the
+        // silence was not.
+        console.error(
+          "[useStateRegions] GET /vocabulary/state-regions failed — region " +
+            "auto-fill is disabled for this session. Region options fall back " +
+            "to REGION_OPTIONS.",
+          err,
+        );
       });
     return () => {
       active = false;
