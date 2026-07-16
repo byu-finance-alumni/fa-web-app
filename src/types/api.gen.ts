@@ -568,6 +568,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/alumni/import/update/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Cohort Update Template
+         * @description Download an ACTIVE graduation-year cohort as a FILLED intake-template CSV
+         *     (full_access).
+         *
+         *     Powers the round-trip: pick a grad year, download that cohort in the EXACT
+         *     import-template column format, edit cells offline, then re-upload through
+         *     ``POST /alumni/import/update`` (which matches by BYU ID / Net ID and applies
+         *     only the changed cells). ``grad_year`` is validated to the same year bounds as
+         *     the alumni schema. A cohort larger than the export cap is a 413 asking the
+         *     caller to narrow it down. Audit-logged (``export_alumni``) like the other
+         *     exports.
+         */
+        get: operations["export_cohort_update_template_alumni_import_update_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/alumni/export/columns": {
         parameters: {
             query?: never;
@@ -6632,6 +6661,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AlumniUpdateResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_cohort_update_template_alumni_import_update_export_get: {
+        parameters: {
+            query: {
+                grad_year: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
