@@ -37,9 +37,7 @@ export default async function PersonalEditPage({
             preferred_contact_method: s(c?.preferred_contact_method),
             net_id: s(a.net_id),
             spouse_name: spouseName,
-            city: s(c?.city),
-            state: s(c?.state),
-            country: s(c?.country),
+            citizenship: s(a.citizenship),
           }}
         />
       </main>

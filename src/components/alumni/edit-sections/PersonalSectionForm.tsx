@@ -7,7 +7,6 @@ import {
 } from "@/app/(app)/alumni/actions";
 import { FocusedEditForm } from "@/components/alumni/FocusedEditForm";
 import { PreferredContactPicker } from "@/components/alumni/PreferredContactPicker";
-import { StateCombobox } from "@/components/alumni/StateCombobox";
 import { Field } from "@/components/alumni/form-fields";
 
 export type PersonalDefaults = {
@@ -21,9 +20,8 @@ export type PersonalDefaults = {
   net_id: string;
   /** Combined "First Last" — split on the LAST space on save. */
   spouse_name: string;
-  city: string;
-  state: string;
-  country: string;
+  /** Top-level alumni field (NOT under `contact.`). */
+  citizenship: string;
 };
 
 export function PersonalSectionForm({
@@ -113,30 +111,21 @@ export function PersonalSectionForm({
           defaultValue={defaults.spouse_name}
           error={errors.spouse_first_name}
         />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
+        {/* Citizenship replaces the former "Resident City/State/Country" trio.
+            Those inputs wrote `contact.city/state/country`, which the CSV import
+            populates from the intake sheet's EMPLOYER address block — so they
+            showed work data under a home label, and nothing in the system ever
+            fills those columns as a residence. The employment box already
+            surfaces them correctly as "Current city"/"Current state". The data
+            is untouched; it is simply no longer editable under a wrong label.
+            Citizenship is a top-level alumni field, hence no `contact.` prefix. */}
         <Field
-          label="Resident City"
-          name="contact.city"
-          defaultValue={defaults.city}
-          error={errors["contact.city"]}
-        />
-        {/* No region auto-fill here, deliberately: region tracks the state the
-            alum WORKS in (#283, edited in the Employment section), so driving it
-            off the home address would contradict what the server persists. */}
-        <StateCombobox
-          label="Resident State"
-          name="contact.state"
-          defaultValue={defaults.state}
-          error={errors["contact.state"]}
+          label="Citizenship"
+          name="citizenship"
+          defaultValue={defaults.citizenship}
+          error={errors.citizenship}
         />
       </div>
-      <Field
-        label="Resident Country"
-        name="contact.country"
-        defaultValue={defaults.country}
-        error={errors["contact.country"]}
-      />
     </FocusedEditForm>
   );
 }

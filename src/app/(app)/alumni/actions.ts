@@ -380,13 +380,17 @@ export async function updatePersonalSection(
       { name: "personal_email" },
       { name: "work_email" },
       { name: "phone" },
-      { name: "city" },
-      { name: "state" },
-      { name: "country" },
     ]),
   );
+  // contact.city/state/country are deliberately NOT sent from this section
+  // anymore: the form no longer edits them (they hold the EMPLOYER address the
+  // import writes, surfaced by the Employment section / profile employment box,
+  // not a residence). Omitting a key from this PARTIAL PATCH leaves the stored
+  // value untouched — never send explicit nulls here or the import's data would
+  // be wiped on every personal-section save.
   const payload: Record<string, unknown> = compact({
     net_id: getStr(formData, "net_id"),
+    citizenship: getStr(formData, "citizenship"),
     contact,
   });
   // Combined "Spouse name" → first/last split on the LAST space. When only one

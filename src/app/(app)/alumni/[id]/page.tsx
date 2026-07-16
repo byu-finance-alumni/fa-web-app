@@ -540,8 +540,14 @@ export default async function AlumniProfilePage({
     },
     { label: "Email", ok: Boolean(c?.personal_email || c?.work_email) },
     { label: "Cell phone", ok: Boolean(c?.phone) },
-    { label: "City & state", ok: Boolean(c?.city && c?.state) },
-    { label: "Mailing ZIP code", ok: Boolean(c?.zip) },
+    // These read contact.city/state/zip, which hold the EMPLOYER's address (the
+    // import binds the sheet's work-address block to the contact row). Labelled
+    // "Company …" so they say what they measure — "Mailing ZIP code" implied a
+    // residence this system has never stored. Relabelled rather than removed:
+    // the underlying data is real and wanted, and dropping the checks would
+    // shrink the denominator and silently move every alum's completeness score.
+    { label: "Company city & state", ok: Boolean(c?.city && c?.state) },
+    { label: "Company ZIP code", ok: Boolean(c?.zip) },
     { label: "LinkedIn", ok: Boolean(a.linkedin_url) },
     { label: "Graduation year", ok: Boolean(a.graduation_year) },
     { label: "Current industry", ok: Boolean(career?.current_industry) },
@@ -1036,9 +1042,12 @@ export default async function AlumniProfilePage({
                     <Field label="Spouse" value={a.spouse_first_name} />
                     <Field label="Birthday" value={fmtDate(a.birth_date)} />
                   </div>
-                  {/* Col 3: net id · home country */}
+                  {/* Col 3: net id · citizenship · home country. Citizenship and
+                      home country are DIFFERENT facts (nationality vs. country
+                      of origin) and are shown as separate fields, never merged. */}
                   <div className="space-y-4">
                     <Field label="BYU Net ID" value={a.net_id} />
+                    <Field label="Citizenship" value={a.citizenship} />
                     <Field label="Home country" value={a.home_country} />
                   </div>
                 </div>
