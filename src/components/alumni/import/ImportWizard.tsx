@@ -164,13 +164,6 @@ export function ImportWizard({ kind = "alumni" }: { kind?: ImportKind }) {
 
   return (
     <div className="mx-auto max-w-5xl">
-      {/* Always-available way out if someone lands here by accident (#257). */}
-      <Link
-        href={listPath}
-        className="mb-4 inline-block text-sm font-medium text-brand-blue-600 hover:underline"
-      >
-        ← Back to {listLabel}
-      </Link>
       <StepHeader step={step} />
 
       {step === "upload" && (

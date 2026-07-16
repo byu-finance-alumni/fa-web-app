@@ -1,19 +1,41 @@
-import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
 import { Topbar } from "@/components/shell/Topbar";
-import {
-  AlumniForm,
-  type AlumniFormDefaults,
-} from "@/components/alumni/AlumniForm";
-import { apiGet, ApiError } from "@/lib/api";
-import type { Profile } from "@/types/profile";
-import type { UserContext } from "@/types/alumni";
-import { canEditAlumni } from "@/constants/roles";
-import { updateAlumni, previewAlumniUpdate } from "../../actions";
+import { Card, CardContent } from "@/components/ui/card";
+import { loadEditableProfile } from "./load-profile";
 
-/** Stringify a nullable scalar for a text/number input default ("" when null). */
-function s(v: string | number | null | undefined): string {
-  return v === null || v === undefined ? "" : String(v);
-}
+/** The six focused edit sections shown as a picker. */
+const SECTIONS: { slug: string; title: string; description: string }[] = [
+  {
+    slug: "employment",
+    title: "Update Employment Information",
+    description: "Employer, title, industry, work location, LinkedIn.",
+  },
+  {
+    slug: "personal",
+    title: "Update Personal Information",
+    description: "Personal email, phone, NetID, spouse, residence.",
+  },
+  {
+    slug: "graduate",
+    title: "Add Graduate Program",
+    description: "Graduate degree, university, and graduation year.",
+  },
+  {
+    slug: "designation",
+    title: "Add Designation / Certificate",
+    description: "CFA, CFP, and other professional designations.",
+  },
+  {
+    slug: "engagement",
+    title: "Add Engagement",
+    description: "Willingness flags and engagement notes.",
+  },
+  {
+    slug: "narrative",
+    title: "Add Narrative",
+    description: "Startup, advisory, and secondary-employment context.",
+  },
+];
 
 export default async function EditAlumniPage({
   params,
@@ -21,108 +43,8 @@ export default async function EditAlumniPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-
-  // Editing requires edit access (engineer / super_admin / full_access /
-  // student). view_only ("Professor") users are sent to the read-only profile
-  // rather than shown a form the backend (PATCH /alumni/{id} →
-  // RequireAlumniEdit) would 403 on submit. Resolve the flag inside the
-  // try/catch, then redirect OUTSIDE it — redirect() works by throwing a
-  // control-flow signal that a catch would otherwise swallow (same pattern as
-  // the app layout). The backend stays the source of truth; this is UX only.
-  let canEdit = false;
-  try {
-    const ctx = await apiGet<UserContext>("/auth/context");
-    canEdit = canEditAlumni(ctx.roles);
-  } catch {
-    /* not provisioned / context error → treat as no edit access */
-  }
-  if (!canEdit) redirect(`/alumni/${id}`);
-
-  let p: Profile;
-  try {
-    p = await apiGet<Profile>(`/alumni/${id}/profile`);
-  } catch (e) {
-    if (e instanceof ApiError && e.status === 404) notFound();
-    throw e;
-  }
-
+  const p = await loadEditableProfile(id);
   const a = p.alumni;
-  const c = p.contact;
-  const career = p.current_career;
-  // The profile aggregate returns education as a list; the wizard edits a single
-  // (most recent) education row, matching what create writes and the service
-  // upserts.
-  const edu = p.education[0] ?? null;
-  const eng = p.program_engagement;
-
-  const defaults: AlumniFormDefaults = {
-    ...a,
-    spouseAlumniName: p.spouse_alumni_name,
-    contact: c
-      ? {
-          personal_email: s(c.personal_email),
-          work_email: s(c.work_email),
-          phone: s(c.phone),
-          address_line_1: s(c.address_line_1),
-          address_line_2: s(c.address_line_2),
-          city: s(c.city),
-          state: s(c.state),
-          zip: s(c.zip),
-          country: s(c.country),
-          region: s(c.region),
-          preferred_contact_method: s(c.preferred_contact_method),
-        }
-      : undefined,
-    career: career
-      ? {
-          current_employer: s(career.current_employer),
-          current_title: s(career.current_title),
-          current_industry: s(career.current_industry),
-          current_industry_secondary: s(career.current_industry_secondary),
-          current_city: s(career.current_city),
-          current_state: s(career.current_state),
-          current_country: s(career.current_country),
-          current_zip: s(career.current_zip),
-          seniority_level: s(career.seniority_level),
-        }
-      : undefined,
-    education: edu
-      ? {
-          university: s(edu.university),
-          college: s(edu.college),
-          department: s(edu.department),
-          degree: s(edu.degree),
-          major: s(edu.major),
-          degree_status: s(edu.degree_status),
-          degree_year: s(edu.degree_year),
-        }
-      : undefined,
-    engagement: eng
-      ? {
-          flags: {
-            nettrek_host_willing: eng.nettrek_host_willing,
-            finance_conference_willing: eng.finance_conference_willing,
-            mentor_willing: eng.mentor_willing,
-            company_event_sponsor_willing: eng.company_event_sponsor_willing,
-            guest_speaker_willing: eng.guest_speaker_willing,
-            help_at_event_willing: eng.help_at_event_willing,
-            case_competition_host_willing: eng.case_competition_host_willing,
-            women_in_finance_mentor_willing:
-              eng.women_in_finance_mentor_willing,
-            hired_finance_intern: eng.hired_finance_intern,
-            hired_finance_full_time: eng.hired_finance_full_time,
-            piff_donor: eng.piff_donor,
-          },
-          cfp_designation: s(eng.cfp_designation),
-          cfa_designation: s(eng.cfa_designation),
-          cpa_designation: s(eng.cpa_designation),
-          engagement_notes: s(eng.engagement_notes),
-        }
-      : undefined,
-  };
-
-  const action = updateAlumni.bind(null, a.alumni_id);
-  const previewAction = previewAlumniUpdate.bind(null, a.alumni_id);
   const name =
     [a.first_name, a.last_name].filter(Boolean).join(" ") || "Alumnus";
 
@@ -136,14 +58,37 @@ export default async function EditAlumniPage({
         ]}
       />
       <main className="flex-1 overflow-auto p-6">
-        <AlumniForm
-          extended
-          action={action}
-          previewAction={previewAction}
-          defaults={defaults}
-          submitLabel="Save changes"
-          cancelHref={`/alumni/${a.alumni_id}`}
-        />
+        <div className="mx-auto w-full max-w-3xl space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">
+              What would you like to edit?
+            </h2>
+            <p className="mt-1 text-sm text-gray-700">
+              Pick a section to jump straight to those fields. Saving updates
+              only that section and returns you to the profile.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {SECTIONS.map((s) => (
+              <Link
+                key={s.slug}
+                href={`/alumni/${a.alumni_id}/edit/${s.slug}`}
+                className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
+              >
+                <Card className="h-full transition-colors hover:border-brand-blue-600 hover:bg-gray-50">
+                  <CardContent className="p-5">
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      {s.title}
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      {s.description}
+                    </p>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </div>
       </main>
     </>
   );

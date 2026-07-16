@@ -17,11 +17,14 @@ import type {
   HygienePreview,
   ImportPreview,
   ImportResult,
+  UpdateImportPreview,
+  UpdateImportResult,
 } from "@/types/alumni";
 import type {
   AlumniExportRequest,
   ExportColumnCatalog,
 } from "@/types/export";
+import type { FilterOptions } from "@/types/filters";
 import type { Note, NoteEntityType } from "@/types/notes";
 
 /**
@@ -272,6 +275,192 @@ export async function updateAlumni(
   revalidateTag("dashboard");
   revalidateTag("geography");
   redirect(`/alumni/${id}`);
+}
+
+/* ---------------------------------------------- focused per-section edits --- */
+//
+// The section-picker edit flow (/alumni/[id]/edit/*) replaces the 7-step wizard:
+// each focused form PATCHes ONLY its own section. PATCH /alumni/{id} applies a
+// PARTIAL payload, so omitted fields are left untouched. Blanks are dropped by
+// compact() (a blank input can't clear a field via omission); an explicit `null`
+// DOES clear a field (spouse last name, CFA/CFP designations). Engagement sends
+// every boolean explicitly so a flag can be toggled OFF.
+
+/** PATCH one section's payload, revalidate, and return to the profile. */
+async function saveSection(
+  id: number,
+  payload: Record<string, unknown>,
+): Promise<FormState> {
+  try {
+    await apiPatch(`/alumni/${id}`, payload);
+  } catch (e) {
+    return toFormState(e, "Failed to save.");
+  }
+  revalidatePath(`/alumni/${id}`);
+  revalidatePath("/alumni");
+  revalidateTag("dashboard");
+  revalidateTag("geography");
+  redirect(`/alumni/${id}`);
+}
+
+/** Employment: top-level status/LinkedIn + nested career + contact work fields. */
+export async function updateEmploymentSection(
+  id: number,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const career = buildSection(formData, "career", [
+    { name: "current_employer" },
+    { name: "current_title" },
+    { name: "current_industry" },
+    { name: "current_industry_secondary" },
+    { name: "company_address" },
+    { name: "current_city" },
+    { name: "current_state" },
+    { name: "current_country" },
+  ]);
+  const contact = buildSection(formData, "contact", [
+    { name: "work_email" },
+    { name: "region" },
+  ]);
+  return saveSection(
+    id,
+    compact({
+      employment_status: getStr(formData, "employment_status"),
+      linkedin_url: getStr(formData, "linkedin_url"),
+      career,
+      contact,
+    }),
+  );
+}
+
+/** Personal: NetID + spouse (combined name split) + nested contact fields. */
+export async function updatePersonalSection(
+  id: number,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const contact = buildSection(formData, "contact", [
+    { name: "personal_email" },
+    { name: "phone" },
+    { name: "city" },
+    { name: "state" },
+    { name: "country" },
+  ]);
+  const payload: Record<string, unknown> = compact({
+    net_id: getStr(formData, "net_id"),
+    contact,
+  });
+  // Combined "Spouse name" → first/last split on the LAST space. When only one
+  // token is given, last name is sent as explicit null to clear any stale value;
+  // a blank field omits both (leaves the existing names untouched).
+  const spouse = getStr(formData, "spouse_name");
+  if (spouse !== undefined) {
+    const i = spouse.lastIndexOf(" ");
+    if (i === -1) {
+      payload.spouse_first_name = spouse;
+      payload.spouse_last_name = null;
+    } else {
+      payload.spouse_first_name = spouse.slice(0, i).trim();
+      payload.spouse_last_name = spouse.slice(i + 1).trim();
+    }
+  }
+  return saveSection(id, payload);
+}
+
+/** Graduate program: shared employment status + degree dropdown + school/year. */
+export async function updateGraduateSection(
+  id: number,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const choice = getStr(formData, "graduate_degree_choice");
+  const other = getStr(formData, "graduate_degree_other");
+  let graduate_degree: string | undefined;
+  if (choice === "MBA" || choice === "Law" || choice === "Medical") {
+    graduate_degree = choice;
+  } else if (choice === "Other") {
+    // The free-text "Specify" value; undefined (blank) is omitted by compact.
+    graduate_degree = other;
+  }
+  const yearRaw = getStr(formData, "graduate_graduation_year");
+  return saveSection(
+    id,
+    compact({
+      employment_status: getStr(formData, "employment_status"),
+      graduate_degree,
+      graduate_school: getStr(formData, "graduate_school"),
+      graduate_graduation_year:
+        yearRaw !== undefined ? Number(yearRaw) : undefined,
+    }),
+  );
+}
+
+/** Designation / certificate: CFA/CFP checkboxes (explicit null to clear) + other. */
+export async function updateDesignationSection(
+  id: number,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  // Presence in FormData = checked → the canonical string; absent → explicit
+  // null so unchecking actually clears the stored designation.
+  const cfa = formData.get("cfa_designation") !== null ? "CFA" : null;
+  const cfp = formData.get("cfp_designation") !== null ? "CFP" : null;
+  return saveSection(
+    id,
+    compact({
+      other_designations: getStr(formData, "other_designations"),
+      engagement: { cfa_designation: cfa, cfp_designation: cfp },
+    }),
+  );
+}
+
+/** The engagement flags sent explicitly (true/false) so toggling OFF persists. */
+const ENGAGEMENT_FLAGS = [
+  "nettrek_host_willing",
+  "mentor_willing",
+  "guest_speaker_willing",
+  "case_competition_host_willing",
+  "finance_conference_willing",
+  "company_event_sponsor_willing",
+  "women_in_finance_mentor_willing",
+  "piff_donor",
+  "hired_finance_intern",
+  "hired_finance_full_time",
+  "help_at_event_willing",
+] as const;
+
+/** Engagement: eleven booleans (all explicit) + notes. */
+export async function updateEngagementSection(
+  id: number,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const engagement: Record<string, unknown> = {};
+  for (const f of ENGAGEMENT_FLAGS) {
+    // Explicit true/false (not omit-when-unchecked) so a flag can be turned off.
+    engagement[f] = formData.get(`engagement.${f}`) !== null;
+  }
+  // Notes sent explicitly (null when blank) so they can be cleared.
+  engagement.engagement_notes =
+    getStr(formData, "engagement.engagement_notes") ?? null;
+  return saveSection(id, { engagement });
+}
+
+/** Narrative: provisional secondary-affiliation free-text fields (top level). */
+export async function updateNarrativeSection(
+  id: number,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  return saveSection(
+    id,
+    compact({
+      startup_involvement: getStr(formData, "startup_involvement"),
+      advisory_roles: getStr(formData, "advisory_roles"),
+      secondary_employment: getStr(formData, "secondary_employment"),
+    }),
+  );
 }
 
 /**
@@ -861,6 +1050,138 @@ export async function downloadImportTemplate(
       error:
         e instanceof ApiError ? e.message : "Couldn't download the template.",
     };
+  }
+}
+
+/* ------------------------------------------ CSV bulk UPDATE (round-trip) ----- */
+//
+// A separate flow from the create-import above: staff export a cohort, edit the
+// cells, and upload it back to mass-UPDATE existing profiles (matched by
+// BYU/Net ID). Blank cells are left unchanged; unmatched rows are reported,
+// never created. Same multipart `file` upload contract; distinct endpoints and
+// typed (response_model) result shapes.
+
+/** Discriminated result for the two update-import steps. */
+export type UpdateImportPreviewState =
+  | { ok: true; data: UpdateImportPreview }
+  | { ok: false; error: string };
+
+export type UpdateImportResultState =
+  | { ok: true; data: UpdateImportResult }
+  | { ok: false; error: string };
+
+/**
+ * Dry-run an uploaded CSV against POST /alumni/import/update/preview (multipart
+ * `file`). Returns the per-row change report verbatim, or a mapped error with a
+ * retry. The same File is re-uploaded to `commitUpdateImport` on confirm.
+ */
+export async function previewUpdateImport(
+  formData: FormData,
+): Promise<UpdateImportPreviewState> {
+  const fd = importFormData(formData);
+  if (!fd) return { ok: false, error: "Choose a .csv file to check." };
+  try {
+    const data = await apiPostForm<UpdateImportPreview>(
+      "/alumni/import/update/preview",
+      fd,
+    );
+    return { ok: true, data };
+  } catch (e) {
+    const fs = toFormState(e, "Couldn't read the file — try again.");
+    return {
+      ok: false,
+      error: fs?.error ?? "Couldn't read the file — try again.",
+    };
+  }
+}
+
+/**
+ * Commit the update via POST /alumni/import/update (multipart `file`) — the SAME
+ * file the preview validated. Returns the per-row outcome, or a mapped error. On
+ * success refresh the alumni list plus the dashboard/geography aggregates the
+ * mass-update may have moved.
+ */
+export async function commitUpdateImport(
+  formData: FormData,
+): Promise<UpdateImportResultState> {
+  const fd = importFormData(formData);
+  if (!fd) return { ok: false, error: "Choose a .csv file to update from." };
+  try {
+    const data = await apiPostForm<UpdateImportResult>(
+      "/alumni/import/update",
+      fd,
+    );
+    revalidatePath("/alumni");
+    revalidateTag("dashboard");
+    revalidateTag("geography");
+    return { ok: true, data };
+  } catch (e) {
+    const fs = toFormState(e, "Update failed — try again.");
+    return { ok: false, error: fs?.error ?? "Update failed — try again." };
+  }
+}
+
+/**
+ * The distinct graduation years on file, for the update-import cohort picker.
+ * Reuses the same source the alumni list filters read (`GET
+ * /alumni/filter-options` → `FilterOptions.graduation_years`). Returns an empty
+ * list on failure so the wizard can fall back to a plain year input.
+ */
+export async function getGraduationYears(): Promise<
+  { ok: true; years: number[] } | { ok: false; error: string }
+> {
+  try {
+    const options = await apiGet<FilterOptions>("/alumni/filter-options", {
+      revalidate: 300,
+      tags: ["alumni-filter-options"],
+    });
+    const years = Array.isArray(options?.graduation_years)
+      ? options.graduation_years
+      : [];
+    return { ok: true, years };
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof ApiError ? e.message : "Couldn't load graduation years.",
+    };
+  }
+}
+
+/**
+ * Export one graduation cohort as an editable CSV (GET
+ * /alumni/import/update/export?grad_year=YYYY) so staff can edit the cells and
+ * upload it back through the update-import flow. The GET needs the user's Bearer
+ * token (attached server-side); we return the raw CSV text so the client turns
+ * it into a Blob download. 413 (cohort too large) and 422 (invalid year) map to
+ * clear messages the wizard shows inline.
+ */
+export async function downloadCohortUpdateCsv(
+  gradYear: number,
+): Promise<{ ok: true; csv: string } | { ok: false; error: string }> {
+  try {
+    const csv = await apiGetText(
+      `/alumni/import/update/export?grad_year=${gradYear}`,
+    );
+    return { ok: true, csv };
+  } catch (e) {
+    if (e instanceof ApiError) {
+      if (e.status === 413) {
+        return {
+          ok: false,
+          error:
+            "That cohort is too large to export at once. Pick a single class year.",
+        };
+      }
+      if (e.status === 422) {
+        return {
+          ok: false,
+          error: e.message || "That isn't a valid graduation year.",
+        };
+      }
+      return { ok: false, error: e.message };
+    }
+    return { ok: false, error: "Couldn't export that cohort — try again." };
   }
 }
 

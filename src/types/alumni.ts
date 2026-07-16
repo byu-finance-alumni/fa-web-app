@@ -153,3 +153,46 @@ export interface ImportResult {
   created_ids: number[];
   rejects: ImportReject[];
 }
+
+/* ------------------------------------------------ CSV bulk UPDATE (round-trip) --- */
+//
+// Unlike the create-import types above (hand-written because those routes return
+// untyped dicts), the update endpoints DO carry `response_model`s, so these
+// aliases resolve straight to the generated backend shapes — a rename/removal on
+// the backend fails `tsc` here (the contract guard, issue #99).
+
+/**
+ * One field a matched row would change (`old → new`). `old`/`new` are `unknown`
+ * because a cell can hold a string, int, bool, or date.
+ * (`AlumniUpdateFieldChange`)
+ */
+export type UpdateImportFieldChange = Schema<"AlumniUpdateFieldChange">;
+
+/**
+ * Per-row detail in the update preview. `status` is one of `update`,
+ * `no_changes`, `unmatched`, `unmatched_archived`, or `error`; `message`
+ * explains an unmatched row and `error` carries a mapping/validation message.
+ * (`AlumniUpdateRowReport`)
+ */
+export type UpdateImportRowReport = Schema<"AlumniUpdateRowReport">;
+
+/** Headline counts for the update preview (`AlumniUpdateSummary`). */
+export type UpdateImportSummary = Schema<"AlumniUpdateSummary">;
+
+/**
+ * Dry-run report for an uploaded update CSV
+ * (`POST /alumni/import/update/preview`). (`AlumniUpdatePreview`)
+ */
+export type UpdateImportPreview = Schema<"AlumniUpdatePreview">;
+
+/**
+ * Per-row outcome in the committed update. `status` is `updated`, `unchanged`,
+ * `unmatched`, `unmatched_archived`, or `error`. (`AlumniUpdateRowResult`)
+ */
+export type UpdateImportRowResult = Schema<"AlumniUpdateRowResult">;
+
+/**
+ * Outcome of the committed update (`POST /alumni/import/update`).
+ * (`AlumniUpdateResult`)
+ */
+export type UpdateImportResult = Schema<"AlumniUpdateResult">;
