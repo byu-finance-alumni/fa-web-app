@@ -95,3 +95,37 @@ export function regionForState(
   if (!full) return null;
   return regionByState[full] ?? null;
 }
+
+/**
+ * The region for a state the user is still TYPING — the responsive half of the
+ * auto-fill, resolved per keystroke rather than on settle.
+ *
+ * Deliberately stricter than {@link regionForState}: it matches a COMPLETE full
+ * state name only (case-insensitive, trimmed) and does NOT expand USPS codes.
+ * That restriction is the whole point, and it is load-bearing — half-typed input
+ * passes through strings that are valid codes for the WRONG state. Typing
+ * "Montana" passes through "Mo", which is Missouri's code; expanding it here
+ * would flash "Midwest" under the cursor before landing on "West". So:
+ *
+ *   * "Texas" / "texas" / " TEXAS " -> "Southwest" — resolved on the keystroke
+ *     that completes the name, no blur needed.
+ *   * "Mo", "Tex", "Ne" -> `null`. Not a rejection: keep typing. Callers must
+ *     leave the existing region ALONE on `null`, never blank it.
+ *   * "TX" -> `null` here. A code still resolves, just on settle (blur / picking
+ *     a suggestion), where `regionForState` runs with full expansion.
+ *
+ * Same `null` contract as `regionForState` otherwise: nothing before the
+ * crosswalk lands, nothing for a non-US value.
+ */
+export function regionForTypedState(
+  regionByState: Readonly<Record<string, string>> | null | undefined,
+  typed: string | null | undefined,
+): string | null {
+  if (!regionByState) return null;
+  const trimmed = (typed ?? "").trim();
+  if (!trimmed) return null;
+  // Exact full-name hit only — no NAME_BY_CODE lookup, on purpose (see above).
+  const full = NAME_BY_LOWER_NAME[trimmed.toLowerCase()];
+  if (!full) return null;
+  return regionByState[full] ?? null;
+}

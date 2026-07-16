@@ -48,7 +48,11 @@ export function PreferredContactPicker({
 
   return (
     <fieldset aria-describedby={errorId}>
-      <legend className="mb-1.5 text-sm font-medium text-gray-900">
+      {/* Matches the shared `Label` component's exact classes (form-fields.tsx
+          -> ui/label.tsx) so this legend reads as just another field label
+          sitting among "Personal email" / "Work email" / "Cell phone number"
+          above it, instead of a larger, darker, one-off heading. */}
+      <legend className="mb-1.5 block text-xs font-medium text-gray-700">
         Preferred contact method
       </legend>
       <p className="mb-2 text-xs text-gray-500">
@@ -61,7 +65,7 @@ export function PreferredContactPicker({
             key={o.value}
             className={cn(
               "flex items-center gap-2 text-sm",
-              o.disabled ? "text-gray-400" : "text-gray-700",
+              o.disabled ? "text-gray-500" : "text-gray-700",
             )}
           >
             <input
@@ -75,7 +79,7 @@ export function PreferredContactPicker({
             />
             {o.label}
             {o.disabled ? (
-              <span className="text-xs text-gray-400">(no value entered)</span>
+              <span className="text-xs text-gray-500">(no value entered)</span>
             ) : null}
             {o.preserved ? (
               <span className="text-xs text-gray-500">(currently set)</span>

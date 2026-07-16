@@ -23,6 +23,7 @@ export function StateCombobox({
   defaultValue = "",
   error,
   onSettle,
+  onType,
   hint,
 }: {
   label: string;
@@ -31,6 +32,12 @@ export function StateCombobox({
   error?: string;
   /** Fires with the settled value — see `Combobox`'s `onSettle`. */
   onSettle?: (value: string) => void;
+  /**
+   * Fires per keystroke with the raw text — see `Combobox`'s `onType`. For a
+   * dependent field, resolve it with `regionForTypedState` (full names only),
+   * NOT `toFullStateName`, or a half-typed "Mo" will read as Missouri.
+   */
+  onType?: (raw: string) => void;
   hint?: string;
 }) {
   return (
@@ -43,6 +50,7 @@ export function StateCombobox({
       suggest={stateSuggestions}
       error={error}
       onSettle={onSettle}
+      onType={onType}
       hint={hint}
     />
   );

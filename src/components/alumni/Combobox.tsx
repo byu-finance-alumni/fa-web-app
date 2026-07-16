@@ -43,6 +43,7 @@ export function Combobox({
   suggest,
   error,
   onSettle,
+  onType,
   hint,
 }: {
   label: string;
@@ -58,16 +59,27 @@ export function Combobox({
   error?: string;
   /**
    * Fires when the value SETTLES — a suggestion is picked, or the field is
-   * left after being edited — with the new value. Deliberately not per
-   * keystroke: half-typed input passes through states that resolve to the
-   * wrong place, and a dependent field must not chase them. Typing "Montana"
-   * passes through "Mo", which is Missouri's USPS code; a per-keystroke
-   * listener would flash "Midwest" before landing on "West".
+   * left after being edited — with the new value. This is where a dependent
+   * field does its FULL resolution, including anything lenient (expanding an
+   * abbreviation, say) that would be unsafe to run mid-word.
    *
    * Only fires when the value actually changed, so tabbing through an
    * untouched field is not a change.
    */
   onSettle?: (value: string) => void;
+  /**
+   * Fires on every keystroke with the raw text, for a dependent field that
+   * should keep up while the user types rather than waiting for blur.
+   *
+   * Fires IN ADDITION to `onSettle`, not instead of it — the two are different
+   * jobs. Half-typed input passes through strings that resolve to the wrong
+   * thing (typing "Montana" passes through "Mo", Missouri's USPS code), so a
+   * handler here must only act on input it can resolve UNAMBIGUOUSLY and
+   * otherwise do nothing — leaving the lenient resolution to `onSettle`, once
+   * the text is final. A handler that chases every keystroke will flash wrong
+   * values under the cursor.
+   */
+  onType?: (raw: string) => void;
   /** Optional muted helper line shown under the field (non-error). */
   hint?: string;
 }) {
@@ -172,6 +184,7 @@ export function Combobox({
           setValue(e.target.value);
           setOpen(true);
           setActiveIndex(-1);
+          onType?.(e.target.value);
         }}
         onFocus={() => setOpen(true)}
         // Settle on the way out — the typed value is final once focus leaves.

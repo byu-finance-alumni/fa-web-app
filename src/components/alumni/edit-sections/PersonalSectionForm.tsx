@@ -73,26 +73,34 @@ export function PersonalSectionForm({
           error={errors["contact.work_email"]}
         />
       </div>
-      <div className="grid grid-cols-2 gap-4">
-        <Field
-          label="Cell phone number"
-          name="contact.phone"
-          defaultValue={defaults.phone}
-          onChange={(_n, v) => setPhone(v)}
-          error={errors["contact.phone"]}
-        />
-        <PreferredContactPicker
-          name="contact.preferred_contact_method"
-          values={{
-            personal_email: personalEmail,
-            work_email: workEmail,
-            phone,
-          }}
-          defaultValue={defaults.preferred_contact_method}
-          error={errors["contact.preferred_contact_method"]}
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
+      <Field
+        label="Cell phone number"
+        name="contact.phone"
+        defaultValue={defaults.phone}
+        onChange={(_n, v) => setPhone(v)}
+        error={errors["contact.phone"]}
+      />
+      {/* Full-width, directly under the three fields it reads live values from
+          (personal email, work email, phone above) — mirrors how AlumniForm
+          renders this same picker: as its own block after the fields it
+          selects between, never squeezed into a shared grid cell with one of
+          them. Keeps the "choose which of these is preferred" relationship
+          legible instead of reading as a stray radio column. */}
+      <PreferredContactPicker
+        name="contact.preferred_contact_method"
+        values={{
+          personal_email: personalEmail,
+          work_email: workEmail,
+          phone,
+        }}
+        defaultValue={defaults.preferred_contact_method}
+        error={errors["contact.preferred_contact_method"]}
+      />
+      {/* border-t divider marks the end of the contact-method cluster above
+          and the start of the remaining personal fields below (same
+          within-card separator idiom as DashboardSearch's "Quick filters"
+          block and the profile page's section dividers). */}
+      <div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-4">
         <Field
           label="NetID"
           name="net_id"

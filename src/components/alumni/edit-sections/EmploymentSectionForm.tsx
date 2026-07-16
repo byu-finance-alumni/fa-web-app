@@ -16,7 +16,7 @@ import {
   useVocabOptions,
   withValue,
 } from "@/hooks/useVocabOptions";
-import { regionForState } from "@/lib/geo/state-field";
+import { regionForState, regionForTypedState } from "@/lib/geo/state-field";
 
 export type EmploymentDefaults = {
   employment_status: string;
@@ -62,6 +62,22 @@ export function EmploymentSectionForm({
   // persists). It stays a normal editable dropdown: the auto-fill is a
   // convenience Tanya can override, so we only ever write it on an actual state
   // change and announce it with a hint when we do.
+  //
+  // The fill runs at two moments, on purpose:
+  //
+  //  1. WHILE TYPING (`onTypeState`) — the moment the typed text is a complete
+  //     state name. "Texas" fills Southwest on the final "s", with no blur, which
+  //     is what makes this feel like it works. Restricted to exact full names
+  //     (`regionForTypedState`) so mid-word input can't fill a wrong region:
+  //     typing "Montana" passes through "Mo" — Missouri's USPS code — and a
+  //     lenient resolve would flash "Midwest" before landing on "West".
+  //  2. ON SETTLE (blur / picking a suggestion) — the full, lenient resolve,
+  //     including code expansion, so "TX" also lands on Southwest.
+  //
+  // Neither path ever BLANKS the region: an unresolvable state (half-typed
+  // "Tex", an international province, or the crosswalk still in flight) leaves
+  // whatever is there, matching `derive_region` server-side, which derives
+  // nothing rather than clearing.
   const { regions, regionByState } = useStateRegions();
   const [region, setRegion] = useState(defaults.region);
   const [regionAutoFilled, setRegionAutoFilled] = useState(false);
@@ -82,6 +98,19 @@ export function EmploymentSectionForm({
     setRegion(next);
     setRegionAutoFilled(true);
   }, [workState, regionByState]);
+
+  // Per-keystroke fill. Resolving only complete full names means a manual region
+  // override survives every keystroke that ISN'T one — the override is only
+  // replaced when the user finishes typing a state that names a different
+  // region, which is the same "you edited the state, so the region follows"
+  // exchange settling already made. Typing on doesn't fight the user; it just
+  // stops making them blur to see the result.
+  function onTypeState(raw: string) {
+    const next = regionForTypedState(regionByState, raw);
+    if (next === null) return;
+    setRegion(next);
+    setRegionAutoFilled(true);
+  }
 
   return (
     <FocusedEditForm
@@ -151,6 +180,7 @@ export function EmploymentSectionForm({
           defaultValue={defaults.current_state}
           error={errors["career.current_state"]}
           onSettle={setWorkState}
+          onType={onTypeState}
         />
       </div>
       {/* Region sits directly under Employment State, NOT with the home
