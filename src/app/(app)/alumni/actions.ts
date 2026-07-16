@@ -391,6 +391,7 @@ export async function updatePersonalSection(
   const payload: Record<string, unknown> = compact({
     net_id: getStr(formData, "net_id"),
     citizenship: getStr(formData, "citizenship"),
+    home_country: getStr(formData, "home_country"),
     contact,
   });
   // Combined "Spouse name" → first/last split on the LAST space. When only one

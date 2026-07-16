@@ -38,6 +38,7 @@ export default async function PersonalEditPage({
             net_id: s(a.net_id),
             spouse_name: spouseName,
             citizenship: s(a.citizenship),
+            home_country: s(a.home_country),
           }}
         />
       </main>

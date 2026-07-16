@@ -22,6 +22,9 @@ export type PersonalDefaults = {
   spouse_name: string;
   /** Top-level alumni field (NOT under `contact.`). */
   citizenship: string;
+  /** Country of ORIGIN — a distinct field from `citizenship`, and unrelated to
+   *  any address. Also top-level (NOT under `contact.`). */
+  home_country: string;
 };
 
 export function PersonalSectionForm({
@@ -124,6 +127,16 @@ export function PersonalSectionForm({
           name="citizenship"
           defaultValue={defaults.citizenship}
           error={errors.citizenship}
+        />
+        {/* Country of ORIGIN, not an address and not the same as citizenship —
+            both are separate columns on the intake sheet ("Citizenship" and
+            "Home country") and both render on the profile. The profile has
+            always shown this; it was never editable here. */}
+        <Field
+          label="Home country"
+          name="home_country"
+          defaultValue={defaults.home_country}
+          error={errors.home_country}
         />
       </div>
     </FocusedEditForm>
