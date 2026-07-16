@@ -32,7 +32,9 @@ export default async function PersonalEditPage({
           id={a.alumni_id}
           defaults={{
             personal_email: s(c?.personal_email),
+            work_email: s(c?.work_email),
             phone: s(c?.phone),
+            preferred_contact_method: s(c?.preferred_contact_method),
             net_id: s(a.net_id),
             spouse_name: spouseName,
             city: s(c?.city),

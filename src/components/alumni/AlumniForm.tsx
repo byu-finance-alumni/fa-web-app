@@ -7,6 +7,7 @@ import type { Alumni, HygienePreview } from "@/types/alumni";
 import { INDUSTRY_OPTIONS } from "@/constants/dropdowns";
 import { useVocabOptions, withValue } from "@/hooks/useVocabOptions";
 import { SpousePicker } from "@/components/alumni/SpousePicker";
+import { PreferredContactPicker } from "@/components/alumni/PreferredContactPicker";
 import {
   Field,
   FieldLabel,
@@ -18,7 +19,6 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select } from "@/components/ui/select";
 
 type Action = (prev: FormState, formData: FormData) => Promise<FormState>;
 
@@ -32,15 +32,6 @@ const GRAD_SEMESTERS = ["Fall", "Winter", "Spring", "Summer"] as const;
  *  edits so free-text region values don't drift; an existing value outside this
  *  set is preserved on load via `withValue` (shown selected). */
 const REGIONS = ["Northeast", "Southeast", "Midwest", "Southwest", "West"] as const;
-
-/** Options for the "Preferred contact method" picker (#301). Values match the
- *  backend `contact.preferred_contact_method` enum; a blank value means "none". */
-const PREFERRED_CONTACT_METHODS = [
-  { value: "personal_email", label: "Personal email" },
-  { value: "work_email", label: "Work email" },
-  { value: "phone", label: "Phone" },
-  { value: "linkedin", label: "LinkedIn" },
-] as const;
 
 /** Runs the server-side hygiene preview for the current form's FormData. The
  * Add page binds {@link previewAlumni}; the Edit page binds
@@ -379,6 +370,15 @@ export function AlumniForm({
   const [workEmail, setWorkEmail] = useState(contact("work_email"));
   const [workEmailCleared, setWorkEmailCleared] = useState(false);
 
+  // Mirrors of the other two fields the preferred-contact picker selects
+  // between (#449). The inputs stay uncontrolled; these only track what's typed
+  // so an empty method is blocked in the picker. Work email already has state
+  // above, which doubles as the picker's third value — clearing it on an
+  // employer change therefore also drops a now-unhonorable "work email"
+  // preference, exactly as intended.
+  const [personalEmail, setPersonalEmail] = useState(contact("personal_email"));
+  const [phone, setPhone] = useState(contact("phone"));
+
   const handleEmployerChange = (_name: string, value: string) => {
     if (!isEdit) return;
     const changed = value.trim() !== initialEmployer;
@@ -536,20 +536,19 @@ export function AlumniForm({
             defaultValue={defaults?.other_designations ?? ""}
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <Field
-            label="Filled out survey"
-            name="survey_completed_date"
-            type="date"
-            defaultValue={defaults?.survey_completed_date ?? ""}
-          />
-          <Field
-            label="Profile updated date"
-            name="profile_updated_date"
-            type="date"
-            defaultValue={defaults?.profile_updated_date ?? ""}
-          />
-        </div>
+        {/* #453: there is deliberately no "Profile updated date" input. The
+            backend auto-bumps the profile's last-updated timestamp on every
+            edit and silently discards any client-sent profile_updated_date
+            (fa-web-api#285), so the input was inert — typing a date did
+            nothing. The profile reads `updated_at` instead. The column and its
+            legacy intake-sheet values stay in the DB as provenance; only the
+            write path is gone. Don't re-add this field. */}
+        <Field
+          label="Filled out survey"
+          name="survey_completed_date"
+          type="date"
+          defaultValue={defaults?.survey_completed_date ?? ""}
+        />
         <SpousePicker
           selfId={defaults?.alumni_id}
           errors={errors}
@@ -574,6 +573,7 @@ export function AlumniForm({
             name="contact.personal_email"
             type="email"
             defaultValue={contact("personal_email")}
+            onChange={(_n, v) => setPersonalEmail(v)}
             error={errors["contact.personal_email"]}
           />
           <Field
@@ -595,6 +595,7 @@ export function AlumniForm({
             label="Phone"
             name="contact.phone"
             defaultValue={contact("phone")}
+            onChange={(_n, v) => setPhone(v)}
             error={errors["contact.phone"]}
           />
           <Field
@@ -651,23 +652,16 @@ export function AlumniForm({
           defaultValue={contact("region")}
           error={errors["contact.region"]}
         />
-        <div>
-          <FieldLabel htmlFor="contact.preferred_contact_method">
-            Preferred contact method
-          </FieldLabel>
-          <Select
-            id="contact.preferred_contact_method"
-            name="contact.preferred_contact_method"
-            defaultValue={contact("preferred_contact_method")}
-          >
-            <option value="">— None —</option>
-            {PREFERRED_CONTACT_METHODS.map((m) => (
-              <option key={m.value} value={m.value}>
-                {m.label}
-              </option>
-            ))}
-          </Select>
-        </div>
+        <PreferredContactPicker
+          name="contact.preferred_contact_method"
+          values={{
+            personal_email: personalEmail,
+            work_email: workEmail,
+            phone,
+          }}
+          defaultValue={contact("preferred_contact_method")}
+          error={errors["contact.preferred_contact_method"]}
+        />
       </div>
     </Section>
   );

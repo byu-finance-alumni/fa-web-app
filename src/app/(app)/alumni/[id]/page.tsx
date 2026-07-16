@@ -416,6 +416,12 @@ export default async function AlumniProfilePage({
   const c = profile.contact;
   const career = profile.current_career;
   const aid = a.alumni_id;
+  // Who last touched this profile (#453). `profile_updated_by_name` is resolved
+  // server-side from the `profile_updated_by_user_id` actor FK the backend stamps
+  // on every write; `profile_updated_by` is the intake sheet's free-text name and
+  // is the only thing legacy spreadsheet-sourced rows carry. Empty strings are
+  // treated as absent so a blank sheet cell doesn't render "by ".
+  const updatedBy = a.profile_updated_by_name || a.profile_updated_by || null;
   // Render-time year, used to flag education the alumnus is STILL pursuing
   // (expected graduation is in the future, or the status says in-progress).
   const nowYear = new Date().getFullYear();
@@ -773,17 +779,35 @@ export default async function AlumniProfilePage({
               title="Pay It Forward giving"
             />
             {/* Last updated + Next survey combined into one stacked tile (#364),
-                kept as the last tile in the row. */}
+                kept as the last tile in the row.
+
+                #453: read `updated_at` — the ORM auto-bumps it on every write —
+                NOT the hand-typed `profile_updated_date`. The manual date came
+                off the intake sheet and was never auto-set, so the profile and
+                the alumni list (which has always read `updated_at`) could show
+                different dates for the same alum. One auto date, both surfaces.
+                `profile_updated_date` stays in the DB as the provenance record
+                of what the spreadsheet claimed; it just isn't displayed.
+
+                `updatedBy` prefers the name resolved from `profile_updated_by_user_id`
+                (the backend now stamps the actor on every write), falling back to
+                the free-text `profile_updated_by` for legacy rows that only ever
+                came from the spreadsheet and so have no actor FK. */}
             <StackedTile
               topLabel="Last updated"
-              topValue={fmtDate(a.profile_updated_date ?? a.updated_at) ?? "—"}
+              topValue={
+                <>
+                  {fmtDate(a.updated_at) ?? "—"}
+                  {updatedBy ? (
+                    <span className="block text-xs font-normal text-gray-500">
+                      by {updatedBy}
+                    </span>
+                  ) : null}
+                </>
+              }
               bottomLabel="Next survey"
               bottomValue={fmtDate(nextSurveyIso) ?? "—"}
-              title={
-                a.profile_updated_by_name || a.profile_updated_by
-                  ? `Updated by ${a.profile_updated_by_name ?? a.profile_updated_by}`
-                  : undefined
-              }
+              title={updatedBy ? `Updated by ${updatedBy}` : undefined}
             />
           </div>
 
