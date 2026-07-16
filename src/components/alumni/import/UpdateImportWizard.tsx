@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import type {
   UpdateImportPreview,
   UpdateImportRowReport,
@@ -11,10 +11,15 @@ import type {
 import {
   previewUpdateImport,
   commitUpdateImport,
+  downloadCohortUpdateCsv,
+  getGraduationYears,
 } from "@/app/(app)/alumni/actions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 
 type Step = "upload" | "review" | "result";
 
@@ -23,6 +28,19 @@ function fileForm(file: File): FormData {
   const fd = new FormData();
   fd.append("file", file, file.name);
   return fd;
+}
+
+/** Trigger a browser download of `text` as `filename` (client-side Blob). */
+function downloadCsv(filename: string, text: string) {
+  const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 const isCsv = (file: File) =>
@@ -62,8 +80,43 @@ export function UpdateImportWizard() {
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [updating, startUpdating] = useTransition();
 
+  // Step 1 — export a cohort. The year list mirrors the alumni-list filters
+  // (FilterOptions.graduation_years); if it can't load we fall back to a plain
+  // year input so export still works.
+  const [gradYears, setGradYears] = useState<number[]>([]);
+  const [selectedYear, setSelectedYear] = useState<string>("");
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exporting, startExporting] = useTransition();
+
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let active = true;
+    void getGraduationYears().then((res) => {
+      if (active && res.ok) setGradYears(res.years);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const onExport = () => {
+    const year = Number(selectedYear);
+    if (!selectedYear || !Number.isFinite(year)) {
+      setExportError("Pick a class year to export.");
+      return;
+    }
+    setExportError(null);
+    startExporting(async () => {
+      const res = await downloadCohortUpdateCsv(year);
+      if (res.ok) {
+        downloadCsv(`alumni-${year}-update.csv`, res.csv);
+      } else {
+        setExportError(res.error);
+      }
+    });
+  };
 
   const pickFile = (next: File | null) => {
     setPreview(null);
@@ -114,26 +167,33 @@ export function UpdateImportWizard() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <Link
-        href="/alumni"
-        className="mb-4 inline-block text-sm font-medium text-brand-blue-600 hover:underline"
-      >
-        Back to Alumni
-      </Link>
       <StepHeader step={step} />
 
       {step === "upload" && (
-        <UploadStep
-          file={file}
-          fileError={fileError}
-          dragOver={dragOver}
-          checking={checking}
-          previewError={previewError}
-          inputRef={inputRef}
-          setDragOver={setDragOver}
-          onPick={pickFile}
-          onCheck={onCheck}
-        />
+        <div className="space-y-4">
+          <ExportStep
+            gradYears={gradYears}
+            selectedYear={selectedYear}
+            exporting={exporting}
+            exportError={exportError}
+            onSelectYear={(v) => {
+              setSelectedYear(v);
+              setExportError(null);
+            }}
+            onExport={onExport}
+          />
+          <UploadStep
+            file={file}
+            fileError={fileError}
+            dragOver={dragOver}
+            checking={checking}
+            previewError={previewError}
+            inputRef={inputRef}
+            setDragOver={setDragOver}
+            onPick={pickFile}
+            onCheck={onCheck}
+          />
+        </div>
       )}
 
       {step === "review" && preview && (
@@ -166,7 +226,7 @@ export function UpdateImportWizard() {
 
 function StepHeader({ step }: { step: Step }) {
   const steps: { id: Step; label: string }[] = [
-    { id: "upload", label: "Upload" },
+    { id: "upload", label: "Export & upload" },
     { id: "review", label: "Review" },
     { id: "result", label: "Done" },
   ];
@@ -232,7 +292,82 @@ function StepHeader({ step }: { step: Step }) {
   );
 }
 
-/* ----------------------------------------------------------- step 1: upload --- */
+/* -------------------------------------------------- step 1a: export cohort --- */
+
+function ExportStep({
+  gradYears,
+  selectedYear,
+  exporting,
+  exportError,
+  onSelectYear,
+  onExport,
+}: {
+  gradYears: number[];
+  selectedYear: string;
+  exporting: boolean;
+  exportError: string | null;
+  onSelectYear: (v: string) => void;
+  onExport: () => void;
+}) {
+  const hasYears = gradYears.length > 0;
+  return (
+    <Card className="p-6">
+      <div className="mb-4">
+        <h2 className="text-lg font-semibold text-gray-900">
+          Step 1 — Export a class year
+        </h2>
+        <p className="mt-1 text-sm text-gray-500">
+          Pick a class year, export it, edit the cells you need, then upload it
+          back below to apply the changes.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="w-48">
+          <Label htmlFor="cohort-year" className="mb-1.5">
+            Graduation year
+          </Label>
+          {hasYears ? (
+            <Select
+              id="cohort-year"
+              value={selectedYear}
+              onChange={(e) => onSelectYear(e.target.value)}
+            >
+              <option value="">Select a year…</option>
+              {gradYears.map((y) => (
+                <option key={y} value={String(y)}>
+                  {y}
+                </option>
+              ))}
+            </Select>
+          ) : (
+            <Input
+              id="cohort-year"
+              type="number"
+              inputMode="numeric"
+              placeholder="e.g. 2024"
+              value={selectedYear}
+              onChange={(e) => onSelectYear(e.target.value)}
+            />
+          )}
+        </div>
+        <Button
+          variant="secondary"
+          onClick={onExport}
+          disabled={!selectedYear || exporting}
+        >
+          {exporting ? "Exporting…" : "Export CSV"}
+        </Button>
+      </div>
+
+      {exportError && (
+        <p className="mt-3 text-sm text-danger-600">{exportError}</p>
+      )}
+    </Card>
+  );
+}
+
+/* ------------------------------------------------ step 1b: upload edited csv --- */
 
 function UploadStep({
   file,
@@ -260,13 +395,12 @@ function UploadStep({
       <Card className="p-6">
         <div className="mb-4">
           <h2 className="text-lg font-semibold text-gray-900">
-            Upload an edited cohort CSV
+            Step 2 — Upload the edited CSV
           </h2>
           <p className="mt-1 text-sm text-gray-500">
-            Export a cohort from the Alumni list, edit the cells you need, then
-            upload it here. Blank cells are left unchanged; only existing
-            profiles (matched by BYU ID, then Net ID) are updated — unmatched
-            rows are reported, never created.
+            After editing the exported file, upload it here. Blank cells are left
+            unchanged; only existing profiles (matched by BYU ID, then Net ID)
+            are updated — unmatched rows are reported, never created.
           </p>
         </div>
 

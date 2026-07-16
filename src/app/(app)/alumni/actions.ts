@@ -24,6 +24,7 @@ import type {
   AlumniExportRequest,
   ExportColumnCatalog,
 } from "@/types/export";
+import type { FilterOptions } from "@/types/filters";
 import type { Note, NoteEntityType } from "@/types/notes";
 
 /**
@@ -1117,6 +1118,70 @@ export async function commitUpdateImport(
   } catch (e) {
     const fs = toFormState(e, "Update failed — try again.");
     return { ok: false, error: fs?.error ?? "Update failed — try again." };
+  }
+}
+
+/**
+ * The distinct graduation years on file, for the update-import cohort picker.
+ * Reuses the same source the alumni list filters read (`GET
+ * /alumni/filter-options` → `FilterOptions.graduation_years`). Returns an empty
+ * list on failure so the wizard can fall back to a plain year input.
+ */
+export async function getGraduationYears(): Promise<
+  { ok: true; years: number[] } | { ok: false; error: string }
+> {
+  try {
+    const options = await apiGet<FilterOptions>("/alumni/filter-options", {
+      revalidate: 300,
+      tags: ["alumni-filter-options"],
+    });
+    const years = Array.isArray(options?.graduation_years)
+      ? options.graduation_years
+      : [];
+    return { ok: true, years };
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof ApiError ? e.message : "Couldn't load graduation years.",
+    };
+  }
+}
+
+/**
+ * Export one graduation cohort as an editable CSV (GET
+ * /alumni/import/update/export?grad_year=YYYY) so staff can edit the cells and
+ * upload it back through the update-import flow. The GET needs the user's Bearer
+ * token (attached server-side); we return the raw CSV text so the client turns
+ * it into a Blob download. 413 (cohort too large) and 422 (invalid year) map to
+ * clear messages the wizard shows inline.
+ */
+export async function downloadCohortUpdateCsv(
+  gradYear: number,
+): Promise<{ ok: true; csv: string } | { ok: false; error: string }> {
+  try {
+    const csv = await apiGetText(
+      `/alumni/import/update/export?grad_year=${gradYear}`,
+    );
+    return { ok: true, csv };
+  } catch (e) {
+    if (e instanceof ApiError) {
+      if (e.status === 413) {
+        return {
+          ok: false,
+          error:
+            "That cohort is too large to export at once. Pick a single class year.",
+        };
+      }
+      if (e.status === 422) {
+        return {
+          ok: false,
+          error: e.message || "That isn't a valid graduation year.",
+        };
+      }
+      return { ok: false, error: e.message };
+    }
+    return { ok: false, error: "Couldn't export that cohort — try again." };
   }
 }
 
