@@ -66,7 +66,7 @@ export default async function SetPasswordPage() {
               password to continue.
             </p>
 
-            <SetPasswordForm />
+            <SetPasswordForm email={session.user.email ?? ""} />
           </CardContent>
         </Card>
       </div>
