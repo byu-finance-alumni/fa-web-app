@@ -113,6 +113,11 @@ const NAV: NavItem[] = [
       { href: "/admin/quick-filters", label: "Quick filters", engineerOnly: true },
       { href: "/engineer/logins", label: "Logins", engineerOnly: true },
       {
+        href: "/engineer/login-failures",
+        label: "Login failures",
+        engineerOnly: true,
+      },
+      {
         href: "/engineer/support-contacts",
         label: "Support contacts",
         engineerOnly: true,

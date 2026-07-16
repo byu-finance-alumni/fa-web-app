@@ -54,22 +54,67 @@ async function loginPrecheckAllowed(email: string): Promise<boolean> {
 }
 
 /**
+ * The client IP + IP-based location for the CURRENT request. Readable only in a
+ * server action (the edge sees the real client; the backend call is server→
+ * server). Prefers Vercel's trusted, edge-set IP headers over the spoofable
+ * leftmost x-forwarded-for hop. All fields best-effort → null when absent (local
+ * dev / non-Vercel), and clipped to the backend column limits so an odd value
+ * never 422s the record.
+ */
+async function readLoginContext(): Promise<{
+  ip_address: string | null;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+}> {
+  const h = await headers();
+  const clip = (v: string | null, n: number) => (v ? v.slice(0, n) : null);
+  const decode = (v: string | null) => {
+    if (!v) return null;
+    try {
+      return decodeURIComponent(v); // x-vercel-ip-city is URL-encoded
+    } catch {
+      return v;
+    }
+  };
+  const xff = h.get("x-forwarded-for");
+  const xffLast = xff
+    ? (xff.split(",").map((s) => s.trim()).filter(Boolean).pop() ?? null)
+    : null;
+  const ip = h.get("x-real-ip") ?? h.get("x-vercel-forwarded-for") ?? xffLast;
+  return {
+    ip_address: clip(ip ?? null, 64),
+    city: clip(decode(h.get("x-vercel-ip-city")), 128),
+    region: clip(h.get("x-vercel-ip-country-region"), 128),
+    country: clip(h.get("x-vercel-ip-country"), 64),
+  };
+}
+
+/**
  * Record the outcome of a login attempt so the backend can count failures and
  * arm the lockout. Fire-and-forget from the caller's perspective: FAIL-OPEN, so
  * a failure here is logged and swallowed (we never block the success path on the
  * recorder).
+ *
+ * On a FAILURE we also forward the client IP/geo context and the coarse Supabase
+ * error `reason` — the backend logs one `login_failures` row (the engineer
+ * Login-failures tab). Sending them on success is harmless (the backend ignores
+ * a success here). `reason` stays coarse (an error code, never the message /
+ * email) so the log can't leak PII, matching the generic message we show.
  */
 async function recordLoginAttempt(
   email: string,
   success: boolean,
+  reason?: string,
 ): Promise<void> {
   try {
+    const context = await readLoginContext();
     const res = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/auth/login/record`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, success }),
+        body: JSON.stringify({ email, success, context, reason }),
         cache: "no-store",
       },
     );
@@ -93,37 +138,9 @@ async function recordLoginAttempt(
  */
 async function recordLoginSuccess(accessToken: string): Promise<void> {
   try {
-    // The client IP + location can only be read HERE (the edge sees the real
-    // client; the backend call is server→server). Vercel injects the client IP
-    // (x-forwarded-for) and IP-geolocation headers onto this request. Best-
-    // effort: any header may be absent (local dev, non-Vercel) → null. Clip to
-    // the backend's column limits so an odd value never 422s the whole record.
-    const h = await headers();
-    const clip = (v: string | null, n: number) => (v ? v.slice(0, n) : null);
-    const decode = (v: string | null) => {
-      if (!v) return null;
-      try {
-        return decodeURIComponent(v); // x-vercel-ip-city is URL-encoded
-      } catch {
-        return v;
-      }
-    };
-    // Prefer the Vercel-set, trusted client IP (x-real-ip / x-vercel-forwarded-
-    // for) — the edge overwrites these, so they can't be forged. Only fall back
-    // to x-forwarded-for, and then to its LAST hop (the one Vercel's edge saw),
-    // never the leftmost entry, which the client can spoof.
-    const xff = h.get("x-forwarded-for");
-    const xffLast = xff
-      ? (xff.split(",").map((s) => s.trim()).filter(Boolean).pop() ?? null)
-      : null;
-    const ip =
-      h.get("x-real-ip") ?? h.get("x-vercel-forwarded-for") ?? xffLast;
-    const context = {
-      ip_address: clip(ip ?? null, 64),
-      city: clip(decode(h.get("x-vercel-ip-city")), 128),
-      region: clip(h.get("x-vercel-ip-country-region"), 128),
-      country: clip(h.get("x-vercel-ip-country"), 64),
-    };
+    // Same client IP + location as the failure path, read from this request's
+    // edge headers (see readLoginContext).
+    const context = await readLoginContext();
 
     const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
       method: "POST",
@@ -170,9 +187,11 @@ export async function signIn(
 
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
-  // Record the attempt outcome so the backend can arm/clear the lockout.
-  // `success` is simply "no auth error". Fail-open: errors are swallowed inside.
-  await recordLoginAttempt(email, !error);
+  // Record the attempt outcome so the backend can arm/clear the lockout. On a
+  // failure, forward the coarse Supabase error code as the reason (never the
+  // message/email) so the login_failures log stays PII-free. `success` is simply
+  // "no auth error". Fail-open: errors are swallowed inside.
+  await recordLoginAttempt(email, !error, error?.code ?? undefined);
 
   if (error) {
     // Return ONE generic message for every auth failure so the response can't
