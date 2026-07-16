@@ -78,6 +78,10 @@ const NAV: NavItem[] = [
       // administration. Keeping it out of Admin means Admin stays a true
       // super-admin section (no lone "Import" link for full_access).
       { href: "/admin/import", label: "Import", fullAccessOnly: true },
+      // Update = bulk-UPDATE existing alumni from an edited cohort CSV (the
+      // round-trip: export a class year -> edit -> upload). Sits right after
+      // Import as its own entry point.
+      { href: "/admin/import/update", label: "Update", fullAccessOnly: true },
     ],
   },
 
