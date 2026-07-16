@@ -105,7 +105,7 @@ export function regionForState(
  * That restriction is the whole point, and it is load-bearing — half-typed input
  * passes through strings that are valid codes for the WRONG state. Typing
  * "Montana" passes through "Mo", which is Missouri's code; expanding it here
- * would flash "Midwest" under the cursor before landing on "West". So:
+ * would flash "Midwest" under the cursor before landing on "Mountain West". So:
  *
  *   * "Texas" / "texas" / " TEXAS " -> "Southwest" — resolved on the keystroke
  *     that completes the name, no blur needed.

@@ -99,13 +99,18 @@ export const PRIMARY_INDUSTRY_OPTIONS = filterPrimaryIndustries(INDUSTRY_OPTIONS
 export const SECONDARY_INDUSTRY_OPTIONS: readonly string[] = INDUSTRY_OPTIONS;
 
 /**
- * The five canonical U.S. regions.
+ * The six canonical U.S. regions, in display order.
  *
  * FALLBACK ONLY, like `INDUSTRY_OPTIONS` — the live list comes from
  * `GET /vocabulary/state-regions` (`regions`) via `useStateRegions`, which is
  * derived server-side from the same map the write path uses to persist a
  * region. Mirrors `REGIONS` in fa-web-api/app/services/state_regions.py.
- * There is deliberately no "Mountain West" — those states fold into "West".
+ *
+ * "Mountain West" was split out of "West" as a 6th region (Tanya, 2026-07-16):
+ * West is now AK/CA/HI/OR/WA, Mountain West is CO/ID/MT/NV/UT/WY. The
+ * state -> region crosswalk itself is deliberately NOT duplicated here — the
+ * endpoint is its single source of truth, and this list only exists so a Region
+ * dropdown isn't blank before that fetch resolves (or if it fails).
  */
 export const REGION_OPTIONS = [
   "Northeast",
@@ -113,6 +118,7 @@ export const REGION_OPTIONS = [
   "Midwest",
   "Southwest",
   "West",
+  "Mountain West",
 ] as const;
 
 export type Region = (typeof REGION_OPTIONS)[number];

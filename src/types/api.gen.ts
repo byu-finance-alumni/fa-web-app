@@ -5730,18 +5730,20 @@ export interface components {
          *     holding a 2-letter code should expand it to the full name before looking up.
          * @example {
          *       "region_by_state": {
+         *         "California": "West",
          *         "Connecticut": "Northeast",
          *         "Florida": "Southeast",
          *         "Ohio": "Midwest",
          *         "Texas": "Southwest",
-         *         "Utah": "West"
+         *         "Utah": "Mountain West"
          *       },
          *       "regions": [
          *         "Northeast",
          *         "Southeast",
          *         "Midwest",
          *         "Southwest",
-         *         "West"
+         *         "West",
+         *         "Mountain West"
          *       ]
          *     }
          */

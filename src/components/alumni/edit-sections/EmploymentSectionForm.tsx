@@ -70,7 +70,7 @@ export function EmploymentSectionForm({
   //     is what makes this feel like it works. Restricted to exact full names
   //     (`regionForTypedState`) so mid-word input can't fill a wrong region:
   //     typing "Montana" passes through "Mo" — Missouri's USPS code — and a
-  //     lenient resolve would flash "Midwest" before landing on "West".
+  //     lenient resolve would flash "Midwest" before landing on "Mountain West".
   //  2. ON SETTLE (blur / picking a suggestion) — the full, lenient resolve,
   //     including code expansion, so "TX" also lands on Southwest.
   //

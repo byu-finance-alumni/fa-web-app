@@ -16,10 +16,10 @@ const REGION_BY_STATE = {
   // regions — so a lenient mid-word resolve is observably wrong, not just
   // premature.
   Missouri: "Midwest",
-  Montana: "West",
+  Montana: "Mountain West",
   Ohio: "Midwest",
   Texas: "Southwest",
-  Utah: "West",
+  Utah: "Mountain West",
   "New York": "Northeast",
   "District of Columbia": "Southeast",
 };
@@ -112,19 +112,19 @@ describe("stateSuggestions", () => {
 
 describe("regionForState", () => {
   it("maps a canonical full state name to its region", () => {
-    expect(regionForState(REGION_BY_STATE, "Utah")).toBe("West");
+    expect(regionForState(REGION_BY_STATE, "Utah")).toBe("Mountain West");
     expect(regionForState(REGION_BY_STATE, "Florida")).toBe("Southeast");
     expect(regionForState(REGION_BY_STATE, "New York")).toBe("Northeast");
   });
 
   it("expands a 2-letter code before looking up", () => {
     // The map is keyed by full name only; a form holding "UT" must still resolve.
-    expect(regionForState(REGION_BY_STATE, "UT")).toBe("West");
+    expect(regionForState(REGION_BY_STATE, "UT")).toBe("Mountain West");
     expect(regionForState(REGION_BY_STATE, "ny")).toBe("Northeast");
   });
 
   it("normalizes casing and whitespace before looking up", () => {
-    expect(regionForState(REGION_BY_STATE, "  utah ")).toBe("West");
+    expect(regionForState(REGION_BY_STATE, "  utah ")).toBe("Mountain West");
     expect(regionForState(REGION_BY_STATE, "TEXAS")).toBe("Southwest");
   });
 
@@ -155,7 +155,7 @@ describe("regionForState", () => {
 describe("regionForTypedState", () => {
   it("resolves a state name typed IN FULL, without waiting for blur", () => {
     expect(regionForTypedState(REGION_BY_STATE, "Texas")).toBe("Southwest");
-    expect(regionForTypedState(REGION_BY_STATE, "Utah")).toBe("West");
+    expect(regionForTypedState(REGION_BY_STATE, "Utah")).toBe("Mountain West");
     expect(regionForTypedState(REGION_BY_STATE, "New York")).toBe("Northeast");
   });
 
@@ -175,15 +175,15 @@ describe("regionForTypedState", () => {
   // via `regionForState`; that is the correct place for them.
   it("does NOT expand a USPS code — 'Mo' mid-'Montana' must not read Missouri", () => {
     // The bug this pins: "Mo" is Missouri's code (Midwest), but it is also how
-    // "Montana" (West) starts. On the keystroke after "M", the user may be
-    // heading for either. Resolving NOTHING is the only answer that can't be
+    // "Montana" (Mountain West) starts. On the keystroke after "M", the user may
+    // be heading for either. Resolving NOTHING is the only answer that can't be
     // wrong, and the caller leaves the region untouched on null.
     expect(regionForTypedState(REGION_BY_STATE, "Mo")).toBeNull();
     expect(regionForTypedState(REGION_BY_STATE, "mo")).toBeNull();
     // Typing on to the full name lands on the RIGHT region — no Midwest flash
     // on the way, because no intermediate string resolved at all.
     expect(regionForTypedState(REGION_BY_STATE, "Mont")).toBeNull();
-    expect(regionForTypedState(REGION_BY_STATE, "Montana")).toBe("West");
+    expect(regionForTypedState(REGION_BY_STATE, "Montana")).toBe("Mountain West");
   });
 
   it("does NOT expand any code, even one no state name extends", () => {
