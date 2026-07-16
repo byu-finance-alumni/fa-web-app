@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,25 +12,43 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const setPasswordSchema = z
-  .object({
-    password: z
-      .string()
-      .min(8, "Password must be at least 8 characters")
-      .max(72, "Password must be 72 characters or fewer"),
-    confirm: z.string().min(1, "Please confirm your password"),
-  })
-  .refine((vals) => vals.password === vals.confirm, {
-    message: "Passwords don't match",
-    path: ["confirm"],
-  });
+type SetPasswordValues = { password: string; confirm: string };
 
-type SetPasswordValues = z.infer<typeof setPasswordSchema>;
+/** Schema factory: the "password can't be your email" rule needs the caller's
+ *  email, so build the schema per-user. Comparison is case-insensitive and
+ *  trims surrounding whitespace. */
+const makeSetPasswordSchema = (email: string) =>
+  z
+    .object({
+      password: z
+        .string()
+        .min(8, "Password must be at least 8 characters")
+        .max(72, "Password must be 72 characters or fewer"),
+      confirm: z.string().min(1, "Please confirm your password"),
+    })
+    .refine((vals) => vals.password === vals.confirm, {
+      message: "Passwords don't match",
+      path: ["confirm"],
+    })
+    .refine(
+      (vals) =>
+        !email ||
+        vals.password.trim().toLowerCase() !== email.trim().toLowerCase(),
+      {
+        message: "Your password can't be the same as your email address.",
+        path: ["password"],
+      },
+    );
 
-export function SetPasswordForm() {
+export function SetPasswordForm({ email = "" }: { email?: string }) {
   const router = useRouter();
   const [formError, setFormError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+
+  const setPasswordSchema = useMemo(
+    () => makeSetPasswordSchema(email),
+    [email],
+  );
 
   const {
     register,
