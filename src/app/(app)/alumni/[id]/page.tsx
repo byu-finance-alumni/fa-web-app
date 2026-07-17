@@ -430,7 +430,8 @@ export default async function AlumniProfilePage({
       .filter(Boolean)
       .join(" ") || "Alumni";
   const initials =
-    (a.first_name?.[0] ?? name[0] ?? "?") + (a.last_name?.[0] ?? "");
+    (a.preferred_first_name?.[0] ?? a.first_name?.[0] ?? name[0] ?? "?") +
+    (a.last_name?.[0] ?? "");
   const recordStatus = a.archived
     ? "Archived"
     : a.deceased
@@ -596,13 +597,6 @@ export default async function AlumniProfilePage({
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-3xl font-semibold text-gray-900">{name}</h2>
-                    {a.preferred_first_name &&
-                    a.preferred_first_name.trim().toLowerCase() !==
-                      (a.first_name ?? "").trim().toLowerCase() ? (
-                      <EngagementChip tone="neutral">
-                        Goes by “{a.preferred_first_name}”
-                      </EngagementChip>
-                    ) : null}
                     {recordStatus !== "Active" ? (
                       <Badge variant="muted">
                         <span className="h-1.5 w-1.5 rounded-full bg-gray-400" />
@@ -613,11 +607,6 @@ export default async function AlumniProfilePage({
                   {/* BYU ID and BYU Net ID removed from the header (#361) — the
                       Net ID now lives in the Personal & family box; the BYU ID
                       number is not rendered in the UI at all. */}
-                  {a.graduation_year ? (
-                    <p className="mt-1 text-base text-gray-500">
-                      Class of {a.graduation_year}
-                    </p>
-                  ) : null}
                   {/* Job title on its own line, company name underneath (#363);
                       the job/city icons are removed (#362). */}
                   <div className="mt-1.5 space-y-0.5 text-base text-gray-600">
@@ -711,24 +700,18 @@ export default async function AlumniProfilePage({
           </div>
 
           {/* KPI strip — 6 non-sensitive tiles, shown for every role.
-              "Graduating class" is the named cohort (graduation_class, falling
-              back to graduation_year). The industry tile shows the primary
-              industry (one of the 15 controlled categories); when the alumnus
-              also has a free-text secondary/"Other" detail it splits into a
-              stacked tile (top "Industry", bottom "Secondary industry", e.g.
-              primary "Other" / secondary "Healthcare"), otherwise it stays a
-              plain single-value tile. Replaces the old "Graduated" tile — the
-              graduating-class tile already covers cohort year. */}
+              "Graduation Year" shows the BYU graduation_year (#469 — the
+              Marriott graduation_class "Class of" value is no longer surfaced,
+              to avoid the two sources disagreeing). The industry tile shows the
+              primary industry (one of the 15 controlled categories); when the
+              alumnus also has a free-text secondary/"Other" detail it splits
+              into a stacked tile (top "Industry", bottom "Secondary industry",
+              e.g. primary "Other" / secondary "Healthcare"), otherwise it stays
+              a plain single-value tile. */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <MetricCard
-              label="Graduating class"
-              value={
-                a.graduation_class
-                  ? `Class of ${a.graduation_class}`
-                  : a.graduation_year
-                    ? `Class of ${a.graduation_year}`
-                    : "—"
-              }
+              label="Graduation Year"
+              value={a.graduation_year ? String(a.graduation_year) : "—"}
             />
             {career?.current_industry_secondary ? (
               <StackedTile
@@ -1914,18 +1897,18 @@ function StackedTile({
       title={title}
     >
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+        <p className="text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
           {topLabel}
         </p>
-        <p className="mt-0.5 text-sm font-semibold tabular-nums text-gray-900">
+        <p className="mt-0.5 text-center text-sm font-semibold tabular-nums text-gray-900">
           {topValue}
         </p>
       </div>
       <div className="border-t border-gray-100 pt-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+        <p className="text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
           {bottomLabel}
         </p>
-        <p className="mt-0.5 text-sm font-semibold tabular-nums text-gray-900">
+        <p className="mt-0.5 text-center text-sm font-semibold tabular-nums text-gray-900">
           {bottomValue}
         </p>
       </div>

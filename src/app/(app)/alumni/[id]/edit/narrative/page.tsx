@@ -11,7 +11,7 @@ export default async function NarrativeEditPage({
   const p = await loadEditableProfile(id);
   const a = p.alumni;
   const name =
-    [a.first_name, a.last_name].filter(Boolean).join(" ") || "Alumnus";
+    [a.preferred_first_name ?? a.first_name, a.last_name].filter(Boolean).join(" ") || "Alumnus";
 
   return (
     <>

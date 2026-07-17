@@ -39,12 +39,14 @@ interface Summary {
    * Industry breakdown (#351/#352/#353). `industries` covers EVERY canonical
    * finance industry — including zero-count ones — so the legend can list them
    * all. `other` (the catch-all "Other" value) and `unknown` (no industry on
-   * file) are separate, distinct buckets.
+   * file) are separate, distinct buckets. `graduate_student` (#294) is its own
+   * bucket, split out of `other`, so it can be shown as its own bar.
    */
   industry_breakdown: {
     industries: { industry: string; count: number }[];
     other: number;
     unknown: number;
+    graduate_student: number;
   };
 }
 
@@ -54,6 +56,10 @@ interface Summary {
  * brand-blue data-viz accents. Signals "needs attention", not a real category.
  */
 const CHART_UNKNOWN_COLOR = "#B42318"; // danger-600
+// Graduate Student (#294): its own counted bar, split out of "Other" by the
+// backend. A teal accent so it reads as a distinct (non-finance) category,
+// separate from the gray "Other" and red "Unknown".
+const CHART_GRAD_STUDENT_COLOR = "#0E7490"; // teal accent
 
 /* ------------------------------------------------------------- date helpers -- */
 
@@ -125,26 +131,37 @@ function IndustryBarList({
   rows,
   emptyLabel,
 }: {
-  rows: { label: string; count: number; color: string; href?: string }[];
+  rows: {
+    label: string;
+    count: number;
+    color: string;
+    href?: string;
+  }[];
   emptyLabel: string;
 }) {
   if (rows.length === 0)
     return <p className="py-4 text-sm text-gray-400">{emptyLabel}</p>;
 
-  // Catch-all buckets stay pinned to the end; the real finance industries above
-  // them are ordered alphabetically. (The buckets are named exactly "Other" /
-  // "Unknown" by the caller — no real category collides with those.)
-  const CATCH_ALLS = new Set(["Other", "Unknown"]);
+  // Real finance industries sort alphabetically; the three special buckets are
+  // pinned to the end in a fixed order — the "Other" catch-all, then the
+  // "Unknown" data-gap bucket, then "Graduate Student" last. (Named exactly by
+  // the caller, so no real category collides with them.)
+  const PINNED = ["Other", "Unknown", "Graduate Student"];
   const ordered = [
     ...rows
-      .filter((r) => !CATCH_ALLS.has(r.label))
+      .filter((r) => !PINNED.includes(r.label))
       .sort((a, b) => a.label.localeCompare(b.label)),
-    ...rows.filter((r) => CATCH_ALLS.has(r.label)),
+    ...PINNED.map((label) => rows.find((r) => r.label === label)).filter(
+      (r): r is (typeof rows)[number] => Boolean(r),
+    ),
   ];
   const max = Math.max(1, ...ordered.map((r) => r.count));
 
+  // The list fills the panel height with the rows distributed evenly (each row
+  // is flex-1) and NO scrollbar — so every industry is visible at once and the
+  // bars grow as tall as the available space allows.
   return (
-    <ul className="space-y-0.5">
+    <ul className="flex h-full flex-col gap-0.5">
       {ordered.map((r) => {
         const muted = r.count === 0;
         // "Unknown" is a data-gap bucket: always drawn in danger red (label +
@@ -154,7 +171,7 @@ function IndustryBarList({
           <>
             <div className="flex items-baseline justify-between gap-2">
               <span
-                className={`min-w-0 truncate text-sm font-medium ${
+                className={`min-w-0 truncate text-xs font-medium ${
                   isUnknown
                     ? "text-danger-600"
                     : muted
@@ -165,7 +182,7 @@ function IndustryBarList({
                 {r.label}
               </span>
               <span
-                className={`shrink-0 text-sm font-semibold tabular-nums ${
+                className={`shrink-0 text-xs font-semibold tabular-nums ${
                   isUnknown
                     ? "text-danger-600"
                     : muted
@@ -176,9 +193,10 @@ function IndustryBarList({
                 {r.count}
               </span>
             </div>
-            <div className="mt-0.5 h-2 overflow-hidden rounded-full bg-gray-100">
-              {/* Per-industry fill colour (matches the old wheel slice); a
-                  zero-count row draws no bar but keeps its muted label + 0. */}
+            {/* Bar track grows to fill the row's leftover height (flex-1), so the
+                bars are as tall as they can be while all rows still fit. A
+                zero-count row draws no fill but keeps its muted label + 0. */}
+            <div className="mt-1 min-h-[6px] flex-1 overflow-hidden rounded-full bg-gray-100">
               <div
                 className="h-full rounded-full"
                 style={{
@@ -190,18 +208,21 @@ function IndustryBarList({
           </>
         );
         return (
-          <li key={r.label}>
+          <li key={r.label} className="flex min-h-0 flex-1 flex-col">
             {r.href ? (
               <Link
                 href={r.href}
                 aria-label={`View ${r.label} (${r.count}) in alumni list`}
                 title={`${r.label}: ${r.count}`}
-                className="block rounded-lg px-1.5 py-[1.75px] transition hover:bg-brand-blue-50/40"
+                className="flex h-full flex-col rounded-lg px-1.5 py-0.5 transition hover:bg-brand-blue-50/40"
               >
                 {body}
               </Link>
             ) : (
-              <div className="px-1.5 py-[1.75px]" title={`${r.label}: ${r.count}`}>
+              <div
+                className="flex h-full flex-col px-1.5 py-0.5"
+                title={`${r.label}: ${r.count}`}
+              >
                 {body}
               </div>
             )}
@@ -333,6 +354,16 @@ export default async function DashboardPage() {
           color: CHART_UNKNOWN_COLOR,
           href: `/alumni?industry_group=unknown`,
         },
+        // Graduate Student (#294): its own counted bar, split out of the "Other"
+        // bucket by the backend. Pinned just above Other/Unknown by
+        // IndustryBarList and deep-links via the same `?industry=<name>`
+        // mechanism the finance bars use.
+        {
+          label: "Graduate Student",
+          count: breakdown.graduate_student,
+          color: CHART_GRAD_STUDENT_COLOR,
+          href: `/alumni?industry=${encodeURIComponent("Graduate Student")}`,
+        },
       ]
     : [];
 
@@ -405,9 +436,9 @@ export default async function DashboardPage() {
                 />
               </div>
               {/* Industry breakdown fills the entire leftover column space
-                  beneath the KPI strip (#354/#375). The full industry list
-                  scrolls inside the box if it's taller than that space, so the
-                  box matches the left column's height without growing. */}
+                  beneath the KPI strip (#354/#375). Every industry fits without
+                  a scrollbar — the rows distribute evenly to fill the height and
+                  the bars grow as large as the space allows (#294 follow-up). */}
               <Panel
                 title="Industry breakdown"
                 action={
@@ -417,7 +448,7 @@ export default async function DashboardPage() {
                 }
                 className="min-h-0 flex-1"
               >
-                <div className="min-h-0 w-full flex-1 overflow-y-auto">
+                <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
                   <IndustryBarList
                     rows={industryRows}
                     emptyLabel="No industry data yet."
