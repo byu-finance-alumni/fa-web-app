@@ -24,7 +24,6 @@ export type EmploymentDefaults = {
   current_title: string;
   current_industry: string;
   current_industry_secondary: string;
-  company_address: string;
   current_city: string;
   current_state: string;
   current_country: string;
@@ -161,12 +160,6 @@ export function EmploymentSectionForm({
           error={errors["career.current_industry_secondary"]}
         />
       </div>
-      <Field
-        label="Company address"
-        name="career.company_address"
-        defaultValue={defaults.company_address}
-        error={errors["career.company_address"]}
-      />
       <div className="grid grid-cols-2 gap-4">
         <Field
           label="Employment City"
