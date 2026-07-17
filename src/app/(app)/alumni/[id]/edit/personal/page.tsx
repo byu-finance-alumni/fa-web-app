@@ -39,6 +39,9 @@ export default async function PersonalEditPage({
             spouse_name: spouseName,
             citizenship: s(a.citizenship),
             home_country: s(a.home_country),
+            graduation_year: s(a.graduation_year),
+            graduation_semester: s(a.graduation_semester),
+            graduation_class: s(a.graduation_class),
           }}
         />
       </main>
