@@ -107,7 +107,6 @@ function buildPayload(formData: FormData): Record<string, unknown> {
     employment_status: str("employment_status"),
     other_designations: str("other_designations"),
     survey_completed_date: str("survey_completed_date"),
-    profile_updated_date: str("profile_updated_date"),
     spouse_first_name: str("spouse_first_name"),
     spouse_last_name: str("spouse_last_name"),
     spouse_birth_date: str("spouse_birth_date"),
@@ -159,6 +158,30 @@ function buildSection(
     hasValue = true;
   }
   return hasValue ? section : undefined;
+}
+
+/**
+ * Force an explicit `null` when the preferred-contact picker is on "No
+ * preference" (#449).
+ *
+ * The picker is a radio group whose none-affordance submits a blank, and
+ * `buildSection` DROPS blanks — which on a PATCH would silently leave the
+ * previously stored method in place, making the setting impossible to clear.
+ * `null` clears it and the profile header falls back to personal email.
+ *
+ * Only applied on the update paths: on create there's nothing to clear, and
+ * forcing the key would send a contact section for records that have none.
+ * A form without the picker leaves the section untouched.
+ */
+function applyPreferredContactClear(
+  formData: FormData,
+  contact: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  const key = "contact.preferred_contact_method";
+  if (!formData.has(key)) return contact;
+  const next = contact ?? {};
+  next.preferred_contact_method = getStr(formData, key) ?? null;
+  return next;
 }
 
 /** Full create payload: core fields plus the optional nested sections. */
@@ -265,8 +288,16 @@ export async function updateAlumni(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
+  const payload = buildCreatePayload(formData);
+  // "No preference" must actually clear the stored method — see
+  // applyPreferredContactClear.
+  const contact = applyPreferredContactClear(
+    formData,
+    payload.contact as Record<string, unknown> | undefined,
+  );
+  if (contact) payload.contact = contact;
   try {
-    await apiPatch(`/alumni/${id}`, buildCreatePayload(formData));
+    await apiPatch(`/alumni/${id}`, payload);
   } catch (e) {
     return toFormState(e, "Failed to save.");
   }
@@ -340,15 +371,27 @@ export async function updatePersonalSection(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const contact = buildSection(formData, "contact", [
-    { name: "personal_email" },
-    { name: "phone" },
-    { name: "city" },
-    { name: "state" },
-    { name: "country" },
-  ]);
+  // work_email is also editable in the Employment section; it's here because the
+  // preferred-contact picker selects between it and the other two (#449), and a
+  // picker whose field can't be filled in place would be a dead end.
+  const contact = applyPreferredContactClear(
+    formData,
+    buildSection(formData, "contact", [
+      { name: "personal_email" },
+      { name: "work_email" },
+      { name: "phone" },
+    ]),
+  );
+  // contact.city/state/country are deliberately NOT sent from this section
+  // anymore: the form no longer edits them (they hold the EMPLOYER address the
+  // import writes, surfaced by the Employment section / profile employment box,
+  // not a residence). Omitting a key from this PARTIAL PATCH leaves the stored
+  // value untouched — never send explicit nulls here or the import's data would
+  // be wiped on every personal-section save.
   const payload: Record<string, unknown> = compact({
     net_id: getStr(formData, "net_id"),
+    citizenship: getStr(formData, "citizenship"),
+    home_country: getStr(formData, "home_country"),
     contact,
   });
   // Combined "Spouse name" → first/last split on the LAST space. When only one

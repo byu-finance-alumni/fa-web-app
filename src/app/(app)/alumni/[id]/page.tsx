@@ -416,6 +416,12 @@ export default async function AlumniProfilePage({
   const c = profile.contact;
   const career = profile.current_career;
   const aid = a.alumni_id;
+  // Who last touched this profile (#453). `profile_updated_by_name` is resolved
+  // server-side from the `profile_updated_by_user_id` actor FK the backend stamps
+  // on every write; `profile_updated_by` is the intake sheet's free-text name and
+  // is the only thing legacy spreadsheet-sourced rows carry. Empty strings are
+  // treated as absent so a blank sheet cell doesn't render "by ".
+  const updatedBy = a.profile_updated_by_name || a.profile_updated_by || null;
   // Render-time year, used to flag education the alumnus is STILL pursuing
   // (expected graduation is in the future, or the status says in-progress).
   const nowYear = new Date().getFullYear();
@@ -464,6 +470,18 @@ export default async function AlumniProfilePage({
       )[0]?.survey_due_date ??
     null;
 
+  // Display location (#450): the header and Career Snapshot both lead with the
+  // EMPLOYMENT city/state and fall back to the residence (contact) location when
+  // that's blank, so retired/unemployed alumni still show a place. Resolved as a
+  // pair — a half-filled work location never pairs its city with the residence
+  // state. Note the CSV import mirrors the sheet's single (contact) location
+  // block onto career.current_city/current_state, so for imported rows both
+  // sources hold the same value; they only diverge once a real work location is
+  // entered by hand.
+  const residencePlace = place(c?.city, c?.state);
+  const workPlace = place(career?.current_city, career?.current_state);
+  const headerPlace = workPlace ?? residencePlace;
+
   // Career Snapshot employment (#367): the current role (from current_career,
   // falling back to the flagged current employment-history row) plus the two
   // most-recent previous roles from employment history.
@@ -473,19 +491,13 @@ export default async function AlumniProfilePage({
     ? {
         title: career.current_title,
         company: career.current_employer,
-        // Location comes from the contact record (single source of truth for the
-        // person's current city/state, populated by import) — the career
-        // current_city/current_state pair is an employer field the import never
-        // writes and is almost always blank.
-        city: c?.city,
-        state: c?.state,
+        location: headerPlace,
       }
     : currentEmp
       ? {
           title: currentEmp.employment_title,
           company: currentEmp.employer_name,
-          city: currentEmp.city,
-          state: currentEmp.state,
+          location: place(currentEmp.city, currentEmp.state) ?? residencePlace,
         }
       : null;
   const previousJobsAll = [...profile.employment_history]
@@ -528,8 +540,14 @@ export default async function AlumniProfilePage({
     },
     { label: "Email", ok: Boolean(c?.personal_email || c?.work_email) },
     { label: "Cell phone", ok: Boolean(c?.phone) },
-    { label: "City & state", ok: Boolean(c?.city && c?.state) },
-    { label: "Mailing ZIP code", ok: Boolean(c?.zip) },
+    // These read contact.city/state/zip, which hold the EMPLOYER's address (the
+    // import binds the sheet's work-address block to the contact row). Labelled
+    // "Company …" so they say what they measure — "Mailing ZIP code" implied a
+    // residence this system has never stored. Relabelled rather than removed:
+    // the underlying data is real and wanted, and dropping the checks would
+    // shrink the denominator and silently move every alum's completeness score.
+    { label: "Company city & state", ok: Boolean(c?.city && c?.state) },
+    { label: "Company ZIP code", ok: Boolean(c?.zip) },
     { label: "LinkedIn", ok: Boolean(a.linkedin_url) },
     { label: "Graduation year", ok: Boolean(a.graduation_year) },
     { label: "Current industry", ok: Boolean(career?.current_industry) },
@@ -615,10 +633,8 @@ export default async function AlumniProfilePage({
                     {career?.current_employer ? (
                       <p>{career.current_employer}</p>
                     ) : null}
-                    {place(c?.city, c?.state) ? (
-                      <p className="text-sm text-gray-500">
-                        {place(c?.city, c?.state)}
-                      </p>
+                    {headerPlace ? (
+                      <p className="text-sm text-gray-500">{headerPlace}</p>
                     ) : null}
                     {/* Employment status (#306) — text-only label. */}
                     {a.employment_status ? (
@@ -769,17 +785,35 @@ export default async function AlumniProfilePage({
               title="Pay It Forward giving"
             />
             {/* Last updated + Next survey combined into one stacked tile (#364),
-                kept as the last tile in the row. */}
+                kept as the last tile in the row.
+
+                #453: read `updated_at` — the ORM auto-bumps it on every write —
+                NOT the hand-typed `profile_updated_date`. The manual date came
+                off the intake sheet and was never auto-set, so the profile and
+                the alumni list (which has always read `updated_at`) could show
+                different dates for the same alum. One auto date, both surfaces.
+                `profile_updated_date` stays in the DB as the provenance record
+                of what the spreadsheet claimed; it just isn't displayed.
+
+                `updatedBy` prefers the name resolved from `profile_updated_by_user_id`
+                (the backend now stamps the actor on every write), falling back to
+                the free-text `profile_updated_by` for legacy rows that only ever
+                came from the spreadsheet and so have no actor FK. */}
             <StackedTile
               topLabel="Last updated"
-              topValue={fmtDate(a.profile_updated_date ?? a.updated_at) ?? "—"}
+              topValue={
+                <>
+                  {fmtDate(a.updated_at) ?? "—"}
+                  {updatedBy ? (
+                    <span className="block text-xs font-normal text-gray-500">
+                      by {updatedBy}
+                    </span>
+                  ) : null}
+                </>
+              }
               bottomLabel="Next survey"
               bottomValue={fmtDate(nextSurveyIso) ?? "—"}
-              title={
-                a.profile_updated_by_name || a.profile_updated_by
-                  ? `Updated by ${a.profile_updated_by_name ?? a.profile_updated_by}`
-                  : undefined
-              }
+              title={updatedBy ? `Updated by ${updatedBy}` : undefined}
             />
           </div>
 
@@ -811,9 +845,9 @@ export default async function AlumniProfilePage({
                           <p className="text-sm text-gray-600">
                             {currentJob.company ?? "—"}
                           </p>
-                          {place(currentJob.city, currentJob.state) ? (
+                          {currentJob.location ? (
                             <p className="mt-0.5 text-xs text-gray-500">
-                              {place(currentJob.city, currentJob.state)}
+                              {currentJob.location}
                             </p>
                           ) : null}
                         </div>
@@ -1008,9 +1042,12 @@ export default async function AlumniProfilePage({
                     <Field label="Spouse" value={a.spouse_first_name} />
                     <Field label="Birthday" value={fmtDate(a.birth_date)} />
                   </div>
-                  {/* Col 3: net id · home country */}
+                  {/* Col 3: net id · citizenship · home country. Citizenship and
+                      home country are DIFFERENT facts (nationality vs. country
+                      of origin) and are shown as separate fields, never merged. */}
                   <div className="space-y-4">
                     <Field label="BYU Net ID" value={a.net_id} />
+                    <Field label="Citizenship" value={a.citizenship} />
                     <Field label="Home country" value={a.home_country} />
                   </div>
                 </div>
