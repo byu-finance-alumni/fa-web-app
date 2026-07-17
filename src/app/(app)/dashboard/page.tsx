@@ -385,6 +385,7 @@ export default async function DashboardPage() {
     leadership_roles: [],
     survey_statuses: [],
     graduation_years: [],
+    graduation_classes: [],
   };
 
   return (

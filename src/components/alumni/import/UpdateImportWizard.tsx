@@ -13,6 +13,7 @@ import {
   commitUpdateImport,
   downloadCohortUpdateCsv,
   getGraduationYears,
+  getGraduationClasses,
 } from "@/app/(app)/alumni/actions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -80,10 +81,12 @@ export function UpdateImportWizard() {
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [updating, startUpdating] = useTransition();
 
-  // Step 1 — export a cohort. The year list mirrors the alumni-list filters
-  // (FilterOptions.graduation_years); if it can't load we fall back to a plain
-  // year input so export still works.
+  // Step 1 — export a cohort by graduation year OR class year. The lists mirror
+  // the alumni-list filters (FilterOptions.graduation_years / graduation_classes);
+  // if one can't load we fall back to a plain year input so export still works.
   const [gradYears, setGradYears] = useState<number[]>([]);
+  const [classYears, setClassYears] = useState<number[]>([]);
+  const [mode, setMode] = useState<"grad" | "class">("grad");
   const [selectedYear, setSelectedYear] = useState<string>("");
   const [exportError, setExportError] = useState<string | null>(null);
   const [exporting, startExporting] = useTransition();
@@ -96,6 +99,9 @@ export function UpdateImportWizard() {
     void getGraduationYears().then((res) => {
       if (active && res.ok) setGradYears(res.years);
     });
+    void getGraduationClasses().then((res) => {
+      if (active && res.ok) setClassYears(res.years);
+    });
     return () => {
       active = false;
     };
@@ -104,14 +110,21 @@ export function UpdateImportWizard() {
   const onExport = () => {
     const year = Number(selectedYear);
     if (!selectedYear || !Number.isFinite(year)) {
-      setExportError("Pick a class year to export.");
+      setExportError(
+        mode === "grad"
+          ? "Pick a graduation year to export."
+          : "Pick a class year to export.",
+      );
       return;
     }
     setExportError(null);
     startExporting(async () => {
-      const res = await downloadCohortUpdateCsv(year);
+      const res = await downloadCohortUpdateCsv(
+        mode === "grad" ? { gradYear: year } : { classYear: year },
+      );
       if (res.ok) {
-        downloadCsv(`alumni-${year}-update.csv`, res.csv);
+        const tag = mode === "grad" ? "gradyear" : "classof";
+        downloadCsv(`alumni-${tag}-${year}-update.csv`, res.csv);
       } else {
         setExportError(res.error);
       }
@@ -172,7 +185,13 @@ export function UpdateImportWizard() {
       {step === "upload" && (
         <div className="space-y-4">
           <ExportStep
-            gradYears={gradYears}
+            mode={mode}
+            onSelectMode={(m) => {
+              setMode(m);
+              setSelectedYear("");
+              setExportError(null);
+            }}
+            years={mode === "grad" ? gradYears : classYears}
             selectedYear={selectedYear}
             exporting={exporting}
             exportError={exportError}
@@ -295,37 +314,76 @@ function StepHeader({ step }: { step: Step }) {
 /* -------------------------------------------------- step 1a: export cohort --- */
 
 function ExportStep({
-  gradYears,
+  mode,
+  onSelectMode,
+  years,
   selectedYear,
   exporting,
   exportError,
   onSelectYear,
   onExport,
 }: {
-  gradYears: number[];
+  mode: "grad" | "class";
+  onSelectMode: (m: "grad" | "class") => void;
+  years: number[];
   selectedYear: string;
   exporting: boolean;
   exportError: string | null;
   onSelectYear: (v: string) => void;
   onExport: () => void;
 }) {
-  const hasYears = gradYears.length > 0;
+  const hasYears = years.length > 0;
+  const label = mode === "grad" ? "Graduation year" : "Class year";
   return (
     <Card className="p-6">
       <div className="mb-4">
         <h2 className="text-lg font-semibold text-gray-900">
-          Step 1 — Export a class year
+          Step 1 — Export a cohort
         </h2>
         <p className="mt-1 text-sm text-gray-500">
-          Pick a class year, export it, edit the cells you need, then upload it
-          back below to apply the changes.
+          Pick a cohort by graduation year or class year, export it, edit the
+          cells you need, then upload it back below to apply the changes.
         </p>
+      </div>
+
+      {/* Cohort selector: graduation year vs class year (BYU vs Marriott). The
+          two years can differ for the same alumnus, so staff choose which one
+          defines the cohort. Text-only toggle, no icons. */}
+      <div
+        className="mb-4 inline-flex rounded-lg border border-gray-200 p-0.5"
+        role="group"
+        aria-label="Select cohort by"
+      >
+        <button
+          type="button"
+          onClick={() => onSelectMode("grad")}
+          aria-pressed={mode === "grad"}
+          className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+            mode === "grad"
+              ? "bg-brand-blue-600 text-white"
+              : "text-gray-600 hover:text-gray-900"
+          }`}
+        >
+          By graduation year
+        </button>
+        <button
+          type="button"
+          onClick={() => onSelectMode("class")}
+          aria-pressed={mode === "class"}
+          className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+            mode === "class"
+              ? "bg-brand-blue-600 text-white"
+              : "text-gray-600 hover:text-gray-900"
+          }`}
+        >
+          By class year
+        </button>
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="w-48">
           <Label htmlFor="cohort-year" className="mb-1.5">
-            Graduation year
+            {label}
           </Label>
           {hasYears ? (
             <Select
@@ -334,7 +392,7 @@ function ExportStep({
               onChange={(e) => onSelectYear(e.target.value)}
             >
               <option value="">Select a year…</option>
-              {gradYears.map((y) => (
+              {years.map((y) => (
                 <option key={y} value={String(y)}>
                   {y}
                 </option>
