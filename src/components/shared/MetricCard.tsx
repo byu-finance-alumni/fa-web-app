@@ -55,7 +55,7 @@ export function MetricCard({
       <div className="flex flex-1 items-center justify-center">
         <p
           className={cn(
-            "font-semibold tracking-tight tabular-nums text-gray-900",
+            "text-center font-semibold tracking-tight tabular-nums text-gray-900",
             lg ? "text-3xl" : "text-xl",
           )}
         >

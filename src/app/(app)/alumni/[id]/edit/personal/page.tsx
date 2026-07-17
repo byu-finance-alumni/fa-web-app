@@ -12,7 +12,7 @@ export default async function PersonalEditPage({
   const a = p.alumni;
   const c = p.contact;
   const name =
-    [a.first_name, a.last_name].filter(Boolean).join(" ") || "Alumnus";
+    [a.preferred_first_name ?? a.first_name, a.last_name].filter(Boolean).join(" ") || "Alumnus";
   const spouseName = [a.spouse_first_name, a.spouse_last_name]
     .filter(Boolean)
     .join(" ");

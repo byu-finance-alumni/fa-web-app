@@ -12,7 +12,7 @@ export default async function EngagementEditPage({
   const a = p.alumni;
   const eng = p.program_engagement;
   const name =
-    [a.first_name, a.last_name].filter(Boolean).join(" ") || "Alumnus";
+    [a.preferred_first_name ?? a.first_name, a.last_name].filter(Boolean).join(" ") || "Alumnus";
 
   return (
     <>

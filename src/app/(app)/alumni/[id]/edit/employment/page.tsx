@@ -13,7 +13,7 @@ export default async function EmploymentEditPage({
   const c = p.contact;
   const career = p.current_career;
   const name =
-    [a.first_name, a.last_name].filter(Boolean).join(" ") || "Alumnus";
+    [a.preferred_first_name ?? a.first_name, a.last_name].filter(Boolean).join(" ") || "Alumnus";
 
   return (
     <>
