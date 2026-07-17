@@ -2606,6 +2606,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/vocabulary/state-regions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get State Regions
+         * @description The 50-states + DC -> region crosswalk (#283).
+         *
+         *     Lets the edit form fill in Region the moment an Employment State is picked,
+         *     so the value is visible before saving and matches what the server will derive
+         *     on write. The frontend must NOT keep its own copy of this map — a hand-copied
+         *     map would silently rot and no test could catch the disagreement.
+         *
+         *     Despite living under ``/vocabulary`` (it is dropdown data for a form, on the
+         *     same read gate), this is NOT editable vocabulary: it is static reference data
+         *     defined in code, so it has no admin CRUD and cannot be changed at runtime.
+         *
+         *     Cacheable — the payload is identical for every caller, contains no PII, and
+         *     only ever changes on deploy. The one-hour max-age is short enough that a
+         *     correction to the map propagates the same day.
+         */
+        get: operations["get_state_regions_vocabulary_state_regions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/vocabulary/{category}": {
         parameters: {
             query?: never;
@@ -2616,7 +2649,11 @@ export interface paths {
         /**
          * Get Vocabulary
          * @description Active option strings for a category (dropdown payload). An unknown
-         *     category is a 422 (validated against VocabularyCategory).
+         *     category (or scope) is a 422.
+         *
+         *     ``scope=primary`` narrows the ``industry`` category to the primary-industry
+         *     options (#282). The terms it hides are still ACTIVE vocabulary and are still
+         *     accepted on write — they are only withheld from the primary dropdown.
          */
         get: operations["get_vocabulary_vocabulary__category__get"];
         put?: never;
@@ -2930,7 +2967,7 @@ export interface components {
             /** Survey Completed Date */
             survey_completed_date: string | null;
             /** Profile Updated Date */
-            profile_updated_date: string | null;
+            readonly profile_updated_date: string | null;
             /** Profile Updated By */
             profile_updated_by: string | null;
             /** Mba Program */
@@ -3548,7 +3585,7 @@ export interface components {
             /** Survey Completed Date */
             survey_completed_date: string | null;
             /** Profile Updated Date */
-            profile_updated_date: string | null;
+            readonly profile_updated_date: string | null;
             /** Profile Updated By */
             profile_updated_by: string | null;
             /** Mba Program */
@@ -5682,6 +5719,47 @@ export interface components {
             industries: components["schemas"]["IndustryCount"][];
             /** By Graduation Year */
             by_graduation_year: components["schemas"]["YearCount"][];
+        };
+        /**
+         * StateRegionMap
+         * @description The 50-states + DC -> region crosswalk, plus the valid region list.
+         *
+         *     ``region_by_state`` is keyed by the canonical FULL state name (matching
+         *     :data:`app.core.us_states.STATE_NAME_BY_CODE`'s values), because that is the
+         *     form the state values are normalized to before region is derived. Clients
+         *     holding a 2-letter code should expand it to the full name before looking up.
+         * @example {
+         *       "region_by_state": {
+         *         "California": "West",
+         *         "Connecticut": "Northeast",
+         *         "Florida": "Southeast",
+         *         "Ohio": "Midwest",
+         *         "Texas": "Southwest",
+         *         "Utah": "Mountain West"
+         *       },
+         *       "regions": [
+         *         "Northeast",
+         *         "Southeast",
+         *         "Midwest",
+         *         "Southwest",
+         *         "West",
+         *         "Mountain West"
+         *       ]
+         *     }
+         */
+        StateRegionMap: {
+            /**
+             * Regions
+             * @description The valid regions, in display order — the full option set for a Region dropdown.
+             */
+            regions: string[];
+            /**
+             * Region By State
+             * @description Canonical full state name -> region, for all 50 states + DC. Every value is one of ``regions``.
+             */
+            region_by_state: {
+                [key: string]: string;
+            };
         };
         /**
          * StatusLabelCreate
@@ -9899,9 +9977,32 @@ export interface operations {
             };
         };
     };
-    get_vocabulary_vocabulary__category__get: {
+    get_state_regions_vocabulary_state_regions_get: {
         parameters: {
             query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StateRegionMap"];
+                };
+            };
+        };
+    };
+    get_vocabulary_vocabulary__category__get: {
+        parameters: {
+            query?: {
+                /** @description 'all' (default) returns every active term. 'primary' additionally hides the industries that may only be used as a SECONDARY industry (Law, Corporate Banking, Sales and Trading, Credit Risk) — pass it when rendering the PRIMARY industry dropdown. No effect on other categories. */
+                scope?: "all" | "primary";
+            };
             header?: never;
             path: {
                 category: components["schemas"]["VocabularyCategory"];
