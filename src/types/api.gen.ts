@@ -3944,8 +3944,6 @@ export interface components {
             current_industry?: string | null;
             /** Current Industry Secondary */
             current_industry_secondary?: string | null;
-            /** Company Address */
-            company_address?: string | null;
             /** Current City */
             current_city?: string | null;
             /** Current State */
@@ -4145,8 +4143,6 @@ export interface components {
             current_industry: string | null;
             /** Current Industry Secondary */
             current_industry_secondary: string | null;
-            /** Company Address */
-            company_address: string | null;
             /** Current City */
             current_city: string | null;
             /** Current State */
