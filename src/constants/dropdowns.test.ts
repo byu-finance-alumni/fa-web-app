@@ -14,11 +14,17 @@ import {
  * keeps for good if the fetch fails.
  */
 
-/** Case-insensitive sort with the "Other" catch-all pinned last (#282). */
+/**
+ * Case-insensitive sort with the pinned tail held last, in this fixed order:
+ * "Unknown" (#295), "Graduate Student" (#294), then the "Other" catch-all (#282).
+ * The rest of the list is alphabetized.
+ */
+const PINNED_TAIL = ["Unknown", "Graduate Student", "Other"];
 function expectedOrder(values: readonly string[]): string[] {
-  const rest = values.filter((v) => v !== "Other");
+  const rest = values.filter((v) => !PINNED_TAIL.includes(v));
   rest.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
-  return values.includes("Other") ? [...rest, "Other"] : rest;
+  const tail = PINNED_TAIL.filter((v) => values.includes(v));
+  return [...rest, ...tail];
 }
 
 describe("INDUSTRY_OPTIONS", () => {
@@ -53,7 +59,7 @@ describe("PRIMARY_INDUSTRY_OPTIONS", () => {
     );
   });
 
-  it("is the 17 options Tanya specified, in order", () => {
+  it("is the finance options in order, then the pinned tail", () => {
     expect([...PRIMARY_INDUSTRY_OPTIONS]).toEqual([
       "Asset Management",
       "Commercial Banking",
@@ -71,6 +77,8 @@ describe("PRIMARY_INDUSTRY_OPTIONS", () => {
       "Valuation & Advisory",
       "Venture Capital",
       "Wealth Management",
+      "Unknown",
+      "Graduate Student",
       "Other",
     ]);
   });
@@ -93,8 +101,8 @@ describe("SECONDARY_INDUSTRY_OPTIONS", () => {
     }
   });
 
-  it("is the 21 options Tanya specified", () => {
-    expect(SECONDARY_INDUSTRY_OPTIONS).toHaveLength(21);
+  it("is the full industry list (finance + Unknown/Graduate Student/Other)", () => {
+    expect(SECONDARY_INDUSTRY_OPTIONS).toHaveLength(23);
   });
 });
 

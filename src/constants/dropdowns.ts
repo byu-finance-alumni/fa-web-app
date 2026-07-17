@@ -19,9 +19,10 @@
  * dropdown: that is exactly the drift #282 removed.
  *
  * Order mirrors `INDUSTRIES` in fa-web-api/app/core/dropdowns.py — sorted
- * case-insensitively ("Financial Services" before "FP&A") with the "Other"
- * catch-all pinned last (#282) — which in turn mirrors `sort_order` on the
- * vocabulary rows, so the fallback and the fetched list agree on order.
+ * case-insensitively ("Financial Services" before "FP&A") with "Unknown",
+ * "Graduate Student" and the "Other" catch-all pinned last, in that order
+ * (#295/#294/#282) — which in turn mirrors `sort_order` on the vocabulary rows,
+ * so the fallback and the fetched list agree on order.
  */
 export const INDUSTRY_OPTIONS = [
   "Asset Management",
@@ -44,6 +45,8 @@ export const INDUSTRY_OPTIONS = [
   "Valuation & Advisory",
   "Venture Capital",
   "Wealth Management",
+  "Unknown",
+  "Graduate Student",
   "Other",
 ] as const;
 

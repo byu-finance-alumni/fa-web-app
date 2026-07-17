@@ -4191,7 +4191,9 @@ export interface components {
          *     vocab) — including ones with a count of 0 — so the legend can list them all.
          *     ``other`` (the catch-all "Other" vocab value + any non-canonical value) and
          *     ``unknown`` (active alumni with NO industry on file) are SEPARATE buckets,
-         *     distinct from each other.
+         *     distinct from each other. ``graduate_student`` (#294) is likewise its own
+         *     bucket — alumni whose current industry is "Graduate Student" — split out of
+         *     ``other`` so the dashboard can show it as its own bar.
          */
         DashboardIndustryBreakdown: {
             /** Industries */
@@ -4200,6 +4202,8 @@ export interface components {
             other: number;
             /** Unknown */
             unknown: number;
+            /** Graduate Student */
+            graduate_student: number;
         };
         /**
          * DashboardIndustryCount
