@@ -387,19 +387,10 @@ export async function updatePersonalSection(
   // not a residence). Omitting a key from this PARTIAL PATCH leaves the stored
   // value untouched — never send explicit nulls here or the import's data would
   // be wiped on every personal-section save.
-  // Undergraduate graduation (#469 follow-up): editable here so both the BYU
-  // graduation_year and the Marriott "Class of" (graduation_class) can be set on
-  // update. Numbers are parsed; blanks are dropped by compact() (PATCH leaves an
-  // omitted field untouched).
-  const gradYear = getStr(formData, "graduation_year");
-  const gradClass = getStr(formData, "graduation_class");
   const payload: Record<string, unknown> = compact({
     net_id: getStr(formData, "net_id"),
     citizenship: getStr(formData, "citizenship"),
     home_country: getStr(formData, "home_country"),
-    graduation_year: gradYear !== undefined ? Number(gradYear) : undefined,
-    graduation_semester: getStr(formData, "graduation_semester"),
-    graduation_class: gradClass !== undefined ? Number(gradClass) : undefined,
     contact,
   });
   // Combined "Spouse name" → first/last split on the LAST space. When only one
@@ -1199,21 +1190,45 @@ export async function getGraduationYears(): Promise<
   }
 }
 
+/** Distinct "Class of" (Marriott) years on file, for the cohort-update picker's
+ *  "by class year" mode. Mirrors getGraduationYears (same /filter-options read). */
+export async function getGraduationClasses(): Promise<
+  { ok: true; years: number[] } | { ok: false; error: string }
+> {
+  try {
+    const options = await apiGet<FilterOptions>("/alumni/filter-options", {
+      revalidate: 300,
+      tags: ["alumni-filter-options"],
+    });
+    const years = Array.isArray(options?.graduation_classes)
+      ? options.graduation_classes
+      : [];
+    return { ok: true, years };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Couldn't load class years.",
+    };
+  }
+}
+
 /**
- * Export one graduation cohort as an editable CSV (GET
- * /alumni/import/update/export?grad_year=YYYY) so staff can edit the cells and
- * upload it back through the update-import flow. The GET needs the user's Bearer
- * token (attached server-side); we return the raw CSV text so the client turns
- * it into a Blob download. 413 (cohort too large) and 422 (invalid year) map to
- * clear messages the wizard shows inline.
+ * Export one cohort as an editable CSV (GET /alumni/import/update/export),
+ * selected by EITHER graduation year (`grad_year`) OR class year (`class_year`),
+ * so staff can edit the cells and upload it back through the update-import flow.
+ * The GET needs the user's Bearer token (attached server-side); we return the raw
+ * CSV text so the client turns it into a Blob download. 413 (too large) and 422
+ * (invalid year) map to clear messages the wizard shows inline.
  */
 export async function downloadCohortUpdateCsv(
-  gradYear: number,
+  cohort: { gradYear: number } | { classYear: number },
 ): Promise<{ ok: true; csv: string } | { ok: false; error: string }> {
+  const query =
+    "gradYear" in cohort
+      ? `grad_year=${cohort.gradYear}`
+      : `class_year=${cohort.classYear}`;
   try {
-    const csv = await apiGetText(
-      `/alumni/import/update/export?grad_year=${gradYear}`,
-    );
+    const csv = await apiGetText(`/alumni/import/update/export?${query}`);
     return { ok: true, csv };
   } catch (e) {
     if (e instanceof ApiError) {
@@ -1221,13 +1236,13 @@ export async function downloadCohortUpdateCsv(
         return {
           ok: false,
           error:
-            "That cohort is too large to export at once. Pick a single class year.",
+            "That cohort is too large to export at once. Pick a single year.",
         };
       }
       if (e.status === 422) {
         return {
           ok: false,
-          error: e.message || "That isn't a valid graduation year.",
+          error: e.message || "That isn't a valid year.",
         };
       }
       return { ok: false, error: e.message };
