@@ -13,7 +13,7 @@ const SECTIONS: { slug: string; title: string; description: string }[] = [
   {
     slug: "personal",
     title: "Update Personal Information",
-    description: "Personal email, phone, NetID, spouse, citizenship, graduation.",
+    description: "Personal email, phone, NetID, spouse, citizenship.",
   },
   {
     slug: "graduate",

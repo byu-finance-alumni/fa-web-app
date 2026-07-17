@@ -387,19 +387,10 @@ export async function updatePersonalSection(
   // not a residence). Omitting a key from this PARTIAL PATCH leaves the stored
   // value untouched — never send explicit nulls here or the import's data would
   // be wiped on every personal-section save.
-  // Undergraduate graduation (#469 follow-up): editable here so both the BYU
-  // graduation_year and the Marriott "Class of" (graduation_class) can be set on
-  // update. Numbers are parsed; blanks are dropped by compact() (PATCH leaves an
-  // omitted field untouched).
-  const gradYear = getStr(formData, "graduation_year");
-  const gradClass = getStr(formData, "graduation_class");
   const payload: Record<string, unknown> = compact({
     net_id: getStr(formData, "net_id"),
     citizenship: getStr(formData, "citizenship"),
     home_country: getStr(formData, "home_country"),
-    graduation_year: gradYear !== undefined ? Number(gradYear) : undefined,
-    graduation_semester: getStr(formData, "graduation_semester"),
-    graduation_class: gradClass !== undefined ? Number(gradClass) : undefined,
     contact,
   });
   // Combined "Spouse name" → first/last split on the LAST space. When only one
