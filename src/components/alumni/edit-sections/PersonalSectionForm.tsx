@@ -7,7 +7,10 @@ import {
 } from "@/app/(app)/alumni/actions";
 import { FocusedEditForm } from "@/components/alumni/FocusedEditForm";
 import { PreferredContactPicker } from "@/components/alumni/PreferredContactPicker";
-import { Field } from "@/components/alumni/form-fields";
+import { Field, SelectField } from "@/components/alumni/form-fields";
+
+/** Matches the create form's graduation-semester options. */
+const GRAD_SEMESTERS = ["Fall", "Winter", "Spring", "Summer"] as const;
 
 export type PersonalDefaults = {
   personal_email: string;
@@ -25,6 +28,12 @@ export type PersonalDefaults = {
   /** Country of ORIGIN — a distinct field from `citizenship`, and unrelated to
    *  any address. Also top-level (NOT under `contact.`). */
   home_country: string;
+  /** Undergraduate graduation (top-level alumni fields). `graduation_year` is the
+   *  BYU year shown on the profile; `graduation_class` is the Marriott "Class of"
+   *  value — stored/editable here but not shown on the profile (#469). */
+  graduation_year: string;
+  graduation_semester: string;
+  graduation_class: string;
 };
 
 export function PersonalSectionForm({
@@ -137,6 +146,32 @@ export function PersonalSectionForm({
           name="home_country"
           defaultValue={defaults.home_country}
           error={errors.home_country}
+        />
+      </div>
+      {/* Undergraduate graduation (#469 follow-up): the profile only shows
+          "Graduation Year" (the BYU graduation_year), but both it and the
+          Marriott "Class of" value (graduation_class) must stay editable here —
+          BYU and the Marriott School supply the two years separately. */}
+      <div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-4 sm:grid-cols-3">
+        <Field
+          label="Graduation year"
+          name="graduation_year"
+          type="number"
+          defaultValue={defaults.graduation_year}
+          error={errors.graduation_year}
+        />
+        <SelectField
+          label="Graduation semester"
+          name="graduation_semester"
+          options={GRAD_SEMESTERS}
+          defaultValue={defaults.graduation_semester}
+        />
+        <Field
+          label="Graduating class (Class of)"
+          name="graduation_class"
+          type="number"
+          defaultValue={defaults.graduation_class}
+          error={errors.graduation_class}
         />
       </div>
     </FocusedEditForm>
