@@ -90,7 +90,7 @@ export default async function AppLayout({
           border so it's impossible to forget you're not seeing your own account
           (#256). Pairs with the solid PreviewBanner below. */}
       <div
-        className={`flex h-screen overflow-hidden bg-canvas${
+        className={`flex h-full overflow-hidden bg-canvas${
           previewRole ? " ring-4 ring-inset ring-warning-500" : ""
         }`}
       >

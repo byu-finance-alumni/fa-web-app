@@ -28,6 +28,19 @@ option {
   color-scheme: only light;
 }
 
+/*
+ * Anchor full-height layout on `height: 100%` (resolved against the real content
+ * viewport) so the app shell can size itself with `h-full` instead of `h-screen`
+ * (`100vh`). On some browsers / display-scaling setups `100vh` computes TALLER
+ * than the usable viewport, which made the shell overflow the screen and gave
+ * `<html>` its own scrollbar — a second, document-level bar on top of each page's
+ * `<main>` scrollbar. `%`-based heights don't have that mismatch.
+ */
+html,
+body {
+  height: 100%;
+}
+
 body {
   @apply bg-canvas text-gray-900 antialiased;
 }
