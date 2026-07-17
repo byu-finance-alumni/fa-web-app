@@ -179,14 +179,18 @@ export function ProfileHeadshot({
           type="button"
           onClick={() => setShowLightbox(true)}
           aria-label={`View ${name}'s photo`}
-          className={`shrink-0 cursor-zoom-in rounded-full focus:outline-none focus:ring-2 focus:ring-brand-blue-500 focus:ring-offset-2 ${size}`}
+          className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-brand-blue-500 focus:ring-offset-2 ${size}`}
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- plain <img> keeps the onError headshot fallback simple */}
+          {/* `block` (not the default inline) + the flex/overflow-hidden wrapper
+              above avoids the inline-image baseline gap that, under this button's
+              text-5xl line-height, spilled past the fixed h-48 box and pushed the
+              page past 100vh (a second scrollbar on profiles that have a photo). */}
           <img
             src={url as string}
             alt={name}
             onError={() => setErrored(true)}
-            className="h-full w-full rounded-full object-cover"
+            className="block h-full w-full rounded-full object-cover"
           />
         </button>
       ) : (
