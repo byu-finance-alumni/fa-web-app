@@ -178,6 +178,7 @@ const EMPTY_OPTIONS: FilterOptions = {
   leadership_roles: [],
   survey_statuses: [],
   graduation_years: [],
+  graduation_classes: [],
 };
 
 /**

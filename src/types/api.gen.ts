@@ -584,16 +584,16 @@ export interface paths {
         };
         /**
          * Export Cohort Update Template
-         * @description Download an ACTIVE graduation-year cohort as a FILLED intake-template CSV
-         *     (full_access).
+         * @description Download an ACTIVE cohort as a FILLED intake-template CSV (full_access).
          *
-         *     Powers the round-trip: pick a grad year, download that cohort in the EXACT
-         *     import-template column format, edit cells offline, then re-upload through
-         *     ``POST /alumni/import/update`` (which matches by BYU ID / Net ID and applies
-         *     only the changed cells). ``grad_year`` is validated to the same year bounds as
-         *     the alumni schema. A cohort larger than the export cap is a 413 asking the
-         *     caller to narrow it down. Audit-logged (``export_alumni``) like the other
-         *     exports.
+         *     Pick the cohort by EITHER ``grad_year`` (the BYU graduation year) OR
+         *     ``class_year`` (the Marriott "Class of" year) — provide exactly one. Powers
+         *     the round-trip: download the cohort in the EXACT import-template column
+         *     format, edit cells offline, then re-upload through ``POST
+         *     /alumni/import/update`` (which matches by BYU ID / Net ID and applies only
+         *     the changed cells). Both years are validated to the alumni-schema bounds. A
+         *     cohort larger than the export cap is a 413 asking the caller to narrow it
+         *     down. Audit-logged (``export_alumni``) like the other exports.
          */
         get: operations["export_cohort_update_template_alumni_import_update_export_get"];
         put?: never;
@@ -4919,6 +4919,8 @@ export interface components {
             survey_statuses: string[];
             /** Graduation Years */
             graduation_years: number[];
+            /** Graduation Classes */
+            graduation_classes: number[];
         };
         /**
          * FollowUpRow
@@ -6847,8 +6849,9 @@ export interface operations {
     };
     export_cohort_update_template_alumni_import_update_export_get: {
         parameters: {
-            query: {
-                grad_year: number;
+            query?: {
+                grad_year?: number | null;
+                class_year?: number | null;
             };
             header?: never;
             path?: never;
