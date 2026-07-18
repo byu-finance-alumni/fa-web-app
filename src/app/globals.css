@@ -54,4 +54,22 @@ body {
  */
 main {
   scrollbar-gutter: stable;
+  /*
+   * Establish a positioning context on the scrolling <main> so that any
+   * absolutely-positioned descendant resolves to THIS container — and is
+   * clipped by its `overflow` — rather than anchoring to the initial
+   * containing block (<html>).
+   *
+   * Tailwind's `.sr-only` utility is `position: absolute`. Because <main> and
+   * the profile cards are all `position: static`, an sr-only span had no
+   * positioned ancestor and anchored to <html>, contributing its box to the
+   * DOCUMENT's scroll height. On a page tall enough to push that span below the
+   * fold, it added ~56px of empty scrollable space to <html> — a second,
+   * document-level scrollbar sitting on top of <main>'s own (reported on prod
+   * for a profile with enough content to scroll; the headshot was incidental,
+   * only making the page tall enough to cross the threshold). `relative` keeps
+   * <main> in normal flow but makes it the containing block, so the escape can
+   * no longer happen on any page.
+   */
+  position: relative;
 }
