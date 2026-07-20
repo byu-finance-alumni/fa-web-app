@@ -61,9 +61,18 @@ type WorkingChangeRecord = ClassCampaign["changeRecords"][number] & {
   rejected: boolean;
 };
 
-/** A class campaign whose change records carry the local rejected flag. */
+/** One day's batch in a multi-day send (100/day under the Resend daily cap). */
+interface SendBatch {
+  date: string;
+  count: number;
+  sent: boolean;
+}
+
+/** A class campaign with the local rejected flag + any staged send schedule. */
 type WorkingClass = Omit<ClassCampaign, "changeRecords"> & {
   changeRecords: WorkingChangeRecord[];
+  /** Multi-day delivery schedule, set once a send is kicked off. */
+  schedule?: SendBatch[];
 };
 
 /** Deep-copy the sample campaigns into editable working state. */
@@ -88,6 +97,45 @@ function formatDate(iso: string): string {
     day: "numeric",
     year: "numeric",
   });
+}
+
+/** ISO date `n` days after `iso` (local, no tz drift). */
+function addDays(iso: string, n: number): string {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setDate(d.getDate() + n);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Split a send into daily batches under the 100/day cap: the first batch uses
+ * whatever daily capacity is left today (marked sent), then 100/day on the
+ * following days (scheduled). Total is clamped to the month's remaining capacity.
+ */
+function buildSchedule(
+  target: number,
+  dailyRemaining: number,
+  monthlyRemaining: number,
+  startIso: string,
+): { batches: SendBatch[]; total: number; cappedByMonth: boolean } {
+  const total = Math.min(target, monthlyRemaining);
+  const batches: SendBatch[] = [];
+  let remaining = total;
+  const firstCount = Math.min(remaining, dailyRemaining);
+  if (firstCount > 0) {
+    batches.push({ date: startIso, count: firstCount, sent: true });
+    remaining -= firstCount;
+  }
+  let dayOffset = 0;
+  while (remaining > 0) {
+    dayOffset += 1;
+    const count = Math.min(remaining, DAILY_LIMIT);
+    batches.push({ date: addDays(startIso, dayOffset), count, sent: false });
+    remaining -= count;
+  }
+  return { batches, total, cappedByMonth: target > monthlyRemaining };
 }
 
 export function SurveyCampaignConsole() {
@@ -144,17 +192,21 @@ export function SurveyCampaignConsole() {
       : round2Sent
         ? "Resend follow-up"
         : "Send follow-up";
-  // How this send fits under the Resend caps. Anything over today's 100 rolls to
-  // following days; anything over the month's remaining can't send this month.
+  // Split this send into 100/day batches: today's batch goes now, the rest are
+  // scheduled on the following days.
   const dailyLeft = Math.max(0, DAILY_LIMIT - sentToday);
   const monthlyLeft = Math.max(0, MONTHLY_LIMIT - sentThisMonth);
-  const willSendThisMonth = Math.min(sendTargetCount, monthlyLeft);
-  const sendsToday = Math.min(willSendThisMonth, dailyLeft);
-  const rollsOver = willSendThisMonth - sendsToday;
-  const overflowDays = rollsOver > 0 ? Math.ceil(rollsOver / DAILY_LIMIT) : 0;
-  const blockedByMonth = sendTargetCount > monthlyLeft;
+  const plan = buildSchedule(
+    sendTargetCount,
+    dailyLeft,
+    monthlyLeft,
+    DEMO_SEND_DATE,
+  );
+  const todayBatch = plan.batches.find((b) => b.sent)?.count ?? 0;
+  const scheduledLater = plan.total - todayBatch;
+  const lastBatchDate = plan.batches.at(-1)?.date ?? DEMO_SEND_DATE;
   const sendDisabled =
-    selected.submitted || sendTargetCount === 0 || monthlyLeft === 0;
+    selected.submitted || sendTargetCount === 0 || plan.total === 0;
 
   const changeSelectedYear = (year: number) => {
     setSelectedYear(year);
@@ -164,45 +216,39 @@ export function SurveyCampaignConsole() {
   };
 
   const confirmSend = () => {
-    if (sendStage === "first") {
-      setClasses((prev) =>
-        prev.map((c) =>
-          c.gradYear === selectedYear
-            ? { ...c, round1: { ...c.round1, sentDate: DEMO_SEND_DATE } }
-            : c,
-        ),
-      );
-    } else {
-      setClasses((prev) =>
-        prev.map((c) =>
-          c.gradYear === selectedYear
-            ? {
-                ...c,
-                round2: {
-                  ...c.round2,
-                  sentDate: DEMO_SEND_DATE,
-                  recipients: c.noReply.length,
-                },
-              }
-            : c,
-        ),
-      );
-    }
-    // Consume send capacity: everything within the month counts toward the total
-    // and the month; only today's share counts against the daily cap.
-    setSentCount((n) => n + willSendThisMonth);
-    setSentThisMonth((m) => m + willSendThisMonth);
-    setSentToday((d) => d + sendsToday);
+    setClasses((prev) =>
+      prev.map((c) => {
+        if (c.gradYear !== selectedYear) return c;
+        if (sendStage === "first") {
+          return {
+            ...c,
+            round1: { ...c.round1, sentDate: DEMO_SEND_DATE },
+            schedule: plan.batches,
+          };
+        }
+        return {
+          ...c,
+          round2: {
+            ...c.round2,
+            sentDate: DEMO_SEND_DATE,
+            recipients: c.noReply.length,
+          },
+          schedule: plan.batches,
+        };
+      }),
+    );
+    // Only today's batch actually goes out now; later batches count on their day.
+    setSentCount((n) => n + todayBatch);
+    setSentThisMonth((m) => m + todayBatch);
+    setSentToday((d) => d + todayBatch);
     setSendOpen(false);
     setCustomMessage("");
 
-    const label = sendStage === "first" ? "Survey sent" : "Follow-up sent";
+    const verb = sendStage === "first" ? "Survey" : "Follow-up";
     toast.success(
-      rollsOver > 0
-        ? `${label}: ${sendsToday.toLocaleString()} today, ${rollsOver.toLocaleString()} queued over the next ${overflowDays} day${
-            overflowDays === 1 ? "" : "s"
-          } (Resend sends ${DAILY_LIMIT}/day).`
-        : `${label} to ${willSendThisMonth.toLocaleString()} alumni in graduation year ${selectedYear}.`,
+      scheduledLater > 0
+        ? `${verb} sending to ${plan.total.toLocaleString()} at ${DAILY_LIMIT}/day — ${todayBatch.toLocaleString()} today, ${scheduledLater.toLocaleString()} scheduled through ${formatDate(lastBatchDate)}.`
+        : `${verb} sent to ${plan.total.toLocaleString()} alumni in graduation year ${selectedYear}.`,
     );
   };
 
@@ -384,6 +430,41 @@ export function SurveyCampaignConsole() {
             {sendLabel} ({sendTargetCount.toLocaleString()})
           </Button>
         </div>
+
+        {/* Multi-day delivery schedule, shown once a send is under way. */}
+        {selected.schedule && selected.schedule.length > 0 ? (
+          <div className="mt-3 rounded-md border border-brand-blue-300/50 bg-brand-blue-50 p-3">
+            <p className="text-xs font-semibold text-navy-800">
+              Delivery schedule —{" "}
+              {selected.schedule
+                .reduce((s, b) => s + b.count, 0)
+                .toLocaleString()}{" "}
+              over {selected.schedule.length}{" "}
+              {selected.schedule.length === 1 ? "day" : "days"} at {DAILY_LIMIT}
+              /day
+            </p>
+            <ul className="mt-2 grid gap-1 sm:grid-cols-2">
+              {selected.schedule.map((b) => (
+                <li
+                  key={b.date}
+                  className="flex items-center justify-between gap-2 text-xs"
+                >
+                  <span className="text-gray-700">{formatDate(b.date)}</span>
+                  <span className="flex items-center gap-2">
+                    <span className="tabular-nums font-medium text-gray-900">
+                      {b.count.toLocaleString()}
+                    </span>
+                    {b.sent ? (
+                      <Badge variant="success">Sent</Badge>
+                    ) : (
+                      <Badge variant="neutral">Scheduled</Badge>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </Card>
 
       {/* ── No reply (expandable): non-responders' names + emails. Hidden until
@@ -698,32 +779,43 @@ export function SurveyCampaignConsole() {
               />
             </div>
 
-            {/* How the batch fits the Resend caps (100/day, 3,000/month). */}
-            {blockedByMonth ? (
-              <p className="rounded-md bg-danger-50 px-3 py-2 text-xs text-danger-600">
-                This exceeds the monthly limit — only{" "}
-                <span className="font-semibold tabular-nums">
-                  {monthlyLeft.toLocaleString()}
-                </span>{" "}
-                of {sendTargetCount.toLocaleString()} can send this month (
-                {sentThisMonth.toLocaleString()}/{MONTHLY_LIMIT.toLocaleString()}{" "}
-                used).
+            {/* Delivery schedule — batched at 100/day: today's batch sends now,
+                the rest are scheduled on the following days. */}
+            <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+              <p className="text-xs font-semibold text-gray-700">
+                Delivery schedule — {DAILY_LIMIT}/day
               </p>
-            ) : rollsOver > 0 ? (
-              <p className="rounded-md bg-warning-50 px-3 py-2 text-xs text-warning-600">
-                Over the {DAILY_LIMIT}/day limit:{" "}
-                <span className="font-semibold tabular-nums">{sendsToday}</span>{" "}
-                send today, the remaining{" "}
-                <span className="font-semibold tabular-nums">{rollsOver}</span>{" "}
-                over the next {overflowDays} day
-                {overflowDays === 1 ? "" : "s"}.
-              </p>
-            ) : (
-              <p className="text-xs text-gray-500">
-                All {sendTargetCount.toLocaleString()} send today ·{" "}
-                {dailyLeft.toLocaleString()} of {DAILY_LIMIT} daily sends left.
-              </p>
-            )}
+              <ul className="mt-1.5 space-y-1">
+                {plan.batches.map((b) => (
+                  <li
+                    key={b.date}
+                    className="flex items-center justify-between text-xs"
+                  >
+                    <span className={b.sent ? "text-gray-900" : "text-gray-500"}>
+                      {b.sent ? "Today · " : ""}
+                      {formatDate(b.date)}
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <span className="tabular-nums font-medium text-gray-900">
+                        {b.count.toLocaleString()}
+                      </span>
+                      {b.sent ? (
+                        <Badge variant="tag">Sends now</Badge>
+                      ) : (
+                        <Badge variant="neutral">Scheduled</Badge>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {plan.cappedByMonth ? (
+                <p className="mt-2 text-xs text-danger-600">
+                  Capped at the {MONTHLY_LIMIT.toLocaleString()}/month limit —{" "}
+                  {plan.total.toLocaleString()} of{" "}
+                  {sendTargetCount.toLocaleString()} scheduled this month.
+                </p>
+              ) : null}
+            </div>
           </DialogBody>
           <DialogFooter>
             <Button
@@ -736,7 +828,9 @@ export function SurveyCampaignConsole() {
             </Button>
             <Button type="button" size="sm" onClick={confirmSend}>
               <Send aria-hidden="true" />
-              Send to {willSendThisMonth.toLocaleString()}
+              {scheduledLater > 0
+                ? `Send ${todayBatch.toLocaleString()} now`
+                : `Send to ${plan.total.toLocaleString()}`}
             </Button>
           </DialogFooter>
         </DialogContent>
