@@ -1,9 +1,7 @@
-import { CalendarClock, Mail, ShieldCheck } from "lucide-react";
-
 import { Topbar } from "@/components/shell/Topbar";
-import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { SurveySampleEditor } from "@/components/needs-surveying/SurveySampleEditor";
+import { SurveyCampaignConsole } from "@/components/needs-surveying/SurveyCampaignConsole";
 
 /**
  * "Needs Surveying" — the biennial "confirm your info" re-survey surface.
@@ -44,54 +42,11 @@ export default function NeedsSurveyingPage() {
           </div>
         </Card>
 
-        {/* Supporting context cards — what the survey does, cadence, and the
-            not-yet-wired sending step. Real copy, no filler. */}
-        <div className="mt-4 grid gap-4 sm:grid-cols-3">
-          <Card className="p-5">
-            <ShieldCheck
-              className="h-5 w-5 text-brand-blue-600"
-              aria-hidden="true"
-            />
-            <h2 className="mt-2 text-sm font-semibold text-gray-900">
-              What it confirms
-            </h2>
-            <p className="mt-1 text-sm text-gray-500">
-              Contact, employer, industry, and willingness to engage (mentor,
-              speak, hire) plus a Pay It Forward ask — every question maps to a
-              database column so answers apply straight to the record.
-            </p>
-          </Card>
-
-          <Card className="p-5">
-            <CalendarClock
-              className="h-5 w-5 text-brand-blue-600"
-              aria-hidden="true"
-            />
-            <h2 className="mt-2 text-sm font-semibold text-gray-900">
-              Biennial cadence
-            </h2>
-            <p className="mt-1 text-sm text-gray-500">
-              Alumni are due when they&apos;ve never been surveyed or their last
-              completed survey is more than two years old.
-            </p>
-          </Card>
-
-          <Card className="p-5">
-            <div className="flex items-center justify-between">
-              <Mail
-                className="h-5 w-5 text-brand-blue-600"
-                aria-hidden="true"
-              />
-              <Badge variant="warning">Coming soon</Badge>
-            </div>
-            <h2 className="mt-2 text-sm font-semibold text-gray-900">
-              Campaign sending
-            </h2>
-            <p className="mt-1 text-sm text-gray-500">
-              Emailing the request to the due list isn&apos;t wired up yet. For
-              now, use Sample survey to author and preview the questions.
-            </p>
-          </Card>
+        {/* By-class re-survey campaign console (frontend-only PROTOTYPE — no
+            backend for survey campaigns yet; all sends/submits are staged in
+            local state and no email or record write happens). */}
+        <div className="mt-4">
+          <SurveyCampaignConsole />
         </div>
       </main>
     </>
