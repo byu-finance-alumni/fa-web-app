@@ -8,14 +8,13 @@ import { DEFAULT_SURVEY_QUESTIONS, type SurveyQuestion } from "@/types/survey";
  * reloads on localhost. All access is SSR-guarded — callers only invoke these
  * from effects/handlers, never during render.
  */
-const STORAGE_KEY = "fa:needs-surveying:questions:v1";
+// v2: questions are now column-bound (fieldKey → SURVEY_FIELDS) with no
+// free-form types, so any v1 payload is discarded and reseeded from the default.
+const STORAGE_KEY = "fa:needs-surveying:questions:v2";
 
-/** A fresh deep copy of the default seed (never hand out the shared constant). */
+/** A fresh copy of the default seed (never hand out the shared constant). */
 export function defaultQuestions(): SurveyQuestion[] {
-  return DEFAULT_SURVEY_QUESTIONS.map((q) => ({
-    ...q,
-    options: q.options ? [...q.options] : undefined,
-  }));
+  return DEFAULT_SURVEY_QUESTIONS.map((q) => ({ ...q }));
 }
 
 function isQuestion(value: unknown): value is SurveyQuestion {
@@ -23,7 +22,7 @@ function isQuestion(value: unknown): value is SurveyQuestion {
   const q = value as Record<string, unknown>;
   return (
     typeof q.id === "string" &&
-    typeof q.type === "string" &&
+    typeof q.fieldKey === "string" &&
     typeof q.label === "string" &&
     typeof q.required === "boolean"
   );

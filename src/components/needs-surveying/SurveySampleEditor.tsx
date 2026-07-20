@@ -5,6 +5,9 @@ import {
   ArrowDown,
   ArrowUp,
   ClipboardList,
+  Database,
+  ExternalLink,
+  Heart,
   MailCheck,
   Plus,
   RotateCcw,
@@ -22,7 +25,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { SAMPLE_ALUM, SAMPLE_ALUM_NAME } from "@/lib/sampleAlumni";
 import {
@@ -32,17 +34,27 @@ import {
   saveQuestions,
 } from "@/lib/surveyStore";
 import {
-  SURVEY_FIELD_LABELS,
-  SURVEY_QUESTION_TYPE_LABELS,
-  type SurveyFieldKey,
+  SURVEY_FIELD_BY_KEY,
+  SURVEY_FIELDS,
+  SURVEY_GROUP_LABELS,
+  type SurveyField,
+  type SurveyFieldGroup,
   type SurveyQuestion,
-  type SurveyQuestionType,
 } from "@/types/survey";
 
-const FIELD_KEYS = Object.keys(SURVEY_FIELD_LABELS) as SurveyFieldKey[];
-const TYPE_KEYS = Object.keys(
-  SURVEY_QUESTION_TYPE_LABELS,
-) as SurveyQuestionType[];
+// Column picker options, grouped by section in a fixed order.
+const GROUP_ORDER: SurveyFieldGroup[] = [
+  "contact",
+  "profile",
+  "employment",
+  "engagement",
+  "giving",
+];
+const FIELDS_BY_GROUP = GROUP_ORDER.map((group) => ({
+  group,
+  label: SURVEY_GROUP_LABELS[group],
+  fields: SURVEY_FIELDS.filter((f) => f.group === group),
+}));
 
 /** Best-effort unique id for a newly-added question. */
 function newId(): string {
@@ -53,36 +65,31 @@ function newId(): string {
 }
 
 /**
- * "Sample survey" button + side-by-side editor/preview for the biennial
- * "confirm your info" re-survey (frontend-only). Staff author the exact question
- * set an alum receives on the LEFT and see it rendered as the alum would on the
- * RIGHT, each question lined up in the same row. Edits persist to `localStorage`
- * (there's no backend survey endpoint) and stand in for "what Resend would
- * send". Nothing here calls an API.
+ * "Sample survey" button + side-by-side editor/preview for the annual
+ * "confirm / update your info" re-survey (frontend-only).
  *
- * Layout: on `lg`+ the editor and preview sit in two aligned columns (one row
- * per question, so question N's editor lines up with question N's preview). On
- * narrow screens the two columns can't fit, so a segmented Edit/Preview toggle
- * shows one side at a time.
+ * Every question is bound to a real DB column (`SURVEY_FIELDS`) — text columns
+ * render as a pre-filled input, boolean columns as Yes/No (the "are you willing
+ * to…" flags that drive tags, the hiring flags, and the Pay It Forward donor
+ * flag, which also shows the external donate link). Staff edit on the LEFT and
+ * see the alum-facing form on the RIGHT, one row per question. Edits persist to
+ * `localStorage` (no backend survey endpoint yet) and stand in for "what Resend
+ * would send". Nothing here calls an API.
  */
 export function SurveySampleEditor() {
   const [open, setOpen] = useState(false);
   const [questions, setQuestions] = useState<SurveyQuestion[]>([]);
-  // Narrow-screen only: which side of each row to show (both always show on lg).
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
   // Guards the first render: localStorage is only touched in effects, so the
   // server render and first client render both show the seed, avoiding hydration
   // mismatch. We hydrate from storage once mounted.
   const [hydrated, setHydrated] = useState(false);
 
-  // Load persisted questions once on mount (client only).
   useEffect(() => {
     setQuestions(loadQuestions());
     setHydrated(true);
   }, []);
 
-  // Persist on every change, but only after the initial hydration load so we
-  // never clobber saved edits with the empty pre-hydration state.
   useEffect(() => {
     if (!hydrated) return;
     saveQuestions(questions);
@@ -96,30 +103,6 @@ export function SurveySampleEditor() {
   const updateQuestion = (id: string, patch: Partial<SurveyQuestion>) => {
     setQuestions((prev) =>
       prev.map((q) => (q.id === id ? { ...q, ...patch } : q)),
-    );
-  };
-
-  const changeType = (id: string, type: SurveyQuestionType) => {
-    setQuestions((prev) =>
-      prev.map((q) => {
-        if (q.id !== id) return q;
-        const next: SurveyQuestion = { ...q, type };
-        // Keep the shape consistent with the new type.
-        if (type === "confirm-field") {
-          next.fieldKey = q.fieldKey ?? "email";
-        } else {
-          next.fieldKey = undefined;
-        }
-        if (type === "single-choice") {
-          next.options =
-            q.options && q.options.length > 0
-              ? q.options
-              : ["Option 1", "Option 2"];
-        } else {
-          next.options = undefined;
-        }
-        return next;
-      }),
     );
   };
 
@@ -137,14 +120,12 @@ export function SurveySampleEditor() {
     setQuestions((prev) => prev.filter((q) => q.id !== id));
 
   const addQuestion = () => {
+    // Default to the first column not already used, else the first column.
+    const used = new Set(questions.map((q) => q.fieldKey));
+    const field = SURVEY_FIELDS.find((f) => !used.has(f.key)) ?? SURVEY_FIELDS[0];
     setQuestions((prev) => [
       ...prev,
-      {
-        id: newId(),
-        type: "short-text",
-        label: "",
-        required: false,
-      },
+      { id: newId(), fieldKey: field.key, label: "", required: false },
     ]);
   };
 
@@ -153,8 +134,6 @@ export function SurveySampleEditor() {
     setQuestions(defaultQuestions());
   };
 
-  // Per-side visibility: on narrow screens only the selected side shows; on lg
-  // both columns are always visible so each row lines up edit ↔ preview.
   const editViz = mobileView === "edit" ? "block" : "hidden";
   const previewViz = mobileView === "preview" ? "block" : "hidden";
 
@@ -174,7 +153,7 @@ export function SurveySampleEditor() {
         <DialogContent
           className="max-w-6xl"
           title="Sample survey"
-          description="The confirm-your-info questions this campaign emails to alumni. Edit on the left, preview exactly what an alum would receive on the right. Saved on this device."
+          description="Every question updates one alumni database column. Edit on the left, preview exactly what an alum would receive on the right. Saved on this device."
         >
           <DialogBody className="p-0">
             {/* Narrow-screen Edit/Preview toggle (both columns show on lg). */}
@@ -195,7 +174,7 @@ export function SurveySampleEditor() {
               </div>
             </div>
 
-            {/* Column headers (lg only) — label the two lined-up columns. */}
+            {/* Column headers (lg only). */}
             <RowBand editViz={editViz} previewViz={previewViz} className="hidden lg:grid">
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
                 Edit questions
@@ -210,16 +189,16 @@ export function SurveySampleEditor() {
               <p className="text-xs text-gray-500">
                 {questions.length}{" "}
                 {questions.length === 1 ? "question" : "questions"} ·{" "}
-                {requiredCount} required
+                {requiredCount} required · every question writes to a DB column
               </p>
               <div className="rounded-md border border-brand-blue-300/50 bg-brand-blue-50 px-4 py-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-navy-800">
                   BYU Finance Alumni
                 </p>
                 <p className="mt-1 text-sm text-gray-700">
-                  Hi {SAMPLE_ALUM_NAME}, it&apos;s been a couple of years —
-                  please take a moment to confirm your information so we can keep
-                  you in the loop on events and opportunities.
+                  Hi {SAMPLE_ALUM_NAME}, it&apos;s our annual check-in — please
+                  take a moment to confirm your information so we can keep you in
+                  the loop on events and opportunities.
                 </p>
               </div>
             </RowBand>
@@ -232,12 +211,10 @@ export function SurveySampleEditor() {
                     No questions yet
                   </p>
                   <p className="mt-1 text-xs text-gray-500">
-                    Add a question or reset to the default confirm-your-info set.
+                    Add a question or reset to the default set.
                   </p>
                 </div>
-                <p className="text-sm text-gray-400">
-                  Nothing to preview yet.
-                </p>
+                <p className="text-sm text-gray-400">Nothing to preview yet.</p>
               </RowBand>
             ) : (
               questions.map((q, index) => (
@@ -247,7 +224,6 @@ export function SurveySampleEditor() {
                     index={index}
                     total={questions.length}
                     onChange={updateQuestion}
-                    onChangeType={changeType}
                     onMove={move}
                     onRemove={remove}
                   />
@@ -256,8 +232,7 @@ export function SurveySampleEditor() {
               ))
             )}
 
-            {/* Footer band: "Add question" (left) lines up with the survey's
-                submit button (right, a disabled preview placeholder). */}
+            {/* Footer band: "Add question" (left) lines up with the submit CTA. */}
             <RowBand editViz={editViz} previewViz={previewViz} className="border-b-0">
               <Button
                 type="button"
@@ -312,12 +287,6 @@ export function SurveySampleEditor() {
 
 /* --------------------------------------------------------------- row band ---- */
 
-/**
- * One aligned row across both columns: the first child is the editor (left), the
- * second is the preview (right). On `lg`+ they sit side by side in the same grid
- * row so a question lines up with its preview; on narrow screens only the side
- * chosen by the Edit/Preview toggle shows.
- */
 function RowBand({
   children,
   editViz,
@@ -379,7 +348,6 @@ function QuestionEditor({
   index,
   total,
   onChange,
-  onChangeType,
   onMove,
   onRemove,
 }: {
@@ -387,16 +355,16 @@ function QuestionEditor({
   index: number;
   total: number;
   onChange: (id: string, patch: Partial<SurveyQuestion>) => void;
-  onChangeType: (id: string, type: SurveyQuestionType) => void;
   onMove: (index: number, dir: -1 | 1) => void;
   onRemove: (id: string) => void;
 }) {
   const { id } = question;
   const labelId = `${id}-label`;
-  const typeId = `${id}-type`;
   const fieldId = `${id}-field`;
   const helpId = `${id}-help`;
-  const optionsId = `${id}-options`;
+  const field = SURVEY_FIELD_BY_KEY[question.fieldKey] as
+    | SurveyField
+    | undefined;
 
   return (
     <div className="rounded-md border border-gray-200 bg-gray-50 p-4">
@@ -447,70 +415,51 @@ function QuestionEditor({
             id={labelId}
             value={question.label}
             onChange={(e) => onChange(id, { label: e.target.value })}
-            placeholder="e.g. Is this still your current employer?"
+            placeholder="e.g. What industry are you in?"
             className="mt-1"
           />
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <Label htmlFor={typeId}>Type</Label>
-            <Select
-              id={typeId}
-              value={question.type}
-              onChange={(e) =>
-                onChangeType(id, e.target.value as SurveyQuestionType)
-              }
-              className="mt-1"
-            >
-              {TYPE_KEYS.map((t) => (
-                <option key={t} value={t}>
-                  {SURVEY_QUESTION_TYPE_LABELS[t]}
-                </option>
-              ))}
-            </Select>
-          </div>
-
-          {question.type === "confirm-field" ? (
-            <div>
-              <Label htmlFor={fieldId}>Field to confirm</Label>
-              <Select
-                id={fieldId}
-                value={question.fieldKey ?? "email"}
-                onChange={(e) =>
-                  onChange(id, { fieldKey: e.target.value as SurveyFieldKey })
-                }
-                className="mt-1"
-              >
-                {FIELD_KEYS.map((k) => (
-                  <option key={k} value={k}>
-                    {SURVEY_FIELD_LABELS[k]}
+        <div>
+          <Label htmlFor={fieldId}>Updates database column</Label>
+          <Select
+            id={fieldId}
+            value={question.fieldKey}
+            onChange={(e) => onChange(id, { fieldKey: e.target.value })}
+            className="mt-1"
+          >
+            {FIELDS_BY_GROUP.map((g) => (
+              <optgroup key={g.group} label={g.label}>
+                {g.fields.map((f) => (
+                  <option key={f.key} value={f.key}>
+                    {f.label}
                   </option>
                 ))}
-              </Select>
-            </div>
-          ) : null}
+              </optgroup>
+            ))}
+          </Select>
+          {/* The exact column this question writes to — nothing free-form. */}
+          <p className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
+            <Database className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            {field ? (
+              <>
+                <code className="rounded bg-gray-100 px-1 py-0.5 text-[11px] text-gray-700">
+                  {field.table}.{field.column}
+                </code>
+                <span>·</span>
+                <span>{field.kind === "boolean" ? "Yes / No" : "Text"}</span>
+                {field.donateUrl ? (
+                  <Badge variant="tag">
+                    <Heart className="h-3 w-3" aria-hidden="true" />
+                    Donation
+                  </Badge>
+                ) : null}
+              </>
+            ) : (
+              <span className="text-danger-600">Unknown column</span>
+            )}
+          </p>
         </div>
-
-        {question.type === "single-choice" ? (
-          <div>
-            <Label htmlFor={optionsId}>Options (one per line)</Label>
-            <Textarea
-              id={optionsId}
-              value={(question.options ?? []).join("\n")}
-              onChange={(e) =>
-                onChange(id, {
-                  options: e.target.value
-                    .split("\n")
-                    .map((o) => o.trim())
-                    .filter(Boolean),
-                })
-              }
-              placeholder={"Option 1\nOption 2"}
-              className="mt-1 min-h-[64px]"
-            />
-          </div>
-        ) : null}
 
         <div>
           <Label htmlFor={helpId}>Help text (optional)</Label>
@@ -544,10 +493,10 @@ function QuestionEditor({
 function PreviewQuestion({ question }: { question: SurveyQuestion }) {
   const controlId = `preview-${question.id}`;
   const labelId = `${controlId}-label`;
-  const prefill =
-    question.type === "confirm-field" && question.fieldKey
-      ? SAMPLE_ALUM[question.fieldKey]
-      : "";
+  const field = SURVEY_FIELD_BY_KEY[question.fieldKey] as
+    | SurveyField
+    | undefined;
+  const prefill = SAMPLE_ALUM[question.fieldKey] ?? "";
 
   return (
     <div className="lg:pt-1">
@@ -566,59 +515,29 @@ function PreviewQuestion({ question }: { question: SurveyQuestion }) {
       ) : null}
 
       <div className="mt-1.5">
-        {question.type === "confirm-field" ? (
+        {!field ? (
+          <p className="text-xs text-danger-600">
+            This question isn&apos;t linked to a database column.
+          </p>
+        ) : field.kind === "text" ? (
           <>
-            <Input
-              id={controlId}
-              key={prefill}
-              defaultValue={prefill}
-              placeholder="Add a value"
-            />
-            <div className="mt-1 flex items-center gap-2">
-              <p className="text-xs text-gray-400">
-                Currently on file — edit if it&apos;s changed.
-              </p>
-              <Badge variant="tag">Pre-filled</Badge>
-            </div>
+            <Input id={controlId} key={prefill} defaultValue={prefill} placeholder="Add a value" />
+            {prefill ? (
+              <div className="mt-1 flex items-center gap-2">
+                <p className="text-xs text-gray-400">
+                  Currently on file — edit if it&apos;s changed.
+                </p>
+                <Badge variant="tag">Pre-filled</Badge>
+              </div>
+            ) : null}
           </>
-        ) : null}
-
-        {question.type === "short-text" ? (
-          <Input id={controlId} placeholder="Your answer" />
-        ) : null}
-
-        {question.type === "long-text" ? (
-          <Textarea id={controlId} placeholder="Your answer" />
-        ) : null}
-
-        {question.type === "yes-no" ? (
-          <div className="flex gap-4" role="radiogroup" aria-labelledby={labelId}>
-            {["Yes", "No"].map((opt) => (
-              <label
-                key={opt}
-                className="inline-flex cursor-pointer items-center gap-2 text-sm text-gray-700"
-              >
-                <input
-                  type="radio"
-                  name={controlId}
-                  value={opt}
-                  className="h-4 w-4 border-gray-300 text-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
-                />
-                {opt}
-              </label>
-            ))}
-          </div>
-        ) : null}
-
-        {question.type === "single-choice" ? (
-          <div className="space-y-2" role="radiogroup" aria-labelledby={labelId}>
-            {(question.options ?? []).length === 0 ? (
-              <p className="text-xs text-gray-400">No options added yet.</p>
-            ) : (
-              (question.options ?? []).map((opt, oi) => (
+        ) : (
+          <>
+            <div className="flex gap-4" role="radiogroup" aria-labelledby={labelId}>
+              {["Yes", "No"].map((opt) => (
                 <label
-                  key={`${opt}-${oi}`}
-                  className="flex cursor-pointer items-center gap-2 text-sm text-gray-700"
+                  key={opt}
+                  className="inline-flex cursor-pointer items-center gap-2 text-sm text-gray-700"
                 >
                   <input
                     type="radio"
@@ -628,10 +547,22 @@ function PreviewQuestion({ question }: { question: SurveyQuestion }) {
                   />
                   {opt}
                 </label>
-              ))
-            )}
-          </div>
-        ) : null}
+              ))}
+            </div>
+            {field.donateUrl ? (
+              <a
+                href={field.donateUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-brand-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-brand-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
+              >
+                <Heart className="h-4 w-4" aria-hidden="true" />
+                Donate to Pay It Forward
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              </a>
+            ) : null}
+          </>
+        )}
       </div>
     </div>
   );

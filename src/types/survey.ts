@@ -1,142 +1,161 @@
 /**
- * "Confirm your info" re-survey question model (frontend-only, #160 follow-up).
+ * "Confirm / update your info" annual re-survey model (frontend-only, #160
+ * follow-up).
  *
- * These types describe the exact survey content that the biennial re-survey
- * campaign would email to alumni via Resend to have them verify/update their
- * profile. There is NO backend survey endpoint yet — the question set is
- * authored and previewed entirely in the browser and persisted to
- * `localStorage` (see `src/lib/surveyStore.ts`). This is the authoring +
- * preview surface only; nothing here sends email or calls an API.
+ * Hard rule (per product): EVERY survey question maps to exactly one real
+ * database column — nothing free-form, so every answer has a home in the DB and
+ * can be applied to the record. A question therefore does not carry its own
+ * "type"; it references a column in `SURVEY_FIELDS` (the whitelist below) and the
+ * control shown to the alum is derived from that column's `kind`:
+ *   - `text`    → an input pre-filled with the value we have on file.
+ *   - `boolean` → a Yes/No choice (used for the "are you willing to…" engagement
+ *                 flags that drive tags, hiring flags, designations, and the Pay
+ *                 It Forward donor flag).
+ *
+ * There is NO backend survey endpoint yet — the authored question set is edited
+ * and previewed entirely in the browser and persisted to `localStorage` (see
+ * `src/lib/surveyStore.ts`). This stands in for "what Resend would send".
  */
+
+/** External Pay It Forward donation page (shown on the giving question). */
+export const PAY_IT_FORWARD_URL =
+  "https://give.churchofjesuschrist.org/campaigns/81293/donations/new";
+
+/** How the field renders for the alum, derived from the column's data type. */
+export type SurveyControlKind = "text" | "boolean";
+
+/** Which section a surveyable column belongs to (groups the column picker). */
+export type SurveyFieldGroup =
+  | "contact"
+  | "profile"
+  | "employment"
+  | "engagement"
+  | "giving";
 
 /**
- * The kind of question, which decides the control rendered in the preview:
- * - `confirm-field` — "is this still current?" for a specific alumni field
- *   (named by `fieldKey`); the preview pre-fills it from the alum's record.
- * - `short-text` — single-line free text.
- * - `long-text` — multi-line free text.
- * - `single-choice` — pick one of `options`.
- * - `yes-no` — a simple yes/no toggle.
+ * One column that a survey question may target. `table`/`column` name the real
+ * Postgres location (see `database/schema.sql`) so a response maps straight onto
+ * the record; `key` is the stable `table.column` identifier stored on questions.
  */
-export type SurveyQuestionType =
-  | "confirm-field"
-  | "short-text"
-  | "long-text"
-  | "single-choice"
-  | "yes-no";
+export interface SurveyField {
+  key: string;
+  table: string;
+  column: string;
+  label: string;
+  group: SurveyFieldGroup;
+  kind: SurveyControlKind;
+  /** Giving field only: the external donate URL surfaced in the preview. */
+  donateUrl?: string;
+}
+
+/** Friendly labels for each group (used to section the editor's column picker). */
+export const SURVEY_GROUP_LABELS: Record<SurveyFieldGroup, string> = {
+  contact: "Contact info (alumni_contact_info)",
+  profile: "Profile (alumni)",
+  employment: "Employment (current_employment)",
+  engagement: "Willingness & engagement (alumni_program_engagement)",
+  giving: "Giving (alumni_program_engagement)",
+};
 
 /**
- * Which alumni field a `confirm-field` question asks the alum to confirm. These
- * are real column names on the backend alumni model (see
- * `src/types/api.gen.ts` `AlumniListItem` / `AlumniRead`) so the preview can
- * pre-fill the current value.
+ * The whitelist of columns a survey may update — the "update every year" fields
+ * plus the willingness/hiring/donation flags. Every question must reference one
+ * of these `key`s, so nothing is asked that can't be written back to the DB.
  */
-export type SurveyFieldKey =
-  | "email"
-  | "phone"
-  | "linkedin_url"
-  | "current_city"
-  | "current_state"
-  | "current_employer"
-  | "current_title";
+export const SURVEY_FIELDS: SurveyField[] = [
+  // --- Contact (alumni_contact_info) ---
+  { key: "contact.personal_email", table: "alumni_contact_info", column: "personal_email", label: "Personal email", group: "contact", kind: "text" },
+  { key: "contact.work_email", table: "alumni_contact_info", column: "work_email", label: "Work email", group: "contact", kind: "text" },
+  { key: "contact.phone", table: "alumni_contact_info", column: "phone", label: "Phone", group: "contact", kind: "text" },
+  { key: "contact.address_line_1", table: "alumni_contact_info", column: "address_line_1", label: "Address line 1", group: "contact", kind: "text" },
+  { key: "contact.address_line_2", table: "alumni_contact_info", column: "address_line_2", label: "Address line 2", group: "contact", kind: "text" },
+  { key: "contact.city", table: "alumni_contact_info", column: "city", label: "City", group: "contact", kind: "text" },
+  { key: "contact.state", table: "alumni_contact_info", column: "state", label: "State", group: "contact", kind: "text" },
+  { key: "contact.zip", table: "alumni_contact_info", column: "zip", label: "ZIP / postal code", group: "contact", kind: "text" },
+  { key: "contact.country", table: "alumni_contact_info", column: "country", label: "Country", group: "contact", kind: "text" },
 
-/** A single authored survey question. */
+  // --- Profile (alumni) ---
+  { key: "profile.linkedin_url", table: "alumni", column: "linkedin_url", label: "LinkedIn URL", group: "profile", kind: "text" },
+
+  // --- Employment (current_employment) ---
+  { key: "employment.current_employer", table: "current_employment", column: "current_employer", label: "Current employer", group: "employment", kind: "text" },
+  { key: "employment.current_title", table: "current_employment", column: "current_title", label: "Current title", group: "employment", kind: "text" },
+  { key: "employment.current_industry", table: "current_employment", column: "current_industry", label: "Industry", group: "employment", kind: "text" },
+  { key: "employment.current_industry_secondary", table: "current_employment", column: "current_industry_secondary", label: "Secondary industry", group: "employment", kind: "text" },
+  { key: "employment.current_city", table: "current_employment", column: "current_city", label: "Work city", group: "employment", kind: "text" },
+  { key: "employment.current_state", table: "current_employment", column: "current_state", label: "Work state", group: "employment", kind: "text" },
+  { key: "employment.seniority_level", table: "current_employment", column: "seniority_level", label: "Seniority level", group: "employment", kind: "text" },
+
+  // --- Willingness & engagement (alumni_program_engagement booleans → tags) ---
+  { key: "program.mentor_willing", table: "alumni_program_engagement", column: "mentor_willing", label: "Willing to mentor students", group: "engagement", kind: "boolean" },
+  { key: "program.women_in_finance_mentor_willing", table: "alumni_program_engagement", column: "women_in_finance_mentor_willing", label: "Willing to mentor for Women in Finance", group: "engagement", kind: "boolean" },
+  { key: "program.guest_speaker_willing", table: "alumni_program_engagement", column: "guest_speaker_willing", label: "Willing to be a guest speaker", group: "engagement", kind: "boolean" },
+  { key: "program.help_at_event_willing", table: "alumni_program_engagement", column: "help_at_event_willing", label: "Willing to help at an event", group: "engagement", kind: "boolean" },
+  { key: "program.nettrek_host_willing", table: "alumni_program_engagement", column: "nettrek_host_willing", label: "Willing to host a NetTrek visit", group: "engagement", kind: "boolean" },
+  { key: "program.finance_conference_willing", table: "alumni_program_engagement", column: "finance_conference_willing", label: "Willing to take part in the finance conference", group: "engagement", kind: "boolean" },
+  { key: "program.company_event_sponsor_willing", table: "alumni_program_engagement", column: "company_event_sponsor_willing", label: "Willing to sponsor a company event", group: "engagement", kind: "boolean" },
+  { key: "program.case_competition_host_willing", table: "alumni_program_engagement", column: "case_competition_host_willing", label: "Willing to host a case competition", group: "engagement", kind: "boolean" },
+  { key: "program.hired_finance_intern", table: "alumni_program_engagement", column: "hired_finance_intern", label: "Hired a BYU finance intern", group: "engagement", kind: "boolean" },
+  { key: "program.hired_finance_full_time", table: "alumni_program_engagement", column: "hired_finance_full_time", label: "Hired a BYU finance grad full-time", group: "engagement", kind: "boolean" },
+  { key: "program.cfa_designation", table: "alumni_program_engagement", column: "cfa_designation", label: "CFA designation", group: "engagement", kind: "boolean" },
+  { key: "program.cfp_designation", table: "alumni_program_engagement", column: "cfp_designation", label: "CFP designation", group: "engagement", kind: "boolean" },
+  { key: "program.cpa_designation", table: "alumni_program_engagement", column: "cpa_designation", label: "CPA designation", group: "engagement", kind: "boolean" },
+
+  // --- Giving (alumni_program_engagement.piff_donor) ---
+  { key: "program.piff_donor", table: "alumni_program_engagement", column: "piff_donor", label: "Pay It Forward donor", group: "giving", kind: "boolean", donateUrl: PAY_IT_FORWARD_URL },
+];
+
+/** Fast lookup from a question's `fieldKey` to its column definition. */
+export const SURVEY_FIELD_BY_KEY: Record<string, SurveyField> =
+  Object.fromEntries(SURVEY_FIELDS.map((f) => [f.key, f]));
+
+/**
+ * One authored survey question. It carries only the wording + which column it
+ * targets; the control (text vs Yes/No) comes from the referenced field's kind.
+ */
 export interface SurveyQuestion {
-  /** Stable, unique identifier (used as the React key and for reordering). */
+  /** Stable, unique identifier (React key + reordering). */
   id: string;
-  type: SurveyQuestionType;
+  /** The column this question reads/writes — a `key` from `SURVEY_FIELDS`. */
+  fieldKey: string;
   /** The question text the alum reads. */
   label: string;
   /** Optional helper text shown under the label. */
   helpText?: string;
   required: boolean;
-  /** For `confirm-field`: which alumni field this confirms (drives prefill). */
-  fieldKey?: SurveyFieldKey;
-  /** For `single-choice`: the selectable options. */
-  options?: string[];
 }
 
-/** Human-readable labels for each question type (used in the editor dropdown). */
-export const SURVEY_QUESTION_TYPE_LABELS: Record<SurveyQuestionType, string> = {
-  "confirm-field": "Confirm a field",
-  "short-text": "Short text",
-  "long-text": "Long text",
-  "single-choice": "Single choice",
-  "yes-no": "Yes / No",
-};
-
-/** Friendly labels for each confirmable field (used in the editor + preview). */
-export const SURVEY_FIELD_LABELS: Record<SurveyFieldKey, string> = {
-  email: "Email",
-  phone: "Phone",
-  linkedin_url: "LinkedIn URL",
-  current_city: "City",
-  current_state: "State",
-  current_employer: "Current employer",
-  current_title: "Current title",
-};
-
 /**
- * The default "confirm your info" question set. Seeded on first load and
- * restored by "Reset to default". Covers the core contact/career fields the
- * re-survey exists to keep fresh, plus one open-ended catch-all.
+ * The default annual "confirm / update your info" question set. Seeded on first
+ * load and restored by "Reset to default". Covers the fields worth refreshing
+ * every year, the willingness flags (which load tags), the hiring flags, and the
+ * Pay It Forward giving ask. Every entry is bound to a real column.
  */
 export const DEFAULT_SURVEY_QUESTIONS: SurveyQuestion[] = [
-  {
-    id: "confirm-email",
-    type: "confirm-field",
-    fieldKey: "email",
-    label: "Is this still your best email?",
-    helpText: "We'll use this to reach you about events and opportunities.",
-    required: true,
-  },
-  {
-    id: "confirm-phone",
-    type: "confirm-field",
-    fieldKey: "phone",
-    label: "Is this still your current phone number?",
-    required: false,
-  },
-  {
-    id: "confirm-linkedin",
-    type: "confirm-field",
-    fieldKey: "linkedin_url",
-    label: "Is this your current LinkedIn profile?",
-    required: false,
-  },
-  {
-    id: "confirm-city",
-    type: "confirm-field",
-    fieldKey: "current_city",
-    label: "Is this the city where you currently live?",
-    required: false,
-  },
-  {
-    id: "confirm-state",
-    type: "confirm-field",
-    fieldKey: "current_state",
-    label: "Is this your current state?",
-    required: false,
-  },
-  {
-    id: "confirm-employer",
-    type: "confirm-field",
-    fieldKey: "current_employer",
-    label: "Is this still your current employer?",
-    required: true,
-  },
-  {
-    id: "confirm-title",
-    type: "confirm-field",
-    fieldKey: "current_title",
-    label: "Is this still your current job title?",
-    required: false,
-  },
-  {
-    id: "anything-else",
-    type: "long-text",
-    label: "Anything else we should know?",
-    helpText: "New role, promotion, relocation, or anything you'd like to share.",
-    required: false,
-  },
+  // Contact
+  { id: "q-personal-email", fieldKey: "contact.personal_email", label: "Is this still your best email?", helpText: "We'll use this to reach you about events and opportunities.", required: true },
+  { id: "q-phone", fieldKey: "contact.phone", label: "Is this still your current phone number?", required: false },
+  { id: "q-city", fieldKey: "contact.city", label: "What city do you currently live in?", required: false },
+  { id: "q-state", fieldKey: "contact.state", label: "What state?", required: false },
+  { id: "q-country", fieldKey: "contact.country", label: "What country?", required: false },
+  // Profile
+  { id: "q-linkedin", fieldKey: "profile.linkedin_url", label: "Is this your current LinkedIn profile?", required: false },
+  // Employment
+  { id: "q-employer", fieldKey: "employment.current_employer", label: "Where do you currently work?", required: false },
+  { id: "q-title", fieldKey: "employment.current_title", label: "What's your current job title?", required: false },
+  { id: "q-industry", fieldKey: "employment.current_industry", label: "What industry are you in?", required: false },
+  // Willingness / engagement (→ tags)
+  { id: "q-mentor", fieldKey: "program.mentor_willing", label: "Are you willing to mentor students?", required: false },
+  { id: "q-wif-mentor", fieldKey: "program.women_in_finance_mentor_willing", label: "Are you willing to mentor for Women in Finance?", required: false },
+  { id: "q-speaker", fieldKey: "program.guest_speaker_willing", label: "Are you willing to be a guest speaker?", required: false },
+  { id: "q-help-event", fieldKey: "program.help_at_event_willing", label: "Are you willing to help at an event?", required: false },
+  { id: "q-nettrek", fieldKey: "program.nettrek_host_willing", label: "Are you willing to host a NetTrek company visit?", required: false },
+  { id: "q-conference", fieldKey: "program.finance_conference_willing", label: "Are you willing to take part in the finance conference?", required: false },
+  { id: "q-sponsor", fieldKey: "program.company_event_sponsor_willing", label: "Are you willing to sponsor a company event?", required: false },
+  { id: "q-case-comp", fieldKey: "program.case_competition_host_willing", label: "Are you willing to host a case competition?", required: false },
+  // Hiring
+  { id: "q-hired-intern", fieldKey: "program.hired_finance_intern", label: "Have you hired a BYU finance intern in the past year?", required: false },
+  { id: "q-hired-ft", fieldKey: "program.hired_finance_full_time", label: "Have you hired a BYU finance grad full-time in the past year?", required: false },
+  // Giving
+  { id: "q-piff", fieldKey: "program.piff_donor", label: "Would you like to donate to the Pay It Forward fund?", helpText: "Your gift helps fund student scholarships and program experiences.", required: false },
 ];

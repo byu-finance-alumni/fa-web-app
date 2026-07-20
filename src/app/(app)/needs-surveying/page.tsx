@@ -56,8 +56,9 @@ export default function NeedsSurveyingPage() {
               What it confirms
             </h2>
             <p className="mt-1 text-sm text-gray-500">
-              Email, phone, LinkedIn, location, and current role — pre-filled
-              with what we have on file so alumni only fix what changed.
+              Contact, employer, industry, and willingness to engage (mentor,
+              speak, hire) plus a Pay It Forward ask — every question maps to a
+              database column so answers apply straight to the record.
             </p>
           </Card>
 
