@@ -22,8 +22,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import { SAMPLE_ALUM, SAMPLE_ALUM_NAME } from "@/lib/sampleAlumni";
 import {
   clearQuestions,
@@ -53,15 +53,23 @@ function newId(): string {
 }
 
 /**
- * "Sample survey" button + preview/editor for the biennial "confirm your info"
- * re-survey (frontend-only). Staff open the editor to author the exact question
- * set an alum receives, tweak it inline, and preview it as the alum would see
- * it. Edits persist to `localStorage` (there's no backend survey endpoint) and
- * stand in for "what Resend would send". Nothing here calls an API.
+ * "Sample survey" button + side-by-side editor/preview for the biennial
+ * "confirm your info" re-survey (frontend-only). Staff author the exact question
+ * set an alum receives on the LEFT and see it rendered as the alum would on the
+ * RIGHT, each question lined up in the same row. Edits persist to `localStorage`
+ * (there's no backend survey endpoint) and stand in for "what Resend would
+ * send". Nothing here calls an API.
+ *
+ * Layout: on `lg`+ the editor and preview sit in two aligned columns (one row
+ * per question, so question N's editor lines up with question N's preview). On
+ * narrow screens the two columns can't fit, so a segmented Edit/Preview toggle
+ * shows one side at a time.
  */
 export function SurveySampleEditor() {
   const [open, setOpen] = useState(false);
   const [questions, setQuestions] = useState<SurveyQuestion[]>([]);
+  // Narrow-screen only: which side of each row to show (both always show on lg).
+  const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
   // Guards the first render: localStorage is only touched in effects, so the
   // server render and first client render both show the seed, avoiding hydration
   // mismatch. We hydrate from storage once mounted.
@@ -145,6 +153,11 @@ export function SurveySampleEditor() {
     setQuestions(defaultQuestions());
   };
 
+  // Per-side visibility: on narrow screens only the selected side shows; on lg
+  // both columns are always visible so each row lines up edit ↔ preview.
+  const editViz = mobileView === "edit" ? "block" : "hidden";
+  const previewViz = mobileView === "preview" ? "block" : "hidden";
+
   return (
     <>
       <Button
@@ -159,83 +172,118 @@ export function SurveySampleEditor() {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent
-          className="max-w-3xl"
+          className="max-w-6xl"
           title="Sample survey"
-          description="The confirm-your-info questions this campaign emails to alumni. Edits are saved on this device and preview exactly what an alum would receive."
+          description="The confirm-your-info questions this campaign emails to alumni. Edit on the left, preview exactly what an alum would receive on the right. Saved on this device."
         >
-          <Tabs defaultValue="edit" className="flex min-h-0 flex-1 flex-col">
-            <div className="border-b border-gray-200 px-5 pt-3">
-              <TabsList className="border-b-0">
-                <TabsTrigger value="edit">
-                  <ClipboardList aria-hidden="true" className="h-4 w-4" />
-                  Edit questions
-                </TabsTrigger>
-                <TabsTrigger value="preview">
-                  <MailCheck aria-hidden="true" className="h-4 w-4" />
-                  Preview
-                </TabsTrigger>
-              </TabsList>
+          <DialogBody className="p-0">
+            {/* Narrow-screen Edit/Preview toggle (both columns show on lg). */}
+            <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-gray-200 bg-white px-5 py-2.5 lg:hidden">
+              <div className="inline-flex rounded-md border border-gray-200 p-0.5">
+                <ToggleBtn
+                  active={mobileView === "edit"}
+                  onClick={() => setMobileView("edit")}
+                  icon={<ClipboardList className="h-4 w-4" aria-hidden="true" />}
+                  label="Edit"
+                />
+                <ToggleBtn
+                  active={mobileView === "preview"}
+                  onClick={() => setMobileView("preview")}
+                  icon={<MailCheck className="h-4 w-4" aria-hidden="true" />}
+                  label="Preview"
+                />
+              </div>
             </div>
 
-            {/* ---- Edit tab -------------------------------------------------- */}
-            <TabsContent
-              value="edit"
-              className="mt-0 min-h-0 flex-1 overflow-hidden"
-            >
-              <DialogBody className="space-y-3">
-                <p className="text-xs text-gray-500">
-                  {questions.length}{" "}
-                  {questions.length === 1 ? "question" : "questions"} ·{" "}
-                  {requiredCount} required
+            {/* Column headers (lg only) — label the two lined-up columns. */}
+            <RowBand editViz={editViz} previewViz={previewViz} className="hidden lg:grid">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                Edit questions
+              </p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                Preview
+              </p>
+            </RowBand>
+
+            {/* Intro band: summary (left) lines up with the survey intro (right). */}
+            <RowBand editViz={editViz} previewViz={previewViz}>
+              <p className="text-xs text-gray-500">
+                {questions.length}{" "}
+                {questions.length === 1 ? "question" : "questions"} ·{" "}
+                {requiredCount} required
+              </p>
+              <div className="rounded-md border border-brand-blue-300/50 bg-brand-blue-50 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-navy-800">
+                  BYU Finance Alumni
                 </p>
+                <p className="mt-1 text-sm text-gray-700">
+                  Hi {SAMPLE_ALUM_NAME}, it&apos;s been a couple of years —
+                  please take a moment to confirm your information so we can keep
+                  you in the loop on events and opportunities.
+                </p>
+              </div>
+            </RowBand>
 
-                {questions.length === 0 ? (
-                  <div className="rounded-md border border-dashed border-gray-300 p-8 text-center">
-                    <p className="text-sm font-medium text-gray-900">
-                      No questions yet
-                    </p>
-                    <p className="mt-1 text-xs text-gray-500">
-                      Add a question or reset to the default confirm-your-info
-                      set.
-                    </p>
-                  </div>
-                ) : (
-                  questions.map((q, index) => (
-                    <QuestionEditor
-                      key={q.id}
-                      question={q}
-                      index={index}
-                      total={questions.length}
-                      onChange={updateQuestion}
-                      onChangeType={changeType}
-                      onMove={move}
-                      onRemove={remove}
-                    />
-                  ))
-                )}
+            {/* One band per question: editor (left) lined up with preview (right). */}
+            {questions.length === 0 ? (
+              <RowBand editViz={editViz} previewViz={previewViz}>
+                <div className="rounded-md border border-dashed border-gray-300 p-8 text-center">
+                  <p className="text-sm font-medium text-gray-900">
+                    No questions yet
+                  </p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Add a question or reset to the default confirm-your-info set.
+                  </p>
+                </div>
+                <p className="text-sm text-gray-400">
+                  Nothing to preview yet.
+                </p>
+              </RowBand>
+            ) : (
+              questions.map((q, index) => (
+                <RowBand key={q.id} editViz={editViz} previewViz={previewViz}>
+                  <QuestionEditor
+                    question={q}
+                    index={index}
+                    total={questions.length}
+                    onChange={updateQuestion}
+                    onChangeType={changeType}
+                    onMove={move}
+                    onRemove={remove}
+                  />
+                  <PreviewQuestion question={q} />
+                </RowBand>
+              ))
+            )}
 
-                <Button
+            {/* Footer band: "Add question" (left) lines up with the survey's
+                submit button (right, a disabled preview placeholder). */}
+            <RowBand editViz={editViz} previewViz={previewViz} className="border-b-0">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={addQuestion}
+                className="w-full"
+              >
+                <Plus aria-hidden="true" />
+                Add question
+              </Button>
+              <div>
+                <button
                   type="button"
-                  variant="secondary"
-                  onClick={addQuestion}
-                  className="w-full"
+                  disabled
+                  aria-disabled="true"
+                  title="Preview only — submitting is disabled in this sample"
+                  className="inline-flex h-10 w-full cursor-not-allowed items-center justify-center rounded-md bg-brand-blue-600/50 px-5 text-sm font-semibold text-white"
                 >
-                  <Plus aria-hidden="true" />
-                  Add question
-                </Button>
-              </DialogBody>
-            </TabsContent>
-
-            {/* ---- Preview tab ---------------------------------------------- */}
-            <TabsContent
-              value="preview"
-              className="mt-0 min-h-0 flex-1 overflow-hidden"
-            >
-              <DialogBody>
-                <SurveyPreview questions={questions} />
-              </DialogBody>
-            </TabsContent>
-          </Tabs>
+                  Submit my updates
+                </button>
+                <p className="mt-2 text-center text-xs text-gray-400">
+                  Preview only — this button is disabled and sends nothing.
+                </p>
+              </div>
+            </RowBand>
+          </DialogBody>
 
           <DialogFooter className="justify-between">
             <Button
@@ -259,6 +307,68 @@ export function SurveySampleEditor() {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+/* --------------------------------------------------------------- row band ---- */
+
+/**
+ * One aligned row across both columns: the first child is the editor (left), the
+ * second is the preview (right). On `lg`+ they sit side by side in the same grid
+ * row so a question lines up with its preview; on narrow screens only the side
+ * chosen by the Edit/Preview toggle shows.
+ */
+function RowBand({
+  children,
+  editViz,
+  previewViz,
+  className,
+}: {
+  children: [React.ReactNode, React.ReactNode];
+  editViz: string;
+  previewViz: string;
+  className?: string;
+}) {
+  const [left, right] = children;
+  return (
+    <div
+      className={cn(
+        "grid gap-x-6 gap-y-3 border-b border-gray-200 px-5 py-4 lg:grid-cols-2",
+        className,
+      )}
+    >
+      <div className={cn("min-w-0", editViz, "lg:block")}>{left}</div>
+      <div className={cn("min-w-0", previewViz, "lg:block")}>{right}</div>
+    </div>
+  );
+}
+
+function ToggleBtn({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition-colors",
+        active
+          ? "bg-brand-blue-600 text-white"
+          : "text-gray-500 hover:text-gray-900",
+      )}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
 
@@ -431,57 +541,7 @@ function QuestionEditor({
 
 /* --------------------------------------------------------------- preview ----- */
 
-function SurveyPreview({ questions }: { questions: SurveyQuestion[] }) {
-  return (
-    <div className="mx-auto max-w-xl">
-      <div className="rounded-md border border-brand-blue-300/50 bg-brand-blue-50 px-4 py-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-navy-800">
-          BYU Finance Alumni
-        </p>
-        <p className="mt-1 text-sm text-gray-700">
-          Hi {SAMPLE_ALUM_NAME}, it&apos;s been a couple of years — please take a
-          moment to confirm your information so we can keep you in the loop on
-          events and opportunities.
-        </p>
-      </div>
-
-      {questions.length === 0 ? (
-        <p className="mt-6 text-sm text-gray-500">
-          No questions to preview yet. Add some on the Edit tab.
-        </p>
-      ) : (
-        <div className="mt-5 space-y-5">
-          {questions.map((q, i) => (
-            <PreviewQuestion key={q.id} question={q} index={i} />
-          ))}
-        </div>
-      )}
-
-      <div className="mt-6 border-t border-gray-200 pt-4">
-        <button
-          type="button"
-          disabled
-          aria-disabled="true"
-          title="Preview only — submitting is disabled in this sample"
-          className="inline-flex h-10 w-full cursor-not-allowed items-center justify-center rounded-md bg-brand-blue-600/50 px-5 text-sm font-semibold text-white"
-        >
-          Submit my updates
-        </button>
-        <p className="mt-2 text-center text-xs text-gray-400">
-          Preview only — this button is disabled and sends nothing.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function PreviewQuestion({
-  question,
-  index,
-}: {
-  question: SurveyQuestion;
-  index: number;
-}) {
+function PreviewQuestion({ question }: { question: SurveyQuestion }) {
   const controlId = `preview-${question.id}`;
   const labelId = `${controlId}-label`;
   const prefill =
@@ -490,7 +550,7 @@ function PreviewQuestion({
       : "";
 
   return (
-    <div>
+    <div className="lg:pt-1">
       <Label id={labelId} htmlFor={controlId} className="text-sm text-gray-900">
         {question.label || (
           <span className="italic text-gray-400">Untitled question</span>
@@ -510,12 +570,16 @@ function PreviewQuestion({
           <>
             <Input
               id={controlId}
+              key={prefill}
               defaultValue={prefill}
               placeholder="Add a value"
             />
-            <p className="mt-1 text-xs text-gray-400">
-              Currently on file — edit if it&apos;s changed.
-            </p>
+            <div className="mt-1 flex items-center gap-2">
+              <p className="text-xs text-gray-400">
+                Currently on file — edit if it&apos;s changed.
+              </p>
+              <Badge variant="tag">Pre-filled</Badge>
+            </div>
           </>
         ) : null}
 
@@ -569,12 +633,6 @@ function PreviewQuestion({
           </div>
         ) : null}
       </div>
-
-      {index === 0 && question.type === "confirm-field" ? (
-        <Badge variant="tag" className="mt-2">
-          Pre-filled from the alum&apos;s record
-        </Badge>
-      ) : null}
     </div>
   );
 }
