@@ -84,14 +84,7 @@ function formatDate(iso: string): string {
   });
 }
 
-export function SurveyCampaignConsole({
-  // PROTOTYPE: admins gate the Submit step. There's no campaign backend to read
-  // the caller's role from yet, so we assume admin here; wire this to
-  // `hasFullAccess(ctx.roles)` (see `@/constants/roles`) when the backend exists.
-  isAdmin = true,
-}: {
-  isAdmin?: boolean;
-}) {
+export function SurveyCampaignConsole() {
   const { toast } = useToast();
 
   const [classes, setClasses] = useState<WorkingClass[]>(initClasses);
@@ -128,6 +121,21 @@ export function SurveyCampaignConsole({
         )
       : 0;
 
+  // Which send is next for this year: the initial "first batch" (round 1) if it
+  // hasn't gone out, otherwise the no-reply follow-up (round 2).
+  const round1Sent = selected.round1.sentDate !== null;
+  const round2Sent = selected.round2.sentDate !== null;
+  const sendStage: "first" | "followup" = round1Sent ? "followup" : "first";
+  const sendTargetCount =
+    sendStage === "first" ? selected.round1.recipients : noReplyCount;
+  const sendLabel =
+    sendStage === "first"
+      ? "Send first batch"
+      : round2Sent
+        ? "Resend follow-up"
+        : "Send follow-up";
+  const sendDisabled = selected.submitted || sendTargetCount === 0;
+
   const changeSelectedYear = (year: number) => {
     setSelectedYear(year);
     setNoReplyOpen(false);
@@ -136,26 +144,43 @@ export function SurveyCampaignConsole({
   };
 
   const confirmSend = () => {
-    setClasses((prev) =>
-      prev.map((c) =>
-        c.gradYear === selectedYear
-          ? {
-              ...c,
-              round2: {
-                ...c.round2,
-                sentDate: DEMO_SEND_DATE,
-                recipients: c.noReply.length,
-              },
-            }
-          : c,
-      ),
-    );
-    setSentCount((n) => n + noReplyCount);
+    if (sendStage === "first") {
+      // First batch: stamp round 1 as sent and count the whole eligible year.
+      const recipients = selected.round1.recipients;
+      setClasses((prev) =>
+        prev.map((c) =>
+          c.gradYear === selectedYear
+            ? { ...c, round1: { ...c.round1, sentDate: DEMO_SEND_DATE } }
+            : c,
+        ),
+      );
+      setSentCount((n) => n + recipients);
+      toast.success(
+        `Prototype: initial survey staged for ${recipients} alumni in graduation year ${selectedYear}. No email was sent.`,
+      );
+    } else {
+      // Follow-up: stamp round 2 as sent to the current no-reply list.
+      setClasses((prev) =>
+        prev.map((c) =>
+          c.gradYear === selectedYear
+            ? {
+                ...c,
+                round2: {
+                  ...c.round2,
+                  sentDate: DEMO_SEND_DATE,
+                  recipients: c.noReply.length,
+                },
+              }
+            : c,
+        ),
+      );
+      setSentCount((n) => n + noReplyCount);
+      toast.success(
+        `Prototype: follow-up staged for ${noReplyCount} non-responders in graduation year ${selectedYear}. No email was sent.`,
+      );
+    }
     setSendOpen(false);
     setCustomMessage("");
-    toast.success(
-      `Prototype: follow-up staged for ${noReplyCount} non-responders in graduation year ${selectedYear}. No email was sent.`,
-    );
   };
 
   const toggleReject = (alumniId: number) => {
@@ -317,16 +342,17 @@ export function SurveyCampaignConsole({
             type="button"
             size="sm"
             onClick={() => setSendOpen(true)}
-            disabled={selected.submitted || noReplyCount === 0}
+            disabled={sendDisabled}
           >
             <Send aria-hidden="true" />
-            {selected.round2.sentDate ? "Resend follow-up" : "Send follow-up"} (
-            {noReplyCount})
+            {sendLabel} ({sendTargetCount.toLocaleString()})
           </Button>
         </div>
       </Card>
 
-      {/* ── No reply (expandable): non-responders' names + emails ── */}
+      {/* ── No reply (expandable): non-responders' names + emails. Hidden until
+          there's actually a no-reply list (i.e. after the first batch). ── */}
+      {noReplyCount > 0 ? (
       <Card className="mt-4 overflow-hidden">
         <button
           type="button"
@@ -381,6 +407,7 @@ export function SurveyCampaignConsole({
           </div>
         ) : null}
       </Card>
+      ) : null}
 
       {/* ── Change report: only alumni who actually changed something ── */}
       <Card className="mt-4">
@@ -546,66 +573,78 @@ export function SurveyCampaignConsole({
         </div>
       </Card>
 
-      {/* ── Submit (admin only) ── */}
-      {isAdmin ? (
-        <Card className="mt-4 p-4">
-          {selected.submitted ? (
-            <div className="flex items-start gap-2">
-              <CheckCircle2
-                className="mt-0.5 h-5 w-5 shrink-0 text-success-600"
-                aria-hidden="true"
-              />
-              <p className="text-sm text-gray-700">
-                <span className="font-semibold text-gray-900">
-                  Applied {applyCount.toLocaleString()}{" "}
-                  {applyCount === 1 ? "change" : "changes"}
-                </span>{" "}
-                to graduation year {selectedYear} — now in effect. Editing is
-                locked. (Prototype — no records were written.)
-              </p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-gray-600">
-                <span className="font-semibold text-gray-900">
-                  {applyCount.toLocaleString()}{" "}
-                  {applyCount === 1 ? "change" : "changes"}
-                </span>{" "}
-                will be applied to graduation year {selectedYear}
-                {rejectedCount > 0
-                  ? `; ${rejectedCount.toLocaleString()} rejected discarded`
-                  : ""}
-                . Admin only.
-              </p>
-              <Button
-                type="button"
-                variant="navy"
-                onClick={() => setSubmitOpen(true)}
-                disabled={applyCount === 0}
-              >
-                <CheckCircle2 aria-hidden="true" />
-                Submit changes
-              </Button>
-            </div>
-          )}
-        </Card>
-      ) : null}
+      {/* ── Submit ── */}
+      <Card className="mt-4 p-4">
+        {selected.submitted ? (
+          <div className="flex items-start gap-2">
+            <CheckCircle2
+              className="mt-0.5 h-5 w-5 shrink-0 text-success-600"
+              aria-hidden="true"
+            />
+            <p className="text-sm text-gray-700">
+              <span className="font-semibold text-gray-900">
+                Applied {applyCount.toLocaleString()}{" "}
+                {applyCount === 1 ? "change" : "changes"}
+              </span>{" "}
+              to graduation year {selectedYear} — now in effect. Editing is
+              locked. (Prototype — no records were written.)
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-gray-600">
+              <span className="font-semibold text-gray-900">
+                {applyCount.toLocaleString()}{" "}
+                {applyCount === 1 ? "change" : "changes"}
+              </span>{" "}
+              will be applied to graduation year {selectedYear}
+              {rejectedCount > 0
+                ? `; ${rejectedCount.toLocaleString()} rejected discarded`
+                : ""}
+              .
+            </p>
+            <Button
+              type="button"
+              variant="navy"
+              onClick={() => setSubmitOpen(true)}
+              disabled={applyCount === 0}
+            >
+              <CheckCircle2 aria-hidden="true" />
+              Submit changes
+            </Button>
+          </div>
+        )}
+      </Card>
 
       {/* Send dialog */}
       <Dialog open={sendOpen} onOpenChange={setSendOpen}>
         <DialogContent
-          title={`Send follow-up — graduation year ${selectedYear}`}
+          title={`${
+            sendStage === "first" ? "Send first batch" : "Send follow-up"
+          } — graduation year ${selectedYear}`}
           description="Prototype — no email is actually sent."
         >
           <DialogBody className="space-y-4">
             <div className="flex items-start gap-2 rounded-md border border-brand-blue-300/50 bg-brand-blue-50 px-4 py-3 text-sm text-navy-800">
               <MailX className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <span>
-                Goes to the{" "}
-                <span className="font-semibold tabular-nums">
-                  {noReplyCount.toLocaleString()}
-                </span>{" "}
-                alumni who haven&apos;t replied yet.
+                {sendStage === "first" ? (
+                  <>
+                    The initial survey — goes to all{" "}
+                    <span className="font-semibold tabular-nums">
+                      {selected.round1.recipients.toLocaleString()}
+                    </span>{" "}
+                    alumni in graduation year {selectedYear}.
+                  </>
+                ) : (
+                  <>
+                    Goes to the{" "}
+                    <span className="font-semibold tabular-nums">
+                      {noReplyCount.toLocaleString()}
+                    </span>{" "}
+                    alumni who haven&apos;t replied yet.
+                  </>
+                )}
               </span>
             </div>
             <div>
@@ -630,7 +669,7 @@ export function SurveyCampaignConsole({
             </Button>
             <Button type="button" size="sm" onClick={confirmSend}>
               <Send aria-hidden="true" />
-              Send to {noReplyCount.toLocaleString()}
+              Send to {sendTargetCount.toLocaleString()}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -17,6 +17,19 @@ import type { ClassCampaign } from "@/types/surveyCampaign";
 
 export const SAMPLE_CAMPAIGNS: ClassCampaign[] = [
   {
+    // Newest graduating year — not surveyed yet, so the console offers "Send
+    // first batch" (round 1) rather than a follow-up.
+    gradYear: 2025,
+    totalAlumni: 258,
+    round1: { sentDate: null, recipients: 232, responses: 0 },
+    round2: { sentDate: null, recipients: 0, responses: 0 },
+    nextSendDate: "2026-08-03",
+    noReply: [],
+    noChangeCount: 0,
+    changeRecords: [],
+    submitted: false,
+  },
+  {
     gradYear: 2024,
     totalAlumni: 246,
     round1: { sentDate: "2026-03-03", recipients: 221, responses: 209 },
