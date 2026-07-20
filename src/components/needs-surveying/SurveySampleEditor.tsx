@@ -18,7 +18,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
-  DialogBody,
   DialogContent,
   DialogFooter,
 } from "@/components/ui/dialog";
@@ -166,9 +165,14 @@ export function SurveySampleEditor() {
             </div>
 
             {/* ---- Edit tab -------------------------------------------------- */}
-            <TabsContent value="edit" className="mt-0 min-h-0 flex-1 overflow-hidden">
-              <DialogBody className="space-y-3">
-                <p className="text-xs text-gray-500">
+            {/* The panel itself is the scroll region: flex-1 bounds its height
+                within the dialog and overflow-auto lets a long question list
+                scroll (issue: content was being clipped, not scrollable). */}
+            <TabsContent
+              value="edit"
+              className="mt-0 min-h-0 flex-1 space-y-3 overflow-auto px-5 py-4"
+            >
+              <p className="text-xs text-gray-500">
                   {questions.length}{" "}
                   {questions.length === 1 ? "question" : "questions"} ·{" "}
                   {requiredCount} required · every question writes to a DB column
@@ -206,12 +210,13 @@ export function SurveySampleEditor() {
                   <Plus aria-hidden="true" />
                   Add question
                 </Button>
-              </DialogBody>
             </TabsContent>
 
             {/* ---- Preview tab ---------------------------------------------- */}
-            <TabsContent value="preview" className="mt-0 min-h-0 flex-1 overflow-hidden">
-              <DialogBody className="space-y-5">
+            <TabsContent
+              value="preview"
+              className="mt-0 min-h-0 flex-1 space-y-5 overflow-auto px-5 py-4"
+            >
                 <div className="rounded-md border border-brand-blue-300/50 bg-brand-blue-50 px-4 py-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-navy-800">
                     BYU Finance Alumni
@@ -245,7 +250,6 @@ export function SurveySampleEditor() {
                     Preview only — this button is disabled and sends nothing.
                   </p>
                 </div>
-              </DialogBody>
             </TabsContent>
           </Tabs>
 
