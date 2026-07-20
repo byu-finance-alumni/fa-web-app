@@ -25,7 +25,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SAMPLE_ALUM, SAMPLE_ALUM_NAME } from "@/lib/sampleAlumni";
 import {
   clearQuestions,
@@ -65,21 +65,20 @@ function newId(): string {
 }
 
 /**
- * "Sample survey" button + side-by-side editor/preview for the annual
- * "confirm / update your info" re-survey (frontend-only).
+ * "Sample survey" button + editor/preview for the annual "confirm / update your
+ * info" re-survey (frontend-only), split into two tabs: EDIT QUESTIONS and
+ * PREVIEW.
  *
  * Every question is bound to a real DB column (`SURVEY_FIELDS`) — text columns
  * render as a pre-filled input, boolean columns as Yes/No (the "are you willing
  * to…" flags that drive tags, the hiring flags, and the Pay It Forward donor
- * flag, which also shows the external donate link). Staff edit on the LEFT and
- * see the alum-facing form on the RIGHT, one row per question. Edits persist to
+ * flag, which also shows the external donate link). Edits persist to
  * `localStorage` (no backend survey endpoint yet) and stand in for "what Resend
  * would send". Nothing here calls an API.
  */
 export function SurveySampleEditor() {
   const [open, setOpen] = useState(false);
   const [questions, setQuestions] = useState<SurveyQuestion[]>([]);
-  const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
   // Guards the first render: localStorage is only touched in effects, so the
   // server render and first client render both show the seed, avoiding hydration
   // mismatch. We hydrate from storage once mounted.
@@ -134,9 +133,6 @@ export function SurveySampleEditor() {
     setQuestions(defaultQuestions());
   };
 
-  const editViz = mobileView === "edit" ? "block" : "hidden";
-  const previewViz = mobileView === "preview" ? "block" : "hidden";
-
   return (
     <>
       <Button
@@ -151,114 +147,107 @@ export function SurveySampleEditor() {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent
-          className="max-w-6xl"
+          className="max-w-3xl"
           title="Sample survey"
-          description="Every question updates one alumni database column. Edit on the left, preview exactly what an alum would receive on the right. Saved on this device."
+          description="Every question updates one alumni database column. Author the questions on the Edit tab, then preview exactly what an alum would receive. Saved on this device."
         >
-          <DialogBody className="p-0">
-            {/* Narrow-screen Edit/Preview toggle (both columns show on lg). */}
-            <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-gray-200 bg-white px-5 py-2.5 lg:hidden">
-              <div className="inline-flex rounded-md border border-gray-200 p-0.5">
-                <ToggleBtn
-                  active={mobileView === "edit"}
-                  onClick={() => setMobileView("edit")}
-                  icon={<ClipboardList className="h-4 w-4" aria-hidden="true" />}
-                  label="Edit"
-                />
-                <ToggleBtn
-                  active={mobileView === "preview"}
-                  onClick={() => setMobileView("preview")}
-                  icon={<MailCheck className="h-4 w-4" aria-hidden="true" />}
-                  label="Preview"
-                />
-              </div>
+          <Tabs defaultValue="edit" className="flex min-h-0 flex-1 flex-col">
+            <div className="border-b border-gray-200 px-5 pt-3">
+              <TabsList className="border-b-0">
+                <TabsTrigger value="edit">
+                  <ClipboardList aria-hidden="true" className="h-4 w-4" />
+                  Edit questions
+                </TabsTrigger>
+                <TabsTrigger value="preview">
+                  <MailCheck aria-hidden="true" className="h-4 w-4" />
+                  Preview
+                </TabsTrigger>
+              </TabsList>
             </div>
 
-            {/* Column headers (lg only). */}
-            <RowBand editViz={editViz} previewViz={previewViz} className="hidden lg:grid">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                Edit questions
-              </p>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                Preview
-              </p>
-            </RowBand>
-
-            {/* Intro band: summary (left) lines up with the survey intro (right). */}
-            <RowBand editViz={editViz} previewViz={previewViz}>
-              <p className="text-xs text-gray-500">
-                {questions.length}{" "}
-                {questions.length === 1 ? "question" : "questions"} ·{" "}
-                {requiredCount} required · every question writes to a DB column
-              </p>
-              <div className="rounded-md border border-brand-blue-300/50 bg-brand-blue-50 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-navy-800">
-                  BYU Finance Alumni
+            {/* ---- Edit tab -------------------------------------------------- */}
+            <TabsContent value="edit" className="mt-0 min-h-0 flex-1 overflow-hidden">
+              <DialogBody className="space-y-3">
+                <p className="text-xs text-gray-500">
+                  {questions.length}{" "}
+                  {questions.length === 1 ? "question" : "questions"} ·{" "}
+                  {requiredCount} required · every question writes to a DB column
                 </p>
-                <p className="mt-1 text-sm text-gray-700">
-                  Hi {SAMPLE_ALUM_NAME}, it&apos;s our annual check-in — please
-                  take a moment to confirm your information so we can keep you in
-                  the loop on events and opportunities.
-                </p>
-              </div>
-            </RowBand>
 
-            {/* One band per question: editor (left) lined up with preview (right). */}
-            {questions.length === 0 ? (
-              <RowBand editViz={editViz} previewViz={previewViz}>
-                <div className="rounded-md border border-dashed border-gray-300 p-8 text-center">
-                  <p className="text-sm font-medium text-gray-900">
-                    No questions yet
+                {questions.length === 0 ? (
+                  <div className="rounded-md border border-dashed border-gray-300 p-8 text-center">
+                    <p className="text-sm font-medium text-gray-900">
+                      No questions yet
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Add a question or reset to the default set.
+                    </p>
+                  </div>
+                ) : (
+                  questions.map((q, index) => (
+                    <QuestionEditor
+                      key={q.id}
+                      question={q}
+                      index={index}
+                      total={questions.length}
+                      onChange={updateQuestion}
+                      onMove={move}
+                      onRemove={remove}
+                    />
+                  ))
+                )}
+
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={addQuestion}
+                  className="w-full"
+                >
+                  <Plus aria-hidden="true" />
+                  Add question
+                </Button>
+              </DialogBody>
+            </TabsContent>
+
+            {/* ---- Preview tab ---------------------------------------------- */}
+            <TabsContent value="preview" className="mt-0 min-h-0 flex-1 overflow-hidden">
+              <DialogBody className="space-y-5">
+                <div className="rounded-md border border-brand-blue-300/50 bg-brand-blue-50 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-navy-800">
+                    BYU Finance Alumni
                   </p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Add a question or reset to the default set.
+                  <p className="mt-1 text-sm text-gray-700">
+                    Hi {SAMPLE_ALUM_NAME}, it&apos;s our annual check-in — please
+                    take a moment to confirm your information so we can keep you
+                    in the loop on events and opportunities.
                   </p>
                 </div>
-                <p className="text-sm text-gray-400">Nothing to preview yet.</p>
-              </RowBand>
-            ) : (
-              questions.map((q, index) => (
-                <RowBand key={q.id} editViz={editViz} previewViz={previewViz}>
-                  <QuestionEditor
-                    question={q}
-                    index={index}
-                    total={questions.length}
-                    onChange={updateQuestion}
-                    onMove={move}
-                    onRemove={remove}
-                  />
-                  <PreviewQuestion question={q} />
-                </RowBand>
-              ))
-            )}
 
-            {/* Footer band: "Add question" (left) lines up with the submit CTA. */}
-            <RowBand editViz={editViz} previewViz={previewViz} className="border-b-0">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={addQuestion}
-                className="w-full"
-              >
-                <Plus aria-hidden="true" />
-                Add question
-              </Button>
-              <div>
-                <button
-                  type="button"
-                  disabled
-                  aria-disabled="true"
-                  title="Preview only — submitting is disabled in this sample"
-                  className="inline-flex h-10 w-full cursor-not-allowed items-center justify-center rounded-md bg-brand-blue-600/50 px-5 text-sm font-semibold text-white"
-                >
-                  Submit my updates
-                </button>
-                <p className="mt-2 text-center text-xs text-gray-400">
-                  Preview only — this button is disabled and sends nothing.
-                </p>
-              </div>
-            </RowBand>
-          </DialogBody>
+                {questions.length === 0 ? (
+                  <p className="text-sm text-gray-500">
+                    No questions to preview yet. Add some on the Edit tab.
+                  </p>
+                ) : (
+                  questions.map((q) => <PreviewQuestion key={q.id} question={q} />)
+                )}
+
+                <div className="border-t border-gray-200 pt-4">
+                  <button
+                    type="button"
+                    disabled
+                    aria-disabled="true"
+                    title="Preview only — submitting is disabled in this sample"
+                    className="inline-flex h-10 w-full cursor-not-allowed items-center justify-center rounded-md bg-brand-blue-600/50 px-5 text-sm font-semibold text-white"
+                  >
+                    Submit my updates
+                  </button>
+                  <p className="mt-2 text-center text-xs text-gray-400">
+                    Preview only — this button is disabled and sends nothing.
+                  </p>
+                </div>
+              </DialogBody>
+            </TabsContent>
+          </Tabs>
 
           <DialogFooter className="justify-between">
             <Button
@@ -282,62 +271,6 @@ export function SurveySampleEditor() {
         </DialogContent>
       </Dialog>
     </>
-  );
-}
-
-/* --------------------------------------------------------------- row band ---- */
-
-function RowBand({
-  children,
-  editViz,
-  previewViz,
-  className,
-}: {
-  children: [React.ReactNode, React.ReactNode];
-  editViz: string;
-  previewViz: string;
-  className?: string;
-}) {
-  const [left, right] = children;
-  return (
-    <div
-      className={cn(
-        "grid gap-x-6 gap-y-3 border-b border-gray-200 px-5 py-4 lg:grid-cols-2",
-        className,
-      )}
-    >
-      <div className={cn("min-w-0", editViz, "lg:block")}>{left}</div>
-      <div className={cn("min-w-0", previewViz, "lg:block")}>{right}</div>
-    </div>
-  );
-}
-
-function ToggleBtn({
-  active,
-  onClick,
-  icon,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition-colors",
-        active
-          ? "bg-brand-blue-600 text-white"
-          : "text-gray-500 hover:text-gray-900",
-      )}
-    >
-      {icon}
-      {label}
-    </button>
   );
 }
 
@@ -420,59 +353,61 @@ function QuestionEditor({
           />
         </div>
 
-        <div>
-          <Label htmlFor={fieldId}>Updates database column</Label>
-          <Select
-            id={fieldId}
-            value={question.fieldKey}
-            onChange={(e) => onChange(id, { fieldKey: e.target.value })}
-            className="mt-1"
-          >
-            {FIELDS_BY_GROUP.map((g) => (
-              <optgroup key={g.group} label={g.label}>
-                {g.fields.map((f) => (
-                  <option key={f.key} value={f.key}>
-                    {f.label}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </Select>
-          {/* The exact column this question writes to — nothing free-form. */}
-          <p className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
-            <Database className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            {field ? (
-              <>
-                <code className="rounded bg-gray-100 px-1 py-0.5 text-[11px] text-gray-700">
-                  {field.table}.{field.column}
-                </code>
-                <span>·</span>
-                <span>{field.kind === "boolean" ? "Yes / No" : "Text"}</span>
-                {field.donateUrl ? (
-                  <Badge variant="tag">
-                    <Heart className="h-3 w-3" aria-hidden="true" />
-                    Donation
-                  </Badge>
-                ) : null}
-              </>
-            ) : (
-              <span className="text-danger-600">Unknown column</span>
-            )}
-          </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <Label htmlFor={fieldId}>Updates database column</Label>
+            <Select
+              id={fieldId}
+              value={question.fieldKey}
+              onChange={(e) => onChange(id, { fieldKey: e.target.value })}
+              className="mt-1"
+            >
+              {FIELDS_BY_GROUP.map((g) => (
+                <optgroup key={g.group} label={g.label}>
+                  {g.fields.map((f) => (
+                    <option key={f.key} value={f.key}>
+                      {f.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor={helpId}>Help text (optional)</Label>
+            <Input
+              id={helpId}
+              value={question.helpText ?? ""}
+              onChange={(e) =>
+                onChange(id, { helpText: e.target.value || undefined })
+              }
+              placeholder="Shown under the question"
+              className="mt-1"
+            />
+          </div>
         </div>
 
-        <div>
-          <Label htmlFor={helpId}>Help text (optional)</Label>
-          <Input
-            id={helpId}
-            value={question.helpText ?? ""}
-            onChange={(e) =>
-              onChange(id, { helpText: e.target.value || undefined })
-            }
-            placeholder="Shown under the question"
-            className="mt-1"
-          />
-        </div>
+        {/* The exact column this question writes to — nothing free-form. */}
+        <p className="flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+          <Database className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {field ? (
+            <>
+              <code className="rounded bg-gray-100 px-1 py-0.5 text-[11px] text-gray-700">
+                {field.table}.{field.column}
+              </code>
+              <span>·</span>
+              <span>{field.kind === "boolean" ? "Yes / No" : "Text"}</span>
+              {field.donateUrl ? (
+                <Badge variant="tag">
+                  <Heart className="h-3 w-3" aria-hidden="true" />
+                  Donation
+                </Badge>
+              ) : null}
+            </>
+          ) : (
+            <span className="text-danger-600">Unknown column</span>
+          )}
+        </p>
 
         <label className="inline-flex cursor-pointer select-none items-center gap-2 text-sm text-gray-700">
           <input
@@ -499,7 +434,7 @@ function PreviewQuestion({ question }: { question: SurveyQuestion }) {
   const prefill = SAMPLE_ALUM[question.fieldKey] ?? "";
 
   return (
-    <div className="lg:pt-1">
+    <div className="max-w-xl">
       <Label id={labelId} htmlFor={controlId} className="text-sm text-gray-900">
         {question.label || (
           <span className="italic text-gray-400">Untitled question</span>
