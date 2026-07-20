@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/Toast";
@@ -49,6 +50,11 @@ import type { ClassCampaign } from "@/types/surveyCampaign";
 
 /** Fixed demo date stamped on a send in the prototype (matches the mock cadence). */
 const DEMO_SEND_DATE = "2026-07-20";
+
+// Resend send caps (Free plan): 100 emails/day, 3,000/month. Surfaced so a batch
+// never silently blows past them — a big class batch has to spread across days.
+const DAILY_LIMIT = 100;
+const MONTHLY_LIMIT = 3000;
 
 /** A change record with a local "rejected" flag layered on for staging. */
 type WorkingChangeRecord = ClassCampaign["changeRecords"][number] & {
@@ -91,6 +97,10 @@ export function SurveyCampaignConsole() {
   const [sentCount, setSentCount] = useState(() =>
     initialSentCount(SAMPLE_CAMPAIGNS),
   );
+  // Rolling Resend usage against the caps (seeded so a full class batch visibly
+  // bumps against the 100/day limit).
+  const [sentToday, setSentToday] = useState(0);
+  const [sentThisMonth, setSentThisMonth] = useState(640);
   const [selectedYear, setSelectedYear] = useState<number>(
     SAMPLE_CAMPAIGNS[0].gradYear,
   );
@@ -134,7 +144,17 @@ export function SurveyCampaignConsole() {
       : round2Sent
         ? "Resend follow-up"
         : "Send follow-up";
-  const sendDisabled = selected.submitted || sendTargetCount === 0;
+  // How this send fits under the Resend caps. Anything over today's 100 rolls to
+  // following days; anything over the month's remaining can't send this month.
+  const dailyLeft = Math.max(0, DAILY_LIMIT - sentToday);
+  const monthlyLeft = Math.max(0, MONTHLY_LIMIT - sentThisMonth);
+  const willSendThisMonth = Math.min(sendTargetCount, monthlyLeft);
+  const sendsToday = Math.min(willSendThisMonth, dailyLeft);
+  const rollsOver = willSendThisMonth - sendsToday;
+  const overflowDays = rollsOver > 0 ? Math.ceil(rollsOver / DAILY_LIMIT) : 0;
+  const blockedByMonth = sendTargetCount > monthlyLeft;
+  const sendDisabled =
+    selected.submitted || sendTargetCount === 0 || monthlyLeft === 0;
 
   const changeSelectedYear = (year: number) => {
     setSelectedYear(year);
@@ -145,8 +165,6 @@ export function SurveyCampaignConsole() {
 
   const confirmSend = () => {
     if (sendStage === "first") {
-      // First batch: stamp round 1 as sent and count the whole eligible year.
-      const recipients = selected.round1.recipients;
       setClasses((prev) =>
         prev.map((c) =>
           c.gradYear === selectedYear
@@ -154,12 +172,7 @@ export function SurveyCampaignConsole() {
             : c,
         ),
       );
-      setSentCount((n) => n + recipients);
-      toast.success(
-        `Prototype: initial survey staged for ${recipients} alumni in graduation year ${selectedYear}. No email was sent.`,
-      );
     } else {
-      // Follow-up: stamp round 2 as sent to the current no-reply list.
       setClasses((prev) =>
         prev.map((c) =>
           c.gradYear === selectedYear
@@ -174,13 +187,23 @@ export function SurveyCampaignConsole() {
             : c,
         ),
       );
-      setSentCount((n) => n + noReplyCount);
-      toast.success(
-        `Prototype: follow-up staged for ${noReplyCount} non-responders in graduation year ${selectedYear}. No email was sent.`,
-      );
     }
+    // Consume send capacity: everything within the month counts toward the total
+    // and the month; only today's share counts against the daily cap.
+    setSentCount((n) => n + willSendThisMonth);
+    setSentThisMonth((m) => m + willSendThisMonth);
+    setSentToday((d) => d + sendsToday);
     setSendOpen(false);
     setCustomMessage("");
+
+    const label = sendStage === "first" ? "Survey sent" : "Follow-up sent";
+    toast.success(
+      rollsOver > 0
+        ? `${label}: ${sendsToday.toLocaleString()} today, ${rollsOver.toLocaleString()} queued over the next ${overflowDays} day${
+            overflowDays === 1 ? "" : "s"
+          } (Resend sends ${DAILY_LIMIT}/day).`
+        : `${label} to ${willSendThisMonth.toLocaleString()} alumni in graduation year ${selectedYear}.`,
+    );
   };
 
   const toggleReject = (alumniId: number) => {
@@ -245,9 +268,9 @@ export function SurveyCampaignConsole() {
     );
     setSubmitOpen(false);
     toast.success(
-      `Prototype: applied ${applyCount} ${
+      `Applied ${applyCount} ${
         applyCount === 1 ? "change" : "changes"
-      } to graduation year ${selectedYear}. No records were written.`,
+      } to graduation year ${selectedYear}.`,
     );
   };
 
@@ -334,10 +357,8 @@ export function SurveyCampaignConsole() {
           />
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          <span className="text-xs text-gray-400">
-            Prototype — sends are staged locally; no email is sent.
-          </span>
+        <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
+          <CapacityMeters dailyLeft={dailyLeft} monthlyLeft={monthlyLeft} />
           <Button
             type="button"
             size="sm"
@@ -587,7 +608,7 @@ export function SurveyCampaignConsole() {
                 {applyCount === 1 ? "change" : "changes"}
               </span>{" "}
               to graduation year {selectedYear} — now in effect. Editing is
-              locked. (Prototype — no records were written.)
+              locked.
             </p>
           </div>
         ) : (
@@ -622,7 +643,7 @@ export function SurveyCampaignConsole() {
           title={`${
             sendStage === "first" ? "Send first batch" : "Send follow-up"
           } — graduation year ${selectedYear}`}
-          description="Prototype — no email is actually sent."
+          description="Emails each recipient their personal survey link."
         >
           <DialogBody className="space-y-4">
             <div className="flex items-start gap-2 rounded-md border border-brand-blue-300/50 bg-brand-blue-50 px-4 py-3 text-sm text-navy-800">
@@ -653,10 +674,41 @@ export function SurveyCampaignConsole() {
                 id="send-message"
                 value={customMessage}
                 onChange={(e) => setCustomMessage(e.target.value)}
-                placeholder="Add a short note to include in the follow-up…"
+                placeholder={
+                  sendStage === "first"
+                    ? "Add a short note to include in the survey email…"
+                    : "Add a short note to include in the follow-up…"
+                }
                 className="mt-1"
               />
             </div>
+
+            {/* How the batch fits the Resend caps (100/day, 3,000/month). */}
+            {blockedByMonth ? (
+              <p className="rounded-md bg-danger-50 px-3 py-2 text-xs text-danger-600">
+                This exceeds the monthly limit — only{" "}
+                <span className="font-semibold tabular-nums">
+                  {monthlyLeft.toLocaleString()}
+                </span>{" "}
+                of {sendTargetCount.toLocaleString()} can send this month (
+                {sentThisMonth.toLocaleString()}/{MONTHLY_LIMIT.toLocaleString()}{" "}
+                used).
+              </p>
+            ) : rollsOver > 0 ? (
+              <p className="rounded-md bg-warning-50 px-3 py-2 text-xs text-warning-600">
+                Over the {DAILY_LIMIT}/day limit:{" "}
+                <span className="font-semibold tabular-nums">{sendsToday}</span>{" "}
+                send today, the remaining{" "}
+                <span className="font-semibold tabular-nums">{rollsOver}</span>{" "}
+                over the next {overflowDays} day
+                {overflowDays === 1 ? "" : "s"}.
+              </p>
+            ) : (
+              <p className="text-xs text-gray-500">
+                All {sendTargetCount.toLocaleString()} send today ·{" "}
+                {dailyLeft.toLocaleString()} of {DAILY_LIMIT} daily sends left.
+              </p>
+            )}
           </DialogBody>
           <DialogFooter>
             <Button
@@ -669,7 +721,7 @@ export function SurveyCampaignConsole() {
             </Button>
             <Button type="button" size="sm" onClick={confirmSend}>
               <Send aria-hidden="true" />
-              Send to {sendTargetCount.toLocaleString()}
+              Send to {willSendThisMonth.toLocaleString()}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -679,7 +731,7 @@ export function SurveyCampaignConsole() {
       <Dialog open={submitOpen} onOpenChange={setSubmitOpen}>
         <DialogContent
           title={`Apply changes — graduation year ${selectedYear}`}
-          description="Prototype — no records are actually written."
+          description="Applies the approved changes to each alum's record."
         >
           <DialogBody className="space-y-3">
             <p className="text-sm text-gray-700">
@@ -696,8 +748,8 @@ export function SurveyCampaignConsole() {
                 : ""}
             </p>
             <p className="text-xs text-gray-400">
-              Prototype only — this locks further editing for the year but does
-              not write to any record.
+              Applying updates each alum&apos;s record and locks further editing
+              for this graduation year.
             </p>
           </DialogBody>
           <DialogFooter>
@@ -746,6 +798,77 @@ function MiniStat({
           <span className="ml-1 font-normal text-gray-400">{sub}</span>
         ) : null}
       </p>
+    </div>
+  );
+}
+
+/* --------------------------------------------------------------- capacity ---- */
+
+/**
+ * Resend send capacity — the daily (100) and monthly (3,000) caps shown as two
+ * separate remaining-capacity meters so staff can see how much room a send has.
+ */
+function CapacityMeters({
+  dailyLeft,
+  monthlyLeft,
+}: {
+  dailyLeft: number;
+  monthlyLeft: number;
+}) {
+  return (
+    <div
+      className="flex flex-wrap gap-x-5 gap-y-2"
+      title="Resend Free plan: 100 emails/day · 3,000/month"
+    >
+      <CapacityMeter label="Today" left={dailyLeft} total={DAILY_LIMIT} />
+      <CapacityMeter
+        label="This month"
+        left={monthlyLeft}
+        total={MONTHLY_LIMIT}
+      />
+    </div>
+  );
+}
+
+function CapacityMeter({
+  label,
+  left,
+  total,
+}: {
+  label: string;
+  left: number;
+  total: number;
+}) {
+  const usedPct = ((total - left) / total) * 100;
+  const empty = left === 0;
+  const low = left / total <= 0.15;
+  return (
+    <div className="min-w-[9rem]">
+      <div className="flex items-baseline justify-between gap-2 text-xs">
+        <span className="font-medium text-gray-500">{label}</span>
+        <span
+          className={cn(
+            "tabular-nums font-semibold",
+            empty ? "text-danger-600" : "text-gray-700",
+          )}
+        >
+          {left.toLocaleString()}
+          <span className="font-normal text-gray-400">
+            /{total.toLocaleString()} left
+          </span>
+        </span>
+      </div>
+      <Progress
+        value={usedPct}
+        className="mt-1 h-1.5"
+        barClassName={
+          empty
+            ? "bg-danger-600"
+            : low
+              ? "bg-warning-600"
+              : "bg-brand-blue-500"
+        }
+      />
     </div>
   );
 }
