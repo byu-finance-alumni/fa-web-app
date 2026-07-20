@@ -290,8 +290,31 @@ export function SurveyCampaignConsole() {
 
   return (
     <>
-      {/* ── Overview: picker + counter, then last/next send + round stats + Send ── */}
+      {/* ── Account totals + Resend send caps — for the WHOLE account, across
+          every graduation year (not the selected year). ── */}
       <Card className="p-5">
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Total surveys sent
+            </p>
+            <p className="text-3xl font-semibold tabular-nums tracking-tight text-navy-800">
+              {sentCount.toLocaleString()}
+            </p>
+            <p className="text-xs text-gray-400">
+              across the whole account, all graduation years
+            </p>
+          </div>
+          <CapacityMeters dailyLeft={dailyLeft} monthlyLeft={monthlyLeft} />
+        </div>
+        <p className="mt-3 border-t border-gray-200 pt-3 text-xs text-gray-400">
+          Send limits are account-wide across every graduation year — 100 emails
+          per day, 3,000 per month.
+        </p>
+      </Card>
+
+      {/* ── Year overview: picker, last/next send + round stats, and Send. ── */}
+      <Card className="mt-4 p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-[13rem]">
             <Label htmlFor="grad-year">Graduation year</Label>
@@ -316,16 +339,6 @@ export function SurveyCampaignConsole() {
                 </Badge>
               ) : null}
             </p>
-          </div>
-
-          <div className="text-right">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              Total surveys sent
-            </p>
-            <p className="text-2xl font-semibold tabular-nums tracking-tight text-navy-800">
-              {sentCount.toLocaleString()}
-            </p>
-            <p className="text-xs text-gray-400">across all years &amp; rounds</p>
           </div>
         </div>
 
@@ -357,8 +370,10 @@ export function SurveyCampaignConsole() {
           />
         </div>
 
-        <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
-          <CapacityMeters dailyLeft={dailyLeft} monthlyLeft={monthlyLeft} />
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <span className="text-xs text-gray-400">
+            Each recipient gets an email with their personal survey link.
+          </span>
           <Button
             type="button"
             size="sm"
