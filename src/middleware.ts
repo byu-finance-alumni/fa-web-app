@@ -48,8 +48,10 @@ export const config = {
      *   the browser requests these without app cookies, so running auth on them
      *   bounced them to /login)
      * - branding/ (static brand assets in /public)
+     * - survey/ (public "confirm your info" re-survey landing page — alumni open
+     *   it from an email link without signing in)
      * Feel free to modify this pattern to include more paths.
      */
-    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|robots.txt|sitemap.xml|branding|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|webmanifest)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|robots.txt|sitemap.xml|branding|survey|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|webmanifest)$).*)",
   ],
 };

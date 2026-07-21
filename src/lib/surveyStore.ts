@@ -12,6 +12,14 @@ import { DEFAULT_SURVEY_QUESTIONS, type SurveyQuestion } from "@/types/survey";
 // free-form types, so any v1 payload is discarded and reseeded from the default.
 const STORAGE_KEY = "fa:needs-surveying:questions:v2";
 
+// Staff-settable intro message shown at the top of the email + the public
+// "confirm your info" landing page.
+const MESSAGE_KEY = "fa:needs-surveying:message:v1";
+
+/** The default intro message, used until staff customize it. */
+export const DEFAULT_SURVEY_MESSAGE =
+  "It's our annual check-in! Please take a moment to confirm your contact and career information so we can keep you in the loop on BYU Finance events, mentoring, and opportunities.";
+
 /** A fresh copy of the default seed (never hand out the shared constant). */
 export function defaultQuestions(): SurveyQuestion[] {
   return DEFAULT_SURVEY_QUESTIONS.map((q) => ({ ...q }));
@@ -65,5 +73,30 @@ export function clearQuestions(): void {
     window.localStorage.removeItem(STORAGE_KEY);
   } catch {
     // Ignore — nothing else to do.
+  }
+}
+
+/**
+ * Load the staff-set intro message, or `DEFAULT_SURVEY_MESSAGE` if nothing is
+ * stored / storage is unavailable. Never returns an empty string.
+ */
+export function loadMessage(): string {
+  if (typeof window === "undefined") return DEFAULT_SURVEY_MESSAGE;
+  try {
+    const raw = window.localStorage.getItem(MESSAGE_KEY);
+    if (typeof raw === "string" && raw.trim().length > 0) return raw;
+    return DEFAULT_SURVEY_MESSAGE;
+  } catch {
+    return DEFAULT_SURVEY_MESSAGE;
+  }
+}
+
+/** Persist the intro message. No-op during SSR. */
+export function saveMessage(message: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(MESSAGE_KEY, message);
+  } catch {
+    // Storage full / disabled (private mode) — edits simply won't persist.
   }
 }

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
+  BarChart3,
   CalendarClock,
   CheckCircle2,
   ChevronDown,
@@ -31,7 +32,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
 import { SAMPLE_CAMPAIGNS, initialSentCount } from "@/lib/sampleCampaigns";
-import type { ClassCampaign } from "@/types/surveyCampaign";
+import type { ClassCampaign, SurveyRound } from "@/types/surveyCampaign";
 
 /**
  * Send re-surveys BY GRADUATION YEAR — the campaign console on the Needs
@@ -43,7 +44,7 @@ import type { ClassCampaign } from "@/types/surveyCampaign";
  * written.
  *
  * Kept intentionally compact: one overview card (surveys-sent counter, the
- * graduation-year picker, last/next send + round stats, and Send), an
+ * graduation-year picker, last/next send + the 4-patch stepper, and Send), an
  * expandable no-reply list for manual outreach, a dense change report (only
  * alumni who changed something, each rejectable/editable), and an admin Submit.
  */
@@ -79,8 +80,7 @@ type WorkingClass = Omit<ClassCampaign, "changeRecords"> & {
 function initClasses(): WorkingClass[] {
   return SAMPLE_CAMPAIGNS.map((c) => ({
     ...c,
-    round1: { ...c.round1 },
-    round2: { ...c.round2 },
+    patches: c.patches.map((p) => ({ ...p })),
     noReply: c.noReply.map((n) => ({ ...n })),
     changeRecords: c.changeRecords.map((r) => ({
       ...r,
@@ -153,6 +153,7 @@ export function SurveyCampaignConsole() {
     SAMPLE_CAMPAIGNS[0].gradYear,
   );
   const [noReplyOpen, setNoReplyOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
 
   const [sendOpen, setSendOpen] = useState(false);
   const [customMessage, setCustomMessage] = useState("");
@@ -170,28 +171,27 @@ export function SurveyCampaignConsole() {
   const applyCount = activeChanges.length;
   const noReplyCount = selected.noReply.length;
 
-  // Last time this graduation year was surveyed (the later of the two rounds).
-  const lastSent = selected.round2.sentDate ?? selected.round1.sentDate;
-  const r1Rate =
-    selected.round1.recipients > 0
-      ? Math.round(
-          (selected.round1.responses / selected.round1.recipients) * 100,
-        )
-      : 0;
+  // Last time this graduation year was surveyed (the most recent sent patch).
+  const sentPatches = selected.patches.filter((p) => p.sentDate !== null);
+  const lastSent =
+    sentPatches.length > 0 ? sentPatches[sentPatches.length - 1].sentDate : null;
 
-  // Which send is next for this year: the initial "first batch" (round 1) if it
-  // hasn't gone out, otherwise the no-reply follow-up (round 2).
-  const round1Sent = selected.round1.sentDate !== null;
-  const round2Sent = selected.round2.sentDate !== null;
-  const sendStage: "first" | "followup" = round1Sent ? "followup" : "first";
-  const sendTargetCount =
-    sendStage === "first" ? selected.round1.recipients : noReplyCount;
-  const sendLabel =
-    sendStage === "first"
-      ? "Send first batch"
-      : round2Sent
-        ? "Resend follow-up"
-        : "Send follow-up";
+  // Which send is next for this year: the first patch whose `sentDate` is still
+  // null. Patch 1 (index 0) is the initial send to all eligible; patches 2–4 are
+  // follow-ups to the current no-reply set. −1 means every patch has gone out.
+  const nextPatchIndex = selected.patches.findIndex((p) => p.sentDate === null);
+  const hasNextPatch = nextPatchIndex !== -1;
+  const nextPatchNumber = nextPatchIndex + 1; // 1-based label
+  const sendStage: "first" | "followup" =
+    nextPatchIndex === 0 ? "first" : "followup";
+  const sendTargetCount = hasNextPatch
+    ? sendStage === "first"
+      ? selected.patches[0].recipients
+      : noReplyCount
+    : 0;
+  const sendLabel = hasNextPatch
+    ? `Send patch ${nextPatchNumber}`
+    : "All patches sent";
   // Split this send into 100/day batches: today's batch goes now, the rest are
   // scheduled on the following days.
   const dailyLeft = Math.max(0, DAILY_LIMIT - sentToday);
@@ -208,6 +208,49 @@ export function SurveyCampaignConsole() {
   const sendDisabled =
     selected.submitted || sendTargetCount === 0 || plan.total === 0;
 
+  // Account-wide survey stats, derived live from the working campaign state
+  // (reflects staged sends/rejects). MOCK until real send/response tracking
+  // exists. Per-patch rate = replies ÷ that patch's recipients, summed across
+  // every graduation year that has sent the patch.
+  const stats = useMemo(() => {
+    const perPatch = [0, 1, 2, 3].map(() => ({ responses: 0, recipients: 0 }));
+    let totalResponses = 0;
+    let totalEligible = 0;
+    let totalNoReply = 0;
+    let approved = 0;
+    let rejected = 0;
+    const perYear = classes.map((c) => {
+      const responses = c.patches.reduce((s, p) => s + p.responses, 0);
+      totalResponses += responses;
+      if (c.patches[0]?.sentDate) totalEligible += c.patches[0].recipients;
+      totalNoReply += c.noReply.length;
+      c.patches.forEach((p, i) => {
+        if (p.sentDate) {
+          perPatch[i].responses += p.responses;
+          perPatch[i].recipients += p.recipients;
+        }
+      });
+      c.changeRecords.forEach((r) => (r.rejected ? (rejected += 1) : (approved += 1)));
+      return { gradYear: c.gradYear, responses };
+    });
+    const rate = (num: number, den: number) =>
+      den > 0 ? Math.round((num / den) * 100) : 0;
+    return {
+      totalResponses,
+      totalEligible,
+      totalNoReply,
+      approved,
+      rejected,
+      overallRate: rate(totalResponses, totalEligible),
+      patchRates: perPatch.map((p) => ({
+        ...p,
+        rate: rate(p.responses, p.recipients),
+      })),
+      perYear,
+      maxYearResponses: Math.max(1, ...perYear.map((y) => y.responses)),
+    };
+  }, [classes]);
+
   const changeSelectedYear = (year: number) => {
     setSelectedYear(year);
     setNoReplyOpen(false);
@@ -216,23 +259,24 @@ export function SurveyCampaignConsole() {
   };
 
   const confirmSend = () => {
+    if (!hasNextPatch) return;
     setClasses((prev) =>
       prev.map((c) => {
         if (c.gradYear !== selectedYear) return c;
-        if (sendStage === "first") {
-          return {
-            ...c,
-            round1: { ...c.round1, sentDate: DEMO_SEND_DATE },
-            schedule: plan.batches,
-          };
-        }
         return {
           ...c,
-          round2: {
-            ...c.round2,
-            sentDate: DEMO_SEND_DATE,
-            recipients: c.noReply.length,
-          },
+          patches: c.patches.map((p, i) =>
+            i === nextPatchIndex
+              ? {
+                  ...p,
+                  sentDate: DEMO_SEND_DATE,
+                  // Patch 1 keeps its planned recipient count; follow-ups target
+                  // the current no-reply set.
+                  recipients:
+                    nextPatchIndex === 0 ? p.recipients : c.noReply.length,
+                }
+              : p,
+          ),
           schedule: plan.batches,
         };
       }),
@@ -359,7 +403,7 @@ export function SurveyCampaignConsole() {
         </p>
       </Card>
 
-      {/* ── Year overview: picker, last/next send + round stats, and Send. ── */}
+      {/* ── Year overview: picker, last/next send + patch stepper, and Send. ── */}
       <Card className="mt-4 p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-[13rem]">
@@ -388,8 +432,8 @@ export function SurveyCampaignConsole() {
           </div>
         </div>
 
-        {/* Compact stat row — last/next send + both rounds. */}
-        <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-gray-200 pt-4 lg:grid-cols-4">
+        {/* Last / next annual send. */}
+        <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-gray-200 pt-4">
           <MiniStat
             icon={<History className="h-4 w-4" aria-hidden="true" />}
             label="Last sent"
@@ -399,21 +443,25 @@ export function SurveyCampaignConsole() {
             icon={<CalendarClock className="h-4 w-4" aria-hidden="true" />}
             label="Next send due"
             value={formatDate(selected.nextSendDate)}
+            sub="annual"
           />
-          <MiniStat
-            label="Round 1 · initial"
-            value={`${selected.round1.responses}/${selected.round1.recipients} replied`}
-            sub={`${r1Rate}%`}
-          />
-          <MiniStat
-            label="Round 2 · no-reply"
-            value={
-              selected.round2.sentDate
-                ? `${selected.round2.responses}/${selected.round2.recipients} replied`
-                : "Not sent"
-            }
-            sub={selected.round2.sentDate ? formatDate(selected.round2.sentDate) : undefined}
-          />
+        </div>
+
+        {/* Four annual send patches — a compact stepper. */}
+        <div className="mt-4">
+          <p className="text-xs font-medium text-gray-500">
+            Send patches — one annual survey, four sends
+          </p>
+          <ol className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {selected.patches.map((p, i) => (
+              <PatchStep
+                key={i}
+                index={i}
+                patch={p}
+                isNext={hasNextPatch && i === nextPatchIndex}
+              />
+            ))}
+          </ol>
         </div>
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
@@ -427,7 +475,9 @@ export function SurveyCampaignConsole() {
             disabled={sendDisabled}
           >
             <Send aria-hidden="true" />
-            {sendLabel} ({sendTargetCount.toLocaleString()})
+            {hasNextPatch
+              ? `${sendLabel} (${sendTargetCount.toLocaleString()})`
+              : sendLabel}
           </Button>
         </div>
 
@@ -733,11 +783,124 @@ export function SurveyCampaignConsole() {
         )}
       </Card>
 
+      {/* ── Survey stats (collapsible) — account-wide, all graduation years ── */}
+      <Card className="mt-4 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setStatsOpen((o) => !o)}
+          aria-expanded={statsOpen}
+          aria-controls="survey-stats-panel"
+          className="flex w-full items-center justify-between gap-3 px-5 py-3 text-left transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
+        >
+          <span className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4 text-brand-blue-600" aria-hidden="true" />
+            <span className="text-sm font-semibold text-gray-900">
+              Survey stats
+            </span>
+            <Badge variant="tag">{stats.overallRate}% response rate</Badge>
+          </span>
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 shrink-0 text-gray-400 transition-transform",
+              statsOpen && "rotate-180",
+            )}
+            aria-hidden="true"
+          />
+        </button>
+
+        {statsOpen ? (
+          <div
+            id="survey-stats-panel"
+            className="space-y-5 border-t border-gray-200 px-5 py-4"
+          >
+            {/* Headline tiles */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <StatTile
+                label="Overall response rate"
+                value={`${stats.overallRate}%`}
+                sub={`${stats.totalResponses.toLocaleString()} of ${stats.totalEligible.toLocaleString()} surveyed`}
+              />
+              <StatTile
+                label="Total responses"
+                value={stats.totalResponses.toLocaleString()}
+              />
+              <StatTile
+                label="No reply"
+                value={stats.totalNoReply.toLocaleString()}
+                sub="still outstanding"
+              />
+              <StatTile
+                label="Changes"
+                value={`${stats.approved.toLocaleString()} / ${stats.rejected.toLocaleString()}`}
+                sub="approved / rejected"
+              />
+            </div>
+
+            {/* Response rate per patch */}
+            <div>
+              <p className="text-xs font-semibold text-gray-700">
+                Response rate by patch
+              </p>
+              <div className="mt-2 space-y-2">
+                {stats.patchRates.map((p, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <span className="w-16 shrink-0 text-xs font-medium text-gray-500">
+                      Patch {i + 1}
+                    </span>
+                    <Progress
+                      value={p.rate}
+                      className="h-2 flex-1"
+                      barClassName="bg-brand-blue-500"
+                    />
+                    <span className="w-28 shrink-0 text-right text-xs tabular-nums text-gray-600">
+                      {p.rate}%
+                      <span className="ml-1 text-gray-400">
+                        ({p.responses.toLocaleString()}/
+                        {p.recipients.toLocaleString()})
+                      </span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Responses by graduation year */}
+            <div>
+              <p className="text-xs font-semibold text-gray-700">
+                Responses by graduation year
+              </p>
+              <div className="mt-2 space-y-2">
+                {stats.perYear.map((y) => (
+                  <div key={y.gradYear} className="flex items-center gap-3">
+                    <span className="w-16 shrink-0 text-xs font-medium text-gray-500">
+                      {y.gradYear}
+                    </span>
+                    <Progress
+                      value={(y.responses / stats.maxYearResponses) * 100}
+                      className="h-2 flex-1"
+                      barClassName="bg-navy-800"
+                    />
+                    <span className="w-12 shrink-0 text-right text-xs tabular-nums text-gray-600">
+                      {y.responses.toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <p className="border-t border-gray-200 pt-3 text-xs text-gray-400">
+              Reflects mock campaign data — these numbers stand in until real
+              send/response tracking is wired to the backend.
+            </p>
+          </div>
+        ) : null}
+      </Card>
+
       {/* Send dialog */}
       <Dialog open={sendOpen} onOpenChange={setSendOpen}>
         <DialogContent
-          title={`${
-            sendStage === "first" ? "Send first batch" : "Send follow-up"
+          title={`Send patch ${nextPatchNumber}${
+            sendStage === "first" ? " · initial" : " · follow-up"
           } — graduation year ${selectedYear}`}
           description="Emails each recipient their personal survey link."
         >
@@ -749,7 +912,7 @@ export function SurveyCampaignConsole() {
                   <>
                     The initial survey — goes to all{" "}
                     <span className="font-semibold tabular-nums">
-                      {selected.round1.recipients.toLocaleString()}
+                      {selected.patches[0].recipients.toLocaleString()}
                     </span>{" "}
                     alumni in graduation year {selectedYear}.
                   </>
@@ -907,6 +1070,97 @@ function MiniStat({
           <span className="ml-1 font-normal text-gray-400">{sub}</span>
         ) : null}
       </p>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------- patch step -- */
+
+/**
+ * One patch in the four-send annual stepper: number, label, sent date, and
+ * "replied" stats. The next patch to send is highlighted in brand blue.
+ */
+function PatchStep({
+  index,
+  patch,
+  isNext,
+}: {
+  index: number;
+  patch: SurveyRound;
+  isNext: boolean;
+}) {
+  const { sentDate, recipients, responses } = patch;
+  const sent = sentDate !== null;
+  const rate =
+    recipients > 0 ? Math.round((responses / recipients) * 100) : 0;
+  const name = patch.label ?? (index === 0 ? "Initial" : `Follow-up ${index}`);
+  return (
+    <li
+      className={cn(
+        "rounded-md border p-2.5",
+        isNext
+          ? "border-brand-blue-300 bg-brand-blue-50"
+          : sent
+            ? "border-gray-200 bg-white"
+            : "border-dashed border-gray-300 bg-gray-50",
+      )}
+    >
+      <div className="flex items-center justify-between gap-1">
+        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-navy-800 px-1 text-[11px] font-semibold tabular-nums text-white">
+          {index + 1}
+        </span>
+        {sent ? (
+          <Badge variant="success" size="sm">
+            Sent
+          </Badge>
+        ) : isNext ? (
+          <Badge variant="tag" size="sm">
+            Next
+          </Badge>
+        ) : (
+          <Badge variant="muted" size="sm">
+            Pending
+          </Badge>
+        )}
+      </div>
+      <p className="mt-1.5 text-xs font-semibold text-gray-900">{name}</p>
+      <p className="text-[11px] text-gray-400">
+        {sentDate ? formatDate(sentDate) : "Not sent"}
+      </p>
+      {sent ? (
+        <p className="mt-1 text-xs tabular-nums text-gray-700">
+          {responses.toLocaleString()}/{recipients.toLocaleString()} replied
+          <span className="ml-1 text-gray-400">· {rate}%</span>
+        </p>
+      ) : (
+        <p className="mt-1 text-xs text-gray-400">
+          {recipients > 0
+            ? `${recipients.toLocaleString()} to target`
+            : "targets no-reply set"}
+        </p>
+      )}
+    </li>
+  );
+}
+
+/* --------------------------------------------------------------- stat tile -- */
+
+function StatTile({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+}) {
+  return (
+    <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+      <p className="text-xs font-medium text-gray-500">{label}</p>
+      <p className="mt-0.5 text-lg font-semibold tabular-nums tracking-tight text-navy-800">
+        {value}
+      </p>
+      {sub ? <p className="text-[11px] text-gray-400">{sub}</p> : null}
     </div>
   );
 }

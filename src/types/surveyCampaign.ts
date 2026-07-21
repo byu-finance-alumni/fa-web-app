@@ -44,27 +44,31 @@ export interface ChangeRecord {
 }
 
 /**
- * One send of the survey to a class. `sentDate` is an ISO date (`YYYY-MM-DD`) or
- * null when the round hasn't gone out yet. `recipients` is how many alumni it
- * targeted; `responses` is how many replied.
+ * One send ("patch") of the survey to a class. `sentDate` is an ISO date
+ * (`YYYY-MM-DD`) or null when the patch hasn't gone out yet. `recipients` is how
+ * many alumni it targeted; `responses` is how many replied. `label` is an
+ * optional friendly name for the patch (e.g. "Initial", "Follow-up 1").
  */
 export interface SurveyRound {
   sentDate: string | null;
   recipients: number;
   responses: number;
+  label?: string;
 }
 
 /**
- * A graduating class's whole re-survey campaign: the two sends (initial +
- * no-reply follow-up), the current non-responder list, how many responders had
- * nothing to change, the per-alum proposed changes, and whether the class's
- * changes have been applied ("submitted").
+ * A graduating class's whole re-survey campaign for the year. The survey runs
+ * ONCE A YEAR as a sequence of exactly FOUR send patches: patch 1 is the initial
+ * send to every eligible alum, and patches 2–4 are follow-ups to the shrinking
+ * set of non-responders. Also tracks the current non-responder list, how many
+ * responders had nothing to change, the per-alum proposed changes, and whether
+ * the class's changes have been applied ("submitted").
  */
 export interface ClassCampaign {
   gradYear: number;
   totalAlumni: number;
-  round1: SurveyRound;
-  round2: SurveyRound;
+  /** The four annual send patches, in order (patch 1 first). */
+  patches: SurveyRound[];
   /** When this graduation year is next scheduled to be surveyed (ISO date). */
   nextSendDate: string;
   noReply: NoReplyAlum[];
