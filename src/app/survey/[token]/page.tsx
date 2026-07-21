@@ -15,6 +15,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
 import { SAMPLE_ALUM, SAMPLE_ALUM_NAME } from "@/lib/sampleAlumni";
 import {
   DEFAULT_SURVEY_MESSAGE,
@@ -208,6 +209,15 @@ export default function SurveyConfirmPage({
               <h2 className="text-sm font-semibold text-gray-900">
                 Here&apos;s what we have on file
               </h2>
+              <div className="mt-2 flex items-center gap-3 rounded-md border border-gray-200 px-4 py-3">
+                <InitialsAvatar name={SAMPLE_ALUM_NAME} size="lg" />
+                <div>
+                  <p className="text-xs font-medium text-gray-500">Photo</p>
+                  <p className="text-sm text-gray-700">
+                    Your current profile photo
+                  </p>
+                </div>
+              </div>
               <dl className="mt-2 divide-y divide-gray-100 rounded-md border border-gray-200">
                 {onFile.length === 0 ? (
                   <p className="px-4 py-3 text-sm text-gray-500">

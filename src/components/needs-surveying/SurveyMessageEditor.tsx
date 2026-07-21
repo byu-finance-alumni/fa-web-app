@@ -13,10 +13,12 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
 import { SAMPLE_ALUM, SAMPLE_ALUM_NAME } from "@/lib/sampleAlumni";
 import {
   DEFAULT_EMAIL_FIELDS,
   DEFAULT_SURVEY_MESSAGE,
+  HEADSHOT_FIELD_KEY,
   loadEmailFields,
   loadMessage,
   saveEmailFields,
@@ -36,7 +38,15 @@ const EMAIL_FIELD_GROUPS = (
 ).map((group) => ({
   group,
   label: GROUP_LABEL[group] ?? group,
-  fields: SURVEY_FIELDS.filter((f) => f.kind === "text" && f.group === group),
+  fields: [
+    // The profile photo isn't a survey column, but staff can include it too.
+    ...(group === "profile"
+      ? [{ key: HEADSHOT_FIELD_KEY, label: "Photo (headshot)" }]
+      : []),
+    ...SURVEY_FIELDS.filter((f) => f.kind === "text" && f.group === group).map(
+      (f) => ({ key: f.key, label: f.label }),
+    ),
+  ],
 }));
 
 /**
@@ -88,6 +98,7 @@ export function SurveyMessageEditor() {
   const previewRows = SURVEY_FIELDS.filter(
     (f) => emailFields.includes(f.key) && SAMPLE_ALUM[f.key],
   ).map((f) => ({ label: f.label, value: SAMPLE_ALUM[f.key] }));
+  const showHeadshot = emailFields.includes(HEADSHOT_FIELD_KEY);
 
   return (
     <>
@@ -178,24 +189,34 @@ export function SurveyMessageEditor() {
                     {message.trim() || DEFAULT_SURVEY_MESSAGE}
                   </p>
 
-                  {previewRows.length ? (
+                  {previewRows.length || showHeadshot ? (
                     <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
                       <p className="text-xs font-semibold text-gray-700">
                         Here&apos;s what we have on file
                       </p>
-                      <dl className="mt-2 space-y-1">
-                        {previewRows.map((r) => (
-                          <div
-                            key={r.label}
-                            className="flex justify-between gap-4 text-sm"
-                          >
-                            <dt className="text-gray-500">{r.label}</dt>
-                            <dd className="text-right font-medium text-gray-900">
-                              {r.value}
-                            </dd>
-                          </div>
-                        ))}
-                      </dl>
+                      {showHeadshot ? (
+                        <div className="mt-2 flex items-center gap-3">
+                          <InitialsAvatar name={SAMPLE_ALUM_NAME} size="lg" />
+                          <span className="text-xs text-gray-500">
+                            Profile photo
+                          </span>
+                        </div>
+                      ) : null}
+                      {previewRows.length ? (
+                        <dl className="mt-2 space-y-1">
+                          {previewRows.map((r) => (
+                            <div
+                              key={r.label}
+                              className="flex justify-between gap-4 text-sm"
+                            >
+                              <dt className="text-gray-500">{r.label}</dt>
+                              <dd className="text-right font-medium text-gray-900">
+                                {r.value}
+                              </dd>
+                            </div>
+                          ))}
+                        </dl>
+                      ) : null}
                     </div>
                   ) : (
                     <p className="text-xs italic text-gray-400">

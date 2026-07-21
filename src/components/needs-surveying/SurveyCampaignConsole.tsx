@@ -1,8 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
-  BarChart3,
   CalendarClock,
   CheckCircle2,
   ChevronDown,
@@ -153,7 +152,6 @@ export function SurveyCampaignConsole() {
     SAMPLE_CAMPAIGNS[0].gradYear,
   );
   const [noReplyOpen, setNoReplyOpen] = useState(false);
-  const [statsOpen, setStatsOpen] = useState(false);
 
   const [sendOpen, setSendOpen] = useState(false);
   const [customMessage, setCustomMessage] = useState("");
@@ -207,49 +205,6 @@ export function SurveyCampaignConsole() {
   const lastBatchDate = plan.batches.at(-1)?.date ?? DEMO_SEND_DATE;
   const sendDisabled =
     selected.submitted || sendTargetCount === 0 || plan.total === 0;
-
-  // Account-wide survey stats, derived live from the working campaign state
-  // (reflects staged sends/rejects). MOCK until real send/response tracking
-  // exists. Per-patch rate = replies ÷ that patch's recipients, summed across
-  // every graduation year that has sent the patch.
-  const stats = useMemo(() => {
-    const perPatch = [0, 1, 2, 3].map(() => ({ responses: 0, recipients: 0 }));
-    let totalResponses = 0;
-    let totalEligible = 0;
-    let totalNoReply = 0;
-    let approved = 0;
-    let rejected = 0;
-    const perYear = classes.map((c) => {
-      const responses = c.patches.reduce((s, p) => s + p.responses, 0);
-      totalResponses += responses;
-      if (c.patches[0]?.sentDate) totalEligible += c.patches[0].recipients;
-      totalNoReply += c.noReply.length;
-      c.patches.forEach((p, i) => {
-        if (p.sentDate) {
-          perPatch[i].responses += p.responses;
-          perPatch[i].recipients += p.recipients;
-        }
-      });
-      c.changeRecords.forEach((r) => (r.rejected ? (rejected += 1) : (approved += 1)));
-      return { gradYear: c.gradYear, responses };
-    });
-    const rate = (num: number, den: number) =>
-      den > 0 ? Math.round((num / den) * 100) : 0;
-    return {
-      totalResponses,
-      totalEligible,
-      totalNoReply,
-      approved,
-      rejected,
-      overallRate: rate(totalResponses, totalEligible),
-      patchRates: perPatch.map((p) => ({
-        ...p,
-        rate: rate(p.responses, p.recipients),
-      })),
-      perYear,
-      maxYearResponses: Math.max(1, ...perYear.map((y) => y.responses)),
-    };
-  }, [classes]);
 
   const changeSelectedYear = (year: number) => {
     setSelectedYear(year);
@@ -783,119 +738,6 @@ export function SurveyCampaignConsole() {
         )}
       </Card>
 
-      {/* ── Survey stats (collapsible) — account-wide, all graduation years ── */}
-      <Card className="mt-4 overflow-hidden">
-        <button
-          type="button"
-          onClick={() => setStatsOpen((o) => !o)}
-          aria-expanded={statsOpen}
-          aria-controls="survey-stats-panel"
-          className="flex w-full items-center justify-between gap-3 px-5 py-3 text-left transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
-        >
-          <span className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-brand-blue-600" aria-hidden="true" />
-            <span className="text-sm font-semibold text-gray-900">
-              Survey stats
-            </span>
-            <Badge variant="tag">{stats.overallRate}% response rate</Badge>
-          </span>
-          <ChevronDown
-            className={cn(
-              "h-4 w-4 shrink-0 text-gray-400 transition-transform",
-              statsOpen && "rotate-180",
-            )}
-            aria-hidden="true"
-          />
-        </button>
-
-        {statsOpen ? (
-          <div
-            id="survey-stats-panel"
-            className="space-y-5 border-t border-gray-200 px-5 py-4"
-          >
-            {/* Headline tiles */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <StatTile
-                label="Overall response rate"
-                value={`${stats.overallRate}%`}
-                sub={`${stats.totalResponses.toLocaleString()} of ${stats.totalEligible.toLocaleString()} surveyed`}
-              />
-              <StatTile
-                label="Total responses"
-                value={stats.totalResponses.toLocaleString()}
-              />
-              <StatTile
-                label="No reply"
-                value={stats.totalNoReply.toLocaleString()}
-                sub="still outstanding"
-              />
-              <StatTile
-                label="Changes"
-                value={`${stats.approved.toLocaleString()} / ${stats.rejected.toLocaleString()}`}
-                sub="approved / rejected"
-              />
-            </div>
-
-            {/* Response rate per patch */}
-            <div>
-              <p className="text-xs font-semibold text-gray-700">
-                Response rate by patch
-              </p>
-              <div className="mt-2 space-y-2">
-                {stats.patchRates.map((p, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <span className="w-16 shrink-0 text-xs font-medium text-gray-500">
-                      Patch {i + 1}
-                    </span>
-                    <Progress
-                      value={p.rate}
-                      className="h-2 flex-1"
-                      barClassName="bg-brand-blue-500"
-                    />
-                    <span className="w-28 shrink-0 text-right text-xs tabular-nums text-gray-600">
-                      {p.rate}%
-                      <span className="ml-1 text-gray-400">
-                        ({p.responses.toLocaleString()}/
-                        {p.recipients.toLocaleString()})
-                      </span>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Responses by graduation year */}
-            <div>
-              <p className="text-xs font-semibold text-gray-700">
-                Responses by graduation year
-              </p>
-              <div className="mt-2 space-y-2">
-                {stats.perYear.map((y) => (
-                  <div key={y.gradYear} className="flex items-center gap-3">
-                    <span className="w-16 shrink-0 text-xs font-medium text-gray-500">
-                      {y.gradYear}
-                    </span>
-                    <Progress
-                      value={(y.responses / stats.maxYearResponses) * 100}
-                      className="h-2 flex-1"
-                      barClassName="bg-navy-800"
-                    />
-                    <span className="w-12 shrink-0 text-right text-xs tabular-nums text-gray-600">
-                      {y.responses.toLocaleString()}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <p className="border-t border-gray-200 pt-3 text-xs text-gray-400">
-              Reflects mock campaign data — these numbers stand in until real
-              send/response tracking is wired to the backend.
-            </p>
-          </div>
-        ) : null}
-      </Card>
-
       {/* Send dialog */}
       <Dialog open={sendOpen} onOpenChange={setSendOpen}>
         <DialogContent
@@ -1140,28 +982,6 @@ function PatchStep({
         </p>
       )}
     </li>
-  );
-}
-
-/* --------------------------------------------------------------- stat tile -- */
-
-function StatTile({
-  label,
-  value,
-  sub,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-}) {
-  return (
-    <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
-      <p className="text-xs font-medium text-gray-500">{label}</p>
-      <p className="mt-0.5 text-lg font-semibold tabular-nums tracking-tight text-navy-800">
-        {value}
-      </p>
-      {sub ? <p className="text-[11px] text-gray-400">{sub}</p> : null}
-    </div>
   );
 }
 

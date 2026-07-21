@@ -108,8 +108,13 @@ export function saveMessage(message: string): void {
 // a real send.
 const EMAIL_FIELDS_KEY = "fa:needs-surveying:email-fields:v1";
 
+/** Sentinel "field" for the alum's profile photo (not a `SURVEY_FIELDS` column —
+ *  headshots live in a storage bucket, keyed by alumni_id). */
+export const HEADSHOT_FIELD_KEY = "profile.headshot";
+
 /** Default fields shown in the email preview until staff customize the set. */
 export const DEFAULT_EMAIL_FIELDS: readonly string[] = [
+  HEADSHOT_FIELD_KEY,
   "employment.current_employer",
   "employment.current_title",
   "employment.current_industry",
