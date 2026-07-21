@@ -86,16 +86,10 @@ export default function SurveyConfirmPage({
 
   return (
     <main className="min-h-screen bg-white text-gray-900">
-      {/* Full-width white header — logo left, page name right. */}
+      {/* Full-width white header — page name only. */}
       <header className="border-b border-gray-200 bg-white">
-        <div className="mx-auto flex h-16 max-w-[800px] items-center justify-between gap-4 px-5 sm:px-8">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/branding/finance-logo.jpg"
-            alt="BYU Finance — Marriott School of Business"
-            className="h-11 w-auto rounded-md"
-          />
-          <span className="text-sm font-medium text-gray-600 sm:text-base">
+        <div className="mx-auto flex h-16 max-w-[800px] items-center px-5 sm:px-8">
+          <span className="text-sm font-medium text-gray-700 sm:text-base">
             Alumni Information Update
           </span>
         </div>
