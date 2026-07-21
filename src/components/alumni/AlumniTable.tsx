@@ -69,16 +69,19 @@ function lastUpdatedLabel(iso: string | null | undefined): string {
 /** A search-param bag (string or repeated string[]) — the current URL query. */
 type SP = Record<string, string | string[] | undefined>;
 
-/** The server-backed sort values `GET /alumni` accepts (#495). Only these five
- *  columns can be sorted (server-side, across all pages) — the rest are plain
- *  headers because client-sorting one paginated page would be misleading. */
+/** The server-backed sort values `GET /alumni` accepts (#495). Client-sorting one
+ *  paginated page would be misleading, so only columns the backend can sort are
+ *  clickable (Actions/LinkedIn have no sort). */
 type SortValue =
   | "name"
   | "grad_asc"
   | "grad_desc"
   | "industry"
   | "city"
-  | "state";
+  | "state"
+  | "employer"
+  | "gender"
+  | "updated";
 
 /** Desktop alumni table. The entire row is clickable (navigates to the
  *  profile); the name stays a real link for keyboard/focus, and the LinkedIn
@@ -144,7 +147,7 @@ export function AlumniTable({
           <tr className="border-b border-gray-200 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
             <SortTh
               label="Name"
-              w="w-[20%]"
+              w="w-[18%]"
               active={nameActive}
               dir="asc"
               href={sortHref("name")}
@@ -157,8 +160,20 @@ export function AlumniTable({
               dir={sort === "grad_asc" ? "asc" : "desc"}
               href={sortHref(sort === "grad_desc" ? "grad_asc" : "grad_desc")}
             />
-            <PlainTh label="Gender" w="w-[8%]" />
-            <PlainTh label="Company" w="w-[17%]" />
+            <SortTh
+              label="Gender"
+              w="w-[10%]"
+              active={sort === "gender"}
+              dir="asc"
+              href={sortHref(sort === "gender" ? "name" : "gender")}
+            />
+            <SortTh
+              label="Company"
+              w="w-[17%]"
+              active={sort === "employer"}
+              dir="asc"
+              href={sortHref(sort === "employer" ? "name" : "employer")}
+            />
             <SortTh
               label="Industry"
               w="w-[15%]"
@@ -180,7 +195,13 @@ export function AlumniTable({
               dir="asc"
               href={sortHref(sort === "state" ? "name" : "state")}
             />
-            <PlainTh label="Updated" w="w-[10%]" />
+            <SortTh
+              label="Updated"
+              w="w-[10%]"
+              active={sort === "updated"}
+              dir="desc"
+              href={sortHref(sort === "updated" ? "name" : "updated")}
+            />
             <PlainTh label="LinkedIn" w="w-[8%]" />
             {showActions ? <PlainTh label="Actions" w="w-12" srOnly /> : null}
           </tr>

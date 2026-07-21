@@ -65,7 +65,16 @@ export interface AlumniFilterState {
    *  URL, owns it), but it DOES flow into the export filters so an export from
    *  that page covers exactly the due set. */
   needsSurvey: boolean;
-  sort: "name" | "grad_desc" | "grad_asc" | "industry" | "city" | "state";
+  sort:
+    | "name"
+    | "grad_desc"
+    | "grad_asc"
+    | "industry"
+    | "city"
+    | "state"
+    | "employer"
+    | "gender"
+    | "updated";
 }
 
 export const EMPTY_FILTERS: AlumniFilterState = {
@@ -465,8 +474,11 @@ export function AlumniFilters({
           <option value="grad_desc">Sort: Grad year (newest)</option>
           <option value="grad_asc">Sort: Grad year (oldest)</option>
           <option value="industry">Sort: Industry (A–Z)</option>
+          <option value="employer">Sort: Company (A–Z)</option>
           <option value="city">Sort: City (A–Z)</option>
           <option value="state">Sort: State (A–Z)</option>
+          <option value="gender">Sort: Gender</option>
+          <option value="updated">Sort: Recently updated</option>
         </Select>
 
         <Button type="button" variant="secondary" onClick={() => setOpen(true)}>

@@ -6406,8 +6406,8 @@ export interface operations {
                 near?: string | null;
                 /** @description Optional radius override (miles) for the 'near' location search. When provided it overrides the radius inferred from the phrase. */
                 radius?: number | null;
-                /** @description Sort order: name | grad_desc | grad_asc | industry | city | state. */
-                sort?: "name" | "grad_desc" | "grad_asc" | "industry" | "city" | "state";
+                /** @description Sort order: name | grad_desc | grad_asc | industry | city | state | employer | gender | updated. */
+                sort?: "name" | "grad_desc" | "grad_asc" | "industry" | "city" | "state" | "employer" | "gender" | "updated";
                 limit?: number;
                 offset?: number;
             };
