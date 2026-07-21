@@ -189,7 +189,7 @@ export function AlumniTable({
           {items.map((a) => (
             <tr
               key={a.alumni_id}
-              onClick={() => router.push(`/alumni/${a.alumni_id}`)}
+              onClick={() => router.push(`${basePath}/${a.alumni_id}`)}
               className="group cursor-pointer border-b border-gray-200 last:border-0 even:bg-gray-50/50 hover:bg-gray-50"
             >
               <td className="px-3 py-2.5">
@@ -199,7 +199,7 @@ export function AlumniTable({
                     name={avatarName(a)}
                   />
                   <Link
-                    href={`/alumni/${a.alumni_id}`}
+                    href={`${basePath}/${a.alumni_id}`}
                     onClick={(e) => e.stopPropagation()}
                     className="truncate font-medium text-gray-900 group-hover:text-brand-blue-600"
                   >

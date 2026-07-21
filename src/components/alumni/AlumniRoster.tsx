@@ -358,7 +358,7 @@ export async function AlumniRoster({
               {data!.items.map((a) => (
                 <Link
                   key={a.alumni_id}
-                  href={`/alumni/${a.alumni_id}`}
+                  href={`${basePath}/${a.alumni_id}`}
                   className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 shadow-card"
                 >
                   <InitialsAvatar name={avatarName(a)} size="md" />

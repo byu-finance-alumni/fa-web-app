@@ -321,13 +321,24 @@ function avatarColor(seed: string): string {
 
 /* ------------------------------------------------------------------- page -- */
 
-export default async function AlumniProfilePage({
-  params,
+/**
+ * Shared alumni / friends profile view (#494).
+ *
+ * Both `/alumni/[id]` and `/friends/[id]` render this exact component, so a
+ * friend's profile always matches an alum's and any change here lands on both —
+ * they can never drift. Friend records live in the same `alumni` table, so the
+ * data endpoints (`/alumni/{id}/*`) and the edit flow (`/alumni/{id}/edit`) are
+ * shared as-is; only `basePath`/`backLabel` differ (the breadcrumb).
+ */
+export async function AlumniProfileView({
+  id,
+  basePath = "/alumni",
+  backLabel = "Alumni",
 }: {
-  params: Promise<{ id: string }>;
+  id: string;
+  basePath?: string;
+  backLabel?: string;
 }) {
-  const { id } = await params;
-
   let profile: Profile;
   try {
     profile = await apiGet<Profile>(`/alumni/${id}/profile`);
@@ -575,7 +586,7 @@ export default async function AlumniProfilePage({
     <>
       {/* Top bar (fixed; only the content below scrolls) */}
       <Topbar
-        breadcrumb={[{ label: "Alumni", href: "/alumni" }, { label: name }]}
+        breadcrumb={[{ label: backLabel, href: basePath }, { label: name }]}
       >
         <TopbarSearch />
       </Topbar>
@@ -2024,4 +2035,18 @@ function programChips(p: Profile["program_engagement"]): string[] {
     if (designation) chips.push(designation);
   }
   return chips;
+}
+
+/* -------------------------------------------------------------- route entry -- */
+
+/** `/alumni/[id]` — the alumni profile. Renders the shared view. The friends
+ *  route (`/friends/[id]`) renders the same `AlumniProfileView` so the two never
+ *  diverge (#494). */
+export default async function AlumniProfilePage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  return <AlumniProfileView id={id} basePath="/alumni" backLabel="Alumni" />;
 }
