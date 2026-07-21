@@ -1,13 +1,7 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import {
-  Check,
-  ChevronDown,
-  ExternalLink,
-  Heart,
-  PencilLine,
-} from "lucide-react";
+import { Check, ChevronDown, ExternalLink, Heart } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,23 +19,39 @@ import {
  * PUBLIC "confirm your info" survey landing page (frontend-only PROTOTYPE).
  *
  * Lives OUTSIDE the `(app)` auth group and is allow-listed in `middleware.ts`, so
- * an alum can open it from an email link without signing in. It reads the intro
- * message + authored questions from `localStorage` (set by staff in the "Sample
- * survey" / "Edit email message" editors) and the sample alum from `SAMPLE_ALUM`.
- * Nothing calls an API; success is shown inline (no app shell / ToastProvider).
+ * an alum can open it from an email link without signing in. It reads the authored
+ * questions from `localStorage` (set by staff in the "Sample survey" editor) for
+ * the edit form, and the sample alum from `SAMPLE_ALUM`. Nothing calls an API;
+ * success is shown inline (no app shell / ToastProvider).
  */
 
 type Status = "review" | "confirmed" | "editing" | "submitted";
 
-/** First name for a warm greeting ("Hi Jordan,"). */
+/** First name for a warm greeting ("Hi, Jordan"). */
 const FIRST_NAME = SAMPLE_ALUM_NAME.split(/\s+/)[0] || SAMPLE_ALUM_NAME;
-const INITIALS =
-  SAMPLE_ALUM_NAME.trim()
-    .split(/\s+/)
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase() || "?";
+
+/** One label/value row in the read-only "Your information" panel. */
+type InfoRow = { label: string; value: string };
+
+// The panel shows a fixed, curated view of what's on file — nothing beyond what
+// the page already displayed. "Location" collapses city + state into one line.
+const SAMPLE_LOCATION = [SAMPLE_ALUM["contact.city"], SAMPLE_ALUM["contact.state"]]
+  .filter(Boolean)
+  .join(", ");
+
+// Career first (company/industry lead), then contact — matching the rest of the
+// survey experience.
+const CAREER_ROWS: InfoRow[] = [
+  { label: "Employer", value: SAMPLE_ALUM["employment.current_employer"] ?? "" },
+  { label: "Current title", value: SAMPLE_ALUM["employment.current_title"] ?? "" },
+  { label: "Industry", value: SAMPLE_ALUM["employment.current_industry"] ?? "" },
+];
+const CONTACT_ROWS: InfoRow[] = [
+  { label: "Personal email", value: SAMPLE_ALUM["contact.personal_email"] ?? "" },
+  { label: "Phone", value: SAMPLE_ALUM["contact.phone"] ?? "" },
+  { label: "Location", value: SAMPLE_LOCATION },
+  { label: "LinkedIn", value: SAMPLE_ALUM["profile.linkedin_url"] ?? "" },
+];
 
 export default function SurveyConfirmPage({
   params,
@@ -73,35 +83,34 @@ export default function SurveyConfirmPage({
   const engagementQuestions = questions.filter(
     (q) => SURVEY_FIELD_BY_KEY[q.fieldKey]?.group === "engagement",
   );
-  const onFile = inlineQuestions.filter((q) => {
-    const f = SURVEY_FIELD_BY_KEY[q.fieldKey];
-    return f?.kind === "text" && (SAMPLE_ALUM[q.fieldKey] ?? "") !== "";
-  });
 
   return (
-    <main className="min-h-screen bg-gray-100">
-      {/* Brand header — the navy logo lockup sits seamlessly on the navy band. */}
-      <header className="bg-navy-800">
-        <div className="mx-auto flex max-w-2xl items-center gap-3 px-5 py-4">
+    <main className="min-h-screen bg-white text-gray-900">
+      {/* Full-width white header — logo left, page name right. */}
+      <header className="border-b border-gray-200 bg-white">
+        <div className="mx-auto flex h-16 max-w-[800px] items-center justify-between gap-4 px-5 sm:px-8">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/branding/finance-logo.jpg"
             alt="BYU Finance — Marriott School of Business"
-            className="h-11 w-auto rounded"
+            className="h-11 w-auto rounded-md"
           />
+          <span className="text-sm font-medium text-gray-600 sm:text-base">
+            Alumni Information Update
+          </span>
         </div>
       </header>
 
-      <div className="mx-auto max-w-2xl px-4 pb-16 pt-8 sm:px-6">
+      <div className="mx-auto max-w-[800px] px-5 pb-16 pt-10 sm:px-8">
         {!hydrated ? (
           <div className="space-y-4">
-            <div className="h-8 w-2/3 animate-pulse rounded bg-gray-200" />
-            <div className="h-32 animate-pulse rounded-lg bg-gray-200" />
+            <div className="h-9 w-2/3 animate-pulse rounded bg-gray-100" />
+            <div className="h-48 animate-pulse rounded-lg bg-gray-100" />
           </div>
         ) : status === "submitted" ? (
           <SuccessPanel
             title="Thank you — your updates are in"
-            body="Our team will refresh your profile with what you sent. You can safely close this page."
+            body="Our team will review your response before any changes are applied. You can safely close this page."
           />
         ) : status === "confirmed" ? (
           <SuccessPanel
@@ -109,39 +118,43 @@ export default function SurveyConfirmPage({
             body="Your information is up to date. We appreciate you helping us keep in touch about events, mentoring, and opportunities."
             action={
               <Button variant="secondary" onClick={() => setStatus("editing")}>
-                <PencilLine aria-hidden="true" />
-                Actually, I need to change something
+                I need to make changes
               </Button>
             }
           />
         ) : status === "editing" ? (
           <>
-            <SectionHeading
-              eyebrow="Update your info"
-              title="What's changed?"
-              lead="Everything's pre-filled with what we have — just edit anything that's out of date."
-            />
+            <div>
+              <h1 className="text-3xl font-semibold leading-tight tracking-tight text-navy-800">
+                Update your information
+              </h1>
+              <p className="mt-3 max-w-prose text-base leading-relaxed text-gray-600">
+                Everything is filled in with what we have on file. Just change
+                anything that is out of date.
+              </p>
+            </div>
+
             <form
-              className="mt-6 space-y-6"
+              className="mt-8 space-y-6"
               onSubmit={(e) => {
                 e.preventDefault();
                 setStatus("submitted");
               }}
             >
-              <div className="space-y-5 rounded-lg border border-gray-200 bg-white p-5 shadow-card">
+              <div className="space-y-5 rounded-lg border border-gray-200 bg-white p-5 sm:p-6">
                 {inlineQuestions.map((q) => (
                   <FieldControl key={q.id} question={q} />
                 ))}
               </div>
 
               {engagementQuestions.length > 0 ? (
-                <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-card">
+                <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
                   <button
                     type="button"
                     onClick={() => setEngagementOpen((o) => !o)}
                     aria-expanded={engagementOpen}
                     aria-controls="survey-engagement-panel"
-                    className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-inset"
+                    className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-inset sm:px-6"
                   >
                     <span>
                       <span className="block text-sm font-semibold text-gray-900">
@@ -162,7 +175,7 @@ export default function SurveyConfirmPage({
                   {engagementOpen ? (
                     <div
                       id="survey-engagement-panel"
-                      className="space-y-5 border-t border-gray-200 px-5 py-5"
+                      className="space-y-5 border-t border-gray-200 px-5 py-5 sm:px-6"
                     >
                       {engagementQuestions.map((q) => (
                         <FieldControl key={q.id} question={q} />
@@ -180,100 +193,84 @@ export default function SurveyConfirmPage({
                 >
                   Back
                 </Button>
-                <Button type="submit" size="lg" className="w-full sm:w-auto">
+                <Button
+                  type="submit"
+                  variant="navy"
+                  size="lg"
+                  className="w-full sm:w-auto"
+                >
                   Submit my updates
                 </Button>
               </div>
             </form>
+
+            <TrustNote />
           </>
         ) : (
           /* status === "review" */
           <>
-            <SectionHeading
-              eyebrow="Annual check-in"
-              title={`Hi ${FIRST_NAME},`}
-              lead="Take a moment to check the details below, then let us know if everything's still current."
-            />
+            <div>
+              <h1 className="text-3xl font-semibold leading-tight tracking-tight text-navy-800">
+                Hi, {FIRST_NAME}
+              </h1>
+              <p className="mt-3 max-w-prose text-base leading-relaxed text-gray-600">
+                Please review the information we currently have on file. This
+                should take less than a minute.
+              </p>
+            </div>
 
-            {/* Identity — the photo + name, presented as a profile header. */}
-            <div className="mt-6 flex items-center gap-4 rounded-lg border border-gray-200 bg-white p-5 shadow-card">
-              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-navy-800 text-lg font-semibold text-white">
-                {INITIALS}
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-base font-semibold text-gray-900">
-                  {SAMPLE_ALUM_NAME}
-                </p>
-                <p className="text-sm text-gray-500">
-                  BYU Finance · Marriott School of Business
-                </p>
+            {/* Your information — one bordered panel, two grouped columns. */}
+            <section
+              className="mt-8 rounded-lg border border-gray-200"
+              aria-labelledby="your-info-heading"
+            >
+              <div className="border-b border-gray-200 px-5 py-3 sm:px-6">
+                <h2
+                  id="your-info-heading"
+                  className="text-sm font-semibold text-gray-900"
+                >
+                  Your information
+                </h2>
               </div>
-            </div>
-
-            {/* On file */}
-            <div className="mt-6">
-              <h2 className="px-1 text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">
-                What we have on file
-              </h2>
-              <dl className="mt-2 divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-card">
-                {onFile.length === 0 ? (
-                  <p className="px-5 py-4 text-sm text-gray-500">
-                    We don&apos;t have any details on file yet.
-                  </p>
-                ) : (
-                  onFile.map((q) => {
-                    const f = SURVEY_FIELD_BY_KEY[q.fieldKey];
-                    return (
-                      <div
-                        key={q.id}
-                        className="flex items-baseline justify-between gap-4 px-5 py-3"
-                      >
-                        <dt className="shrink-0 text-sm text-gray-500">
-                          {f?.label ?? q.label}
-                        </dt>
-                        <dd className="truncate text-right text-sm font-medium text-gray-900">
-                          {SAMPLE_ALUM[q.fieldKey]}
-                        </dd>
-                      </div>
-                    );
-                  })
-                )}
-              </dl>
-            </div>
+              <div className="grid gap-x-10 gap-y-8 px-5 py-6 sm:grid-cols-2 sm:px-6">
+                <InfoGroup title="Career information" rows={CAREER_ROWS} />
+                <InfoGroup title="Contact information" rows={CONTACT_ROWS} />
+              </div>
+            </section>
 
             {/* Confirm */}
             <div className="mt-8">
-              <p className="text-center text-base font-medium text-gray-900">
-                Is everything above still current?
+              <p className="text-base font-medium text-gray-900">
+                Is this information correct?
               </p>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row">
                 <Button
                   type="button"
+                  variant="navy"
                   size="lg"
+                  className="w-full sm:w-auto"
                   onClick={() => setStatus("confirmed")}
                 >
-                  <Check aria-hidden="true" />
-                  Yes, it&apos;s all correct
+                  Yes, everything is correct
                 </Button>
                 <Button
                   type="button"
                   variant="secondary"
                   size="lg"
+                  className="w-full sm:w-auto"
                   onClick={() => setStatus("editing")}
                 >
-                  <PencilLine aria-hidden="true" />
-                  No, I need to update it
+                  I need to make changes
                 </Button>
               </div>
             </div>
+
+            <TrustNote />
           </>
         )}
 
-        <footer className="mt-12 border-t border-gray-200 pt-6 text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-400">
-            BYU Marriott School of Business
-          </p>
-          <p className="mt-1 text-xs text-gray-400">
+        <footer className="mt-12 text-center">
+          <p className="text-xs text-gray-400">
             Prototype — loads a sample alum and doesn&apos;t send anything yet.
           </p>
         </footer>
@@ -282,27 +279,44 @@ export default function SurveyConfirmPage({
   );
 }
 
-/* --------------------------------------------------------------- heading ---- */
+/* ------------------------------------------------------------ info group ---- */
 
-function SectionHeading({
-  eyebrow,
-  title,
-  lead,
-}: {
-  eyebrow: string;
-  title: string;
-  lead: string;
-}) {
+/**
+ * One labelled column in the "Your information" panel: a heading over a list of
+ * label-above-value rows. Missing values read "Not provided" in muted text (no
+ * per-field dividers — the whitespace does the grouping).
+ */
+function InfoGroup({ title, rows }: { title: string; rows: InfoRow[] }) {
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-blue-600">
-        {eyebrow}
-      </p>
-      <h1 className="mt-1.5 text-2xl font-semibold tracking-tight text-navy-800">
-        {title}
-      </h1>
-      <p className="mt-2 text-[15px] leading-relaxed text-gray-600">{lead}</p>
+      <h3 className="text-sm font-semibold text-navy-800">{title}</h3>
+      <dl className="mt-4 space-y-4">
+        {rows.map((r) => (
+          <div key={r.label}>
+            <dt className="text-xs font-medium text-gray-500">{r.label}</dt>
+            <dd className="mt-0.5 text-sm font-medium text-gray-900">
+              {r.value ? (
+                r.value
+              ) : (
+                <span className="font-normal text-gray-400">Not provided</span>
+              )}
+            </dd>
+          </div>
+        ))}
+      </dl>
     </div>
+  );
+}
+
+/* -------------------------------------------------------------- trust ------- */
+
+/** Reassurance shown beneath the confirm / update actions. */
+function TrustNote() {
+  return (
+    <p className="mt-8 border-t border-gray-200 pt-6 text-sm leading-relaxed text-gray-500">
+      This secure form was sent by the BYU Finance Department. Your response will
+      be reviewed before any changes are applied.
+    </p>
   );
 }
 
@@ -406,7 +420,7 @@ function SuccessPanel({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-8 text-center shadow-card sm:p-10">
+    <div className="rounded-lg border border-gray-200 bg-white p-8 text-center sm:p-10">
       <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-success-50">
         <Check className="h-7 w-7 text-success-600" aria-hidden="true" />
       </div>
