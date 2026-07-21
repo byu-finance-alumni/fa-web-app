@@ -26,7 +26,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { SAMPLE_ALUM, SAMPLE_ALUM_NAME } from "@/lib/sampleAlumni";
 import {
@@ -35,7 +34,6 @@ import {
   defaultQuestions,
   loadMessage,
   loadQuestions,
-  saveMessage,
   saveQuestions,
 } from "@/lib/surveyStore";
 import {
@@ -104,11 +102,6 @@ export function SurveySampleEditor() {
     saveQuestions(questions);
   }, [questions, hydrated]);
 
-  useEffect(() => {
-    if (!hydrated) return;
-    saveMessage(message);
-  }, [message, hydrated]);
-
   const requiredCount = useMemo(
     () => questions.filter((q) => q.required).length,
     [questions],
@@ -146,7 +139,6 @@ export function SurveySampleEditor() {
   const resetToDefault = () => {
     clearQuestions();
     setQuestions(defaultQuestions());
-    setMessage(DEFAULT_SURVEY_MESSAGE);
   };
 
   // Preview splits the engagement Yes/No questions out into a collapsible menu;
@@ -198,22 +190,6 @@ export function SurveySampleEditor() {
               value="edit"
               className="mt-0 min-h-0 flex-1 space-y-3 overflow-auto px-5 py-4"
             >
-              <div className="rounded-md border border-gray-200 bg-gray-50 p-4">
-                <Label htmlFor="survey-message">Intro message</Label>
-                <p className="mt-0.5 text-xs text-gray-500">
-                  Shown at the top of the email and the alum&apos;s
-                  confirm-your-info page.
-                </p>
-                <Textarea
-                  id="survey-message"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  placeholder={DEFAULT_SURVEY_MESSAGE}
-                  className="mt-2"
-                  rows={3}
-                />
-              </div>
-
               <p className="text-xs text-gray-500">
                   {questions.length}{" "}
                   {questions.length === 1 ? "question" : "questions"} ·{" "}
