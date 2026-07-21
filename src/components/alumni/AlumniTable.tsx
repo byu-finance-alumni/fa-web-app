@@ -155,7 +155,7 @@ export function AlumniTable({
             <SortTh
               label="Grad"
               w="w-[8%]"
-              align="right"
+              align="center"
               active={gradActive}
               dir={sort === "grad_asc" ? "asc" : "desc"}
               href={sortHref(sort === "grad_desc" ? "grad_asc" : "grad_desc")}
@@ -163,6 +163,7 @@ export function AlumniTable({
             <SortTh
               label="Gender"
               w="w-[10%]"
+              align="center"
               active={sort === "gender"}
               dir="asc"
               href={sortHref(sort === "gender" ? "name" : "gender")}
@@ -191,6 +192,7 @@ export function AlumniTable({
             <SortTh
               label="State"
               w="w-[8%]"
+              align="center"
               active={sort === "state"}
               dir="asc"
               href={sortHref(sort === "state" ? "name" : "state")}
@@ -198,11 +200,12 @@ export function AlumniTable({
             <SortTh
               label="Updated"
               w="w-[10%]"
+              align="center"
               active={sort === "updated"}
               dir="desc"
               href={sortHref(sort === "updated" ? "name" : "updated")}
             />
-            <PlainTh label="LinkedIn" w="w-[8%]" />
+            <PlainTh label="LinkedIn" w="w-[8%]" align="center" />
             {showActions ? <PlainTh label="Actions" w="w-12" srOnly /> : null}
           </tr>
         </thead>
@@ -228,10 +231,10 @@ export function AlumniTable({
                   </Link>
                 </div>
               </td>
-              <td className="px-3 py-2.5 text-right tabular-nums text-gray-700">
+              <td className="px-3 py-2.5 text-center tabular-nums text-gray-700">
                 {a.graduation_year ?? "—"}
               </td>
-              <td className="px-3 py-2.5 text-gray-700">
+              <td className="px-3 py-2.5 text-center text-gray-700">
                 {genderLabel(a.gender) || (
                   <span className="text-gray-300">—</span>
                 )}
@@ -258,7 +261,7 @@ export function AlumniTable({
                     <td className="truncate px-3 py-2.5 text-gray-700">
                       {city ?? <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="truncate px-3 py-2.5 text-gray-700">
+                    <td className="truncate px-3 py-2.5 text-center text-gray-700">
                       {abbreviateState(state) || (
                         <span className="text-gray-300">—</span>
                       )}
@@ -266,12 +269,12 @@ export function AlumniTable({
                   </>
                 );
               })()}
-              <td className="truncate px-3 py-2.5 tabular-nums text-gray-700">
+              <td className="truncate px-3 py-2.5 text-center tabular-nums text-gray-700">
                 {lastUpdatedLabel(a.updated_at) || (
                   <span className="text-gray-300">—</span>
                 )}
               </td>
-              <td className="px-3 py-2.5">
+              <td className="px-3 py-2.5 text-center">
                 {a.linkedin_url ? (
                   <a
                     href={a.linkedin_url}
@@ -289,7 +292,7 @@ export function AlumniTable({
                 )}
               </td>
               {showActions ? (
-                <td className="px-3 py-2.5">
+                <td className="px-3 py-2.5 text-center">
                   <AlumniRowActions
                     alumniId={a.alumni_id}
                     canEdit={canEdit}
@@ -324,12 +327,17 @@ function SortTh({
   href: string;
   active: boolean;
   dir: "asc" | "desc";
-  align?: "right";
+  align?: "center" | "right";
 }) {
   const Icon = active ? (dir === "asc" ? ArrowUp : ArrowDown) : ChevronsUpDown;
   return (
     <th
-      className={cn(TH_BASE, w, align === "right" && "text-right")}
+      className={cn(
+        TH_BASE,
+        w,
+        align === "right" && "text-right",
+        align === "center" && "text-center",
+      )}
       aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : "none"}
     >
       <Link
@@ -358,13 +366,15 @@ function PlainTh({
   label,
   w,
   srOnly,
+  align,
 }: {
   label: string;
   w: string;
   srOnly?: boolean;
+  align?: "center";
 }) {
   return (
-    <th className={cn(TH_BASE, w)}>
+    <th className={cn(TH_BASE, w, align === "center" && "text-center")}>
       {srOnly ? <span className="sr-only">{label}</span> : label}
     </th>
   );
