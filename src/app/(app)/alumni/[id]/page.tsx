@@ -41,6 +41,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { designationFullName, splitDesignations } from "@/lib/designations";
+import { blankIfNa } from "@/lib/na";
 
 /* ----------------------------------------------------------------- helpers */
 
@@ -1015,8 +1016,9 @@ export default async function AlumniProfilePage({
                   {/* Col 2: marital status · spouse · birthday */}
                   <div className="space-y-4">
                     <Field label="Marital status" value={a.marital_status} />
-                    {/* First name ONLY — never render the spouse's last name. */}
-                    <Field label="Spouse" value={a.spouse_first_name} />
+                    {/* First name ONLY — never render the spouse's last name.
+                        Legacy "N/A" placeholders render as blank (#496). */}
+                    <Field label="Spouse" value={blankIfNa(a.spouse_first_name) || null} />
                     <Field label="Birthday" value={fmtDate(a.birth_date)} />
                   </div>
                   {/* Col 3: net id · citizenship · home country. Citizenship and
