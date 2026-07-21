@@ -358,7 +358,7 @@ export async function AlumniRoster({
               {data!.items.map((a) => (
                 <Link
                   key={a.alumni_id}
-                  href={`/alumni/${a.alumni_id}`}
+                  href={`${basePath}/${a.alumni_id}`}
                   className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 shadow-card"
                 >
                   <InitialsAvatar name={avatarName(a)} size="md" />
@@ -385,6 +385,9 @@ export async function AlumniRoster({
               canEdit={canEditRows}
               canAdd={canAddInteractionRows}
               headshotUrls={headshotUrls}
+              sort={filters.sort}
+              basePath={basePath}
+              sp={sp}
             />
 
             <div className="mt-3 flex items-center justify-between text-sm text-gray-500">

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { clientGet, ApiClientError } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+import { blankIfNa } from "@/lib/na";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { AlumniPage, Alumni } from "@/types/alumni";
@@ -46,14 +47,20 @@ export function SpousePicker({
   /** The alumnus being edited — excluded from results (can't be their own spouse). */
   selfId?: number;
 }) {
-  const [firstName, setFirstName] = useState(defaults?.spouse_first_name ?? "");
-  const [lastName, setLastName] = useState(defaults?.spouse_last_name ?? "");
+  // Legacy "N/A" placeholders (common in spouse last name) prefill as blank so
+  // the edit form doesn't show junk — and a save then clears it in the DB (#496).
+  const [firstName, setFirstName] = useState(
+    blankIfNa(defaults?.spouse_first_name),
+  );
+  const [lastName, setLastName] = useState(
+    blankIfNa(defaults?.spouse_last_name),
+  );
   const [linkedId, setLinkedId] = useState<number | null>(
     defaults?.spouse_alumni_id ?? null,
   );
   const [linkedName, setLinkedName] = useState<string>(
     defaults?.spouse_alumni_name ??
-      [defaults?.spouse_first_name, defaults?.spouse_last_name]
+      [blankIfNa(defaults?.spouse_first_name), blankIfNa(defaults?.spouse_last_name)]
         .filter(Boolean)
         .join(" ") ??
       "",
