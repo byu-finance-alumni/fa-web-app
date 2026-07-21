@@ -385,6 +385,9 @@ export async function AlumniRoster({
               canEdit={canEditRows}
               canAdd={canAddInteractionRows}
               headshotUrls={headshotUrls}
+              sort={filters.sort}
+              basePath={basePath}
+              sp={sp}
             />
 
             <div className="mt-3 flex items-center justify-between text-sm text-gray-500">

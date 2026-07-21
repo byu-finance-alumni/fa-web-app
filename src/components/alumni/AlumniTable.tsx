@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ExternalLink } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronsUpDown, ExternalLink } from "lucide-react";
 import { RowAvatar } from "@/components/shared/RowAvatar";
 import { AlumniRowActions } from "@/components/alumni/AlumniRowActions";
 import { abbreviateState } from "@/lib/usStates";
+import { cn } from "@/lib/utils";
 import type { Alumni } from "@/types/alumni";
 
 function fullName(a: Alumni): string {
@@ -65,14 +66,33 @@ function lastUpdatedLabel(iso: string | null | undefined): string {
   return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
+/** A search-param bag (string or repeated string[]) — the current URL query. */
+type SP = Record<string, string | string[] | undefined>;
+
+/** The server-backed sort values `GET /alumni` accepts (#495). Only these five
+ *  columns can be sorted (server-side, across all pages) — the rest are plain
+ *  headers because client-sorting one paginated page would be misleading. */
+type SortValue =
+  | "name"
+  | "grad_asc"
+  | "grad_desc"
+  | "industry"
+  | "city"
+  | "state";
+
 /** Desktop alumni table. The entire row is clickable (navigates to the
  *  profile); the name stays a real link for keyboard/focus, and the LinkedIn
- *  link stops propagation so it opens externally instead of the profile. */
+ *  link stops propagation so it opens externally instead of the profile.
+ *  Column headers for the five server-sortable fields are links that update the
+ *  `sort` query param (#495). */
 export function AlumniTable({
   items,
   canEdit = false,
   canAdd = false,
   headshotUrls,
+  sort = "name",
+  basePath = "/alumni",
+  sp = {},
 }: {
   items: Alumni[];
   /** Role gates threaded from the server page — drive the per-row action menu's
@@ -84,50 +104,85 @@ export function AlumniTable({
    *  visible page (the headshot bucket is private). A missing/null entry renders
    *  the initials fallback. */
   headshotUrls?: Record<number, string | null>;
+  /** Current sort (from the URL), so the active column shows its direction. */
+  sort?: string;
+  /** Roster route (`/alumni` or `/friends`) — sort links stay on this route. */
+  basePath?: string;
+  /** Current search params, preserved (minus offset/sort) when building a sort
+   *  link so a sort never drops the active filters; paging resets to page 1. */
+  sp?: SP;
 }) {
   const router = useRouter();
   const showActions = canEdit || canAdd;
+
+  // Build a sort href: keep every active filter, drop offset (back to page 1),
+  // and set the new sort (omitted for the default "name" so the URL stays clean).
+  const sortHref = (next: SortValue): string => {
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(sp)) {
+      if (k === "offset" || k === "sort") continue;
+      const values = Array.isArray(v) ? v : v == null ? [] : [v];
+      for (const val of values) if (val) p.append(k, val);
+    }
+    if (next !== "name") p.set("sort", next);
+    const qs = p.toString();
+    return qs ? `${basePath}?${qs}` : basePath;
+  };
+
+  const gradActive = sort === "grad_asc" || sort === "grad_desc";
+  const nameActive = sort === "name" || sort === "";
+
   return (
     <div className="hidden overflow-hidden rounded-lg border border-gray-200 bg-white shadow-card md:block">
       {/* Fixed column layout (#268): widths are pinned on the header so sorting
           only reorders rows — column positions/widths never shift with the
           content. `table-fixed` ignores cell content for sizing, so long values
-          truncate inside their column instead of stretching it. */}
+          truncate inside their column instead of stretching it. Headers for the
+          five server-sortable fields are links (#495). */}
       <table className="w-full table-fixed text-sm">
         <thead>
           <tr className="border-b border-gray-200 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-            <th className="sticky top-0 z-10 w-[24%] bg-gray-50 px-4 py-2.5">
-              Name
-            </th>
-            <th className="sticky top-0 z-10 w-20 bg-gray-50 px-4 py-2.5 text-right">
-              Grad
-            </th>
-            <th className="sticky top-0 z-10 w-16 bg-gray-50 px-4 py-2.5">
-              Gender
-            </th>
-            <th className="sticky top-0 z-10 w-[20%] bg-gray-50 px-4 py-2.5">
-              Current company
-            </th>
-            <th className="sticky top-0 z-10 w-[18%] bg-gray-50 px-4 py-2.5">
-              Current industry
-            </th>
-            <th className="sticky top-0 z-10 w-[12%] bg-gray-50 px-4 py-2.5">
-              City
-            </th>
-            <th className="sticky top-0 z-10 w-16 bg-gray-50 px-4 py-2.5">
-              State
-            </th>
-            <th className="sticky top-0 z-10 w-28 bg-gray-50 px-4 py-2.5">
-              Last Updated
-            </th>
-            <th className="sticky top-0 z-10 w-24 bg-gray-50 px-4 py-2.5">
-              LinkedIn
-            </th>
-            {showActions ? (
-              <th className="sticky top-0 z-10 w-12 bg-gray-50 px-4 py-2.5">
-                <span className="sr-only">Actions</span>
-              </th>
-            ) : null}
+            <SortTh
+              label="Name"
+              w="w-[20%]"
+              active={nameActive}
+              dir="asc"
+              href={sortHref("name")}
+            />
+            <SortTh
+              label="Grad"
+              w="w-[8%]"
+              align="right"
+              active={gradActive}
+              dir={sort === "grad_asc" ? "asc" : "desc"}
+              href={sortHref(sort === "grad_desc" ? "grad_asc" : "grad_desc")}
+            />
+            <PlainTh label="Gender" w="w-[8%]" />
+            <PlainTh label="Company" w="w-[17%]" />
+            <SortTh
+              label="Industry"
+              w="w-[15%]"
+              active={sort === "industry"}
+              dir="asc"
+              href={sortHref(sort === "industry" ? "name" : "industry")}
+            />
+            <SortTh
+              label="City"
+              w="w-[12%]"
+              active={sort === "city"}
+              dir="asc"
+              href={sortHref(sort === "city" ? "name" : "city")}
+            />
+            <SortTh
+              label="State"
+              w="w-[8%]"
+              active={sort === "state"}
+              dir="asc"
+              href={sortHref(sort === "state" ? "name" : "state")}
+            />
+            <PlainTh label="Updated" w="w-[10%]" />
+            <PlainTh label="LinkedIn" w="w-[8%]" />
+            {showActions ? <PlainTh label="Actions" w="w-12" srOnly /> : null}
           </tr>
         </thead>
         <tbody>
@@ -137,8 +192,8 @@ export function AlumniTable({
               onClick={() => router.push(`/alumni/${a.alumni_id}`)}
               className="group cursor-pointer border-b border-gray-200 last:border-0 even:bg-gray-50/50 hover:bg-gray-50"
             >
-              <td className="px-4 py-2.5">
-                <div className="flex min-w-0 items-center gap-3">
+              <td className="px-3 py-2.5">
+                <div className="flex min-w-0 items-center gap-2.5">
                   <RowAvatar
                     url={headshotUrls?.[a.alumni_id] ?? null}
                     name={avatarName(a)}
@@ -152,20 +207,20 @@ export function AlumniTable({
                   </Link>
                 </div>
               </td>
-              <td className="px-4 py-2.5 text-right tabular-nums text-gray-700">
+              <td className="px-3 py-2.5 text-right tabular-nums text-gray-700">
                 {a.graduation_year ?? "—"}
               </td>
-              <td className="px-4 py-2.5 text-gray-700">
+              <td className="px-3 py-2.5 text-gray-700">
                 {genderLabel(a.gender) || (
                   <span className="text-gray-300">—</span>
                 )}
               </td>
-              <td className="truncate px-4 py-2.5 text-gray-700">
+              <td className="truncate px-3 py-2.5 text-gray-700">
                 {a.current_employer ?? (
                   <span className="text-gray-300">—</span>
                 )}
               </td>
-              <td className="truncate px-4 py-2.5 text-gray-700">
+              <td className="truncate px-3 py-2.5 text-gray-700">
                 {/* For "Other" alumni, show their secondary (non-finance)
                     industry instead of just "Other" (Tanya, 2026-07-11). */}
                 {(a.current_industry?.toLowerCase() === "other" &&
@@ -179,10 +234,10 @@ export function AlumniTable({
                 const { city, state } = currentLocation(a);
                 return (
                   <>
-                    <td className="truncate px-4 py-2.5 text-gray-700">
+                    <td className="truncate px-3 py-2.5 text-gray-700">
                       {city ?? <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="truncate px-4 py-2.5 text-gray-700">
+                    <td className="truncate px-3 py-2.5 text-gray-700">
                       {abbreviateState(state) || (
                         <span className="text-gray-300">—</span>
                       )}
@@ -190,12 +245,12 @@ export function AlumniTable({
                   </>
                 );
               })()}
-              <td className="truncate px-4 py-2.5 tabular-nums text-gray-700">
+              <td className="truncate px-3 py-2.5 tabular-nums text-gray-700">
                 {lastUpdatedLabel(a.updated_at) || (
                   <span className="text-gray-300">—</span>
                 )}
               </td>
-              <td className="px-4 py-2.5">
+              <td className="px-3 py-2.5">
                 {a.linkedin_url ? (
                   <a
                     href={a.linkedin_url}
@@ -213,7 +268,7 @@ export function AlumniTable({
                 )}
               </td>
               {showActions ? (
-                <td className="px-4 py-2.5">
+                <td className="px-3 py-2.5">
                   <AlumniRowActions
                     alumniId={a.alumni_id}
                     canEdit={canEdit}
@@ -226,5 +281,70 @@ export function AlumniTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+/* --------------------------------------------------------------- headers ----- */
+
+const TH_BASE = "sticky top-0 z-10 bg-gray-50 px-3 py-2.5";
+
+/** A clickable, server-backed sort header (#495). Shows the active direction; an
+ *  inactive-but-sortable header shows a faint up/down affordance. */
+function SortTh({
+  label,
+  w,
+  href,
+  active,
+  dir,
+  align,
+}: {
+  label: string;
+  w: string;
+  href: string;
+  active: boolean;
+  dir: "asc" | "desc";
+  align?: "right";
+}) {
+  const Icon = active ? (dir === "asc" ? ArrowUp : ArrowDown) : ChevronsUpDown;
+  return (
+    <th
+      className={cn(TH_BASE, w, align === "right" && "text-right")}
+      aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : "none"}
+    >
+      <Link
+        href={href}
+        scroll={false}
+        className="group inline-flex max-w-full items-center gap-1 align-middle hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
+        title={`Sort by ${label.toLowerCase()}`}
+      >
+        <span className="truncate">{label}</span>
+        <Icon
+          className={cn(
+            "h-3.5 w-3.5 shrink-0",
+            active
+              ? "text-brand-blue-600"
+              : "text-gray-300 group-hover:text-gray-500",
+          )}
+          aria-hidden="true"
+        />
+      </Link>
+    </th>
+  );
+}
+
+/** A non-sortable header (the backend has no sort for these fields). */
+function PlainTh({
+  label,
+  w,
+  srOnly,
+}: {
+  label: string;
+  w: string;
+  srOnly?: boolean;
+}) {
+  return (
+    <th className={cn(TH_BASE, w)}>
+      {srOnly ? <span className="sr-only">{label}</span> : label}
+    </th>
   );
 }
