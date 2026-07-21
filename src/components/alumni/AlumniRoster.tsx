@@ -69,6 +69,9 @@ const SORT_VALUES = [
   "industry",
   "city",
   "state",
+  "employer",
+  "gender",
+  "updated",
 ] as const;
 
 function parseSort(raw: string): AlumniFilterState["sort"] {
