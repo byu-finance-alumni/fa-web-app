@@ -1,12 +1,15 @@
 /**
  * MOCK re-survey campaign data for the by-class console on the Needs Surveying
- * tab. There is no backend for survey campaigns, so these hand-built numbers
- * stand in for what an API would return. They are internally consistent:
+ * tab. The survey runs ONCE A YEAR as four send patches (patch 1 = initial to
+ * all eligible; patches 2–4 = follow-ups to the shrinking non-responder set).
+ * There is no backend for survey campaigns, so these hand-built numbers stand in
+ * for what an API would return. They are internally consistent:
  *
  *   responses ≤ recipients ≤ totalAlumni
- *   round1.responses = round1.recipients − noReply.length   (round 1 non-responders)
- *   round2.recipients = noReply.length                      (follow-up targets)
- *   noChangeCount + changeRecords.length ≤ (round1 + round2 responses)
+ *   each follow-up patch's recipients = the non-responders left by the prior
+ *     sent patch (recipients[n] = recipients[n−1] − responses[n−1])
+ *   noReply.length = non-responders left by the LAST sent patch
+ *   noChangeCount + changeRecords.length = total responses across all patches
  *
  * Every `ProposedChange.fieldKey` is a real `SURVEY_FIELDS` key (see
  * `src/types/survey.ts`) and its `label` mirrors that field's label. Names and
@@ -18,11 +21,15 @@ import type { ClassCampaign } from "@/types/surveyCampaign";
 export const SAMPLE_CAMPAIGNS: ClassCampaign[] = [
   {
     // Newest graduating year — not surveyed yet, so the console offers "Send
-    // first batch" (round 1) rather than a follow-up.
+    // patch 1" (the initial send) rather than a follow-up.
     gradYear: 2025,
     totalAlumni: 258,
-    round1: { sentDate: null, recipients: 232, responses: 0 },
-    round2: { sentDate: null, recipients: 0, responses: 0 },
+    patches: [
+      { label: "Initial", sentDate: null, recipients: 232, responses: 0 },
+      { label: "Follow-up 1", sentDate: null, recipients: 0, responses: 0 },
+      { label: "Follow-up 2", sentDate: null, recipients: 0, responses: 0 },
+      { label: "Follow-up 3", sentDate: null, recipients: 0, responses: 0 },
+    ],
     nextSendDate: "2026-08-03",
     noReply: [],
     noChangeCount: 0,
@@ -32,8 +39,12 @@ export const SAMPLE_CAMPAIGNS: ClassCampaign[] = [
   {
     gradYear: 2024,
     totalAlumni: 246,
-    round1: { sentDate: "2026-03-03", recipients: 221, responses: 209 },
-    round2: { sentDate: "2026-04-14", recipients: 12, responses: 5 },
+    patches: [
+      { label: "Initial", sentDate: "2026-03-03", recipients: 221, responses: 188 },
+      { label: "Follow-up 1", sentDate: "2026-03-17", recipients: 33, responses: 14 },
+      { label: "Follow-up 2", sentDate: "2026-03-31", recipients: 19, responses: 7 },
+      { label: "Follow-up 3", sentDate: null, recipients: 12, responses: 0 },
+    ],
     nextSendDate: "2027-03-02",
     noReply: [
       { alumniId: 24001, name: "Ethan Caldwell", email: "ethan.caldwell@gmail.com" },
@@ -49,7 +60,7 @@ export const SAMPLE_CAMPAIGNS: ClassCampaign[] = [
       { alumniId: 24011, name: "Diego Morales", email: "diego.morales@gmail.com" },
       { alumniId: 24012, name: "Grace Kim", email: "grace.kim@gmail.com" },
     ],
-    noChangeCount: 208,
+    noChangeCount: 203,
     changeRecords: [
       {
         alumniId: 24101,
@@ -105,8 +116,12 @@ export const SAMPLE_CAMPAIGNS: ClassCampaign[] = [
   {
     gradYear: 2023,
     totalAlumni: 231,
-    round1: { sentDate: "2026-03-03", recipients: 210, responses: 201 },
-    round2: { sentDate: "2026-04-14", recipients: 9, responses: 3 },
+    patches: [
+      { label: "Initial", sentDate: "2026-03-03", recipients: 210, responses: 181 },
+      { label: "Follow-up 1", sentDate: "2026-03-17", recipients: 29, responses: 13 },
+      { label: "Follow-up 2", sentDate: "2026-03-31", recipients: 16, responses: 7 },
+      { label: "Follow-up 3", sentDate: null, recipients: 9, responses: 0 },
+    ],
     nextSendDate: "2027-03-02",
     noReply: [
       { alumniId: 23001, name: "Lucas Ward", email: "lucas.ward@gmail.com" },
@@ -119,7 +134,7 @@ export const SAMPLE_CAMPAIGNS: ClassCampaign[] = [
       { alumniId: 23008, name: "Sydney Ross", email: "sydney.ross@gmail.com" },
       { alumniId: 23009, name: "Isaac Hill", email: "isaac.hill@gmail.com" },
     ],
-    noChangeCount: 199,
+    noChangeCount: 196,
     changeRecords: [
       {
         alumniId: 23101,
@@ -166,8 +181,12 @@ export const SAMPLE_CAMPAIGNS: ClassCampaign[] = [
   {
     gradYear: 2022,
     totalAlumni: 208,
-    round1: { sentDate: "2026-03-04", recipients: 188, responses: 178 },
-    round2: { sentDate: null, recipients: 10, responses: 0 },
+    patches: [
+      { label: "Initial", sentDate: "2026-03-04", recipients: 188, responses: 160 },
+      { label: "Follow-up 1", sentDate: "2026-03-18", recipients: 28, responses: 12 },
+      { label: "Follow-up 2", sentDate: "2026-04-01", recipients: 16, responses: 6 },
+      { label: "Follow-up 3", sentDate: null, recipients: 10, responses: 0 },
+    ],
     nextSendDate: "2027-03-03",
     noReply: [
       { alumniId: 22001, name: "Vanessa Long", email: "vanessa.long@gmail.com" },
@@ -226,20 +245,22 @@ export const SAMPLE_CAMPAIGNS: ClassCampaign[] = [
     submitted: false,
   },
   {
+    // Fully worked campaign — all four patches went out, leaving just four
+    // stubborn non-responders.
     gradYear: 2021,
     totalAlumni: 196,
-    round1: { sentDate: "2026-03-04", recipients: 176, responses: 168 },
-    round2: { sentDate: "2026-04-15", recipients: 8, responses: 4 },
+    patches: [
+      { label: "Initial", sentDate: "2026-03-04", recipients: 176, responses: 150 },
+      { label: "Follow-up 1", sentDate: "2026-03-18", recipients: 26, responses: 11 },
+      { label: "Follow-up 2", sentDate: "2026-04-01", recipients: 15, responses: 7 },
+      { label: "Follow-up 3", sentDate: "2026-04-15", recipients: 8, responses: 4 },
+    ],
     nextSendDate: "2027-03-03",
     noReply: [
       { alumniId: 21001, name: "Gabriela Santos", email: "gabriela.santos@gmail.com" },
       { alumniId: 21002, name: "Wesley Todd", email: "wesley.todd@outlook.com" },
       { alumniId: 21003, name: "Kayla Nash", email: "kayla.nash@gmail.com" },
       { alumniId: 21004, name: "Brett Coleman", email: "brett.coleman@yahoo.com" },
-      { alumniId: 21005, name: "Lindsey Park", email: "lindsey.park@gmail.com" },
-      { alumniId: 21006, name: "Omar Haddad", email: "omar.haddad@icloud.com" },
-      { alumniId: 21007, name: "Chelsea Wu", email: "chelsea.wu@gmail.com" },
-      { alumniId: 21008, name: "Dominic Ray", email: "dominic.ray@gmail.com" },
     ],
     noChangeCount: 168,
     changeRecords: [
@@ -278,10 +299,15 @@ export const SAMPLE_CAMPAIGNS: ClassCampaign[] = [
     submitted: false,
   },
   {
+    // Only two patches sent so far — the last two follow-ups are still pending.
     gradYear: 2020,
     totalAlumni: 184,
-    round1: { sentDate: "2026-03-05", recipients: 161, responses: 150 },
-    round2: { sentDate: null, recipients: 11, responses: 0 },
+    patches: [
+      { label: "Initial", sentDate: "2026-03-05", recipients: 161, responses: 139 },
+      { label: "Follow-up 1", sentDate: "2026-03-19", recipients: 22, responses: 11 },
+      { label: "Follow-up 2", sentDate: null, recipients: 11, responses: 0 },
+      { label: "Follow-up 3", sentDate: null, recipients: 0, responses: 0 },
+    ],
     nextSendDate: "2027-03-04",
     noReply: [
       { alumniId: 20001, name: "Felix Grant", email: "felix.grant@gmail.com" },
@@ -335,8 +361,12 @@ export const SAMPLE_CAMPAIGNS: ClassCampaign[] = [
   {
     gradYear: 2019,
     totalAlumni: 172,
-    round1: { sentDate: "2026-03-05", recipients: 149, responses: 142 },
-    round2: { sentDate: "2026-04-16", recipients: 7, responses: 2 },
+    patches: [
+      { label: "Initial", sentDate: "2026-03-05", recipients: 149, responses: 128 },
+      { label: "Follow-up 1", sentDate: "2026-03-19", recipients: 21, responses: 9 },
+      { label: "Follow-up 2", sentDate: "2026-04-02", recipients: 12, responses: 5 },
+      { label: "Follow-up 3", sentDate: null, recipients: 7, responses: 0 },
+    ],
     nextSendDate: "2027-03-04",
     noReply: [
       { alumniId: 19001, name: "Adrian Beck", email: "adrian.beck@gmail.com" },
@@ -347,7 +377,7 @@ export const SAMPLE_CAMPAIGNS: ClassCampaign[] = [
       { alumniId: 19006, name: "Simone Archer", email: "simone.archer@icloud.com" },
       { alumniId: 19007, name: "Devon Pratt", email: "devon.pratt@gmail.com" },
     ],
-    noChangeCount: 141,
+    noChangeCount: 139,
     changeRecords: [
       {
         alumniId: 19101,
@@ -378,15 +408,16 @@ export const SAMPLE_CAMPAIGNS: ClassCampaign[] = [
 ];
 
 /**
- * Total surveys sent across all classes and rounds — the sum of every round's
- * `recipients` where the round has actually gone out (`sentDate` is set). Seeds
+ * Total surveys sent across all classes and patches — the sum of every patch's
+ * `recipients` where the patch has actually gone out (`sentDate` is set). Seeds
  * the console's live "surveys sent" counter, which then increments as staff send
- * follow-ups in the prototype.
+ * further patches in the prototype.
  */
 export function initialSentCount(campaigns: ClassCampaign[]): number {
-  return campaigns.reduce((total, c) => {
-    const r1 = c.round1.sentDate ? c.round1.recipients : 0;
-    const r2 = c.round2.sentDate ? c.round2.recipients : 0;
-    return total + r1 + r2;
-  }, 0);
+  return campaigns.reduce(
+    (total, c) =>
+      total +
+      c.patches.reduce((sum, p) => sum + (p.sentDate ? p.recipients : 0), 0),
+    0,
+  );
 }

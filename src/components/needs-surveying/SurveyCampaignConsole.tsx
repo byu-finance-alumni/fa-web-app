@@ -31,7 +31,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
 import { SAMPLE_CAMPAIGNS, initialSentCount } from "@/lib/sampleCampaigns";
-import type { ClassCampaign } from "@/types/surveyCampaign";
+import type { ClassCampaign, SurveyRound } from "@/types/surveyCampaign";
 
 /**
  * Send re-surveys BY GRADUATION YEAR — the campaign console on the Needs
@@ -43,7 +43,7 @@ import type { ClassCampaign } from "@/types/surveyCampaign";
  * written.
  *
  * Kept intentionally compact: one overview card (surveys-sent counter, the
- * graduation-year picker, last/next send + round stats, and Send), an
+ * graduation-year picker, last/next send + the 4-patch stepper, and Send), an
  * expandable no-reply list for manual outreach, a dense change report (only
  * alumni who changed something, each rejectable/editable), and an admin Submit.
  */
@@ -79,8 +79,7 @@ type WorkingClass = Omit<ClassCampaign, "changeRecords"> & {
 function initClasses(): WorkingClass[] {
   return SAMPLE_CAMPAIGNS.map((c) => ({
     ...c,
-    round1: { ...c.round1 },
-    round2: { ...c.round2 },
+    patches: c.patches.map((p) => ({ ...p })),
     noReply: c.noReply.map((n) => ({ ...n })),
     changeRecords: c.changeRecords.map((r) => ({
       ...r,
@@ -170,28 +169,27 @@ export function SurveyCampaignConsole() {
   const applyCount = activeChanges.length;
   const noReplyCount = selected.noReply.length;
 
-  // Last time this graduation year was surveyed (the later of the two rounds).
-  const lastSent = selected.round2.sentDate ?? selected.round1.sentDate;
-  const r1Rate =
-    selected.round1.recipients > 0
-      ? Math.round(
-          (selected.round1.responses / selected.round1.recipients) * 100,
-        )
-      : 0;
+  // Last time this graduation year was surveyed (the most recent sent patch).
+  const sentPatches = selected.patches.filter((p) => p.sentDate !== null);
+  const lastSent =
+    sentPatches.length > 0 ? sentPatches[sentPatches.length - 1].sentDate : null;
 
-  // Which send is next for this year: the initial "first batch" (round 1) if it
-  // hasn't gone out, otherwise the no-reply follow-up (round 2).
-  const round1Sent = selected.round1.sentDate !== null;
-  const round2Sent = selected.round2.sentDate !== null;
-  const sendStage: "first" | "followup" = round1Sent ? "followup" : "first";
-  const sendTargetCount =
-    sendStage === "first" ? selected.round1.recipients : noReplyCount;
-  const sendLabel =
-    sendStage === "first"
-      ? "Send first batch"
-      : round2Sent
-        ? "Resend follow-up"
-        : "Send follow-up";
+  // Which send is next for this year: the first patch whose `sentDate` is still
+  // null. Patch 1 (index 0) is the initial send to all eligible; patches 2–4 are
+  // follow-ups to the current no-reply set. −1 means every patch has gone out.
+  const nextPatchIndex = selected.patches.findIndex((p) => p.sentDate === null);
+  const hasNextPatch = nextPatchIndex !== -1;
+  const nextPatchNumber = nextPatchIndex + 1; // 1-based label
+  const sendStage: "first" | "followup" =
+    nextPatchIndex === 0 ? "first" : "followup";
+  const sendTargetCount = hasNextPatch
+    ? sendStage === "first"
+      ? selected.patches[0].recipients
+      : noReplyCount
+    : 0;
+  const sendLabel = hasNextPatch
+    ? `Send patch ${nextPatchNumber}`
+    : "All patches sent";
   // Split this send into 100/day batches: today's batch goes now, the rest are
   // scheduled on the following days.
   const dailyLeft = Math.max(0, DAILY_LIMIT - sentToday);
@@ -216,23 +214,24 @@ export function SurveyCampaignConsole() {
   };
 
   const confirmSend = () => {
+    if (!hasNextPatch) return;
     setClasses((prev) =>
       prev.map((c) => {
         if (c.gradYear !== selectedYear) return c;
-        if (sendStage === "first") {
-          return {
-            ...c,
-            round1: { ...c.round1, sentDate: DEMO_SEND_DATE },
-            schedule: plan.batches,
-          };
-        }
         return {
           ...c,
-          round2: {
-            ...c.round2,
-            sentDate: DEMO_SEND_DATE,
-            recipients: c.noReply.length,
-          },
+          patches: c.patches.map((p, i) =>
+            i === nextPatchIndex
+              ? {
+                  ...p,
+                  sentDate: DEMO_SEND_DATE,
+                  // Patch 1 keeps its planned recipient count; follow-ups target
+                  // the current no-reply set.
+                  recipients:
+                    nextPatchIndex === 0 ? p.recipients : c.noReply.length,
+                }
+              : p,
+          ),
           schedule: plan.batches,
         };
       }),
@@ -359,7 +358,7 @@ export function SurveyCampaignConsole() {
         </p>
       </Card>
 
-      {/* ── Year overview: picker, last/next send + round stats, and Send. ── */}
+      {/* ── Year overview: picker, last/next send + patch stepper, and Send. ── */}
       <Card className="mt-4 p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-[13rem]">
@@ -388,8 +387,8 @@ export function SurveyCampaignConsole() {
           </div>
         </div>
 
-        {/* Compact stat row — last/next send + both rounds. */}
-        <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-gray-200 pt-4 lg:grid-cols-4">
+        {/* Last / next annual send. */}
+        <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-gray-200 pt-4">
           <MiniStat
             icon={<History className="h-4 w-4" aria-hidden="true" />}
             label="Last sent"
@@ -399,21 +398,25 @@ export function SurveyCampaignConsole() {
             icon={<CalendarClock className="h-4 w-4" aria-hidden="true" />}
             label="Next send due"
             value={formatDate(selected.nextSendDate)}
+            sub="annual"
           />
-          <MiniStat
-            label="Round 1 · initial"
-            value={`${selected.round1.responses}/${selected.round1.recipients} replied`}
-            sub={`${r1Rate}%`}
-          />
-          <MiniStat
-            label="Round 2 · no-reply"
-            value={
-              selected.round2.sentDate
-                ? `${selected.round2.responses}/${selected.round2.recipients} replied`
-                : "Not sent"
-            }
-            sub={selected.round2.sentDate ? formatDate(selected.round2.sentDate) : undefined}
-          />
+        </div>
+
+        {/* Four annual send patches — a compact stepper. */}
+        <div className="mt-4">
+          <p className="text-xs font-medium text-gray-500">
+            Send patches — one annual survey, four sends
+          </p>
+          <ol className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {selected.patches.map((p, i) => (
+              <PatchStep
+                key={i}
+                index={i}
+                patch={p}
+                isNext={hasNextPatch && i === nextPatchIndex}
+              />
+            ))}
+          </ol>
         </div>
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
@@ -427,7 +430,9 @@ export function SurveyCampaignConsole() {
             disabled={sendDisabled}
           >
             <Send aria-hidden="true" />
-            {sendLabel} ({sendTargetCount.toLocaleString()})
+            {hasNextPatch
+              ? `${sendLabel} (${sendTargetCount.toLocaleString()})`
+              : sendLabel}
           </Button>
         </div>
 
@@ -736,8 +741,8 @@ export function SurveyCampaignConsole() {
       {/* Send dialog */}
       <Dialog open={sendOpen} onOpenChange={setSendOpen}>
         <DialogContent
-          title={`${
-            sendStage === "first" ? "Send first batch" : "Send follow-up"
+          title={`Send patch ${nextPatchNumber}${
+            sendStage === "first" ? " · initial" : " · follow-up"
           } — graduation year ${selectedYear}`}
           description="Emails each recipient their personal survey link."
         >
@@ -749,7 +754,7 @@ export function SurveyCampaignConsole() {
                   <>
                     The initial survey — goes to all{" "}
                     <span className="font-semibold tabular-nums">
-                      {selected.round1.recipients.toLocaleString()}
+                      {selected.patches[0].recipients.toLocaleString()}
                     </span>{" "}
                     alumni in graduation year {selectedYear}.
                   </>
@@ -908,6 +913,75 @@ function MiniStat({
         ) : null}
       </p>
     </div>
+  );
+}
+
+/* -------------------------------------------------------------- patch step -- */
+
+/**
+ * One patch in the four-send annual stepper: number, label, sent date, and
+ * "replied" stats. The next patch to send is highlighted in brand blue.
+ */
+function PatchStep({
+  index,
+  patch,
+  isNext,
+}: {
+  index: number;
+  patch: SurveyRound;
+  isNext: boolean;
+}) {
+  const { sentDate, recipients, responses } = patch;
+  const sent = sentDate !== null;
+  const rate =
+    recipients > 0 ? Math.round((responses / recipients) * 100) : 0;
+  const name = patch.label ?? (index === 0 ? "Initial" : `Follow-up ${index}`);
+  return (
+    <li
+      className={cn(
+        "rounded-md border p-2.5",
+        isNext
+          ? "border-brand-blue-300 bg-brand-blue-50"
+          : sent
+            ? "border-gray-200 bg-white"
+            : "border-dashed border-gray-300 bg-gray-50",
+      )}
+    >
+      <div className="flex items-center justify-between gap-1">
+        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-navy-800 px-1 text-[11px] font-semibold tabular-nums text-white">
+          {index + 1}
+        </span>
+        {sent ? (
+          <Badge variant="success" size="sm">
+            Sent
+          </Badge>
+        ) : isNext ? (
+          <Badge variant="tag" size="sm">
+            Next
+          </Badge>
+        ) : (
+          <Badge variant="muted" size="sm">
+            Pending
+          </Badge>
+        )}
+      </div>
+      <p className="mt-1.5 text-xs font-semibold text-gray-900">{name}</p>
+      <p className="text-[11px] text-gray-400">
+        {sentDate ? formatDate(sentDate) : "Not sent"}
+      </p>
+      {sent ? (
+        <p className="mt-1 text-xs tabular-nums text-gray-700">
+          {responses.toLocaleString()}/{recipients.toLocaleString()} replied
+          <span className="ml-1 text-gray-400">· {rate}%</span>
+        </p>
+      ) : (
+        <p className="mt-1 text-xs text-gray-400">
+          {recipients > 0
+            ? `${recipients.toLocaleString()} to target`
+            : "targets no-reply set"}
+        </p>
+      )}
+    </li>
   );
 }
 

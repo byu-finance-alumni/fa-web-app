@@ -127,11 +127,16 @@ export interface SurveyQuestion {
 
 /**
  * The default annual "confirm / update your info" question set. Seeded on first
- * load and restored by "Reset to default". Covers the fields worth refreshing
- * every year, the willingness flags (which load tags), the hiring flags, and the
- * Pay It Forward giving ask. Every entry is bound to a real column.
+ * load and restored by "Reset to default". Ordered the way an alum answers it:
+ * employment first (what changes most), then contact details, then the
+ * willingness/engagement Yes-No asks, and the Pay It Forward giving ask last.
+ * Every entry is bound to a real column.
  */
 export const DEFAULT_SURVEY_QUESTIONS: SurveyQuestion[] = [
+  // Employment (leads — this is what changes most year to year)
+  { id: "q-employer", fieldKey: "employment.current_employer", label: "Where do you currently work?", required: false },
+  { id: "q-title", fieldKey: "employment.current_title", label: "What's your current job title?", required: false },
+  { id: "q-industry", fieldKey: "employment.current_industry", label: "What industry are you in?", required: false },
   // Contact
   { id: "q-personal-email", fieldKey: "contact.personal_email", label: "Is this still your best email?", helpText: "We'll use this to reach you about events and opportunities.", required: true },
   { id: "q-phone", fieldKey: "contact.phone", label: "Is this still your current phone number?", required: false },
@@ -140,10 +145,6 @@ export const DEFAULT_SURVEY_QUESTIONS: SurveyQuestion[] = [
   { id: "q-country", fieldKey: "contact.country", label: "What country?", required: false },
   // Profile
   { id: "q-linkedin", fieldKey: "profile.linkedin_url", label: "Is this your current LinkedIn profile?", required: false },
-  // Employment
-  { id: "q-employer", fieldKey: "employment.current_employer", label: "Where do you currently work?", required: false },
-  { id: "q-title", fieldKey: "employment.current_title", label: "What's your current job title?", required: false },
-  { id: "q-industry", fieldKey: "employment.current_industry", label: "What industry are you in?", required: false },
   // Willingness / engagement (→ tags)
   { id: "q-mentor", fieldKey: "program.mentor_willing", label: "Are you willing to mentor students?", required: false },
   { id: "q-wif-mentor", fieldKey: "program.women_in_finance_mentor_willing", label: "Are you willing to mentor for Women in Finance?", required: false },

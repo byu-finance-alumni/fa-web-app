@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
+  ChevronDown,
   ClipboardList,
   Database,
   ExternalLink,
@@ -25,10 +26,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import { SAMPLE_ALUM, SAMPLE_ALUM_NAME } from "@/lib/sampleAlumni";
 import {
   clearQuestions,
+  DEFAULT_SURVEY_MESSAGE,
   defaultQuestions,
+  loadMessage,
   loadQuestions,
   saveQuestions,
 } from "@/lib/surveyStore";
@@ -78,6 +82,10 @@ function newId(): string {
 export function SurveySampleEditor() {
   const [open, setOpen] = useState(false);
   const [questions, setQuestions] = useState<SurveyQuestion[]>([]);
+  const [message, setMessage] = useState(DEFAULT_SURVEY_MESSAGE);
+  // Preview: the engagement (Yes/No "ways to get involved") questions collapse
+  // into a single optional menu so the form isn't a wall of toggles.
+  const [engagementOpen, setEngagementOpen] = useState(false);
   // Guards the first render: localStorage is only touched in effects, so the
   // server render and first client render both show the seed, avoiding hydration
   // mismatch. We hydrate from storage once mounted.
@@ -85,6 +93,7 @@ export function SurveySampleEditor() {
 
   useEffect(() => {
     setQuestions(loadQuestions());
+    setMessage(loadMessage());
     setHydrated(true);
   }, []);
 
@@ -131,6 +140,15 @@ export function SurveySampleEditor() {
     clearQuestions();
     setQuestions(defaultQuestions());
   };
+
+  // Preview splits the engagement Yes/No questions out into a collapsible menu;
+  // everything else renders inline above it (order preserved).
+  const engagementQuestions = questions.filter(
+    (q) => SURVEY_FIELD_BY_KEY[q.fieldKey]?.group === "engagement",
+  );
+  const inlineQuestions = questions.filter(
+    (q) => SURVEY_FIELD_BY_KEY[q.fieldKey]?.group !== "engagement",
+  );
 
   return (
     <>
@@ -222,9 +240,7 @@ export function SurveySampleEditor() {
                     BYU Finance Alumni
                   </p>
                   <p className="mt-1 text-sm text-gray-700">
-                    Hi {SAMPLE_ALUM_NAME}, it&apos;s our annual check-in — please
-                    take a moment to confirm your information so we can keep you
-                    in the loop on events and opportunities.
+                    Hi {SAMPLE_ALUM_NAME}, {message}
                   </p>
                 </div>
 
@@ -233,7 +249,47 @@ export function SurveySampleEditor() {
                     No questions to preview yet. Add some on the Edit tab.
                   </p>
                 ) : (
-                  questions.map((q) => <PreviewQuestion key={q.id} question={q} />)
+                  <>
+                    {inlineQuestions.map((q) => (
+                      <PreviewQuestion key={q.id} question={q} />
+                    ))}
+
+                    {engagementQuestions.length > 0 ? (
+                      <div className="rounded-md border border-gray-200">
+                        <button
+                          type="button"
+                          onClick={() => setEngagementOpen((o) => !o)}
+                          aria-expanded={engagementOpen}
+                          aria-controls="preview-engagement-panel"
+                          className="flex w-full items-center justify-between gap-3 rounded-md px-4 py-3 text-left transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
+                        >
+                          <span className="text-sm font-semibold text-gray-900">
+                            Ways to get involved{" "}
+                            <span className="font-normal text-gray-400">
+                              (optional · {engagementQuestions.length})
+                            </span>
+                          </span>
+                          <ChevronDown
+                            className={cn(
+                              "h-4 w-4 shrink-0 text-gray-400 transition-transform",
+                              engagementOpen && "rotate-180",
+                            )}
+                            aria-hidden="true"
+                          />
+                        </button>
+                        {engagementOpen ? (
+                          <div
+                            id="preview-engagement-panel"
+                            className="space-y-5 border-t border-gray-200 px-4 py-4"
+                          >
+                            {engagementQuestions.map((q) => (
+                              <PreviewQuestion key={q.id} question={q} />
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </>
                 )}
 
                 <div className="border-t border-gray-200 pt-4">

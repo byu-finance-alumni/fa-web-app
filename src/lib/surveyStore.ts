@@ -12,6 +12,14 @@ import { DEFAULT_SURVEY_QUESTIONS, type SurveyQuestion } from "@/types/survey";
 // free-form types, so any v1 payload is discarded and reseeded from the default.
 const STORAGE_KEY = "fa:needs-surveying:questions:v2";
 
+// Staff-settable intro message shown at the top of the email + the public
+// "confirm your info" landing page.
+const MESSAGE_KEY = "fa:needs-surveying:message:v1";
+
+/** The default intro message, used until staff customize it. */
+export const DEFAULT_SURVEY_MESSAGE =
+  "It's our annual check-in! Please take a moment to confirm your contact and career information so we can keep you in the loop on BYU Finance events, mentoring, and opportunities.";
+
 /** A fresh copy of the default seed (never hand out the shared constant). */
 export function defaultQuestions(): SurveyQuestion[] {
   return DEFAULT_SURVEY_QUESTIONS.map((q) => ({ ...q }));
@@ -65,5 +73,79 @@ export function clearQuestions(): void {
     window.localStorage.removeItem(STORAGE_KEY);
   } catch {
     // Ignore — nothing else to do.
+  }
+}
+
+/**
+ * Load the staff-set intro message, or `DEFAULT_SURVEY_MESSAGE` if nothing is
+ * stored / storage is unavailable. Never returns an empty string.
+ */
+export function loadMessage(): string {
+  if (typeof window === "undefined") return DEFAULT_SURVEY_MESSAGE;
+  try {
+    const raw = window.localStorage.getItem(MESSAGE_KEY);
+    if (typeof raw === "string" && raw.trim().length > 0) return raw;
+    return DEFAULT_SURVEY_MESSAGE;
+  } catch {
+    return DEFAULT_SURVEY_MESSAGE;
+  }
+}
+
+/** Persist the intro message. No-op during SSR. */
+export function saveMessage(message: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(MESSAGE_KEY, message);
+  } catch {
+    // Storage full / disabled (private mode) — edits simply won't persist.
+  }
+}
+
+// Which of the alum's current fields to preview INSIDE the email body (a
+// read-only "here's what we have on file" block). Keys are `SURVEY_FIELDS` keys.
+// Note: putting PII in an email is a FERPA/security tradeoff — keep this to the
+// least-sensitive fields you need, and it should pass appsec/FERPA review before
+// a real send.
+const EMAIL_FIELDS_KEY = "fa:needs-surveying:email-fields:v1";
+
+/** Sentinel "field" for the alum's profile photo (not a `SURVEY_FIELDS` column —
+ *  headshots live in a storage bucket, keyed by alumni_id). */
+export const HEADSHOT_FIELD_KEY = "profile.headshot";
+
+/** Default fields shown in the email preview until staff customize the set. */
+export const DEFAULT_EMAIL_FIELDS: readonly string[] = [
+  HEADSHOT_FIELD_KEY,
+  "employment.current_employer",
+  "employment.current_title",
+  "employment.current_industry",
+  "contact.personal_email",
+  "contact.phone",
+  "contact.city",
+  "contact.state",
+];
+
+/** Load the staff-selected email-preview field keys (or the default set). */
+export function loadEmailFields(): string[] {
+  if (typeof window === "undefined") return [...DEFAULT_EMAIL_FIELDS];
+  try {
+    const raw = window.localStorage.getItem(EMAIL_FIELDS_KEY);
+    if (!raw) return [...DEFAULT_EMAIL_FIELDS];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed) || !parsed.every((k) => typeof k === "string")) {
+      return [...DEFAULT_EMAIL_FIELDS];
+    }
+    return parsed as string[];
+  } catch {
+    return [...DEFAULT_EMAIL_FIELDS];
+  }
+}
+
+/** Persist the email-preview field selection. No-op during SSR. */
+export function saveEmailFields(keys: string[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(EMAIL_FIELDS_KEY, JSON.stringify(keys));
+  } catch {
+    // Storage full / disabled (private mode) — edits simply won't persist.
   }
 }
