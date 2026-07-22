@@ -86,10 +86,10 @@ export default function SurveyConfirmPage({
 
   return (
     <main className="min-h-screen bg-white text-gray-900">
-      {/* Full-width white header — page name only. */}
-      <header className="border-b border-gray-200 bg-white">
+      {/* Full-width navy header — page name only. */}
+      <header className="bg-navy-800">
         <div className="mx-auto flex h-16 max-w-[800px] items-center px-5 sm:px-8">
-          <span className="text-sm font-medium text-gray-700 sm:text-base">
+          <span className="text-sm font-medium text-white sm:text-base">
             Alumni Information Update
           </span>
         </div>
