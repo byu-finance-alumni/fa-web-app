@@ -531,6 +531,7 @@ export async function AlumniProfileView({
   const hasGradContent = Boolean(
     a.graduate_degree ||
       a.graduate_school ||
+      a.graduate_graduation_year ||
       heldDesignations.length ||
       a.other_designations,
   );
@@ -953,7 +954,9 @@ export async function AlumniProfileView({
               >
                 {hasGradContent ? (
                   <div className="space-y-4">
-                    {a.graduate_degree || a.graduate_school ? (
+                    {a.graduate_degree ||
+                    a.graduate_school ||
+                    a.graduate_graduation_year ? (
                       <div className="space-y-4">
                         <Field
                           label="Graduate degree"
@@ -962,6 +965,14 @@ export async function AlumniProfileView({
                         <Field
                           label="Graduate school"
                           value={a.graduate_school}
+                        />
+                        <Field
+                          label="Graduate graduation year"
+                          value={
+                            a.graduate_graduation_year != null
+                              ? String(a.graduate_graduation_year)
+                              : null
+                          }
                         />
                       </div>
                     ) : null}

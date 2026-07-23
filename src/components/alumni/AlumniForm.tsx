@@ -857,12 +857,21 @@ export function AlumniForm({
             error={errors.medical_school}
           />
         </div>
-        <Field
-          label="Graduate school"
-          name="graduate_school"
-          defaultValue={defaults?.graduate_school ?? ""}
-          error={errors.graduate_school}
-        />
+        <div className="grid grid-cols-2 gap-4">
+          <Field
+            label="Graduate school"
+            name="graduate_school"
+            defaultValue={defaults?.graduate_school ?? ""}
+            error={errors.graduate_school}
+          />
+          <Field
+            label="Graduate graduation year"
+            name="graduate_graduation_year"
+            type="number"
+            defaultValue={defaults?.graduate_graduation_year?.toString() ?? ""}
+            error={errors.graduate_graduation_year}
+          />
+        </div>
       </div>
     </Section>
   );

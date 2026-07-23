@@ -239,8 +239,10 @@ export function SurveySampleEditor() {
                   <p className="text-xs font-semibold uppercase tracking-wide text-navy-800">
                     BYU Finance Alumni
                   </p>
-                  <p className="mt-1 text-sm text-gray-700">
-                    Hi {SAMPLE_ALUM_NAME}, {message}
+                  <p className="mt-1 whitespace-pre-wrap text-sm text-gray-700">
+                    Hello {SAMPLE_ALUM_NAME.split(/\s+/)[0] || SAMPLE_ALUM_NAME},
+                    {"\n\n"}
+                    {message}
                   </p>
                 </div>
 

@@ -17,14 +17,26 @@ import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
 import { SAMPLE_ALUM, SAMPLE_ALUM_NAME } from "@/lib/sampleAlumni";
 import {
   DEFAULT_EMAIL_FIELDS,
+  DEFAULT_SURVEY_CLOSING,
   DEFAULT_SURVEY_MESSAGE,
   HEADSHOT_FIELD_KEY,
+  loadClosing,
   loadEmailFields,
   loadMessage,
+  saveClosing,
   saveEmailFields,
   saveMessage,
 } from "@/lib/surveyStore";
-import { SURVEY_FIELDS, type SurveyFieldGroup } from "@/types/survey";
+import {
+  SURVEY_FIELD_BY_KEY,
+  SURVEY_FIELDS,
+  type SurveyField,
+  type SurveyFieldGroup,
+} from "@/types/survey";
+
+/** First name for the greeting ("Hello Jordan,"). */
+const SAMPLE_FIRST_NAME =
+  SAMPLE_ALUM_NAME.split(/\s+/)[0] || SAMPLE_ALUM_NAME;
 
 // The record fields staff can preview in the email. Only text columns (with a
 // value to show) — grouped, short labels for the picker.
@@ -62,6 +74,7 @@ const EMAIL_FIELD_GROUPS = (
 export function SurveyMessageEditor() {
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState(DEFAULT_SURVEY_MESSAGE);
+  const [closing, setClosing] = useState(DEFAULT_SURVEY_CLOSING);
   const [emailFields, setEmailFields] = useState<string[]>([
     ...DEFAULT_EMAIL_FIELDS,
   ]);
@@ -69,6 +82,7 @@ export function SurveyMessageEditor() {
 
   useEffect(() => {
     setMessage(loadMessage());
+    setClosing(loadClosing());
     setEmailFields(loadEmailFields());
     setHydrated(true);
   }, []);
@@ -77,6 +91,11 @@ export function SurveyMessageEditor() {
     if (!hydrated) return;
     saveMessage(message);
   }, [message, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    saveClosing(closing);
+  }, [closing, hydrated]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -90,14 +109,16 @@ export function SurveyMessageEditor() {
 
   const resetAll = () => {
     setMessage(DEFAULT_SURVEY_MESSAGE);
+    setClosing(DEFAULT_SURVEY_CLOSING);
     setEmailFields([...DEFAULT_EMAIL_FIELDS]);
   };
 
-  // Preview rows: selected fields (in catalog order) that actually have a value
-  // on file for the sample alum.
-  const previewRows = SURVEY_FIELDS.filter(
-    (f) => emailFields.includes(f.key) && SAMPLE_ALUM[f.key],
-  ).map((f) => ({ label: f.label, value: SAMPLE_ALUM[f.key] }));
+  // Preview rows: selected fields in the order staff picked them (so employment
+  // leads, matching the email), keeping only those with a value on file.
+  const previewRows = emailFields
+    .map((key) => SURVEY_FIELD_BY_KEY[key])
+    .filter((f): f is SurveyField => Boolean(f) && Boolean(SAMPLE_ALUM[f.key]))
+    .map((f) => ({ label: f.label, value: SAMPLE_ALUM[f.key] }));
   const showHeadshot = emailFields.includes(HEADSHOT_FIELD_KEY);
 
   return (
@@ -120,18 +141,36 @@ export function SurveyMessageEditor() {
           description="Write the note and choose which of their current details to show in the email. Saved on this device."
         >
           <DialogBody className="space-y-5">
-            {/* Message */}
+            {/* Intro message (above the record preview) */}
             <div>
-              <Label htmlFor="email-message">Message</Label>
+              <Label htmlFor="email-message">Message (intro)</Label>
               <p className="mt-0.5 text-xs text-gray-500">
-                The alum&apos;s name is added automatically at the start.
+                Shown above their info. The greeting (&quot;Hello{" "}
+                {SAMPLE_FIRST_NAME},&quot;) is added automatically at the start.
               </p>
               <Textarea
                 id="email-message"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder={DEFAULT_SURVEY_MESSAGE}
-                rows={4}
+                rows={5}
+                className="mt-2"
+              />
+            </div>
+
+            {/* Closing (below the record preview / call to action) */}
+            <div>
+              <Label htmlFor="email-closing">Closing &amp; sign-off</Label>
+              <p className="mt-0.5 text-xs text-gray-500">
+                Shown below their info and the button — confirm instructions and
+                the sign-off.
+              </p>
+              <Textarea
+                id="email-closing"
+                value={closing}
+                onChange={(e) => setClosing(e.target.value)}
+                placeholder={DEFAULT_SURVEY_CLOSING}
+                rows={6}
                 className="mt-2"
               />
             </div>
@@ -185,7 +224,7 @@ export function SurveyMessageEditor() {
                 </div>
                 <div className="space-y-3 bg-white px-4 py-4">
                   <p className="whitespace-pre-wrap text-sm text-gray-700">
-                    Hi {SAMPLE_ALUM_NAME},{" "}
+                    Hello {SAMPLE_FIRST_NAME},{"\n\n"}
                     {message.trim() || DEFAULT_SURVEY_MESSAGE}
                   </p>
 
@@ -232,6 +271,10 @@ export function SurveyMessageEditor() {
                       Links to their private page, where they confirm or edit.
                     </p>
                   </div>
+
+                  <p className="whitespace-pre-wrap text-sm text-gray-700">
+                    {closing.trim() || DEFAULT_SURVEY_CLOSING}
+                  </p>
                 </div>
               </div>
               <p className="mt-1.5 flex items-center gap-1.5 text-xs text-gray-400">

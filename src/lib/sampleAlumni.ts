@@ -17,6 +17,11 @@ export const SAMPLE_ALUM: Record<string, string> = {
   "contact.country": "United States",
   // Profile
   "profile.linkedin_url": "linkedin.com/in/jordan-avery",
+  "profile.graduate_degree": "MBA",
+  "profile.graduate_school": "BYU Marriott School of Business",
+  "profile.graduate_graduation_year": "2027",
+  "profile.spouse_first_name": "Taylor",
+  "profile.spouse_last_name": "Avery",
   // Employment
   "employment.current_employer": "Goldman Sachs",
   "employment.current_title": "Investment Banking Analyst",
@@ -24,6 +29,7 @@ export const SAMPLE_ALUM: Record<string, string> = {
   "employment.current_industry_secondary": "Private Equity",
   "employment.current_city": "New York",
   "employment.current_state": "NY",
+  "employment.current_country": "United States",
   "employment.seniority_level": "Analyst",
 };
 
