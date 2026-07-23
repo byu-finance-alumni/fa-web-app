@@ -78,6 +78,7 @@ export const SURVEY_FIELDS: SurveyField[] = [
   { key: "profile.linkedin_url", table: "alumni", column: "linkedin_url", label: "LinkedIn URL", group: "profile", kind: "text" },
   { key: "profile.graduate_degree", table: "alumni", column: "graduate_degree", label: "Graduate school program", group: "profile", kind: "text" },
   { key: "profile.graduate_school", table: "alumni", column: "graduate_school", label: "Graduate school", group: "profile", kind: "text" },
+  { key: "profile.graduate_graduation_year", table: "alumni", column: "graduate_graduation_year", label: "Projected graduation year", group: "profile", kind: "text" },
   { key: "profile.spouse_first_name", table: "alumni", column: "spouse_first_name", label: "Spouse first name", group: "profile", kind: "text" },
   { key: "profile.spouse_last_name", table: "alumni", column: "spouse_last_name", label: "Spouse last name", group: "profile", kind: "text" },
 
