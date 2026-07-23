@@ -12,13 +12,26 @@ import { DEFAULT_SURVEY_QUESTIONS, type SurveyQuestion } from "@/types/survey";
 // free-form types, so any v1 payload is discarded and reseeded from the default.
 const STORAGE_KEY = "fa:needs-surveying:questions:v2";
 
-// Staff-settable intro message shown at the top of the email + the public
-// "confirm your info" landing page.
-const MESSAGE_KEY = "fa:needs-surveying:message:v1";
+// Staff-settable email copy. The email reads: greeting → intro message →
+// "here's what we have on file" → CTA → closing (sign-off). Intro and closing
+// are two separate editable blocks so the record preview can sit between them.
+const MESSAGE_KEY = "fa:needs-surveying:message:v2";
+const CLOSING_KEY = "fa:needs-surveying:closing:v1";
 
-/** The default intro message, used until staff customize it. */
+/**
+ * The default intro (the copy ABOVE the record preview), used until staff
+ * customize it. The greeting ("Hello {first name},") is added automatically, so
+ * this starts at the first body paragraph. Authored by the Career Directors.
+ */
 export const DEFAULT_SURVEY_MESSAGE =
-  "It's our annual check-in! Please take a moment to confirm your contact and career information so we can keep you in the loop on BYU Finance events, mentoring, and opportunities.";
+  "Our BYU Finance alumni are one of the greatest strengths of our program. We are working to strengthen our alumni community by staying connected with you throughout your career. To do that, we're reaching out to ensure we have your most current information.\n\nPlease take a moment to review the information below and update or replace any information in our alumni survey that is wrong or missing.";
+
+/**
+ * The default closing (the copy BELOW the record preview / call to action),
+ * including the sign-off. Used until staff customize it.
+ */
+export const DEFAULT_SURVEY_CLOSING =
+  "If everything above is correct, please confirm that your information is up to date at the bottom of the survey. If anything has changed, please update the applicable questions in the survey. We have also included a few optional questions that will help us better connect with and support our alumni community.\n\nThank you for being an important part of the BYU Finance family. We look forward to staying connected with you in the years ahead!\n\nWarmest regards,\nTanya Harmon & Amy Densley\nBYU Finance Career Directors";
 
 /** A fresh copy of the default seed (never hand out the shared constant). */
 export function defaultQuestions(): SurveyQuestion[] {
@@ -101,6 +114,31 @@ export function saveMessage(message: string): void {
   }
 }
 
+/**
+ * Load the staff-set closing (sign-off) copy, or `DEFAULT_SURVEY_CLOSING` if
+ * nothing is stored / storage is unavailable. Never returns an empty string.
+ */
+export function loadClosing(): string {
+  if (typeof window === "undefined") return DEFAULT_SURVEY_CLOSING;
+  try {
+    const raw = window.localStorage.getItem(CLOSING_KEY);
+    if (typeof raw === "string" && raw.trim().length > 0) return raw;
+    return DEFAULT_SURVEY_CLOSING;
+  } catch {
+    return DEFAULT_SURVEY_CLOSING;
+  }
+}
+
+/** Persist the closing copy. No-op during SSR. */
+export function saveClosing(closing: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(CLOSING_KEY, closing);
+  } catch {
+    // Storage full / disabled (private mode) — edits simply won't persist.
+  }
+}
+
 // Which of the alum's current fields to preview INSIDE the email body (a
 // read-only "here's what we have on file" block). Keys are `SURVEY_FIELDS` keys.
 // Note: putting PII in an email is a FERPA/security tradeoff — keep this to the
@@ -112,16 +150,26 @@ const EMAIL_FIELDS_KEY = "fa:needs-surveying:email-fields:v1";
  *  headshots live in a storage bucket, keyed by alumni_id). */
 export const HEADSHOT_FIELD_KEY = "profile.headshot";
 
+// Default preview fields, in the order the Career Directors' email lists them
+// (employment first, then residence, then contact). A few items from their list
+// have no DB column yet — Employment Country, Spouse name, Graduate School
+// Program/Name, Projected Graduation Year, Finance Designations — so they can't
+// show a current value and are omitted until those columns exist.
 /** Default fields shown in the email preview until staff customize the set. */
 export const DEFAULT_EMAIL_FIELDS: readonly string[] = [
   HEADSHOT_FIELD_KEY,
   "employment.current_employer",
   "employment.current_title",
   "employment.current_industry",
-  "contact.personal_email",
-  "contact.phone",
+  "employment.current_industry_secondary",
+  "employment.current_city",
+  "employment.current_state",
   "contact.city",
   "contact.state",
+  "contact.country",
+  "contact.personal_email",
+  "contact.work_email",
+  "profile.linkedin_url",
 ];
 
 /** Load the staff-selected email-preview field keys (or the default set). */
