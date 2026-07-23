@@ -151,10 +151,11 @@ const EMAIL_FIELDS_KEY = "fa:needs-surveying:email-fields:v1";
 export const HEADSHOT_FIELD_KEY = "profile.headshot";
 
 // Default preview fields, in the order the Career Directors' email lists them
-// (employment first, then residence, then contact). A few items from their list
-// have no DB column yet — Employment Country, Spouse name, Graduate School
-// Program/Name, Projected Graduation Year, Finance Designations — so they can't
-// show a current value and are omitted until those columns exist.
+// (employment, then residence, spouse, contact, then grad school). Finance
+// Designations (CFA/CFP/CPA) are Yes/No engagement flags, not text, so they're
+// confirmed as survey questions rather than shown here. "Projected Graduation
+// Year" has no scalar column on the record (only per-row in education_history),
+// so it's the one item still omitted.
 /** Default fields shown in the email preview until staff customize the set. */
 export const DEFAULT_EMAIL_FIELDS: readonly string[] = [
   HEADSHOT_FIELD_KEY,
@@ -164,12 +165,17 @@ export const DEFAULT_EMAIL_FIELDS: readonly string[] = [
   "employment.current_industry_secondary",
   "employment.current_city",
   "employment.current_state",
+  "employment.current_country",
   "contact.city",
   "contact.state",
   "contact.country",
+  "profile.spouse_first_name",
+  "profile.spouse_last_name",
   "contact.personal_email",
   "contact.work_email",
   "profile.linkedin_url",
+  "profile.graduate_degree",
+  "profile.graduate_school",
 ];
 
 /** Load the staff-selected email-preview field keys (or the default set). */

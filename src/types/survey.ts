@@ -76,6 +76,10 @@ export const SURVEY_FIELDS: SurveyField[] = [
 
   // --- Profile (alumni) ---
   { key: "profile.linkedin_url", table: "alumni", column: "linkedin_url", label: "LinkedIn URL", group: "profile", kind: "text" },
+  { key: "profile.graduate_degree", table: "alumni", column: "graduate_degree", label: "Graduate school program", group: "profile", kind: "text" },
+  { key: "profile.graduate_school", table: "alumni", column: "graduate_school", label: "Graduate school", group: "profile", kind: "text" },
+  { key: "profile.spouse_first_name", table: "alumni", column: "spouse_first_name", label: "Spouse first name", group: "profile", kind: "text" },
+  { key: "profile.spouse_last_name", table: "alumni", column: "spouse_last_name", label: "Spouse last name", group: "profile", kind: "text" },
 
   // --- Employment (current_employment) ---
   { key: "employment.current_employer", table: "current_employment", column: "current_employer", label: "Current employer", group: "employment", kind: "text" },
@@ -84,6 +88,7 @@ export const SURVEY_FIELDS: SurveyField[] = [
   { key: "employment.current_industry_secondary", table: "current_employment", column: "current_industry_secondary", label: "Secondary industry", group: "employment", kind: "text" },
   { key: "employment.current_city", table: "current_employment", column: "current_city", label: "Work city", group: "employment", kind: "text" },
   { key: "employment.current_state", table: "current_employment", column: "current_state", label: "Work state", group: "employment", kind: "text" },
+  { key: "employment.current_country", table: "current_employment", column: "current_country", label: "Work country", group: "employment", kind: "text" },
   { key: "employment.seniority_level", table: "current_employment", column: "seniority_level", label: "Seniority level", group: "employment", kind: "text" },
 
   // --- Willingness & engagement (alumni_program_engagement booleans → tags) ---
