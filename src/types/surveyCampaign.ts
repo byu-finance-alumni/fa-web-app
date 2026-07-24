@@ -58,16 +58,16 @@ export interface SurveyRound {
 
 /**
  * A graduating class's whole re-survey campaign for the year. The survey runs
- * ONCE A YEAR as a sequence of exactly FOUR send patches: patch 1 is the initial
- * send to every eligible alum, and patches 2–4 are follow-ups to the shrinking
- * set of non-responders. Also tracks the current non-responder list, how many
+ * ONCE A YEAR as a sequence of THREE sends: patch 1 is the initial send to every
+ * eligible alum, then a 1-week and a 2-week reminder to the shrinking set of
+ * non-responders. Also tracks the current non-responder list, how many
  * responders had nothing to change, the per-alum proposed changes, and whether
  * the class's changes have been applied ("submitted").
  */
 export interface ClassCampaign {
   gradYear: number;
   totalAlumni: number;
-  /** The four annual send patches, in order (patch 1 first). */
+  /** The three annual sends, in order (initial first). */
   patches: SurveyRound[];
   /** When this graduation year is next scheduled to be surveyed (ISO date). */
   nextSendDate: string;

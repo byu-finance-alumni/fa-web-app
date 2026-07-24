@@ -43,7 +43,7 @@ import type { ClassCampaign, SurveyRound } from "@/types/surveyCampaign";
  * written.
  *
  * Kept intentionally compact: one overview card (surveys-sent counter, the
- * graduation-year picker, last/next send + the 4-patch stepper, and Send), an
+ * graduation-year picker, last/next send + the 3-send stepper, and Send), an
  * expandable no-reply list for manual outreach, a dense change report (only
  * alumni who changed something, each rejectable/editable), and an admin Submit.
  */
@@ -175,8 +175,9 @@ export function SurveyCampaignConsole() {
     sentPatches.length > 0 ? sentPatches[sentPatches.length - 1].sentDate : null;
 
   // Which send is next for this year: the first patch whose `sentDate` is still
-  // null. Patch 1 (index 0) is the initial send to all eligible; patches 2–4 are
-  // follow-ups to the current no-reply set. −1 means every patch has gone out.
+  // null. Patch 1 (index 0) is the initial send to all eligible; patches 2–3 are
+  // the 1-week and 2-week reminders to the current no-reply set. −1 means every
+  // send has gone out.
   const nextPatchIndex = selected.patches.findIndex((p) => p.sentDate === null);
   const hasNextPatch = nextPatchIndex !== -1;
   const nextPatchNumber = nextPatchIndex + 1; // 1-based label
@@ -402,12 +403,13 @@ export function SurveyCampaignConsole() {
           />
         </div>
 
-        {/* Four annual send patches — a compact stepper. */}
+        {/* Three annual sends — a compact stepper. */}
         <div className="mt-4">
           <p className="text-xs font-medium text-gray-500">
-            Send patches — one annual survey, four sends
+            Send patches — initial, then 1-week &amp; 2-week reminders to
+            non-responders
           </p>
-          <ol className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <ol className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
             {selected.patches.map((p, i) => (
               <PatchStep
                 key={i}
@@ -919,7 +921,7 @@ function MiniStat({
 /* -------------------------------------------------------------- patch step -- */
 
 /**
- * One patch in the four-send annual stepper: number, label, sent date, and
+ * One patch in the three-send annual stepper: number, label, sent date, and
  * "replied" stats. The next patch to send is highlighted in brand blue.
  */
 function PatchStep({
@@ -935,7 +937,13 @@ function PatchStep({
   const sent = sentDate !== null;
   const rate =
     recipients > 0 ? Math.round((responses / recipients) * 100) : 0;
-  const name = patch.label ?? (index === 0 ? "Initial" : `Follow-up ${index}`);
+  const name =
+    patch.label ??
+    (index === 0
+      ? "Initial"
+      : index === 1
+        ? "1-week reminder"
+        : "2-week reminder");
   return (
     <li
       className={cn(
