@@ -30,6 +30,15 @@ type Status = "review" | "confirmed" | "editing" | "submitted";
 /** First name for a warm greeting ("Hi, Jordan"). */
 const FIRST_NAME = SAMPLE_ALUM_NAME.split(/\s+/)[0] || SAMPLE_ALUM_NAME;
 
+/** Initials fallback for the headshot (real photo loads server-side in prod). */
+const INITIALS =
+  SAMPLE_ALUM_NAME.trim()
+    .split(/\s+/)
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase() || "?";
+
 /** One label/value row in the read-only "Your information" panel. */
 type InfoRow = { label: string; value: string };
 
@@ -69,6 +78,9 @@ export default function SurveyConfirmPage({
   const [questions, setQuestions] = useState<SurveyQuestion[]>([]);
   const [status, setStatus] = useState<Status>("review");
   const [engagementOpen, setEngagementOpen] = useState(false);
+  // A locally-previewed new headshot (prototype: not uploaded anywhere yet — in
+  // production this posts to the headshot storage bucket).
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   // localStorage is client-only; hydrate after mount so SSR + first client render
   // match (both show the skeleton), avoiding a hydration mismatch.
@@ -86,11 +98,11 @@ export default function SurveyConfirmPage({
 
   return (
     <main className="min-h-screen bg-white text-gray-900">
-      {/* Full-width navy header — page name only. */}
+      {/* Full-width navy header — title flush to the top-left. */}
       <header className="bg-navy-800">
-        <div className="mx-auto flex h-16 max-w-[800px] items-center px-5 sm:px-8">
-          <span className="text-sm font-medium text-white sm:text-base">
-            Alumni Information Update
+        <div className="flex h-16 items-center px-5 sm:px-8">
+          <span className="text-base font-semibold text-white sm:text-lg">
+            BYU Finance Alumni Update
           </span>
         </div>
       </header>
@@ -136,6 +148,44 @@ export default function SurveyConfirmPage({
               }}
             >
               <div className="space-y-5 rounded-lg border border-gray-200 bg-white p-5 sm:p-6">
+                {/* Headshot — review & replace */}
+                <div>
+                  <span className="text-sm font-medium text-gray-900">
+                    Profile photo
+                  </span>
+                  <div className="mt-2 flex items-center gap-4">
+                    {photoPreview ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={photoPreview}
+                        alt="New profile photo preview"
+                        className="h-16 w-16 shrink-0 rounded-full object-cover"
+                      />
+                    ) : (
+                      <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-navy-800 text-base font-semibold text-white">
+                        {INITIALS}
+                      </span>
+                    )}
+                    <div className="min-w-0">
+                      <label className="inline-flex cursor-pointer items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus-within:outline-none focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="sr-only"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) setPhotoPreview(URL.createObjectURL(file));
+                          }}
+                        />
+                        {photoPreview ? "Choose a different photo" : "Change photo"}
+                      </label>
+                      <p className="mt-1 text-xs text-gray-500">
+                        JPG or PNG. Replaces the photo we have on file.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 {inlineQuestions.map((q) => (
                   <FieldControl key={q.id} question={q} />
                 ))}
@@ -204,10 +254,21 @@ export default function SurveyConfirmPage({
           /* status === "review" */
           <>
             <div>
-              <h1 className="text-3xl font-semibold leading-tight tracking-tight text-navy-800">
-                Hi, {FIRST_NAME}
-              </h1>
-              <p className="mt-3 max-w-prose text-base leading-relaxed text-gray-600">
+              <div className="flex items-center gap-4">
+                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-navy-800 text-base font-semibold text-white">
+                  {INITIALS}
+                </span>
+                <div className="min-w-0">
+                  <h1 className="text-3xl font-semibold leading-tight tracking-tight text-navy-800">
+                    Hi, {FIRST_NAME}
+                  </h1>
+                  <p className="mt-1 truncate text-sm text-gray-500">
+                    {SAMPLE_ALUM_NAME} · BYU Finance · Marriott School of
+                    Business
+                  </p>
+                </div>
+              </div>
+              <p className="mt-4 max-w-prose text-base leading-relaxed text-gray-600">
                 Please review the information we currently have on file. This
                 should take less than a minute.
               </p>

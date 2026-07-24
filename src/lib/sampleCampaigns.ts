@@ -1,7 +1,8 @@
 /**
  * MOCK re-survey campaign data for the by-class console on the Needs Surveying
- * tab. The survey runs ONCE A YEAR as four send patches (patch 1 = initial to
- * all eligible; patches 2–4 = follow-ups to the shrinking non-responder set).
+ * tab. The survey runs ONCE A YEAR as three sends (patch 1 = initial to all
+ * eligible; patches 2–3 = a 1-week then a 2-week reminder to the shrinking
+ * non-responder set).
  * There is no backend for survey campaigns, so these hand-built numbers stand in
  * for what an API would return. They are internally consistent:
  *
@@ -26,9 +27,8 @@ export const SAMPLE_CAMPAIGNS: ClassCampaign[] = [
     totalAlumni: 258,
     patches: [
       { label: "Initial", sentDate: null, recipients: 232, responses: 0 },
-      { label: "Follow-up 1", sentDate: null, recipients: 0, responses: 0 },
-      { label: "Follow-up 2", sentDate: null, recipients: 0, responses: 0 },
-      { label: "Follow-up 3", sentDate: null, recipients: 0, responses: 0 },
+      { label: "1-week reminder", sentDate: null, recipients: 0, responses: 0 },
+      { label: "2-week reminder", sentDate: null, recipients: 0, responses: 0 },
     ],
     nextSendDate: "2026-08-03",
     noReply: [],
@@ -41,9 +41,8 @@ export const SAMPLE_CAMPAIGNS: ClassCampaign[] = [
     totalAlumni: 246,
     patches: [
       { label: "Initial", sentDate: "2026-03-03", recipients: 221, responses: 188 },
-      { label: "Follow-up 1", sentDate: "2026-03-17", recipients: 33, responses: 14 },
-      { label: "Follow-up 2", sentDate: "2026-03-31", recipients: 19, responses: 7 },
-      { label: "Follow-up 3", sentDate: null, recipients: 12, responses: 0 },
+      { label: "1-week reminder", sentDate: "2026-03-10", recipients: 33, responses: 14 },
+      { label: "2-week reminder", sentDate: "2026-03-24", recipients: 19, responses: 7 },
     ],
     nextSendDate: "2027-03-02",
     noReply: [
@@ -118,9 +117,8 @@ export const SAMPLE_CAMPAIGNS: ClassCampaign[] = [
     totalAlumni: 231,
     patches: [
       { label: "Initial", sentDate: "2026-03-03", recipients: 210, responses: 181 },
-      { label: "Follow-up 1", sentDate: "2026-03-17", recipients: 29, responses: 13 },
-      { label: "Follow-up 2", sentDate: "2026-03-31", recipients: 16, responses: 7 },
-      { label: "Follow-up 3", sentDate: null, recipients: 9, responses: 0 },
+      { label: "1-week reminder", sentDate: "2026-03-10", recipients: 29, responses: 13 },
+      { label: "2-week reminder", sentDate: "2026-03-24", recipients: 16, responses: 7 },
     ],
     nextSendDate: "2027-03-02",
     noReply: [
@@ -183,9 +181,8 @@ export const SAMPLE_CAMPAIGNS: ClassCampaign[] = [
     totalAlumni: 208,
     patches: [
       { label: "Initial", sentDate: "2026-03-04", recipients: 188, responses: 160 },
-      { label: "Follow-up 1", sentDate: "2026-03-18", recipients: 28, responses: 12 },
-      { label: "Follow-up 2", sentDate: "2026-04-01", recipients: 16, responses: 6 },
-      { label: "Follow-up 3", sentDate: null, recipients: 10, responses: 0 },
+      { label: "1-week reminder", sentDate: "2026-03-11", recipients: 28, responses: 12 },
+      { label: "2-week reminder", sentDate: "2026-03-25", recipients: 16, responses: 6 },
     ],
     nextSendDate: "2027-03-03",
     noReply: [
@@ -245,15 +242,14 @@ export const SAMPLE_CAMPAIGNS: ClassCampaign[] = [
     submitted: false,
   },
   {
-    // Fully worked campaign — all four patches went out, leaving just four
+    // Fully worked campaign — all three sends went out, leaving just four
     // stubborn non-responders.
     gradYear: 2021,
     totalAlumni: 196,
     patches: [
       { label: "Initial", sentDate: "2026-03-04", recipients: 176, responses: 150 },
-      { label: "Follow-up 1", sentDate: "2026-03-18", recipients: 26, responses: 11 },
-      { label: "Follow-up 2", sentDate: "2026-04-01", recipients: 15, responses: 7 },
-      { label: "Follow-up 3", sentDate: "2026-04-15", recipients: 8, responses: 4 },
+      { label: "1-week reminder", sentDate: "2026-03-11", recipients: 26, responses: 11 },
+      { label: "2-week reminder", sentDate: "2026-03-25", recipients: 15, responses: 11 },
     ],
     nextSendDate: "2027-03-03",
     noReply: [
@@ -299,14 +295,13 @@ export const SAMPLE_CAMPAIGNS: ClassCampaign[] = [
     submitted: false,
   },
   {
-    // Only two patches sent so far — the last two follow-ups are still pending.
+    // Only two sends so far — the 2-week reminder is still pending.
     gradYear: 2020,
     totalAlumni: 184,
     patches: [
       { label: "Initial", sentDate: "2026-03-05", recipients: 161, responses: 139 },
-      { label: "Follow-up 1", sentDate: "2026-03-19", recipients: 22, responses: 11 },
-      { label: "Follow-up 2", sentDate: null, recipients: 11, responses: 0 },
-      { label: "Follow-up 3", sentDate: null, recipients: 0, responses: 0 },
+      { label: "1-week reminder", sentDate: "2026-03-12", recipients: 22, responses: 11 },
+      { label: "2-week reminder", sentDate: null, recipients: 11, responses: 0 },
     ],
     nextSendDate: "2027-03-04",
     noReply: [
@@ -363,9 +358,8 @@ export const SAMPLE_CAMPAIGNS: ClassCampaign[] = [
     totalAlumni: 172,
     patches: [
       { label: "Initial", sentDate: "2026-03-05", recipients: 149, responses: 128 },
-      { label: "Follow-up 1", sentDate: "2026-03-19", recipients: 21, responses: 9 },
-      { label: "Follow-up 2", sentDate: "2026-04-02", recipients: 12, responses: 5 },
-      { label: "Follow-up 3", sentDate: null, recipients: 7, responses: 0 },
+      { label: "1-week reminder", sentDate: "2026-03-12", recipients: 21, responses: 9 },
+      { label: "2-week reminder", sentDate: "2026-03-26", recipients: 12, responses: 5 },
     ],
     nextSendDate: "2027-03-04",
     noReply: [
