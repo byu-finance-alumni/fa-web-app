@@ -24,14 +24,28 @@ export function ExportAlumniButton({
   filters,
   filtersActive,
   total,
+  open: openProp,
+  onOpenChange,
+  hideTrigger = false,
 }: {
   filters: AlumniExportFilters;
   filtersActive: boolean;
   /** Number of alumni the export will cover (= the list's filtered total). */
   total?: number;
+  /** Controlled open state — lets an external control (e.g. the consolidated
+   *  mobile menu) open the dialog. Pass together with `onOpenChange`. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Hide the built-in "Export CSV" button (the dialog is opened externally). */
+  hideTrigger?: boolean;
 }) {
   const { toast } = useToast();
-  const [open, setOpen] = useState(false);
+  const [openState, setOpenState] = useState(false);
+  const open = openProp ?? openState;
+  const setOpen = (o: boolean) => {
+    if (onOpenChange) onOpenChange(o);
+    else setOpenState(o);
+  };
   const [catalog, setCatalog] = useState<ExportColumnCatalog | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -45,9 +59,7 @@ export function ExportAlumniButton({
     return () => document.removeEventListener("keydown", onKey);
   }, [open]);
 
-  async function openDialog() {
-    setOpen(true);
-    if (catalog) return; // already loaded
+  async function loadCatalog() {
     setLoading(true);
     const res = await getExportColumns();
     setLoading(false);
@@ -59,6 +71,13 @@ export function ExportAlumniButton({
       setOpen(false);
     }
   }
+
+  // Lazy-load the column catalog the first time the dialog opens — whether opened
+  // by the built-in button or by an external (controlled) trigger.
+  useEffect(() => {
+    if (open && !catalog && !loading) void loadCatalog();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   // Group the catalog columns by their `group`, preserving catalog order.
   const groups = useMemo(() => {
@@ -129,13 +148,11 @@ export function ExportAlumniButton({
 
   return (
     <>
-      <Button
-        type="button"
-        variant="secondary"
-        onClick={() => void openDialog()}
-      >
-        Export CSV
-      </Button>
+      {!hideTrigger ? (
+        <Button type="button" variant="secondary" onClick={() => setOpen(true)}>
+          Export CSV
+        </Button>
+      ) : null}
 
       {open ? (
         <div

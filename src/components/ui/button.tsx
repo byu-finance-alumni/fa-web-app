@@ -32,10 +32,14 @@ const buttonVariants = cva(
         link: "text-brand-blue-600 underline-offset-4 hover:text-brand-blue-500 hover:underline",
       },
       size: {
+        // Mobile gets 44px-tall controls (tap-target minimum, UX-UI.md), then
+        // collapses to the compact desktop heights at `md`. `sm` stays dense —
+        // it's reserved for packed table/toolbar rows that convert to cards on
+        // mobile, so it keeps its 32px height.
         sm: "h-8 px-3 text-xs",
-        default: "h-9 px-4",
-        lg: "h-10 px-5",
-        icon: "h-9 w-9 px-0",
+        default: "h-11 px-4 md:h-9",
+        lg: "h-11 px-5 md:h-10",
+        icon: "h-11 w-11 px-0 md:h-9 md:w-9",
       },
     },
     defaultVariants: {

@@ -20,6 +20,12 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#1C2E54",
+  width: "device-width",
+  initialScale: 1,
+  // Extend the layout into the notch/home-indicator area so our
+  // `env(safe-area-inset-*)` padding (bottom nav, sheets) actually resolves to
+  // non-zero values when the PWA runs in standalone display mode.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

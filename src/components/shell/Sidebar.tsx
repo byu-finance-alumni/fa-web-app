@@ -4,145 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
-import { ROLE } from "@/constants/roles";
+import { getVisibleNav, resolveActiveHref } from "@/components/shell/nav";
 
-type NavLeaf = {
-  href: string;
-  label: string;
-  superAdminOnly?: boolean;
-  /** Visible to full_access and super_admin only (admin tooling). */
-  fullAccessOnly?: boolean;
-  /** Visible to the engineer role only (e.g. support-contact management). */
-  engineerOnly?: boolean;
-  /** Visible to anyone holding the `vocab_admin` capability — the engineer plus
-   *  any role an engineer grants it in the permission editor (e.g. super_admin).
-   *  Capability-driven so a grant actually takes effect, unlike role flags. */
-  vocabOnly?: boolean;
-  /** Hidden from view_only ("Professor"). Use for tabs that only error for
-   *  unprovisioned/read-only users (e.g. Activity) — still shown to student and
-   *  every higher tier. */
-  hideViewOnly?: boolean;
-};
-
-type NavItem = NavLeaf & {
-  children?: NavLeaf[];
-};
-
-// Gating legend (see `canSee` for the predicates):
-//   (no flag)      → every role
-//   hideViewOnly   → student and up (hidden from view_only / "Professor")
-//   fullAccessOnly → full_access, super_admin, engineer
-//   superAdminOnly → super_admin, engineer
-//   vocabOnly      → holders of the vocab_admin capability (engineer + granted)
-//   engineerOnly   → engineer only
-// A group is shown only when the role can see ≥1 child, so no empty headers.
-const NAV: NavItem[] = [
-  // --- Browse: the everyday find/view surfaces. Flat and (almost) ungated so
-  // every role gets a short, scannable list at the top. ---
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/alumni", label: "Alumni" },
-  // #218 Friends of the finance program — its own /friends route (non-alumni
-  // contacts, backend is_alumni=false).
-  { href: "/friends", label: "Friends" },
-  { href: "/events", label: "Events" },
-  { href: "/map", label: "Map" },
-  // #400 Statistics — placeholder analytics workspace. No gating flags, so it's
-  // visible to EVERY role (engineer / super_admin / full_access / student /
-  // professor); the page itself is a public-to-all "Under construction" notice.
-  { href: "/statistics", label: "Statistics" },
-  // Activity feed — full_access+ only. The backend /dashboard/activity route is
-  // RequireFullAccess (student and view_only are 403'd), so gate the nav to
-  // match rather than leaving student/professor a link that just errors.
-  { href: "/activity", label: "Activity", fullAccessOnly: true },
-
-  // --- Manage: the full_access work tools, gathered into one collapsible group.
-  // Every child is fullAccessOnly, so the whole group is dropped for
-  // student/view_only rather than showing an empty header. ---
-  {
-    href: "/manage",
-    label: "Manage",
-    fullAccessOnly: true,
-    children: [
-      { href: "/tasks", label: "Tasks", fullAccessOnly: true },
-      {
-        href: "/needs-surveying",
-        label: "Needs Surveying",
-        fullAccessOnly: true,
-      },
-      // Pay It Forward donor ledger — the backend requires the full_access tier
-      // (alumni.full) to read it at all (#278), so gate the nav to match rather
-      // than leaving lower tiers a link that just 403s.
-      { href: "/pay-it-forward", label: "Pay It Forward", fullAccessOnly: true },
-      { href: "/data-quality", label: "Data quality", fullAccessOnly: true },
-      // Import CSV lives here — it's a full_access DATA operation, not user/audit
-      // administration. Keeping it out of Admin means Admin stays a true
-      // super-admin section (no lone "Import" link for full_access).
-      { href: "/admin/import", label: "Import", fullAccessOnly: true },
-      // Update = bulk-UPDATE existing alumni from an edited cohort CSV (the
-      // round-trip: export a class year -> edit -> upload). Sits right after
-      // Import as its own entry point.
-      { href: "/admin/import/update", label: "Update", fullAccessOnly: true },
-    ],
-  },
-
-  // --- Admin: user & audit administration (super_admin+). Vocabulary is
-  // capability-gated (not role-locked): the engineer always, plus any role an
-  // engineer grants the vocab capability. Users/Audit keep the group non-empty
-  // for super_admin, so Vocabulary is never a lone item here. ---
-  {
-    href: "/admin",
-    label: "Admin",
-    children: [
-      { href: "/admin", label: "Users", superAdminOnly: true },
-      { href: "/audit", label: "Audit", superAdminOnly: true },
-      { href: "/vocabulary", label: "Vocabulary", vocabOnly: true },
-    ],
-  },
-  // Engineer console — its own home for every engineer-only tool (#162). The
-  // whole group (and each child) is engineerOnly, so it's invisible to everyone
-  // below engineer; the backend re-enforces each route.
-  {
-    href: "/engineer",
-    label: "Engineer",
-    engineerOnly: true,
-    children: [
-      { href: "/engineer/permissions", label: "Permissions", engineerOnly: true },
-      { href: "/engineer/preview", label: "Preview as role", engineerOnly: true },
-      // Quick filters lives here (engineer-only). Vocabulary is in the Admin
-      // dropdown since it's capability-gated and reachable by super_admin.
-      { href: "/admin/quick-filters", label: "Quick filters", engineerOnly: true },
-      { href: "/engineer/logins", label: "Logins", engineerOnly: true },
-      {
-        href: "/engineer/login-failures",
-        label: "Login failures",
-        engineerOnly: true,
-      },
-      {
-        href: "/engineer/support-contacts",
-        label: "Support contacts",
-        engineerOnly: true,
-      },
-    ],
-  },
-];
-
-// Every navigable leaf href (group headers are toggles, not links — their
-// children are the real destinations), plus the standalone privacy link.
-const LEAF_HREFS: string[] = [
-  ...NAV.flatMap((i) => (i.children ? i.children.map((c) => c.href) : [i.href])),
-  "/privacy",
-];
-
-// The active link is the LONGEST leaf href the current path matches (exact, or
-// as a "/parent/…" prefix). An exact deeper route therefore wins over a shorter
-// prefix — so "/admin/import" activates only Import CSV, not the Users link
-// ("/admin"), while "/alumni/123" still activates Alumni ("/alumni").
-const resolveActiveHref = (pathname: string): string | null =>
-  LEAF_HREFS.reduce<string | null>((best, href) => {
-    const matches = pathname === href || pathname.startsWith(`${href}/`);
-    if (!matches) return best;
-    return best === null || href.length > best.length ? href : best;
-  }, null);
+// Nav model + gating live in `@/components/shell/nav` (shared with the mobile
+// "More" menu).
 
 export function Sidebar({
   email,
@@ -163,46 +28,12 @@ export function Sidebar({
   // parent-prefix href lighting up alongside its deeper sibling.
   const activeHref = resolveActiveHref(pathname);
   const isActive = (href: string) => href === activeHref;
-  // engineer is the top role and satisfies both gates. User/audit admin =
-  // engineer or super_admin; full_access tooling (e.g. Tasks) also includes
-  // full_access. (Mirrors @/constants/roles, but operates on the single
-  // highest-role string the layout resolved.)
-  const isSuperAdmin = role === ROLE.ENGINEER || role === ROLE.SUPER_ADMIN;
-  const isEngineer = role === ROLE.ENGINEER;
-  const hasFullAccess =
-    role === ROLE.ENGINEER ||
-    role === ROLE.SUPER_ADMIN ||
-    role === ROLE.FULL_ACCESS;
-  // view_only ("Professor") is the lowest provisioned tier; some tabs (e.g.
-  // Activity) only error for it and should be hidden.
-  const isViewOnly = role === ROLE.VIEW_ONLY;
   // Track explicit open/close toggles per group; a group with an active child
   // defaults to open.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
-  const canSee = (n: {
-    superAdminOnly?: boolean;
-    fullAccessOnly?: boolean;
-    engineerOnly?: boolean;
-    vocabOnly?: boolean;
-    hideViewOnly?: boolean;
-  }) =>
-    (!n.superAdminOnly || isSuperAdmin) &&
-    (!n.fullAccessOnly || hasFullAccess) &&
-    (!n.engineerOnly || isEngineer) &&
-    (!n.vocabOnly || canVocab) &&
-    (!n.hideViewOnly || !isViewOnly);
-
-  // Role-filtered nav. A group (e.g. Admin) keeps only the children the user may
-  // see and is dropped entirely if none remain — so full_access staff still see
-  // the Admin group for "Import CSV" even though Users/Audit are super-admin only.
-  const visibleNav = NAV.flatMap((item) => {
-    if (item.children) {
-      const children = item.children.filter(canSee);
-      return children.length ? [{ ...item, children }] : [];
-    }
-    return canSee(item) ? [item] : [];
-  });
+  // Role-filtered nav (shared with the mobile "More" menu — see nav.ts).
+  const visibleNav = getVisibleNav(role, canVocab);
 
   const linkCls = (active: boolean, indent = false) =>
     `flex items-center rounded-lg px-3 py-2.5 text-sm transition-colors ${

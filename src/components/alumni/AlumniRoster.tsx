@@ -10,6 +10,7 @@ import { AlumniFilters, type AlumniFilterState } from "@/components/alumni/Alumn
 import { AlumniTable } from "@/components/alumni/AlumniTable";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Fab } from "@/components/shared/Fab";
 
 const LIMIT = 25;
 
@@ -308,7 +309,7 @@ export async function AlumniRoster({
   return (
     <>
       <Topbar title={isFriend ? "Friends of the Program" : "All Alumni"} />
-      <main className="flex-1 overflow-auto p-6">
+      <main className="flex-1 overflow-auto p-4 md:p-6">
         <AlumniFilters
           initial={filters}
           options={options ?? undefined}
@@ -412,6 +413,23 @@ export async function AlumniRoster({
             </div>
           </>
         )}
+
+        {/* Mobile FAB — the create action for this roster. Desktop keeps its
+            inline "Add" button in the toolbar. */}
+        {canCreate ? (
+          <Fab label={isFriend ? "Add friend" : "Add alumni"}>
+            <Button asChild>
+              <Link href={isFriend ? "/alumni/new?kind=friend" : "/alumni/new"}>
+                {isFriend ? "Add friend" : "Add alumni"}
+              </Link>
+            </Button>
+            {isFriend ? (
+              <Button asChild variant="secondary">
+                <Link href="/friends/import">Import CSV</Link>
+              </Button>
+            ) : null}
+          </Fab>
+        ) : null}
       </main>
     </>
   );

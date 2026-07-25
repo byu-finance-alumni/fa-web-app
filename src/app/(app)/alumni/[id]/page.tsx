@@ -36,6 +36,8 @@ import { ExportProfileButton } from "@/components/alumni/ExportProfileButton";
 import { DrawerList } from "@/components/alumni/DrawerList";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { ProfileHeadshot } from "@/components/alumni/ProfileHeadshot";
+import { ProfileFab, AddNoteButton } from "@/components/alumni/ProfileFab";
+import { ProfileLogLauncher } from "@/components/alumni/ProfileLogLauncher";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -594,8 +596,80 @@ export async function AlumniProfileView({
 
       <main className="flex-1 overflow-y-auto bg-gray-100 p-4 md:p-6">
         <div className="mx-auto max-w-6xl space-y-4">
-          {/* Header card */}
-          <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-card">
+          {/* Mobile header — a clean card: avatar, then name / headline /
+              location / contact / tags. No banner; the profile actions live in
+              the floating + button (bottom-right). Phone only; the desktop
+              header card follows (hidden < md). */}
+          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-card md:hidden">
+            {/* Photo on the left, name + everything under it in a column to its
+                right. The headshot uses the compact single "Edit photo" control
+                so it stays narrow. */}
+            <div className="flex items-start gap-4">
+              <ProfileHeadshot
+                alumniId={aid}
+                initialUrl={headshotUrl}
+                name={name}
+                initials={initials}
+                size="h-24 w-24 text-2xl"
+                colorClass={avatarColor(initials)}
+                canManage={canArchive}
+                align="start"
+                compactControls
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-xl font-semibold text-gray-900">{name}</h2>
+                  {recordStatus !== "Active" ? (
+                    <Badge variant="muted">
+                      <span className="h-1.5 w-1.5 rounded-full bg-gray-400" />
+                      {recordStatus}
+                    </Badge>
+                  ) : null}
+                </div>
+                {/* Headline: current title · employer */}
+                {career?.current_title || career?.current_employer ? (
+                  <p className="mt-0.5 text-sm font-medium text-gray-700">
+                    {[career?.current_title, career?.current_employer]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                ) : null}
+                {headerPlace ? (
+                  <p className="text-sm text-gray-500">{headerPlace}</p>
+                ) : null}
+                {a.employment_status ? (
+                  <p className="text-sm text-gray-500">{a.employment_status}</p>
+                ) : null}
+                <HeaderContact
+                  contact={c}
+                  linkedinUrl={a.linkedin_url}
+                  canViewContactDetails={canViewContactDetails}
+                />
+
+                {(profile.tags.length || profile.status_labels.length) > 0 ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Tags
+                    </span>
+                    {profile.tags.map((t) => (
+                      <EngagementChip key={t} tone="tag">
+                        {t}
+                      </EngagementChip>
+                    ))}
+                    {profile.status_labels.map((s) => (
+                      <EngagementChip key={s} tone="neutral">
+                        {s}
+                      </EngagementChip>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          {/* Header card — desktop (hidden on phones, which use the LinkedIn
+              header above). */}
+          <div className="hidden rounded-lg border border-gray-200 bg-white p-5 shadow-card md:block">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div className="flex items-center gap-4">
                 <ProfileHeadshot
@@ -721,7 +795,7 @@ export async function AlumniProfileView({
               into a stacked tile (top "Industry", bottom "Secondary industry",
               e.g. primary "Other" / secondary "Healthcare"), otherwise it stays
               a plain single-value tile. */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="hidden grid-cols-2 gap-3 sm:grid-cols-3 md:grid lg:grid-cols-6">
             <MetricCard
               label="Graduation Year"
               value={a.graduation_year ? String(a.graduation_year) : "—"}
@@ -1892,6 +1966,44 @@ export async function AlumniProfileView({
             }
           />
         </div>
+
+        {/* Floating action button (mobile only) — hosts every profile action;
+            the desktop header keeps its inline action row. Shown whenever the
+            viewer has at least the add-interaction capability. */}
+        {canAdd ? (
+          <ProfileFab>
+            <AddInteractionButton alumniId={aid} label="Add interaction" />
+            {canArchive ? <AddNoteButton /> : null}
+            {canEdit ? (
+              <>
+                <AddTaskButton alumniId={aid} label="Create task" />
+                <Button asChild>
+                  <Link href={`/alumni/${aid}/edit`}>Edit</Link>
+                </Button>
+                {canArchive ? (
+                  <ExportProfileButton
+                    alumniId={aid}
+                    fileBaseName={`${name.replace(/\s+/g, "-").toLowerCase()}-${aid}`}
+                  />
+                ) : null}
+                {canArchive ? (
+                  <ArchiveControls
+                    alumniId={aid}
+                    archived={a.archived}
+                    name={name}
+                  />
+                ) : null}
+              </>
+            ) : null}
+          </ProfileFab>
+        ) : null}
+
+        {/* Handles the Home quick-log deep-link (?log=interaction|note). */}
+        <ProfileLogLauncher
+          alumniId={aid}
+          canAdd={canAdd}
+          canWriteNotes={canArchive}
+        />
       </main>
     </>
   );

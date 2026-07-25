@@ -101,6 +101,7 @@ export function ProfileNotes({
       {canWrite ? (
         <div>
           <Textarea
+            id="profile-note-input"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             rows={3}

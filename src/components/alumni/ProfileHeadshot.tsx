@@ -47,6 +47,8 @@ export function ProfileHeadshot({
   size = "h-48 w-48 text-5xl",
   colorClass = "bg-navy-800",
   canManage,
+  align = "center",
+  compactControls = false,
 }: {
   alumniId: number;
   /** Signed URL from the server, or null when no headshot is on file. */
@@ -59,6 +61,14 @@ export function ProfileHeadshot({
   colorClass?: string;
   /** full_access+ — shows the Upload / Replace / Remove controls. */
   canManage: boolean;
+  /** Cross-axis alignment of the avatar + its manage controls. "center" (the
+   *  default) keeps the existing desktop header; "start" left-aligns for the
+   *  mobile LinkedIn header. */
+  align?: "center" | "start";
+  /** Compact mode (mobile): a single "Edit photo" / "Add photo" link that opens
+   *  the picker (upload/replace incl. crop), instead of the full
+   *  Replace · Edit · Remove row — so it stays narrow under the avatar. */
+  compactControls?: boolean;
 }) {
   const { toast } = useToast();
   const [url, setUrl] = useState<string | null>(initialUrl);
@@ -173,7 +183,11 @@ export function ProfileHeadshot({
   };
 
   return (
-    <div className="flex shrink-0 flex-col items-center gap-2">
+    <div
+      className={`flex shrink-0 flex-col gap-2 ${
+        align === "start" ? "items-start" : "items-center"
+      }`}
+    >
       {hasPhoto ? (
         <button
           type="button"
@@ -221,9 +235,17 @@ export function ProfileHeadshot({
             disabled={pending}
             className="font-medium text-brand-blue-600 hover:text-brand-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {pending ? "Working…" : hasPhoto ? "Replace photo" : "Upload photo"}
+            {pending
+              ? "Working…"
+              : compactControls
+                ? hasPhoto
+                  ? "Edit photo"
+                  : "Add photo"
+                : hasPhoto
+                  ? "Replace photo"
+                  : "Upload photo"}
           </button>
-          {hasPhoto ? (
+          {hasPhoto && !compactControls ? (
             <>
               <span aria-hidden="true" className="text-gray-300">
                 ·
