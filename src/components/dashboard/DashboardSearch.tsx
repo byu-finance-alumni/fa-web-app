@@ -97,6 +97,9 @@ function IdentityGrid({
             placeholder={f.label}
             autoComplete="off"
             type={f.key === "email" ? "email" : "text"}
+            // Compact 36px fields on mobile to match the slim search bar; 16px
+            // text is preserved (no iOS zoom). Desktop is already h-9.
+            className="h-9"
           />
         </Label>
       ))}
@@ -147,7 +150,7 @@ function GradYearRange({
           placeholder="From"
           aria-label="Graduation year from"
           aria-invalid={error ? true : undefined}
-          className="w-24 tabular-nums"
+          className="h-9 w-24 tabular-nums"
         />
         <span className="text-sm text-gray-500">–</span>
         <Input
@@ -159,7 +162,7 @@ function GradYearRange({
           placeholder="To"
           aria-label="Graduation year to"
           aria-invalid={error ? true : undefined}
-          className="w-24 tabular-nums"
+          className="h-9 w-24 tabular-nums"
         />
       </div>
       {error ? (
@@ -307,8 +310,8 @@ export function DashboardSearch({
   }
 
   return (
-    <Card className="flex min-h-0 flex-1 flex-col p-5">
-      <Tabs defaultValue="quick" className="flex min-h-0 flex-1 flex-col">
+    <Card className="flex flex-col p-4 md:p-5 lg:min-h-0 lg:flex-1">
+      <Tabs defaultValue="quick" className="flex flex-col lg:min-h-0 lg:flex-1">
         <TabsList className="w-full">
           <TabsTrigger value="quick">Quick search</TabsTrigger>
           <TabsTrigger value="advanced">Advanced search</TabsTrigger>
@@ -317,7 +320,7 @@ export function DashboardSearch({
         {/* ---------------------------------------------------------- Quick -- */}
         <TabsContent
           value="quick"
-          className="flex min-h-0 flex-1 flex-col space-y-4"
+          className="flex flex-col space-y-4 lg:min-h-0 lg:flex-1"
         >
           <IdentityGrid value={quick} onChange={setQuick} />
           <div className="flex flex-wrap items-end justify-between gap-4">
@@ -332,31 +335,46 @@ export function DashboardSearch({
             />
             <FriendsToggle checked={quickFriends} onChange={setQuickFriends} />
           </div>
+          {/* Compact action buttons on mobile (h-9) to match the slim search
+              bar; desktop keeps its default h-9 too, so it's unchanged. */}
           <div className="flex gap-2 pt-1">
-            <Button type="button" onClick={runQuick}>
+            <Button type="button" onClick={runQuick} className="h-9">
               Search
             </Button>
-            <Button type="button" variant="secondary" onClick={resetQuick}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={resetQuick}
+              className="h-9"
+            >
               Reset
             </Button>
           </div>
-          <Shortcuts items={alumniShortcuts} />
+          {/* Quick-filter shortcuts are desktop-only — mobile keeps the dashboard
+              lean and search-first. */}
+          <div className="hidden lg:block">
+            <Shortcuts items={alumniShortcuts} />
+          </div>
         </TabsContent>
 
         {/* ------------------------------------------------------- Advanced -- */}
         {/* Definite height = the box (matches the flex-1 card), so the inner
             scroll resolves a height and the fields fill from the TOP. The card
             itself stays flex-1, so the right-column graphs are unaffected. */}
+        {/* Desktop bounds the tab to the viewport and scrolls the fields inside
+            it (so the right-column charts stay put). Mobile drops the fixed
+            height and inner scroll entirely — the fields flow and the whole page
+            scrolls, the native pattern. */}
         <TabsContent
           value="advanced"
-          className="flex h-[calc(100vh-22rem)] min-h-[20rem] flex-col space-y-4"
+          className="flex flex-col space-y-4 lg:h-[calc(100dvh-22rem)] lg:min-h-[20rem]"
         >
           {/* overflow-y:auto forces overflow-x to compute to auto too, which
               clips a focused field's ring/offset at the flush left edge (the
               scroll-free Quick tab doesn't clip). Give the scroll box inline
               padding so the ring has room, and cancel it with -mx so the fields
               stay aligned with the Quick tab (no shift on tab switch). */}
-          <div className="-mx-2 min-h-0 flex-1 space-y-4 overflow-y-auto px-2">
+          <div className="space-y-4 lg:-mx-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:px-2">
             <IdentityGrid value={adv} onChange={setAdv} />
             <GradYearRange
               ymin={advYear.ymin}
@@ -408,10 +426,15 @@ export function DashboardSearch({
             </div>
           </div>
           <div className="flex gap-2 border-t border-gray-100 pt-3">
-            <Button type="button" onClick={runAdvanced}>
+            <Button type="button" onClick={runAdvanced} className="h-9">
               Search
             </Button>
-            <Button type="button" variant="secondary" onClick={resetAdvanced}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={resetAdvanced}
+              className="h-9"
+            >
               Reset
             </Button>
           </div>

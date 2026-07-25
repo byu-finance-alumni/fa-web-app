@@ -251,7 +251,23 @@ export function GeographyExplorer({
         .slice(0, 10),
     [counts],
   );
+  // Mobile detection — on a phone the map's overlay panels (Top states + the
+  // Search & filters box) start collapsed so the map itself is unobstructed; the
+  // user opens them from their toggles. Desktop keeps both open by default.
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
   const [topOpen, setTopOpen] = useState(true);
+  // Collapse the Top-states widget by default on mobile (reopen from its toggle).
+  useEffect(() => {
+    if (isMobile) setTopOpen(false);
+  }, [isMobile]);
 
   // --- State focus → contextual ranked widget --------------------------------
   // UsGeoMap reports which state is focused (via its in-map focusStateInMap flow)
@@ -276,8 +292,10 @@ export function GeographyExplorer({
   // next focuses or zooms out — user intent wins in between.
   const [controlsOpen, setControlsOpen] = useState(true);
   useEffect(() => {
-    setControlsOpen(!focusedState);
-  }, [focusedState]);
+    // Desktop auto-opens the box on the overview (no focused state); mobile keeps
+    // it collapsed by default so the map is unobstructed (open via its button).
+    setControlsOpen(!focusedState && !isMobile);
+  }, [focusedState, isMobile]);
 
   // Ask the map to focus/zoom a state — used by the "Top states" widget rows so a
   // ranked click behaves like clicking that state on the map. The bumped nonce
@@ -733,7 +751,7 @@ export function GeographyExplorer({
           the surfaces. Auto-hides on state focus/zoom-in (see `controlsOpen`) and
           collapses to a compact "Search & filters" button in its place. */}
       {controlsOpen ? (
-      <div className="absolute left-4 top-4 z-30 flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-3">
+      <div className="absolute left-4 top-16 z-30 flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-3 md:top-4">
         {/* Header — label + a "Hide" affordance to collapse the box. */}
         <div className="flex items-center justify-between rounded-lg bg-white/95 px-3 py-1.5 shadow-card">
           <span className="text-xs font-semibold text-gray-700">
@@ -778,7 +796,7 @@ export function GeographyExplorer({
                     : undefined
                 }
                 autoComplete="off"
-                className="h-10 text-sm"
+                className="h-11 text-base md:h-10 md:text-sm"
               />
               {acOpen && suggestions.length > 0 ? (
                 <ul
@@ -1005,7 +1023,7 @@ export function GeographyExplorer({
       ) : (
         // Collapsed — a compact text button in the same top-left spot that
         // re-opens the full controls box (auto-collapsed on state focus).
-        <div className="absolute left-4 top-4 z-30">
+        <div className="absolute left-4 top-16 z-30 md:top-4">
           <button
             type="button"
             onClick={() => setControlsOpen(true)}
@@ -1068,6 +1086,7 @@ export function GeographyExplorer({
               focusPoint={usFocusReq}
               showCountyLines={showCountyLines}
               matchCounties={matchCounties}
+              isMobile={isMobile}
             />
           ) : (
             <WorldGeoMap

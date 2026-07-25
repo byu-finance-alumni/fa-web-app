@@ -1,6 +1,9 @@
+import Link from "next/link";
 import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Fab } from "@/components/shared/Fab";
 import { EventsExplorer, type EventRow } from "@/components/events/EventsExplorer";
 import { EventsToolbar } from "@/components/events/EventsToolbar";
 import { hasFullAccess } from "@/constants/roles";
@@ -94,7 +97,7 @@ export default async function EventsPage({
   return (
     <>
       <Topbar title="Events" />
-      <main className="flex-1 overflow-auto p-6">
+      <main className="flex-1 overflow-auto p-4 md:p-6">
         <EventsToolbar
           initial={filters}
           types={types}
@@ -122,6 +125,15 @@ export default async function EventsPage({
             canManageEvents={canManageEvents}
           />
         )}
+
+        {/* Mobile FAB — Add event. Desktop keeps its inline toolbar button. */}
+        {canManageEvents ? (
+          <Fab label="Add event">
+            <Button asChild>
+              <Link href="/events/import">Add event</Link>
+            </Button>
+          </Fab>
+        ) : null}
       </main>
     </>
   );

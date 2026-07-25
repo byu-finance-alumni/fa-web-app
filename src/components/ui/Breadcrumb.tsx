@@ -18,8 +18,17 @@ export function Breadcrumb({ items }: { items: Crumb[] }) {
       <ol className="flex items-center gap-1.5 text-sm">
         {items.map((item, i) => {
           const last = i === items.length - 1;
+          // On mobile, collapse to the parent as a back affordance (UX-UI.md):
+          // hide the current-page crumb and the chevron that precedes it, so the
+          // trail reads e.g. just "Alumni" instead of "Alumni › Jane Smith".
+          const secondToLast = i === items.length - 2;
           return (
-            <li key={`${item.label}-${i}`} className="flex min-w-0 items-center gap-1.5">
+            <li
+              key={`${item.label}-${i}`}
+              className={`min-w-0 items-center gap-1.5 ${
+                last ? "hidden md:flex" : "flex"
+              }`}
+            >
               {item.href && !last ? (
                 <Link
                   href={item.href}
@@ -37,7 +46,9 @@ export function Breadcrumb({ items }: { items: Crumb[] }) {
               )}
               {!last ? (
                 <ChevronRight
-                  className="h-4 w-4 shrink-0 text-gray-400"
+                  className={`h-4 w-4 shrink-0 text-gray-400 ${
+                    secondToLast ? "hidden md:block" : ""
+                  }`}
                   aria-hidden="true"
                 />
               ) : null}

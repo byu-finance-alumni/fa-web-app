@@ -6,6 +6,10 @@ import { MetricCard } from "@/components/shared/MetricCard";
 import { SearchHero } from "@/components/dashboard/SearchHero";
 import { DashboardSearch } from "@/components/dashboard/DashboardSearch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Fab } from "@/components/shared/Fab";
+import { QuickLogButton } from "@/components/dashboard/QuickLogButton";
+import { hasFullAccess, canAddInteraction } from "@/constants/roles";
 import { DATA_VIZ_PALETTE, CHART_MUTED_COLOR } from "@/constants/chart";
 import type { UserContext } from "@/types/alumni";
 import type { FilterOptions } from "@/types/filters";
@@ -157,11 +161,13 @@ function IndustryBarList({
   ];
   const max = Math.max(1, ...ordered.map((r) => r.count));
 
-  // The list fills the panel height with the rows distributed evenly (each row
-  // is flex-1) and NO scrollbar — so every industry is visible at once and the
-  // bars grow as tall as the available space allows.
+  // Desktop (lg): the list fills the panel height with rows distributed evenly
+  // (each row flex-1) and NO scrollbar — every industry visible at once, bars as
+  // tall as the space allows. Mobile: rows take their natural height with a
+  // fixed, readable bar so the list reads as a clean stacked list (the fill-
+  // height math has no bounded height to work with on a phone).
   return (
-    <ul className="flex h-full flex-col gap-0.5">
+    <ul className="flex flex-col gap-0.5 lg:h-full">
       {ordered.map((r) => {
         const muted = r.count === 0;
         // "Unknown" is a data-gap bucket: always drawn in danger red (label +
@@ -196,7 +202,7 @@ function IndustryBarList({
             {/* Bar track grows to fill the row's leftover height (flex-1), so the
                 bars are as tall as they can be while all rows still fit. A
                 zero-count row draws no fill but keeps its muted label + 0. */}
-            <div className="mt-1 min-h-[6px] flex-1 overflow-hidden rounded-full bg-gray-100">
+            <div className="mt-1 h-2 overflow-hidden rounded-full bg-gray-100 lg:h-auto lg:min-h-[6px] lg:flex-1">
               <div
                 className="h-full rounded-full"
                 style={{
@@ -208,19 +214,19 @@ function IndustryBarList({
           </>
         );
         return (
-          <li key={r.label} className="flex min-h-0 flex-1 flex-col">
+          <li key={r.label} className="flex flex-col lg:min-h-0 lg:flex-1">
             {r.href ? (
               <Link
                 href={r.href}
                 aria-label={`View ${r.label} (${r.count}) in alumni list`}
                 title={`${r.label}: ${r.count}`}
-                className="flex h-full flex-col rounded-lg px-1.5 py-0.5 transition hover:bg-brand-blue-50/40"
+                className="flex flex-col rounded-lg px-1.5 py-0.5 transition hover:bg-brand-blue-50/40 lg:h-full"
               >
                 {body}
               </Link>
             ) : (
               <div
-                className="flex h-full flex-col px-1.5 py-0.5"
+                className="flex flex-col px-1.5 py-0.5 lg:h-full"
                 title={`${r.label}: ${r.count}`}
               >
                 {body}
@@ -298,6 +304,12 @@ export default async function DashboardPage() {
   // time-of-day (the server renders in UTC, not the viewer's local hour).
   const firstName = resolveFirstName(ctx);
   const greeting = firstName ? `Welcome, ${firstName}` : "Welcome";
+
+  // Quick-add FAB (mobile) gating: full_access can create records; interaction
+  // logging is open to the wider canAddInteraction tier (professors included).
+  const dashRoles = ctx?.roles ?? null;
+  const canCreate = hasFullAccess(dashRoles);
+  const canLogInteraction = canAddInteraction(dashRoles);
 
   // Industry breakdown (#351/#352/#353, listed per #375): the backend returns
   // EVERY canonical finance industry (incl. zero-count) plus separate "Other"
@@ -391,19 +403,21 @@ export default async function DashboardPage() {
   return (
     <>
       <Topbar title="Dashboard" />
-      <main className="flex-1 overflow-auto p-6">
+      <main className="flex-1 overflow-auto p-4 md:p-6">
         {notProvisioned ? (
           <Card className="p-4 text-sm text-gray-700">
             Your account is authenticated but not yet provisioned. Ask a Super
             Admin to grant your account a role to see data.
           </Card>
         ) : (
-          /* Two columns that stretch to fill the viewport: quick-search
-             features on the left half, KPIs + the two charts on the right. */
-          <div className="flex min-h-full flex-col gap-5 lg:h-full lg:flex-row lg:items-stretch">
+          /* Desktop: two columns that stretch to fill the viewport (quick-search
+             on the left, KPIs + chart on the right). Mobile/tablet: a natural,
+             scrollable single-column stack — the fill-height behavior is gated
+             to lg so the columns never stretch or collapse on a phone. */
+          <div className="flex flex-col gap-4 lg:h-full lg:flex-row lg:items-stretch lg:gap-5">
             {/* LEFT — natural-language search bar, then the tabbed search
                 workspace (quick / advanced) below it */}
-            <div className="flex min-h-0 flex-1 flex-col gap-5">
+            <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:gap-5">
               <SearchHero greeting={greeting} />
               <DashboardSearch
                 options={filterOptions ?? EMPTY_OPTIONS}
@@ -411,9 +425,11 @@ export default async function DashboardPage() {
               />
             </div>
 
-            {/* RIGHT — KPI strip + the two charts */}
-            <div className="flex min-h-0 flex-1 flex-col gap-5">
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+            {/* RIGHT — KPI strip + the chart. Desktop only: on a phone the
+                dashboard is search-first, so the KPIs and Industry breakdown are
+                dropped and this whole column is hidden below lg. */}
+            <div className="hidden flex-col gap-4 lg:flex lg:min-h-0 lg:flex-1 lg:gap-5">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <MetricCard
                   size="lg"
                   label="Total alumni"
@@ -447,9 +463,9 @@ export default async function DashboardPage() {
                     Click to filter
                   </span>
                 }
-                className="min-h-0 flex-1"
+                className="lg:min-h-0 lg:flex-1"
               >
-                <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
+                <div className="flex w-full flex-col lg:min-h-0 lg:flex-1 lg:overflow-hidden">
                   <IndustryBarList
                     rows={industryRows}
                     emptyLabel="No industry data yet."
@@ -459,6 +475,34 @@ export default async function DashboardPage() {
             </div>
           </div>
         )}
+
+        {/* Home quick-add FAB (mobile). Log interaction / Add note open an
+            alumnus search first, then land on that profile's form. */}
+        {!notProvisioned && (canCreate || canLogInteraction) ? (
+          <Fab label="Quick add">
+            {canLogInteraction ? (
+              <QuickLogButton kind="interaction" label="Log interaction" />
+            ) : null}
+            {canCreate ? (
+              <QuickLogButton kind="note" label="Add note" />
+            ) : null}
+            {canCreate ? (
+              <Button asChild variant="secondary">
+                <Link href="/events/import">Add event</Link>
+              </Button>
+            ) : null}
+            {canCreate ? (
+              <Button asChild variant="secondary">
+                <Link href="/alumni/new">Add alumni</Link>
+              </Button>
+            ) : null}
+            {canCreate ? (
+              <Button asChild variant="secondary">
+                <Link href="/alumni/new?kind=friend">Add friend</Link>
+              </Button>
+            ) : null}
+          </Fab>
+        ) : null}
       </main>
     </>
   );
