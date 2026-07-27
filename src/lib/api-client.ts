@@ -37,6 +37,37 @@ export async function clientGet<T>(path: string): Promise<T> {
 }
 
 /**
+ * Browser-side bodyless POST against the FastAPI backend, authed with the
+ * signed-in user's Supabase access token. Params ride in the query string (e.g.
+ * `?dry_run=false`). Surfaces the backend's `error.message` on a non-2xx so the
+ * caller can show WHY it failed (missing config, no recipients, forbidden, ...).
+ */
+export async function clientPost<T>(path: string): Promise<T> {
+  const supabase = createClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "POST",
+    headers: session?.access_token
+      ? { Authorization: `Bearer ${session.access_token}` }
+      : {},
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    let message: string | undefined;
+    try {
+      const body = await res.json();
+      if (typeof body?.error?.message === "string") message = body.error.message;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new ApiClientError(res.status, message);
+  }
+  return (await res.json()) as T;
+}
+
+/**
  * Browser-side multipart POST against the FastAPI backend, authed with the
  * signed-in user's Supabase access token.
  *
