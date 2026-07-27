@@ -30,13 +30,15 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
-import { clientGet } from "@/lib/api-client";
+import { ApiClientError, clientGet, clientPost } from "@/lib/api-client";
 import { SAMPLE_CAMPAIGNS, initialSentCount } from "@/lib/sampleCampaigns";
 import type { components } from "@/types/api.gen";
 import type { ClassCampaign, SurveyRound } from "@/types/surveyCampaign";
 
 /** Distinct graduation years present in the DB, straight off the OpenAPI. */
 type GradYearCount = components["schemas"]["GraduationYearCount"];
+/** The send endpoint's result, straight off the OpenAPI. */
+type SurveySendResult = components["schemas"]["SurveySendResult"];
 
 /**
  * Send re-surveys BY GRADUATION YEAR — the campaign console on the Needs
@@ -194,6 +196,7 @@ export function SurveyCampaignConsole() {
   const [noReplyOpen, setNoReplyOpen] = useState(false);
 
   const [sendOpen, setSendOpen] = useState(false);
+  const [sending, setSending] = useState(false);
   const [customMessage, setCustomMessage] = useState("");
   const [submitOpen, setSubmitOpen] = useState(false);
 
@@ -266,7 +269,6 @@ export function SurveyCampaignConsole() {
   );
   const todayBatch = plan.batches.find((b) => b.sent)?.count ?? 0;
   const scheduledLater = plan.total - todayBatch;
-  const lastBatchDate = plan.batches.at(-1)?.date ?? DEMO_SEND_DATE;
   const sendDisabled =
     selected.submitted || sendTargetCount === 0 || plan.total === 0;
 
@@ -277,42 +279,58 @@ export function SurveyCampaignConsole() {
     setDrafts([]);
   };
 
-  const confirmSend = () => {
-    if (!hasNextPatch) return;
-    setClasses((prev) =>
-      prev.map((c) => {
-        if (c.gradYear !== selectedYear) return c;
-        return {
-          ...c,
-          patches: c.patches.map((p, i) =>
-            i === nextPatchIndex
-              ? {
-                  ...p,
-                  sentDate: DEMO_SEND_DATE,
-                  // Patch 1 keeps its planned recipient count; follow-ups target
-                  // the current no-reply set.
-                  recipients:
-                    nextPatchIndex === 0 ? p.recipients : c.noReply.length,
-                }
-              : p,
-          ),
-          schedule: plan.batches,
-        };
-      }),
-    );
-    // Only today's batch actually goes out now; later batches count on their day.
-    setSentCount((n) => n + todayBatch);
-    setSentThisMonth((m) => m + todayBatch);
-    setSentToday((d) => d + todayBatch);
-    setSendOpen(false);
-    setCustomMessage("");
+  const confirmSend = async () => {
+    if (!hasNextPatch || sending) return;
+    setSending(true);
+    try {
+      // REAL send: hit the backend, which emails every eligible alum in this
+      // year (with a personal email) via Resend, up to the daily cap.
+      const result = await clientPost<SurveySendResult>(
+        `/survey/campaigns/${selectedYear}/send?dry_run=false`,
+      );
 
-    const verb = sendStage === "first" ? "Survey" : "Follow-up";
-    toast.success(
-      scheduledLater > 0
-        ? `${verb} sending to ${plan.total.toLocaleString()} at ${DAILY_LIMIT}/day — ${todayBatch.toLocaleString()} today, ${scheduledLater.toLocaleString()} scheduled through ${formatDate(lastBatchDate)}.`
-        : `${verb} sent to ${plan.total.toLocaleString()} alumni in graduation year ${selectedYear}.`,
-    );
+      // Reflect the real outcome in the UI.
+      setClasses((prev) =>
+        prev.map((c) =>
+          c.gradYear === selectedYear
+            ? {
+                ...c,
+                patches: c.patches.map((p, i) =>
+                  i === nextPatchIndex
+                    ? { ...p, sentDate: DEMO_SEND_DATE, recipients: result.prepared }
+                    : p,
+                ),
+              }
+            : c,
+        ),
+      );
+      setSentCount((n) => n + result.sent);
+      setSentThisMonth((m) => m + result.sent);
+      setSentToday((d) => d + result.sent);
+      setSendOpen(false);
+      setCustomMessage("");
+
+      if (result.sent > 0) {
+        toast.success(
+          `Sent ${result.sent.toLocaleString()} survey email${result.sent === 1 ? "" : "s"} for graduation year ${selectedYear}` +
+            (result.remaining > 0
+              ? ` — ${result.remaining.toLocaleString()} over today's cap; run Send again to continue.`
+              : "."),
+        );
+      } else {
+        toast.error(
+          `No emails sent: ${result.total_recipients.toLocaleString()} recipient${result.total_recipients === 1 ? "" : "s"} found for ${selectedYear} (they need a personal email on file).`,
+        );
+      }
+    } catch (err) {
+      const msg =
+        err instanceof ApiClientError && err.message
+          ? err.message
+          : "the request failed — check the backend Resend config.";
+      toast.error(`Couldn't send: ${msg}`);
+    } finally {
+      setSending(false);
+    }
   };
 
   const toggleReject = (alumniId: number) => {
@@ -896,11 +914,18 @@ export function SurveyCampaignConsole() {
             >
               Cancel
             </Button>
-            <Button type="button" size="sm" onClick={confirmSend}>
+            <Button
+              type="button"
+              size="sm"
+              onClick={confirmSend}
+              disabled={sending}
+            >
               <Send aria-hidden="true" />
-              {scheduledLater > 0
-                ? `Send ${todayBatch.toLocaleString()} now`
-                : `Send to ${plan.total.toLocaleString()}`}
+              {sending
+                ? "Sending…"
+                : scheduledLater > 0
+                  ? `Send ${todayBatch.toLocaleString()} now`
+                  : `Send to ${plan.total.toLocaleString()}`}
             </Button>
           </DialogFooter>
         </DialogContent>
