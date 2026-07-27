@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { SAMPLE_ALUM, SAMPLE_ALUM_NAME } from "@/lib/sampleAlumni";
 import { loadQuestions } from "@/lib/surveyStore";
+import type { components } from "@/types/api.gen";
 import {
   SURVEY_FIELD_BY_KEY,
   type SurveyField,
@@ -16,65 +17,73 @@ import {
 } from "@/types/survey";
 
 /**
- * PUBLIC "confirm your info" survey landing page (frontend-only PROTOTYPE).
+ * PUBLIC "confirm your info" survey landing page.
  *
  * Lives OUTSIDE the `(app)` auth group and is allow-listed in `middleware.ts`, so
- * an alum can open it from an email link without signing in. It reads the authored
- * questions from `localStorage` (set by staff in the "Sample survey" editor) for
- * the edit form, and the sample alum from `SAMPLE_ALUM`. Nothing calls an API;
- * success is shown inline (no app shell / ToastProvider).
+ * an alum opens it from an email link without signing in. The signed token in the
+ * URL is the credential: we resolve it to the alum's REAL on-file info via the
+ * public `GET /survey/respond/{token}` endpoint. An invalid/expired token shows an
+ * "invalid link" state; the magic token `demo` shows the sample alum for previews.
+ *
+ * The authored questions (edit form) still come from `localStorage` (staff's
+ * "Sample survey" editor). NOTE: submitting edits does not persist yet — that's
+ * the next milestone.
  */
 
 type Status = "review" | "confirmed" | "editing" | "submitted";
+type LoadState = "loading" | "ready" | "invalid";
+type Respondent = components["schemas"]["SurveyRespondInfo"];
+type Fields = Record<string, string>;
 
-/** First name for a warm greeting ("Hi, Jordan"). */
-const FIRST_NAME = SAMPLE_ALUM_NAME.split(/\s+/)[0] || SAMPLE_ALUM_NAME;
-
-/** Initials fallback for the headshot (real photo loads server-side in prod). */
-const INITIALS =
-  SAMPLE_ALUM_NAME.trim()
-    .split(/\s+/)
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase() || "?";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 /** One label/value row in the read-only "Your information" panel. */
 type InfoRow = { label: string; value: string };
 
-// The panel shows a fixed, curated view of what's on file — nothing beyond what
-// the page already displayed. "Location" collapses city + state into one line.
-const SAMPLE_LOCATION = [SAMPLE_ALUM["contact.city"], SAMPLE_ALUM["contact.state"]]
-  .filter(Boolean)
-  .join(", ");
+function initialsOf(name: string): string {
+  return (
+    name
+      .trim()
+      .split(/\s+/)
+      .map((p) => p[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "?"
+  );
+}
 
 // Career first (company/industry lead), then contact — matching the rest of the
-// survey experience.
-const CAREER_ROWS: InfoRow[] = [
-  { label: "Employer", value: SAMPLE_ALUM["employment.current_employer"] ?? "" },
-  { label: "Current title", value: SAMPLE_ALUM["employment.current_title"] ?? "" },
-  { label: "Industry", value: SAMPLE_ALUM["employment.current_industry"] ?? "" },
-];
-const CONTACT_ROWS: InfoRow[] = [
-  { label: "Personal email", value: SAMPLE_ALUM["contact.personal_email"] ?? "" },
-  { label: "Phone", value: SAMPLE_ALUM["contact.phone"] ?? "" },
-  { label: "Location", value: SAMPLE_LOCATION },
-  { label: "LinkedIn", value: SAMPLE_ALUM["profile.linkedin_url"] ?? "" },
-];
+// survey experience. "Location" collapses city + state into one line.
+function careerRows(f: Fields): InfoRow[] {
+  return [
+    { label: "Employer", value: f["employment.current_employer"] ?? "" },
+    { label: "Current title", value: f["employment.current_title"] ?? "" },
+    { label: "Industry", value: f["employment.current_industry"] ?? "" },
+  ];
+}
+function contactRows(f: Fields): InfoRow[] {
+  const location = [f["contact.city"], f["contact.state"]]
+    .filter(Boolean)
+    .join(", ");
+  return [
+    { label: "Personal email", value: f["contact.personal_email"] ?? "" },
+    { label: "Phone", value: f["contact.phone"] ?? "" },
+    { label: "Location", value: location },
+    { label: "LinkedIn", value: f["profile.linkedin_url"] ?? "" },
+  ];
+}
 
 export default function SurveyConfirmPage({
   params,
 }: {
   params: Promise<{ token: string }>;
 }) {
-  // `token` identifies the alum via a signed link in production; the PROTOTYPE
-  // ignores it and always loads SAMPLE_ALUM (real loading resolves server-side).
   const { token } = use(params);
-  useEffect(() => {
-    /* no-op: prototype ignores the token. Kept so the dependency is explicit. */
-  }, [token]);
 
-  const [hydrated, setHydrated] = useState(false);
+  const [loadState, setLoadState] = useState<LoadState>("loading");
+  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [fields, setFields] = useState<Fields>({});
   const [questions, setQuestions] = useState<SurveyQuestion[]>([]);
   const [status, setStatus] = useState<Status>("review");
   const [engagementOpen, setEngagementOpen] = useState(false);
@@ -82,12 +91,41 @@ export default function SurveyConfirmPage({
   // production this posts to the headshot storage bucket).
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
-  // localStorage is client-only; hydrate after mount so SSR + first client render
-  // match (both show the skeleton), avoiding a hydration mismatch.
+  // Resolve the token to the alum's real record (client-only; the token is the
+  // credential). `demo` shows the sample alum so the page is previewable.
   useEffect(() => {
     setQuestions(loadQuestions());
-    setHydrated(true);
-  }, []);
+
+    if (token === "demo") {
+      setName(SAMPLE_ALUM_NAME);
+      setFirstName(SAMPLE_ALUM_NAME.split(/\s+/)[0] || SAMPLE_ALUM_NAME);
+      setFields(SAMPLE_ALUM);
+      setLoadState("ready");
+      return;
+    }
+
+    let cancelled = false;
+    fetch(`${API_URL}/survey/respond/${encodeURIComponent(token)}`, {
+      cache: "no-store",
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(String(res.status));
+        return (await res.json()) as Respondent;
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setName(data.full_name);
+        setFirstName(data.first_name);
+        setFields(data.fields ?? {});
+        setLoadState("ready");
+      })
+      .catch(() => {
+        if (!cancelled) setLoadState("invalid");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   const inlineQuestions = questions.filter(
     (q) => SURVEY_FIELD_BY_KEY[q.fieldKey]?.group !== "engagement",
@@ -108,11 +146,13 @@ export default function SurveyConfirmPage({
       </header>
 
       <div className="mx-auto max-w-[800px] px-5 pb-16 pt-10 sm:px-8">
-        {!hydrated ? (
+        {loadState === "loading" ? (
           <div className="space-y-4">
             <div className="h-9 w-2/3 animate-pulse rounded bg-gray-100" />
             <div className="h-48 animate-pulse rounded-lg bg-gray-100" />
           </div>
+        ) : loadState === "invalid" ? (
+          <InvalidPanel />
         ) : status === "submitted" ? (
           <SuccessPanel
             title="Thank you — your updates are in"
@@ -120,7 +160,7 @@ export default function SurveyConfirmPage({
           />
         ) : status === "confirmed" ? (
           <SuccessPanel
-            title={`Thanks for confirming, ${FIRST_NAME}`}
+            title={`Thanks for confirming, ${firstName}`}
             body="Your information is up to date. We appreciate you helping us keep in touch about events, mentoring, and opportunities."
             action={
               <Button variant="secondary" onClick={() => setStatus("editing")}>
@@ -163,7 +203,7 @@ export default function SurveyConfirmPage({
                       />
                     ) : (
                       <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-navy-800 text-base font-semibold text-white">
-                        {INITIALS}
+                        {initialsOf(name)}
                       </span>
                     )}
                     <div className="min-w-0">
@@ -187,7 +227,7 @@ export default function SurveyConfirmPage({
                 </div>
 
                 {inlineQuestions.map((q) => (
-                  <FieldControl key={q.id} question={q} />
+                  <FieldControl key={q.id} question={q} fields={fields} />
                 ))}
               </div>
 
@@ -222,7 +262,7 @@ export default function SurveyConfirmPage({
                       className="space-y-5 border-t border-gray-200 px-5 py-5 sm:px-6"
                     >
                       {engagementQuestions.map((q) => (
-                        <FieldControl key={q.id} question={q} />
+                        <FieldControl key={q.id} question={q} fields={fields} />
                       ))}
                     </div>
                   ) : null}
@@ -256,15 +296,14 @@ export default function SurveyConfirmPage({
             <div>
               <div className="flex items-center gap-4">
                 <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-navy-800 text-base font-semibold text-white">
-                  {INITIALS}
+                  {initialsOf(name)}
                 </span>
                 <div className="min-w-0">
                   <h1 className="text-3xl font-semibold leading-tight tracking-tight text-navy-800">
-                    Hi, {FIRST_NAME}
+                    Hi, {firstName}
                   </h1>
                   <p className="mt-1 truncate text-sm text-gray-500">
-                    {SAMPLE_ALUM_NAME} · BYU Finance · Marriott School of
-                    Business
+                    {name} · BYU Finance · Marriott School of Business
                   </p>
                 </div>
               </div>
@@ -288,8 +327,11 @@ export default function SurveyConfirmPage({
                 </h2>
               </div>
               <div className="grid gap-x-10 gap-y-8 px-5 py-6 sm:grid-cols-2 sm:px-6">
-                <InfoGroup title="Career information" rows={CAREER_ROWS} />
-                <InfoGroup title="Contact information" rows={CONTACT_ROWS} />
+                <InfoGroup title="Career information" rows={careerRows(fields)} />
+                <InfoGroup
+                  title="Contact information"
+                  rows={contactRows(fields)}
+                />
               </div>
             </section>
 
@@ -326,7 +368,7 @@ export default function SurveyConfirmPage({
 
         <footer className="mt-12 text-center">
           <p className="text-xs text-gray-400">
-            Prototype — loads a sample alum and doesn&apos;t send anything yet.
+            BYU Marriott School of Business
           </p>
         </footer>
       </div>
@@ -375,20 +417,43 @@ function TrustNote() {
   );
 }
 
+/* ----------------------------------------------------------- invalid link -- */
+
+function InvalidPanel() {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-8 text-center sm:p-10">
+      <h1 className="text-xl font-semibold tracking-tight text-navy-800">
+        This link isn&apos;t valid
+      </h1>
+      <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-gray-600">
+        This survey link may have expired or been mistyped. If you received it in
+        an email, try opening it again from the original message, or reach out to
+        the BYU Finance team.
+      </p>
+    </div>
+  );
+}
+
 /* ---------------------------------------------------------- field control -- */
 
 /**
- * One editable survey field, prefilled from `SAMPLE_ALUM`: text columns render a
- * pre-filled input, boolean columns a Yes/No radio group (plus the Pay It Forward
- * donate link on the giving field).
+ * One editable survey field, prefilled from the alum's real record (`fields`):
+ * text columns render a pre-filled input, boolean columns a Yes/No radio group
+ * (plus the Pay It Forward donate link on the giving field).
  */
-function FieldControl({ question }: { question: SurveyQuestion }) {
+function FieldControl({
+  question,
+  fields,
+}: {
+  question: SurveyQuestion;
+  fields: Fields;
+}) {
   const controlId = `survey-${question.id}`;
   const labelId = `${controlId}-label`;
   const field = SURVEY_FIELD_BY_KEY[question.fieldKey] as
     | SurveyField
     | undefined;
-  const prefill = SAMPLE_ALUM[question.fieldKey] ?? "";
+  const prefill = fields[question.fieldKey] ?? "";
 
   return (
     <div>

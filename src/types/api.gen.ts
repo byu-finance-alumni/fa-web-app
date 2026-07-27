@@ -2825,6 +2825,28 @@ export interface paths {
         patch: operations["update_support_contact_admin_support_contacts__contact_id__patch"];
         trace?: never;
     };
+    "/survey/respond/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Survey Respond Info
+         * @description PUBLIC (token-gated, no login): the alum's current on-file info for the
+         *     confirm page. The signed token is the credential — an invalid/expired one
+         *     404s.
+         */
+        get: operations["survey_respond_info_survey_respond__token__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/survey/graduation-years": {
         parameters: {
             query?: never;
@@ -5880,6 +5902,22 @@ export interface components {
             survey_status: string | null;
             /** Survey Notes */
             survey_notes: string | null;
+        };
+        /**
+         * SurveyRespondInfo
+         * @description The alum's current on-file info for the public confirm page, resolved from
+         *     a survey token. `fields` is keyed by the frontend's SURVEY_FIELDS keys
+         *     (`table.column`), mirroring the sample-alum shape so the page can drop it in.
+         */
+        SurveyRespondInfo: {
+            /** First Name */
+            first_name: string;
+            /** Full Name */
+            full_name: string;
+            /** Fields */
+            fields: {
+                [key: string]: string;
+            };
         };
         /**
          * SurveySendResult
@@ -10405,6 +10443,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SupportContactRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    survey_respond_info_survey_respond__token__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyRespondInfo"];
                 };
             };
             /** @description Validation Error */
