@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CalendarClock,
   CheckCircle2,
@@ -30,8 +30,13 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
+import { clientGet } from "@/lib/api-client";
 import { SAMPLE_CAMPAIGNS, initialSentCount } from "@/lib/sampleCampaigns";
+import type { components } from "@/types/api.gen";
 import type { ClassCampaign, SurveyRound } from "@/types/surveyCampaign";
+
+/** Distinct graduation years present in the DB, straight off the OpenAPI. */
+type GradYearCount = components["schemas"]["GraduationYearCount"];
 
 /**
  * Send re-surveys BY GRADUATION YEAR — the campaign console on the Needs
@@ -89,8 +94,43 @@ function initClasses(): WorkingClass[] {
   }));
 }
 
-/** Format an ISO `YYYY-MM-DD` as e.g. "Mar 3, 2026" (no timezone drift). */
+/** A never-surveyed class (all three sends pending) with a real alumni count —
+ *  used for graduation years that come from the DB but have no campaign yet. */
+function freshClass(gradYear: number, totalAlumni: number): WorkingClass {
+  return {
+    gradYear,
+    totalAlumni,
+    patches: [
+      { label: "Initial", sentDate: null, recipients: totalAlumni, responses: 0 },
+      { label: "1-week reminder", sentDate: null, recipients: 0, responses: 0 },
+      { label: "2-week reminder", sentDate: null, recipients: 0, responses: 0 },
+    ],
+    nextSendDate: "",
+    noReply: [],
+    noChangeCount: 0,
+    changeRecords: [],
+    submitted: false,
+  };
+}
+
+/** Build the working class list from the DB's real graduation years (newest
+ *  first). A year that also has sample campaign data keeps it (for the demo),
+ *  with its alumni count refreshed; every other year is a fresh, ready-to-send
+ *  class. This is what makes the picker list the actual DB years (incl. 1900). */
+function classesFromYears(years: GradYearCount[]): WorkingClass[] {
+  const sample = new Map(initClasses().map((c) => [c.gradYear, c]));
+  return years.map((y) => {
+    const existing = sample.get(y.graduation_year);
+    return existing
+      ? { ...existing, totalAlumni: y.total_alumni }
+      : freshClass(y.graduation_year, y.total_alumni);
+  });
+}
+
+/** Format an ISO `YYYY-MM-DD` as e.g. "Mar 3, 2026" (no timezone drift). Blank
+ *  dates (a class that's never been scheduled) read "Not scheduled". */
 function formatDate(iso: string): string {
+  if (!iso) return "Not scheduled";
   return new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
@@ -160,6 +200,29 @@ export function SurveyCampaignConsole() {
   // Inline edit of one alum's proposed "after" values (one record at a time).
   const [editingId, setEditingId] = useState<number | null>(null);
   const [drafts, setDrafts] = useState<string[]>([]);
+
+  // Populate the year picker from the REAL database graduation years (so it
+  // lists every class in the DB, including the 1900 test cohort) — falling back
+  // to the sample campaigns while loading or if the request fails.
+  useEffect(() => {
+    let cancelled = false;
+    clientGet<GradYearCount[]>("/survey/graduation-years")
+      .then((years) => {
+        if (cancelled || !years || years.length === 0) return;
+        const next = classesFromYears(years);
+        setClasses(next);
+        setSentCount(initialSentCount(next));
+        setSelectedYear((cur) =>
+          next.some((c) => c.gradYear === cur) ? cur : next[0].gradYear,
+        );
+      })
+      .catch(() => {
+        /* keep the sample-campaign fallback so the console still renders */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const selected =
     classes.find((c) => c.gradYear === selectedYear) ?? classes[0];

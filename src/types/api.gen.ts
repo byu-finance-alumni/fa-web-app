@@ -2825,6 +2825,44 @@ export interface paths {
         patch: operations["update_support_contact_admin_support_contacts__contact_id__patch"];
         trace?: never;
     };
+    "/survey/graduation-years": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Survey Graduation Years
+         * @description Distinct graduation years present in the DB (eligible alumni) + counts,
+         *     newest first — powers the console's year picker.
+         */
+        get: operations["survey_graduation_years_survey_graduation_years_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/campaigns/{grad_year}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send Survey Campaign */
+        post: operations["send_survey_campaign_survey_campaigns__grad_year__send_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -5017,6 +5055,17 @@ export interface components {
             largest_hub: components["schemas"]["TopCity"] | null;
             options: components["schemas"]["GeoOptions"];
         };
+        /**
+         * GraduationYearCount
+         * @description One graduation year present in the DB + how many eligible alumni it has.
+         *     Drives the survey console's year picker.
+         */
+        GraduationYearCount: {
+            /** Graduation Year */
+            graduation_year: number;
+            /** Total Alumni */
+            total_alumni: number;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -5831,6 +5880,41 @@ export interface components {
             survey_status: string | null;
             /** Survey Notes */
             survey_notes: string | null;
+        };
+        /**
+         * SurveySendResult
+         * @description Summary returned by the send endpoint.
+         *
+         *     `dry_run=True` prepares (and counts) everything but sends nothing — the safe
+         *     default. `prepared` is how many emails were built for this call (capped by
+         *     the daily limit); `sent` is how many actually went to Resend; `remaining` is
+         *     recipients left over for a later day under the cap.
+         */
+        SurveySendResult: {
+            /** Graduation Year */
+            graduation_year: number;
+            /** Total Recipients */
+            total_recipients: number;
+            /** Prepared */
+            prepared: number;
+            /** Sent */
+            sent: number;
+            /** Remaining */
+            remaining: number;
+            /** Dry Run */
+            dry_run: boolean;
+            /** Sample */
+            sample: components["schemas"]["SurveySendSample"][];
+        };
+        /**
+         * SurveySendSample
+         * @description One prepared recipient, surfaced in a dry-run so staff can eyeball it.
+         */
+        SurveySendSample: {
+            /** Email */
+            email: string;
+            /** Link */
+            link: string;
         };
         /**
          * TagCreate
@@ -10321,6 +10405,60 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SupportContactRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    survey_graduation_years_survey_graduation_years_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraduationYearCount"][];
+                };
+            };
+        };
+    };
+    send_survey_campaign_survey_campaigns__grad_year__send_post: {
+        parameters: {
+            query?: {
+                dry_run?: boolean;
+                limit?: number | null;
+            };
+            header?: never;
+            path: {
+                grad_year: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveySendResult"];
                 };
             };
             /** @description Validation Error */
