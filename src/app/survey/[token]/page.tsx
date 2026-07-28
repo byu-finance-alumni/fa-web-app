@@ -141,6 +141,8 @@ export default function SurveyConfirmPage({
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [edits, setEdits] = useState<Fields>({});
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     if (token === "demo") {
@@ -176,6 +178,34 @@ export default function SurveyConfirmPage({
   const valueOf = (key: string) => edits[key] ?? fields[key] ?? "";
   const setEdit = (key: string, value: string) =>
     setEdits((prev) => ({ ...prev, [key]: value }));
+
+  // Stage the alum's edits for admin review (public, token-gated POST).
+  const handleSubmit = async () => {
+    if (token === "demo") {
+      setStatus("submitted");
+      return;
+    }
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const res = await fetch(
+        `${API_URL}/survey/respond/${encodeURIComponent(token)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fields: edits }),
+        },
+      );
+      if (!res.ok) throw new Error(String(res.status));
+      setStatus("submitted");
+    } catch {
+      setSubmitError(
+        "Something went wrong submitting your updates. Please try again.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <main className="min-h-screen bg-white text-gray-900">
@@ -221,7 +251,9 @@ export default function SurveyConfirmPage({
             photoPreview={photoPreview}
             setPhotoPreview={setPhotoPreview}
             onBack={() => setStatus("review")}
-            onSubmit={() => setStatus("submitted")}
+            onSubmit={handleSubmit}
+            submitting={submitting}
+            submitError={submitError}
           />
         ) : (
           /* review */
@@ -351,6 +383,8 @@ function EditFlow({
   setPhotoPreview,
   onBack,
   onSubmit,
+  submitting,
+  submitError,
 }: {
   firstName: string;
   name: string;
@@ -362,6 +396,8 @@ function EditFlow({
   setPhotoPreview: (v: string | null) => void;
   onBack: () => void;
   onSubmit: () => void;
+  submitting: boolean;
+  submitError: string | null;
 }) {
   const section =
     openSection === "photo"
@@ -451,8 +487,12 @@ function EditFlow({
         <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
       </a>
 
+      {submitError ? (
+        <p className="mt-4 text-sm text-danger-600">{submitError}</p>
+      ) : null}
+
       <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Button type="button" variant="ghost" onClick={onBack}>
+        <Button type="button" variant="ghost" onClick={onBack} disabled={submitting}>
           Back
         </Button>
         <Button
@@ -461,8 +501,9 @@ function EditFlow({
           size="lg"
           className="w-full sm:w-auto"
           onClick={onSubmit}
+          disabled={submitting}
         >
-          Submit my updates
+          {submitting ? "Submitting…" : "Submit my updates"}
         </Button>
       </div>
 
