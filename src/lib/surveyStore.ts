@@ -158,6 +158,7 @@ export const HEADSHOT_FIELD_KEY = "profile.headshot";
 /** Default fields shown in the email preview until staff customize the set. */
 export const DEFAULT_EMAIL_FIELDS: readonly string[] = [
   HEADSHOT_FIELD_KEY,
+  "profile.employment_status",
   "employment.current_employer",
   "employment.current_title",
   "employment.current_industry",
@@ -176,6 +177,7 @@ export const DEFAULT_EMAIL_FIELDS: readonly string[] = [
   "profile.graduate_degree",
   "profile.graduate_school",
   "profile.graduate_graduation_year",
+  "profile.other_designations",
 ];
 
 /** Load the staff-selected email-preview field keys (or the default set). */

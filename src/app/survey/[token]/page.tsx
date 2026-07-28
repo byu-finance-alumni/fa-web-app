@@ -52,24 +52,62 @@ function initialsOf(name: string): string {
   );
 }
 
-// Career first (company/industry lead), then contact — matching the rest of the
-// survey experience. "Location" collapses city + state into one line.
-function careerRows(f: Fields): InfoRow[] {
-  return [
-    { label: "Employer", value: f["employment.current_employer"] ?? "" },
-    { label: "Current title", value: f["employment.current_title"] ?? "" },
-    { label: "Industry", value: f["employment.current_industry"] ?? "" },
-  ];
-}
-function contactRows(f: Fields): InfoRow[] {
-  const location = [f["contact.city"], f["contact.state"]]
+// The full on-file view the alum reviews — grouped to match the Career
+// Directors' field list. Empty values render as "Not provided".
+function reviewSections(f: Fields): { title: string; rows: InfoRow[] }[] {
+  const v = (k: string) => f[k] ?? "";
+  const spouse = [f["profile.spouse_first_name"], f["profile.spouse_last_name"]]
     .filter(Boolean)
-    .join(", ");
+    .join(" ");
   return [
-    { label: "Personal email", value: f["contact.personal_email"] ?? "" },
-    { label: "Phone", value: f["contact.phone"] ?? "" },
-    { label: "Location", value: location },
-    { label: "LinkedIn", value: f["profile.linkedin_url"] ?? "" },
+    {
+      title: "Employment",
+      rows: [
+        { label: "Employment status", value: v("profile.employment_status") },
+        { label: "Company", value: v("employment.current_employer") },
+        { label: "Title", value: v("employment.current_title") },
+        { label: "Industry", value: v("employment.current_industry") },
+        {
+          label: "Secondary industry",
+          value: v("employment.current_industry_secondary"),
+        },
+        { label: "Employment city", value: v("employment.current_city") },
+        { label: "Employment state", value: v("employment.current_state") },
+        { label: "Employment country", value: v("employment.current_country") },
+      ],
+    },
+    {
+      title: "Residence",
+      rows: [
+        { label: "City", value: v("contact.city") },
+        { label: "State", value: v("contact.state") },
+        { label: "Country", value: v("contact.country") },
+      ],
+    },
+    {
+      title: "Personal",
+      rows: [
+        { label: "Spouse name", value: spouse },
+        { label: "Permanent email", value: v("contact.personal_email") },
+        { label: "Work email", value: v("contact.work_email") },
+        { label: "LinkedIn", value: v("profile.linkedin_url") },
+      ],
+    },
+    {
+      title: "Graduate school",
+      rows: [
+        { label: "Program", value: v("profile.graduate_degree") },
+        { label: "School", value: v("profile.graduate_school") },
+        {
+          label: "Projected graduation year",
+          value: v("profile.graduate_graduation_year"),
+        },
+      ],
+    },
+    {
+      title: "Finance designations",
+      rows: [{ label: "Designations", value: v("profile.other_designations") }],
+    },
   ];
 }
 
@@ -327,11 +365,9 @@ export default function SurveyConfirmPage({
                 </h2>
               </div>
               <div className="grid gap-x-10 gap-y-8 px-5 py-6 sm:grid-cols-2 sm:px-6">
-                <InfoGroup title="Career information" rows={careerRows(fields)} />
-                <InfoGroup
-                  title="Contact information"
-                  rows={contactRows(fields)}
-                />
+                {reviewSections(fields).map((s) => (
+                  <InfoGroup key={s.title} title={s.title} rows={s.rows} />
+                ))}
               </div>
             </section>
 
