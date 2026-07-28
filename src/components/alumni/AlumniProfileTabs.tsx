@@ -113,8 +113,11 @@ export function AlumniProfileTabs({
   return (
     <Tabs value={active} onValueChange={setTab} className="w-full">
       {/* Many profiles have ~12 tabs — let the bar scroll horizontally on
-          mobile instead of overflowing the viewport. */}
-      <TabsList className="w-full overflow-x-auto">
+          mobile instead of overflowing the viewport. `overflow-y-hidden` is
+          required: setting only `overflow-x-auto` makes the CSS `overflow-y`
+          compute to `auto`, which renders a stray vertical scrollbar/arrows at
+          the end of the tab row (#530). */}
+      <TabsList className="w-full overflow-x-auto overflow-y-hidden">
         <TabsTrigger value="overview">Overview</TabsTrigger>
         <TabsTrigger value="interactions">Interactions</TabsTrigger>
         <TabsTrigger value="notes">Notes</TabsTrigger>
