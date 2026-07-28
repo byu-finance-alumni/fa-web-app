@@ -10,6 +10,7 @@ import { AlumniFilters, type AlumniFilterState } from "@/components/alumni/Alumn
 import { AlumniTable } from "@/components/alumni/AlumniTable";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Fab } from "@/components/shared/Fab";
 
 const LIMIT = 25;
 
@@ -69,6 +70,9 @@ const SORT_VALUES = [
   "industry",
   "city",
   "state",
+  "employer",
+  "gender",
+  "updated",
 ] as const;
 
 function parseSort(raw: string): AlumniFilterState["sort"] {
@@ -305,7 +309,7 @@ export async function AlumniRoster({
   return (
     <>
       <Topbar title={isFriend ? "Friends of the Program" : "All Alumni"} />
-      <main className="flex-1 overflow-auto p-6">
+      <main className="flex-1 overflow-auto p-4 md:p-6">
         <AlumniFilters
           initial={filters}
           options={options ?? undefined}
@@ -358,7 +362,7 @@ export async function AlumniRoster({
               {data!.items.map((a) => (
                 <Link
                   key={a.alumni_id}
-                  href={`/alumni/${a.alumni_id}`}
+                  href={`${basePath}/${a.alumni_id}`}
                   className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 shadow-card"
                 >
                   <InitialsAvatar name={avatarName(a)} size="md" />
@@ -385,6 +389,9 @@ export async function AlumniRoster({
               canEdit={canEditRows}
               canAdd={canAddInteractionRows}
               headshotUrls={headshotUrls}
+              sort={filters.sort}
+              basePath={basePath}
+              sp={sp}
             />
 
             <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
@@ -406,6 +413,23 @@ export async function AlumniRoster({
             </div>
           </>
         )}
+
+        {/* Mobile FAB — the create action for this roster. Desktop keeps its
+            inline "Add" button in the toolbar. */}
+        {canCreate ? (
+          <Fab label={isFriend ? "Add friend" : "Add alumni"}>
+            <Button asChild>
+              <Link href={isFriend ? "/alumni/new?kind=friend" : "/alumni/new"}>
+                {isFriend ? "Add friend" : "Add alumni"}
+              </Link>
+            </Button>
+            {isFriend ? (
+              <Button asChild variant="secondary">
+                <Link href="/friends/import">Import CSV</Link>
+              </Button>
+            ) : null}
+          </Fab>
+        ) : null}
       </main>
     </>
   );

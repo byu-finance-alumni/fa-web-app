@@ -125,20 +125,21 @@ export function EventsToolbar({
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white p-3 shadow-card">
+      {/* Add event — desktop toolbar only (mobile: in the menu). */}
       {canManageEvents ? (
-        <Button asChild className="shrink-0">
+        <Button asChild className="hidden shrink-0 md:inline-flex">
           <Link href="/events/import">Add event</Link>
         </Button>
       ) : null}
 
-      <div className="flex h-9 min-w-[220px] flex-1 items-center gap-2 rounded-md border border-gray-300 bg-gray-50 px-3 focus-within:border-brand-blue-600 focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1">
+      <div className="flex h-9 min-w-[160px] flex-1 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 focus-within:border-brand-blue-600 focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1 md:min-w-[220px]">
         <Search className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
         <input
           value={f.q}
           onChange={(e) => set("q", e.target.value)}
           placeholder="Search event name or location"
           aria-label="Search events"
-          className="w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
+          className="w-full bg-transparent text-base text-gray-900 placeholder:text-gray-400 focus:outline-none md:text-sm"
         />
         {isPending && (
           <Loader2
@@ -148,13 +149,14 @@ export function EventsToolbar({
         )}
       </div>
 
+      {/* Sort — desktop toolbar only (mobile: in the menu). */}
       <Select
         value={f.sort}
         onChange={(e) =>
           set("sort", e.target.value as EventsFilterState["sort"])
         }
         aria-label="Sort events"
-        className="w-auto shrink-0 font-semibold text-gray-700"
+        className="hidden w-auto shrink-0 font-semibold text-gray-700 md:block"
         style={{ colorScheme: "light" }}
       >
         <option value="date">Sort: Newest</option>
@@ -163,15 +165,19 @@ export function EventsToolbar({
       </Select>
 
       <div ref={menuRef} className="relative shrink-0">
+        {/* Mobile: this is the one consolidated menu (Add · Sort · Filters);
+            desktop: just Filters. */}
         <Button
           type="button"
           variant="secondary"
           onClick={() => setMenuOpen((o) => !o)}
           aria-expanded={menuOpen}
           aria-haspopup="true"
+          className="h-9"
         >
           <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
-          Filters
+          <span className="md:hidden">Menu</span>
+          <span className="hidden md:inline">Filters</span>
           {activeCount > 0 && (
             <Badge variant="solid" size="sm" className="tabular-nums">
               {activeCount}
@@ -181,8 +187,28 @@ export function EventsToolbar({
         </Button>
 
         {menuOpen && (
-          <div className="absolute right-0 top-full z-50 mt-1 w-80 rounded-lg border border-gray-200 bg-white p-4 shadow-card">
+          <div className="absolute right-0 top-full z-50 mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-gray-200 bg-white p-4 shadow-card">
             <div className="space-y-4">
+              {/* Mobile only: Sort lives in this menu (desktop has it inline;
+                  Add event is in the mobile FAB). */}
+              <div className="md:hidden">
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Sort
+                </p>
+                <Select
+                  value={f.sort}
+                  onChange={(e) =>
+                    set("sort", e.target.value as EventsFilterState["sort"])
+                  }
+                  aria-label="Sort events"
+                  style={{ colorScheme: "light" }}
+                >
+                  <option value="date">Newest</option>
+                  <option value="upcoming">Upcoming</option>
+                  <option value="type">By type</option>
+                </Select>
+              </div>
+
               <div>
                 <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Event type

@@ -36,11 +36,14 @@ import { ExportProfileButton } from "@/components/alumni/ExportProfileButton";
 import { DrawerList } from "@/components/alumni/DrawerList";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { ProfileHeadshot } from "@/components/alumni/ProfileHeadshot";
+import { ProfileFab, AddNoteButton } from "@/components/alumni/ProfileFab";
+import { ProfileLogLauncher } from "@/components/alumni/ProfileLogLauncher";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { designationFullName, splitDesignations } from "@/lib/designations";
+import { blankIfNa } from "@/lib/na";
 
 /* ----------------------------------------------------------------- helpers */
 
@@ -320,13 +323,24 @@ function avatarColor(seed: string): string {
 
 /* ------------------------------------------------------------------- page -- */
 
-export default async function AlumniProfilePage({
-  params,
+/**
+ * Shared alumni / friends profile view (#494).
+ *
+ * Both `/alumni/[id]` and `/friends/[id]` render this exact component, so a
+ * friend's profile always matches an alum's and any change here lands on both —
+ * they can never drift. Friend records live in the same `alumni` table, so the
+ * data endpoints (`/alumni/{id}/*`) and the edit flow (`/alumni/{id}/edit`) are
+ * shared as-is; only `basePath`/`backLabel` differ (the breadcrumb).
+ */
+export async function AlumniProfileView({
+  id,
+  basePath = "/alumni",
+  backLabel = "Alumni",
 }: {
-  params: Promise<{ id: string }>;
+  id: string;
+  basePath?: string;
+  backLabel?: string;
 }) {
-  const { id } = await params;
-
   let profile: Profile;
   try {
     profile = await apiGet<Profile>(`/alumni/${id}/profile`);
@@ -519,6 +533,7 @@ export default async function AlumniProfilePage({
   const hasGradContent = Boolean(
     a.graduate_degree ||
       a.graduate_school ||
+      a.graduate_graduation_year ||
       heldDesignations.length ||
       a.other_designations,
   );
@@ -574,15 +589,87 @@ export default async function AlumniProfilePage({
     <>
       {/* Top bar (fixed; only the content below scrolls) */}
       <Topbar
-        breadcrumb={[{ label: "Alumni", href: "/alumni" }, { label: name }]}
+        breadcrumb={[{ label: backLabel, href: basePath }, { label: name }]}
       >
         <TopbarSearch />
       </Topbar>
 
       <main className="flex-1 overflow-y-auto bg-gray-100 p-4 md:p-6">
         <div className="mx-auto max-w-6xl space-y-4">
-          {/* Header card */}
-          <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-card">
+          {/* Mobile header — a clean card: avatar, then name / headline /
+              location / contact / tags. No banner; the profile actions live in
+              the floating + button (bottom-right). Phone only; the desktop
+              header card follows (hidden < md). */}
+          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-card md:hidden">
+            {/* Photo on the left, name + everything under it in a column to its
+                right. The headshot uses the compact single "Edit photo" control
+                so it stays narrow. */}
+            <div className="flex items-start gap-4">
+              <ProfileHeadshot
+                alumniId={aid}
+                initialUrl={headshotUrl}
+                name={name}
+                initials={initials}
+                size="h-24 w-24 text-2xl"
+                colorClass={avatarColor(initials)}
+                canManage={canArchive}
+                align="start"
+                compactControls
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-xl font-semibold text-gray-900">{name}</h2>
+                  {recordStatus !== "Active" ? (
+                    <Badge variant="muted">
+                      <span className="h-1.5 w-1.5 rounded-full bg-gray-400" />
+                      {recordStatus}
+                    </Badge>
+                  ) : null}
+                </div>
+                {/* Headline: current title · employer */}
+                {career?.current_title || career?.current_employer ? (
+                  <p className="mt-0.5 text-sm font-medium text-gray-700">
+                    {[career?.current_title, career?.current_employer]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                ) : null}
+                {headerPlace ? (
+                  <p className="text-sm text-gray-500">{headerPlace}</p>
+                ) : null}
+                {a.employment_status ? (
+                  <p className="text-sm text-gray-500">{a.employment_status}</p>
+                ) : null}
+                <HeaderContact
+                  contact={c}
+                  linkedinUrl={a.linkedin_url}
+                  canViewContactDetails={canViewContactDetails}
+                />
+
+                {(profile.tags.length || profile.status_labels.length) > 0 ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Tags
+                    </span>
+                    {profile.tags.map((t) => (
+                      <EngagementChip key={t} tone="tag">
+                        {t}
+                      </EngagementChip>
+                    ))}
+                    {profile.status_labels.map((s) => (
+                      <EngagementChip key={s} tone="neutral">
+                        {s}
+                      </EngagementChip>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          {/* Header card — desktop (hidden on phones, which use the LinkedIn
+              header above). */}
+          <div className="hidden rounded-lg border border-gray-200 bg-white p-5 shadow-card md:block">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div className="flex items-center gap-4">
                 <ProfileHeadshot
@@ -708,7 +795,7 @@ export default async function AlumniProfilePage({
               into a stacked tile (top "Industry", bottom "Secondary industry",
               e.g. primary "Other" / secondary "Healthcare"), otherwise it stays
               a plain single-value tile. */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="hidden grid-cols-2 gap-3 sm:grid-cols-3 md:grid lg:grid-cols-6">
             <MetricCard
               label="Graduation Year"
               value={a.graduation_year ? String(a.graduation_year) : "—"}
@@ -941,7 +1028,9 @@ export default async function AlumniProfilePage({
               >
                 {hasGradContent ? (
                   <div className="space-y-4">
-                    {a.graduate_degree || a.graduate_school ? (
+                    {a.graduate_degree ||
+                    a.graduate_school ||
+                    a.graduate_graduation_year ? (
                       <div className="space-y-4">
                         <Field
                           label="Graduate degree"
@@ -950,6 +1039,14 @@ export default async function AlumniProfilePage({
                         <Field
                           label="Graduate school"
                           value={a.graduate_school}
+                        />
+                        <Field
+                          label="Graduate graduation year"
+                          value={
+                            a.graduate_graduation_year != null
+                              ? String(a.graduate_graduation_year)
+                              : null
+                          }
                         />
                       </div>
                     ) : null}
@@ -1015,8 +1112,9 @@ export default async function AlumniProfilePage({
                   {/* Col 2: marital status · spouse · birthday */}
                   <div className="space-y-4">
                     <Field label="Marital status" value={a.marital_status} />
-                    {/* First name ONLY — never render the spouse's last name. */}
-                    <Field label="Spouse" value={a.spouse_first_name} />
+                    {/* First name ONLY — never render the spouse's last name.
+                        Legacy "N/A" placeholders render as blank (#496). */}
+                    <Field label="Spouse" value={blankIfNa(a.spouse_first_name) || null} />
                     <Field label="Birthday" value={fmtDate(a.birth_date)} />
                   </div>
                   {/* Col 3: net id · citizenship · home country. Citizenship and
@@ -1868,6 +1966,44 @@ export default async function AlumniProfilePage({
             }
           />
         </div>
+
+        {/* Floating action button (mobile only) — hosts every profile action;
+            the desktop header keeps its inline action row. Shown whenever the
+            viewer has at least the add-interaction capability. */}
+        {canAdd ? (
+          <ProfileFab>
+            <AddInteractionButton alumniId={aid} label="Add interaction" />
+            {canArchive ? <AddNoteButton /> : null}
+            {canEdit ? (
+              <>
+                <AddTaskButton alumniId={aid} label="Create task" />
+                <Button asChild>
+                  <Link href={`/alumni/${aid}/edit`}>Edit</Link>
+                </Button>
+                {canArchive ? (
+                  <ExportProfileButton
+                    alumniId={aid}
+                    fileBaseName={`${name.replace(/\s+/g, "-").toLowerCase()}-${aid}`}
+                  />
+                ) : null}
+                {canArchive ? (
+                  <ArchiveControls
+                    alumniId={aid}
+                    archived={a.archived}
+                    name={name}
+                  />
+                ) : null}
+              </>
+            ) : null}
+          </ProfileFab>
+        ) : null}
+
+        {/* Handles the Home quick-log deep-link (?log=interaction|note). */}
+        <ProfileLogLauncher
+          alumniId={aid}
+          canAdd={canAdd}
+          canWriteNotes={canArchive}
+        />
       </main>
     </>
   );
@@ -2022,4 +2158,18 @@ function programChips(p: Profile["program_engagement"]): string[] {
     if (designation) chips.push(designation);
   }
   return chips;
+}
+
+/* -------------------------------------------------------------- route entry -- */
+
+/** `/alumni/[id]` — the alumni profile. Renders the shared view. The friends
+ *  route (`/friends/[id]`) renders the same `AlumniProfileView` so the two never
+ *  diverge (#494). */
+export default async function AlumniProfilePage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  return <AlumniProfileView id={id} basePath="/alumni" backLabel="Alumni" />;
 }

@@ -117,6 +117,7 @@ function buildPayload(formData: FormData): Record<string, unknown> {
     // fields on the alumni record (siblings of graduate_degree), so they go
     // through the core payload rather than a nested section.
     graduate_degree: str("graduate_degree"),
+    graduate_graduation_year: num("graduate_graduation_year"),
     mba_program: str("mba_program"),
     law_school: str("law_school"),
     medical_school: str("medical_school"),

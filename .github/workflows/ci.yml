@@ -178,6 +178,9 @@ jobs:
         run: npm ci
 
       # Fail only on high/critical advisories so routine low-severity noise
-      # doesn't block releases. Runtime deps only (--omit=dev).
+      # doesn't block releases. Runtime deps only (--omit=dev). A small,
+      # documented allowlist in the script accepts advisories that have no
+      # stable fix yet (currently Next.js + its pinned postcss/sharp) — see
+      # scripts/audit-prod.mjs. Any NEW high/critical still fails the build.
       - name: Audit dependencies for known vulnerabilities
-        run: npm audit --omit=dev --audit-level=high
+        run: node scripts/audit-prod.mjs

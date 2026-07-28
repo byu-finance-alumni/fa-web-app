@@ -126,6 +126,10 @@ export interface UsGeoMapProps {
   showCountyLines?: boolean;
   /** 5-digit county FIPS that contain a matched alumnus — ringed at all zooms. */
   matchCounties?: string[];
+  /** Mobile: the desktop overview leaves wide viewBox margins so the floating
+   *  overlays never cover the landmass. On a phone those overlays are collapsed,
+   *  so we frame the map tighter (bigger) instead. */
+  isMobile?: boolean;
 }
 
 type StatePath = { id: string; usps: string; name: string; d: string };
@@ -145,6 +149,7 @@ export function UsGeoMap({
   focusPoint,
   showCountyLines = true,
   matchCounties,
+  isMobile = false,
 }: UsGeoMapProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -193,10 +198,17 @@ export function UsGeoMap({
     // only sets the OVERVIEW frame; click-to-focus recomputes its own zoom from
     // the (same) projection, so FOCUS_ZOOM / dot-reveal / pin-drop are unchanged.
     const proj = geoAlbersUsa().fitExtent(
-      [
-        [260, 150],
-        [WIDTH - 190, HEIGHT - 150],
-      ],
+      isMobile
+        ? // Phone: small margins so the landmass fills the map (overlays are
+          // collapsed on mobile, so they don't need the room).
+          [
+            [24, 48],
+            [WIDTH - 24, HEIGHT - 48],
+          ]
+        : [
+            [260, 150],
+            [WIDTH - 190, HEIGHT - 150],
+          ],
       fc,
     );
     const path = geoPath(proj);
@@ -223,7 +235,7 @@ export function UsGeoMap({
       features: fc.features as Feature[],
       boundsByUsps: bounds,
     };
-  }, []);
+  }, [isMobile]);
 
   // --- Matched counties (lazy) ------------------------------------------------
   // The counties that contain a matched alumnus, ringed at the county detail

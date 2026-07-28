@@ -13,6 +13,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 
 /** Everything the backend GET /alumni supports, mirrored in the URL. */
 export interface AlumniFilterState {
@@ -65,7 +73,16 @@ export interface AlumniFilterState {
    *  URL, owns it), but it DOES flow into the export filters so an export from
    *  that page covers exactly the due set. */
   needsSurvey: boolean;
-  sort: "name" | "grad_desc" | "grad_asc" | "industry" | "city" | "state";
+  sort:
+    | "name"
+    | "grad_desc"
+    | "grad_asc"
+    | "industry"
+    | "city"
+    | "state"
+    | "employer"
+    | "gender"
+    | "updated";
 }
 
 export const EMPTY_FILTERS: AlumniFilterState = {
@@ -131,6 +148,17 @@ const FACETS: {
  *  drawn from FilterOptions) — the backend validates values against exactly
  *  CFP|CFA|CPA (case-insensitive) and 422s anything else. */
 const DESIGNATION_OPTIONS = ["CFP", "CFA", "CPA"];
+
+/** Sort options, shared by the desktop <Select> and the mobile consolidated
+ *  menu so both stay in sync. */
+const SORT_OPTIONS: { value: AlumniFilterState["sort"]; label: string }[] = [
+  { value: "name", label: "Name (A–Z)" },
+  { value: "grad_desc", label: "Grad year (newest)" },
+  { value: "grad_asc", label: "Grad year (oldest)" },
+  { value: "industry", label: "Industry (A–Z)" },
+  { value: "city", label: "City (A–Z)" },
+  { value: "state", label: "State (A–Z)" },
+];
 
 /** Serialize filter state to the canonical /alumni query string. */
 function toQs(f: AlumniFilterState): string {
@@ -216,6 +244,9 @@ export function AlumniFilters({
   const router = useRouter();
   const [f, setF] = useState<AlumniFilterState>(initial);
   const [open, setOpen] = useState(false);
+  // Opens the Export dialog from the consolidated mobile menu (the dialog itself
+  // lives in a hidden-trigger ExportAlumniButton below the toolbar).
+  const [mobileExportOpen, setMobileExportOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const lastPushedRef = useRef(toQs(initial));
 
@@ -407,21 +438,23 @@ export function AlumniFilters({
 
   return (
     <>
-      {/* Toolbar */}
+      {/* Toolbar. Desktop shows every control inline; on mobile the search bar
+          stays and Add / Sort / Filters / Export collapse into one menu. */}
       <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white p-3 shadow-card">
+        {/* Add — desktop toolbar only (mobile: in the menu). */}
         {canCreate ? (
-          <Button asChild>
+          <Button asChild className="hidden md:inline-flex">
             <Link href={isFriend ? "/alumni/new?kind=friend" : "/alumni/new"}>
               <Plus className="h-4 w-4" /> {isFriend ? "Add friend" : "Add alumni"}
             </Link>
           </Button>
         ) : null}
 
-        {/* Friends CSV bulk import (#294) — text-only, mirrors the alumni import
-            entry point under Admin. Full access only, and the backend re-enforces
-            it on the import endpoints. */}
+        {/* Friends CSV bulk import (#294) — desktop toolbar only (mobile: menu).
+            Full access only, and the backend re-enforces it on the import
+            endpoints. */}
         {isFriend && canCreate ? (
-          <Button asChild variant="secondary">
+          <Button asChild variant="secondary" className="hidden md:inline-flex">
             <Link href="/friends/import">Import CSV</Link>
           </Button>
         ) : null}
@@ -430,15 +463,17 @@ export function AlumniFilters({
           onSubmit={onSearchSubmit}
           role="search"
           aria-label="Search alumni"
-          className="flex min-w-[220px] flex-1 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 focus-within:border-brand-blue-600 focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1"
+          className="flex min-w-[160px] flex-1 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 focus-within:border-brand-blue-600 focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1 md:min-w-[220px]"
         >
           <Search className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
           <input
             value={f.q}
             onChange={(e) => set("q", e.target.value)}
-            placeholder="Search a name (incl. maiden name), BYU ID, or a plain-English question"
-            aria-label="Search alumni"
-            className="h-9 w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
+            placeholder="Search a name"
+            aria-label="Search alumni by name, BYU ID, or a plain-English question"
+            // text-base on mobile matches the dashboard search bar and prevents
+            // the iOS focus-zoom; text-sm on desktop keeps the dense toolbar.
+            className="h-9 w-full bg-transparent text-base text-gray-900 placeholder:text-gray-400 focus:outline-none md:text-sm"
           />
           {isPending && (
             <Loader2 className="h-4 w-4 shrink-0 animate-spin text-gray-400" aria-hidden="true" />
@@ -455,21 +490,31 @@ export function AlumniFilters({
           )}
         </form>
 
+        {/* Sort — desktop toolbar only (mobile: in the menu). */}
         <Select
           value={f.sort}
           onChange={(e) => set("sort", e.target.value as AlumniFilterState["sort"])}
           aria-label="Sort alumni"
-          className="w-auto shrink-0 font-semibold text-gray-700"
+          className="hidden w-auto shrink-0 font-semibold text-gray-700 md:block"
         >
           <option value="name">Sort: Name (A–Z)</option>
           <option value="grad_desc">Sort: Grad year (newest)</option>
           <option value="grad_asc">Sort: Grad year (oldest)</option>
           <option value="industry">Sort: Industry (A–Z)</option>
+          <option value="employer">Sort: Company (A–Z)</option>
           <option value="city">Sort: City (A–Z)</option>
           <option value="state">Sort: State (A–Z)</option>
+          <option value="gender">Sort: Gender</option>
+          <option value="updated">Sort: Recently updated</option>
         </Select>
 
-        <Button type="button" variant="secondary" onClick={() => setOpen(true)}>
+        {/* Filters — desktop toolbar only (mobile: in the menu). */}
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => setOpen(true)}
+          className="hidden md:inline-flex"
+        >
           <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
           Filters
           {activeCount > 0 && (
@@ -479,14 +524,78 @@ export function AlumniFilters({
           )}
         </Button>
 
+        {/* Export — desktop toolbar only (mobile: in the menu). */}
         {canExport ? (
-          <ExportAlumniButton
-            filters={toExportFilters(f)}
-            filtersActive={isDirty}
-            total={total}
-          />
+          <span className="hidden md:inline-flex">
+            <ExportAlumniButton
+              filters={toExportFilters(f)}
+              filtersActive={isDirty}
+              total={total}
+            />
+          </span>
         ) : null}
+
+        {/* Mobile: one consolidated menu — Add · Sort · Filters · Export.
+            modal={false}: a modal dropdown locks `pointer-events:none` on <body>
+            while open; picking Sort/Filters re-navigates via a query-string
+            change (same path), which interrupts Radix's close cleanup and leaves
+            that lock stuck — freezing the page so alumni cards can't be tapped.
+            PointerEventsGuard only heals on PATH changes, not query changes, so a
+            non-modal menu (no body lock) is the correct fix here. */}
+        <div className="md:hidden">
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="secondary" className="h-9 shrink-0">
+                Menu
+                {activeCount > 0 && (
+                  <Badge variant="solid" size="sm" className="tabular-nums">
+                    {activeCount}
+                  </Badge>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            {/* Add / Import live in the mobile FAB now — this menu is just the
+                list controls (Sort · Filters · Export). */}
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+              {SORT_OPTIONS.map((o) => (
+                <DropdownMenuItem
+                  key={o.value}
+                  onSelect={() => set("sort", o.value)}
+                >
+                  <span className="w-4 text-brand-blue-600">
+                    {f.sort === o.value ? "✓" : ""}
+                  </span>
+                  {o.label}
+                </DropdownMenuItem>
+              ))}
+
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => setOpen(true)}>
+                Filters{activeCount > 0 ? ` (${activeCount})` : ""}
+              </DropdownMenuItem>
+              {canExport ? (
+                <DropdownMenuItem onSelect={() => setMobileExportOpen(true)}>
+                  Export CSV
+                </DropdownMenuItem>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
+
+      {/* Export dialog opened from the mobile menu (renders no trigger of its
+          own; the mobile menu drives its open state). */}
+      {canExport ? (
+        <ExportAlumniButton
+          filters={toExportFilters(f)}
+          filtersActive={isDirty}
+          total={total}
+          open={mobileExportOpen}
+          onOpenChange={setMobileExportOpen}
+          hideTrigger
+        />
+      ) : null}
 
       {/* Active-filter chips — squared, text-style controls (#225) rather than
           rounded-full pills, for a cleaner look consistent with the toolbar. */}

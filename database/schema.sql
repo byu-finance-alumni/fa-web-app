@@ -170,6 +170,8 @@ CREATE TABLE alumni (
     graduation_year      int,
     finance_program_year int,
     graduate_degree      varchar(100),
+    -- Graduation year of a GRADUATE program (distinct from graduation_year).
+    graduate_graduation_year int,
     -- Secondary affiliation / education (#47, PRD section 6). Optional/nullable
     -- additive fields extending the record beyond the core program/employment
     -- fields. Short single-value fields are varchar; narrative fields are text.

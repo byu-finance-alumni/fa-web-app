@@ -13,7 +13,7 @@ export function Topbar({
   children?: React.ReactNode;
 }) {
   return (
-    <header className="grid h-16 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-gray-300 bg-white px-6">
+    <header className="grid h-16 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-gray-300 bg-white px-4 md:px-6">
       {/* Compact top bar renders the title at 16px — see UX-UI.md typography "Known gap". */}
       {breadcrumb ? (
         <Breadcrumb items={breadcrumb} />

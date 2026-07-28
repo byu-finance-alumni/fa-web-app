@@ -33,7 +33,7 @@ export function SearchHero({ greeting }: { greeting?: string }) {
   return (
     <div>
       {greeting ? (
-        <h1 className="mb-3 text-xl font-semibold tracking-tight text-gray-900">
+        <h1 className="mb-2 text-lg font-semibold tracking-tight text-gray-900 md:mb-3 md:text-xl">
           {greeting}
         </h1>
       ) : null}
@@ -43,7 +43,7 @@ export function SearchHero({ greeting }: { greeting?: string }) {
         method="get"
         role="search"
         aria-label="Search alumni"
-        className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white py-1.5 pl-4 pr-1.5 shadow-card transition focus-within:border-brand-blue-600 focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1"
+        className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white py-0.5 pl-3 pr-0.5 shadow-card transition focus-within:border-brand-blue-600 focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1 md:py-1.5 md:pl-4 md:pr-1.5"
       >
         <input
           ref={inputRef}
@@ -52,9 +52,13 @@ export function SearchHero({ greeting }: { greeting?: string }) {
           placeholder="Search alumni by name, employer, title, location, or industry"
           aria-label="Search alumni by name, employer, title, location, or industry"
           autoComplete="off"
-          className="min-w-0 flex-1 bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
+          className="min-w-0 flex-1 bg-transparent text-base text-gray-900 placeholder:text-gray-400 focus:outline-none md:text-sm"
         />
-        <Button type="submit">Search</Button>
+        {/* h-8 keeps the whole bar compact (~36px) on mobile; desktop restores
+            the default h-9. */}
+        <Button type="submit" className="h-8 md:h-9">
+          Search
+        </Button>
       </form>
       <p className="mt-2 px-1 text-xs text-gray-500">
         Try plain English — e.g.{" "}

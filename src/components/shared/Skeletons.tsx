@@ -5,6 +5,29 @@
  * gray-100 fill so they read as the real layout settling in, not spinners.
  */
 
+import { Loader2 } from "lucide-react";
+
+/**
+ * Centered loading spinner — the mobile route-loading state. On phones we show a
+ * simple circle instead of the skeleton layout (the skeletons are tuned to the
+ * dense desktop surfaces and read as jumpy placeholder blocks on a small screen).
+ * Pair with a `hidden md:block` skeleton so desktop keeps the layout preview.
+ */
+export function PageSpinner({ className = "" }: { className?: string }) {
+  return (
+    <div
+      className={`flex min-h-[50vh] items-center justify-center ${className}`}
+      role="status"
+      aria-label="Loading"
+    >
+      <Loader2
+        className="h-8 w-8 animate-spin text-brand-blue-600"
+        aria-hidden="true"
+      />
+    </div>
+  );
+}
+
 export function MetricGridSkeleton({
   count = 4,
   className = "grid grid-cols-2 gap-4 lg:grid-cols-4",
