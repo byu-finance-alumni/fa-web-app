@@ -494,6 +494,19 @@ export async function AlumniProfileView({
   const workPlace = place(career?.current_city, career?.current_state);
   const headerPlace = workPlace ?? residencePlace;
 
+  // Personal & family card (#531): home country and citizenship are collapsed
+  // into a single field. Identical values (the common case) show once; genuinely
+  // different values are shown slash-separated ("{home} / {citizenship}"). Blank
+  // sides fall back to whichever value is present, or null when both are empty.
+  const homeCountry = a.home_country?.trim() || null;
+  const citizenship = a.citizenship?.trim() || null;
+  const homeCountryCitizenship =
+    homeCountry && citizenship
+      ? homeCountry === citizenship
+        ? homeCountry
+        : `${homeCountry} / ${citizenship}`
+      : (homeCountry ?? citizenship);
+
   // Career Snapshot employment (#367): the current role (from current_career,
   // falling back to the flagged current employment-history row) plus the two
   // most-recent previous roles from employment history.
@@ -1117,13 +1130,18 @@ export async function AlumniProfileView({
                     <Field label="Spouse" value={blankIfNa(a.spouse_first_name) || null} />
                     <Field label="Birthday" value={fmtDate(a.birth_date)} />
                   </div>
-                  {/* Col 3: net id · citizenship · home country. Citizenship and
-                      home country are DIFFERENT facts (nationality vs. country
-                      of origin) and are shown as separate fields, never merged. */}
+                  {/* Col 3: net id · resident city · home country/citizenship.
+                      Home country and citizenship are combined into one field
+                      (#531) — shown once when equal, "{home} / {citizenship}"
+                      when they differ — and the freed slot shows the alum's
+                      resident (contact) city instead. */}
                   <div className="space-y-4">
                     <Field label="BYU Net ID" value={a.net_id} />
-                    <Field label="Citizenship" value={a.citizenship} />
-                    <Field label="Home country" value={a.home_country} />
+                    <Field label="Resident city" value={c?.city ?? null} />
+                    <Field
+                      label="Home country / Citizenship"
+                      value={homeCountryCitizenship}
+                    />
                   </div>
                 </div>
               </Panel>
