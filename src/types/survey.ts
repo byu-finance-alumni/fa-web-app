@@ -75,6 +75,8 @@ export const SURVEY_FIELDS: SurveyField[] = [
   { key: "contact.country", table: "alumni_contact_info", column: "country", label: "Country", group: "contact", kind: "text" },
 
   // --- Profile (alumni) ---
+  { key: "profile.employment_status", table: "alumni", column: "employment_status", label: "Current employment status", group: "profile", kind: "text" },
+  { key: "profile.other_designations", table: "alumni", column: "other_designations", label: "Finance designations", group: "profile", kind: "text" },
   { key: "profile.linkedin_url", table: "alumni", column: "linkedin_url", label: "LinkedIn URL", group: "profile", kind: "text" },
   { key: "profile.graduate_degree", table: "alumni", column: "graduate_degree", label: "Graduate school program", group: "profile", kind: "text" },
   { key: "profile.graduate_school", table: "alumni", column: "graduate_school", label: "Graduate school", group: "profile", kind: "text" },
@@ -140,17 +142,30 @@ export interface SurveyQuestion {
  */
 export const DEFAULT_SURVEY_QUESTIONS: SurveyQuestion[] = [
   // Employment (leads — this is what changes most year to year)
-  { id: "q-employer", fieldKey: "employment.current_employer", label: "Where do you currently work?", required: false },
+  { id: "q-emp-status", fieldKey: "profile.employment_status", label: "What's your current employment status?", required: false },
+  { id: "q-employer", fieldKey: "employment.current_employer", label: "Where do you currently work? (Company)", required: false },
   { id: "q-title", fieldKey: "employment.current_title", label: "What's your current job title?", required: false },
   { id: "q-industry", fieldKey: "employment.current_industry", label: "What industry are you in?", required: false },
-  // Contact
-  { id: "q-personal-email", fieldKey: "contact.personal_email", label: "Is this still your best email?", helpText: "We'll use this to reach you about events and opportunities.", required: true },
-  { id: "q-phone", fieldKey: "contact.phone", label: "Is this still your current phone number?", required: false },
-  { id: "q-city", fieldKey: "contact.city", label: "What city do you currently live in?", required: false },
-  { id: "q-state", fieldKey: "contact.state", label: "What state?", required: false },
-  { id: "q-country", fieldKey: "contact.country", label: "What country?", required: false },
-  // Profile
+  { id: "q-industry2", fieldKey: "employment.current_industry_secondary", label: "Secondary industry (if applicable)", required: false },
+  { id: "q-emp-city", fieldKey: "employment.current_city", label: "What city do you work in?", required: false },
+  { id: "q-emp-state", fieldKey: "employment.current_state", label: "What state do you work in?", required: false },
+  { id: "q-emp-country", fieldKey: "employment.current_country", label: "What country do you work in?", required: false },
+  // Residence (contact)
+  { id: "q-city", fieldKey: "contact.city", label: "What city do you live in?", required: false },
+  { id: "q-state", fieldKey: "contact.state", label: "What state do you live in?", required: false },
+  { id: "q-country", fieldKey: "contact.country", label: "What country do you live in?", required: false },
+  // Personal
+  { id: "q-spouse-first", fieldKey: "profile.spouse_first_name", label: "Spouse first name", required: false },
+  { id: "q-spouse-last", fieldKey: "profile.spouse_last_name", label: "Spouse last name", required: false },
+  { id: "q-personal-email", fieldKey: "contact.personal_email", label: "Is this still your best (permanent) email?", helpText: "We'll use this to reach you about events and opportunities.", required: true },
+  { id: "q-work-email", fieldKey: "contact.work_email", label: "Is this still your work email?", required: false },
   { id: "q-linkedin", fieldKey: "profile.linkedin_url", label: "Is this your current LinkedIn profile?", required: false },
+  // Graduate school
+  { id: "q-grad-program", fieldKey: "profile.graduate_degree", label: "Graduate school program", required: false },
+  { id: "q-grad-school", fieldKey: "profile.graduate_school", label: "Graduate school name", required: false },
+  { id: "q-grad-year", fieldKey: "profile.graduate_graduation_year", label: "Projected graduation year", required: false },
+  // Finance designations
+  { id: "q-designations", fieldKey: "profile.other_designations", label: "Finance designations (CFA, CFP, etc.)", required: false },
   // Willingness / engagement (→ tags)
   { id: "q-mentor", fieldKey: "program.mentor_willing", label: "Are you willing to mentor students?", required: false },
   { id: "q-wif-mentor", fieldKey: "program.women_in_finance_mentor_willing", label: "Are you willing to mentor for Women in Finance?", required: false },

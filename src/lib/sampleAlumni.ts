@@ -16,6 +16,8 @@ export const SAMPLE_ALUM: Record<string, string> = {
   "contact.zip": "84101",
   "contact.country": "United States",
   // Profile
+  "profile.employment_status": "Employed",
+  "profile.other_designations": "CFA",
   "profile.linkedin_url": "linkedin.com/in/jordan-avery",
   "profile.graduate_degree": "MBA",
   "profile.graduate_school": "BYU Marriott School of Business",
