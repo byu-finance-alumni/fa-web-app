@@ -31,6 +31,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
 import { ApiClientError, clientGet, clientPost } from "@/lib/api-client";
+import { PendingSubmissions } from "@/components/needs-surveying/PendingSubmissions";
 import { SAMPLE_CAMPAIGNS, initialSentCount } from "@/lib/sampleCampaigns";
 import type { components } from "@/types/api.gen";
 import type { ClassCampaign, SurveyRound } from "@/types/surveyCampaign";
@@ -614,7 +615,12 @@ export function SurveyCampaignConsole() {
       </Card>
       ) : null}
 
-      {/* ── Change report: only alumni who actually changed something ── */}
+      {/* ── Admin review queue: real alum submissions to apply/reject ── */}
+      <PendingSubmissions gradYear={selected.gradYear} />
+
+      {/* ── Legacy demo change report — only shown for sample-data years ── */}
+      {selected.changeRecords.length > 0 ? (
+        <>
       <Card className="mt-4">
         <header className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-5 py-3">
           <h2 className="text-sm font-semibold text-gray-900">Change report</h2>
@@ -820,6 +826,8 @@ export function SurveyCampaignConsole() {
           </div>
         )}
       </Card>
+        </>
+      ) : null}
 
       {/* Send dialog */}
       <Dialog open={sendOpen} onOpenChange={setSendOpen}>

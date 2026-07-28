@@ -64,6 +64,10 @@ export async function clientPost<T>(path: string): Promise<T> {
     }
     throw new ApiClientError(res.status, message);
   }
+  // 204 / empty-body responses (e.g. apply/reject) have nothing to parse.
+  if (res.status === 204 || res.headers.get("content-length") === "0") {
+    return undefined as T;
+  }
   return (await res.json()) as T;
 }
 
