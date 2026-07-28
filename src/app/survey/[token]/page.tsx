@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SAMPLE_ALUM, SAMPLE_ALUM_NAME } from "@/lib/sampleAlumni";
 import { PAY_IT_FORWARD_URL } from "@/types/survey";
+import { STATE_NAMES } from "@/lib/geo/state-field";
+import { PRIMARY_INDUSTRY_OPTIONS } from "@/constants/dropdowns";
 import type { components } from "@/types/api.gen";
 
 /**
@@ -30,12 +32,56 @@ type Fields = Record<string, string>;
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
+// Country dropdown options (#525) — United States FIRST, then the rest
+// alphabetically. Kept local to the public survey (its only consumer); the app
+// otherwise stores country as free text, so a stored value outside this list is
+// still preserved by the select (see `SelectControl`).
+const COUNTRY_OPTIONS: readonly string[] = [
+  "United States",
+  "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Argentina",
+  "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain",
+  "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bolivia",
+  "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria",
+  "Burkina Faso", "Cambodia", "Cameroon", "Canada", "Chile", "China",
+  "Colombia", "Costa Rica", "Croatia", "Cyprus", "Czechia", "Denmark",
+  "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Estonia",
+  "Ethiopia", "Fiji", "Finland", "France", "Georgia", "Germany", "Ghana",
+  "Greece", "Guatemala", "Honduras", "Hong Kong", "Hungary", "Iceland",
+  "India", "Indonesia", "Iraq", "Ireland", "Israel", "Italy", "Jamaica",
+  "Japan", "Jordan", "Kazakhstan", "Kenya", "Kuwait", "Latvia", "Lebanon",
+  "Lithuania", "Luxembourg", "Malaysia", "Maldives", "Malta", "Mexico",
+  "Mongolia", "Montenegro", "Morocco", "Mozambique", "Nepal", "Netherlands",
+  "New Zealand", "Nicaragua", "Nigeria", "North Macedonia", "Norway", "Oman",
+  "Pakistan", "Panama", "Paraguay", "Peru", "Philippines", "Poland",
+  "Portugal", "Qatar", "Romania", "Rwanda", "Saudi Arabia", "Senegal",
+  "Serbia", "Singapore", "Slovakia", "Slovenia", "South Africa", "South Korea",
+  "Spain", "Sri Lanka", "Sweden", "Switzerland", "Taiwan", "Tanzania",
+  "Thailand", "Trinidad and Tobago", "Tunisia", "Turkey", "Uganda", "Ukraine",
+  "United Arab Emirates", "United Kingdom", "Uruguay", "Venezuela", "Vietnam",
+  "Zambia", "Zimbabwe", "Other",
+];
+
+// Industry choices for the current-industry dropdown (#525). "Other" is broken
+// out separately so selecting it reveals a free-text input.
+const INDUSTRY_CHOICES: readonly string[] = PRIMARY_INDUSTRY_OPTIONS.filter(
+  (o) => o !== "Other",
+);
+
+type FieldKind =
+  | "text"
+  | "boolean"
+  | "date"
+  | "usState"
+  | "country"
+  | "industry";
 type EditField = {
   key: string;
   label: string;
-  kind: "text" | "boolean";
+  kind: FieldKind;
   required?: boolean;
   donateUrl?: string;
+  /** Helper/placeholder text for a free-text input (e.g. grad-program examples). */
+  placeholder?: string;
 };
 type Section = { id: string; title: string; blurb: string; fields: EditField[] };
 
@@ -47,14 +93,15 @@ const INFO_SECTIONS: Section[] = [
     title: "Employment",
     blurb: "Industry, company, title, work location",
     fields: [
-      { key: "employment.current_industry", label: "Industry", kind: "text" },
+      { key: "employment.current_industry", label: "Industry", kind: "industry" },
       { key: "profile.employment_status", label: "Employment status", kind: "text" },
       { key: "employment.current_employer", label: "Company", kind: "text" },
       { key: "employment.current_title", label: "Title", kind: "text" },
       { key: "employment.current_industry_secondary", label: "Secondary industry", kind: "text" },
       { key: "employment.current_city", label: "Employment city", kind: "text" },
-      { key: "employment.current_state", label: "Employment state", kind: "text" },
-      { key: "employment.current_country", label: "Employment country", kind: "text" },
+      { key: "employment.current_state", label: "Employment state", kind: "usState" },
+      { key: "employment.current_country", label: "Employment country", kind: "country" },
+      { key: "employment.current_zip", label: "Company ZIP", kind: "text" },
     ],
   },
   {
@@ -63,14 +110,14 @@ const INFO_SECTIONS: Section[] = [
     blurb: "Where you live",
     fields: [
       { key: "contact.city", label: "City", kind: "text" },
-      { key: "contact.state", label: "State", kind: "text" },
-      { key: "contact.country", label: "Country", kind: "text" },
+      { key: "contact.state", label: "State", kind: "usState" },
+      { key: "contact.country", label: "Country", kind: "country" },
     ],
   },
   {
     id: "personal",
     title: "Personal",
-    blurb: "Spouse, email, phone, LinkedIn",
+    blurb: "Spouse, contact, & personal details",
     fields: [
       { key: "profile.spouse_first_name", label: "Spouse first name", kind: "text" },
       { key: "profile.spouse_last_name", label: "Spouse last name", kind: "text" },
@@ -78,6 +125,11 @@ const INFO_SECTIONS: Section[] = [
       { key: "contact.work_email", label: "Work email", kind: "text" },
       { key: "contact.phone", label: "Phone", kind: "text" },
       { key: "profile.linkedin_url", label: "LinkedIn", kind: "text" },
+      { key: "profile.gender", label: "Gender", kind: "text" },
+      { key: "profile.marital_status", label: "Marital status", kind: "text" },
+      { key: "profile.birth_date", label: "Birthday", kind: "date" },
+      { key: "profile.citizenship", label: "Citizenship", kind: "text" },
+      { key: "profile.home_country", label: "Home country", kind: "country" },
     ],
   },
   {
@@ -85,7 +137,12 @@ const INFO_SECTIONS: Section[] = [
     title: "Graduate school",
     blurb: "Program, school, projected year",
     fields: [
-      { key: "profile.graduate_degree", label: "Program", kind: "text" },
+      {
+        key: "profile.graduate_degree",
+        label: "Program",
+        kind: "text",
+        placeholder: "e.g. MBA, JD, MD, MS…",
+      },
       { key: "profile.graduate_school", label: "School", kind: "text" },
       { key: "profile.graduate_graduation_year", label: "Projected graduation year", kind: "text" },
     ],
@@ -180,6 +237,30 @@ export default function SurveyConfirmPage({
   const setEdit = (key: string, value: string) =>
     setEdits((prev) => ({ ...prev, [key]: value }));
 
+  // Browser/device Back closes an open section instead of leaving the page
+  // (#526). Opening a section pushes a history entry; a Back press (or the
+  // in-page Done / "All sections" buttons, which call `history.back()`) pops it
+  // and the popstate handler returns to the section menu. Push/pop stay balanced
+  // so exactly one Back is consumed per open section.
+  const openSectionNav = (id: string) => {
+    if (typeof window !== "undefined") {
+      window.history.pushState({ surveySection: id }, "");
+    }
+    setOpenSection(id);
+  };
+  const closeSectionNav = () => {
+    if (typeof window !== "undefined") {
+      window.history.back();
+    } else {
+      setOpenSection(null);
+    }
+  };
+  useEffect(() => {
+    const onPop = () => setOpenSection(null);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
   // Stage the alum's edits for admin review (public, token-gated POST).
   const handleSubmit = async () => {
     if (token === "demo") {
@@ -248,7 +329,8 @@ export default function SurveyConfirmPage({
             valueOf={valueOf}
             setEdit={setEdit}
             openSection={openSection}
-            setOpenSection={setOpenSection}
+            openSectionNav={openSectionNav}
+            closeSectionNav={closeSectionNav}
             photoPreview={photoPreview}
             setPhotoPreview={setPhotoPreview}
             onBack={() => setStatus("review")}
@@ -379,7 +461,8 @@ function EditFlow({
   valueOf,
   setEdit,
   openSection,
-  setOpenSection,
+  openSectionNav,
+  closeSectionNav,
   photoPreview,
   setPhotoPreview,
   onBack,
@@ -392,7 +475,10 @@ function EditFlow({
   valueOf: (key: string) => string;
   setEdit: (key: string, value: string) => void;
   openSection: string | null;
-  setOpenSection: (id: string | null) => void;
+  /** Open a section AND push a history entry so Back returns here (#526). */
+  openSectionNav: (id: string) => void;
+  /** Close the open section by popping that history entry (#526). */
+  closeSectionNav: () => void;
   photoPreview: string | null;
   setPhotoPreview: (v: string | null) => void;
   onBack: () => void;
@@ -411,7 +497,7 @@ function EditFlow({
       <>
         <button
           type="button"
-          onClick={() => setOpenSection(null)}
+          onClick={closeSectionNav}
           className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
         >
           ← All sections
@@ -440,7 +526,7 @@ function EditFlow({
           </>
         ) : null}
         <div className="mt-6">
-          <Button type="button" variant="navy" size="lg" onClick={() => setOpenSection(null)}>
+          <Button type="button" variant="navy" size="lg" onClick={closeSectionNav}>
             Done
           </Button>
         </div>
@@ -465,14 +551,14 @@ function EditFlow({
         <SectionRow
           title="Profile photo"
           blurb="Upload a new headshot"
-          onClick={() => setOpenSection("photo")}
+          onClick={() => openSectionNav("photo")}
         />
         {EDIT_SECTIONS.map((s) => (
           <SectionRow
             key={s.id}
             title={s.title}
             blurb={s.blurb}
-            onClick={() => setOpenSection(s.id)}
+            onClick={() => openSectionNav(s.id)}
           />
         ))}
       </ul>
@@ -616,6 +702,106 @@ function InvalidPanel() {
 
 /* ---------------------------------------------------------- field control -- */
 
+// Shared native <select> styling — matches the Input's border/height/focus so
+// dropdowns and text inputs line up in the edit form.
+const SELECT_CLASS =
+  "flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm " +
+  "text-gray-900 focus-visible:outline-none focus-visible:ring-2 " +
+  "focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1 " +
+  "disabled:cursor-not-allowed disabled:opacity-50";
+
+/**
+ * A native dropdown over a fixed option list (US states, countries). A stored
+ * value that isn't in the list (e.g. an international province, or a country
+ * spelled differently) is preserved by prepending it as a selectable option, so
+ * opening the survey never silently blanks or rewrites what's on file.
+ */
+function SelectControl({
+  id,
+  value,
+  options,
+  placeholder,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  options: readonly string[];
+  placeholder: string;
+  onChange: (v: string) => void;
+}) {
+  const opts =
+    value && !options.includes(value) ? [value, ...options] : options;
+  return (
+    <select
+      id={id}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={SELECT_CLASS}
+    >
+      <option value="">{placeholder}</option>
+      {opts.map((o) => (
+        <option key={o} value={o}>
+          {o}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+/**
+ * Current industry (#525): the controlled industry list with an "Other" option
+ * that reveals a free-text input. A stored value outside the list is treated as
+ * "Other" and shown in the text box, so nothing on file is lost.
+ */
+function IndustryControl({
+  id,
+  value,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const inList = INDUSTRY_CHOICES.includes(value);
+  const [other, setOther] = useState(value !== "" && !inList);
+  const selectValue = other ? "__other__" : inList ? value : "";
+  return (
+    <>
+      <select
+        id={id}
+        value={selectValue}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v === "__other__") {
+            setOther(true);
+            onChange("");
+          } else {
+            setOther(false);
+            onChange(v);
+          }
+        }}
+        className={SELECT_CLASS}
+      >
+        <option value="">Select an industry</option>
+        {INDUSTRY_CHOICES.map((o) => (
+          <option key={o} value={o}>
+            {o}
+          </option>
+        ))}
+        <option value="__other__">Other</option>
+      </select>
+      {other ? (
+        <Input
+          className="mt-2"
+          value={value}
+          placeholder="Type your industry"
+          onChange={(e) => onChange(e.target.value)}
+        />
+      ) : null}
+    </>
+  );
+}
+
 function FieldControl({
   field,
   value,
@@ -643,9 +829,35 @@ function FieldControl({
             id={controlId}
             value={value}
             required={field.required}
-            placeholder="Add a value"
+            placeholder={field.placeholder ?? "Add a value"}
             onChange={(e) => onChange(e.target.value)}
           />
+        ) : field.kind === "date" ? (
+          <Input
+            id={controlId}
+            type="date"
+            value={value}
+            required={field.required}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        ) : field.kind === "usState" ? (
+          <SelectControl
+            id={controlId}
+            value={value}
+            options={STATE_NAMES}
+            placeholder="Select a state"
+            onChange={onChange}
+          />
+        ) : field.kind === "country" ? (
+          <SelectControl
+            id={controlId}
+            value={value}
+            options={COUNTRY_OPTIONS}
+            placeholder="Select a country"
+            onChange={onChange}
+          />
+        ) : field.kind === "industry" ? (
+          <IndustryControl id={controlId} value={value} onChange={onChange} />
         ) : (
           <>
             <div className="flex gap-2" role="radiogroup" aria-labelledby={labelId}>
