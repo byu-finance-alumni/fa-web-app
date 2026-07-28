@@ -440,6 +440,17 @@ function EditFlow({
         ))}
       </ul>
 
+      <a
+        href={PAY_IT_FORWARD_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-brand-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
+      >
+        <Heart className="h-4 w-4" aria-hidden="true" />
+        Donate to Pay It Forward
+        <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+      </a>
+
       <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Button type="button" variant="ghost" onClick={onBack}>
           Back
