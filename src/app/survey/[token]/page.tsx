@@ -1,33 +1,26 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import { Check, ChevronDown, ExternalLink, Heart } from "lucide-react";
+import { Check, ChevronRight, ExternalLink, Heart } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
 import { SAMPLE_ALUM, SAMPLE_ALUM_NAME } from "@/lib/sampleAlumni";
-import { loadQuestions } from "@/lib/surveyStore";
+import { PAY_IT_FORWARD_URL } from "@/types/survey";
 import type { components } from "@/types/api.gen";
-import {
-  SURVEY_FIELD_BY_KEY,
-  type SurveyField,
-  type SurveyQuestion,
-} from "@/types/survey";
 
 /**
  * PUBLIC "confirm your info" survey landing page.
  *
- * Lives OUTSIDE the `(app)` auth group and is allow-listed in `middleware.ts`, so
- * an alum opens it from an email link without signing in. The signed token in the
- * URL is the credential: we resolve it to the alum's REAL on-file info via the
- * public `GET /survey/respond/{token}` endpoint. An invalid/expired token shows an
- * "invalid link" state; the magic token `demo` shows the sample alum for previews.
+ * The signed token in the URL resolves (via public `GET /survey/respond/{token}`)
+ * to the alum's REAL on-file info. Review shows the full field list; "I need to
+ * make changes" opens a section menu (Employment / Residence / Personal / …) the
+ * alum drills into. Both the review and the edit form are driven by the SAME
+ * `SECTIONS` list, so they always match. `demo` shows the sample alum.
  *
- * The authored questions (edit form) still come from `localStorage` (staff's
- * "Sample survey" editor). NOTE: submitting edits does not persist yet — that's
- * the next milestone.
+ * NOTE: submitting stages the response for staff review — it does not apply to
+ * the record directly (that's the admin's confirm step).
  */
 
 type Status = "review" | "confirmed" | "editing" | "submitted";
@@ -37,79 +30,101 @@ type Fields = Record<string, string>;
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
-/** One label/value row in the read-only "Your information" panel. */
-type InfoRow = { label: string; value: string };
+type EditField = {
+  key: string;
+  label: string;
+  kind: "text" | "boolean";
+  required?: boolean;
+  donateUrl?: string;
+};
+type Section = { id: string; title: string; blurb: string; fields: EditField[] };
+
+// The single source of truth for BOTH the review panel and the edit form —
+// Industry leads, then the rest of the Career Directors' list, grouped.
+const INFO_SECTIONS: Section[] = [
+  {
+    id: "employment",
+    title: "Employment",
+    blurb: "Industry, company, title, work location",
+    fields: [
+      { key: "employment.current_industry", label: "Industry", kind: "text" },
+      { key: "profile.employment_status", label: "Employment status", kind: "text" },
+      { key: "employment.current_employer", label: "Company", kind: "text" },
+      { key: "employment.current_title", label: "Title", kind: "text" },
+      { key: "employment.current_industry_secondary", label: "Secondary industry", kind: "text" },
+      { key: "employment.current_city", label: "Employment city", kind: "text" },
+      { key: "employment.current_state", label: "Employment state", kind: "text" },
+      { key: "employment.current_country", label: "Employment country", kind: "text" },
+    ],
+  },
+  {
+    id: "residence",
+    title: "Residence",
+    blurb: "Where you live",
+    fields: [
+      { key: "contact.city", label: "City", kind: "text" },
+      { key: "contact.state", label: "State", kind: "text" },
+      { key: "contact.country", label: "Country", kind: "text" },
+    ],
+  },
+  {
+    id: "personal",
+    title: "Personal",
+    blurb: "Spouse, email, LinkedIn",
+    fields: [
+      { key: "profile.spouse_first_name", label: "Spouse first name", kind: "text" },
+      { key: "profile.spouse_last_name", label: "Spouse last name", kind: "text" },
+      { key: "contact.personal_email", label: "Permanent email", kind: "text", required: true },
+      { key: "contact.work_email", label: "Work email", kind: "text" },
+      { key: "profile.linkedin_url", label: "LinkedIn", kind: "text" },
+    ],
+  },
+  {
+    id: "grad",
+    title: "Graduate school",
+    blurb: "Program, school, projected year",
+    fields: [
+      { key: "profile.graduate_degree", label: "Program", kind: "text" },
+      { key: "profile.graduate_school", label: "School", kind: "text" },
+      { key: "profile.graduate_graduation_year", label: "Projected graduation year", kind: "text" },
+    ],
+  },
+  {
+    id: "designations",
+    title: "Finance designations",
+    blurb: "CFA, CFP, etc.",
+    fields: [
+      { key: "profile.other_designations", label: "Finance designations (CFA, CFP, etc.)", kind: "text" },
+    ],
+  },
+];
+
+const ENGAGEMENT_SECTION: Section = {
+  id: "engagement",
+  title: "Ways to get involved",
+  blurb: "Optional — mentoring, speaking, giving",
+  fields: [
+    { key: "program.mentor_willing", label: "Willing to mentor students?", kind: "boolean" },
+    { key: "program.women_in_finance_mentor_willing", label: "Willing to mentor for Women in Finance?", kind: "boolean" },
+    { key: "program.guest_speaker_willing", label: "Willing to be a guest speaker?", kind: "boolean" },
+    { key: "program.help_at_event_willing", label: "Willing to help at an event?", kind: "boolean" },
+    { key: "program.nettrek_host_willing", label: "Willing to host a NetTrek visit?", kind: "boolean" },
+    { key: "program.finance_conference_willing", label: "Willing to take part in the finance conference?", kind: "boolean" },
+    { key: "program.company_event_sponsor_willing", label: "Willing to sponsor a company event?", kind: "boolean" },
+    { key: "program.case_competition_host_willing", label: "Willing to host a case competition?", kind: "boolean" },
+    { key: "program.piff_donor", label: "Would you like to donate to the Pay It Forward fund?", kind: "boolean", donateUrl: PAY_IT_FORWARD_URL },
+  ],
+};
+
+const EDIT_SECTIONS: Section[] = [...INFO_SECTIONS, ENGAGEMENT_SECTION];
 
 function initialsOf(name: string): string {
   return (
-    name
-      .trim()
-      .split(/\s+/)
-      .map((p) => p[0])
-      .slice(0, 2)
-      .join("")
-      .toUpperCase() || "?"
+    name.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase() ||
+    "?"
   );
 }
 
-// The full on-file view the alum reviews — grouped to match the Career
-// Directors' field list. Empty values render as "Not provided".
-function reviewSections(f: Fields): { title: string; rows: InfoRow[] }[] {
-  const v = (k: string) => f[k] ?? "";
-  const spouse = [f["profile.spouse_first_name"], f["profile.spouse_last_name"]]
-    .filter(Boolean)
-    .join(" ");
-  return [
-    {
-      title: "Employment",
-      rows: [
-        { label: "Employment status", value: v("profile.employment_status") },
-        { label: "Company", value: v("employment.current_employer") },
-        { label: "Title", value: v("employment.current_title") },
-        { label: "Industry", value: v("employment.current_industry") },
-        {
-          label: "Secondary industry",
-          value: v("employment.current_industry_secondary"),
-        },
-        { label: "Employment city", value: v("employment.current_city") },
-        { label: "Employment state", value: v("employment.current_state") },
-        { label: "Employment country", value: v("employment.current_country") },
-      ],
-    },
-    {
-      title: "Residence",
-      rows: [
-        { label: "City", value: v("contact.city") },
-        { label: "State", value: v("contact.state") },
-        { label: "Country", value: v("contact.country") },
-      ],
-    },
-    {
-      title: "Personal",
-      rows: [
-        { label: "Spouse name", value: spouse },
-        { label: "Permanent email", value: v("contact.personal_email") },
-        { label: "Work email", value: v("contact.work_email") },
-        { label: "LinkedIn", value: v("profile.linkedin_url") },
-      ],
-    },
-    {
-      title: "Graduate school",
-      rows: [
-        { label: "Program", value: v("profile.graduate_degree") },
-        { label: "School", value: v("profile.graduate_school") },
-        {
-          label: "Projected graduation year",
-          value: v("profile.graduate_graduation_year"),
-        },
-      ],
-    },
-    {
-      title: "Finance designations",
-      rows: [{ label: "Designations", value: v("profile.other_designations") }],
-    },
-  ];
-}
 
 export default function SurveyConfirmPage({
   params,
@@ -122,18 +137,12 @@ export default function SurveyConfirmPage({
   const [name, setName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [fields, setFields] = useState<Fields>({});
-  const [questions, setQuestions] = useState<SurveyQuestion[]>([]);
   const [status, setStatus] = useState<Status>("review");
-  const [engagementOpen, setEngagementOpen] = useState(false);
-  // A locally-previewed new headshot (prototype: not uploaded anywhere yet — in
-  // production this posts to the headshot storage bucket).
+  const [openSection, setOpenSection] = useState<string | null>(null);
+  const [edits, setEdits] = useState<Fields>({});
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
-  // Resolve the token to the alum's real record (client-only; the token is the
-  // credential). `demo` shows the sample alum so the page is previewable.
   useEffect(() => {
-    setQuestions(loadQuestions());
-
     if (token === "demo") {
       setName(SAMPLE_ALUM_NAME);
       setFirstName(SAMPLE_ALUM_NAME.split(/\s+/)[0] || SAMPLE_ALUM_NAME);
@@ -141,7 +150,6 @@ export default function SurveyConfirmPage({
       setLoadState("ready");
       return;
     }
-
     let cancelled = false;
     fetch(`${API_URL}/survey/respond/${encodeURIComponent(token)}`, {
       cache: "no-store",
@@ -165,16 +173,12 @@ export default function SurveyConfirmPage({
     };
   }, [token]);
 
-  const inlineQuestions = questions.filter(
-    (q) => SURVEY_FIELD_BY_KEY[q.fieldKey]?.group !== "engagement",
-  );
-  const engagementQuestions = questions.filter(
-    (q) => SURVEY_FIELD_BY_KEY[q.fieldKey]?.group === "engagement",
-  );
+  const valueOf = (key: string) => edits[key] ?? fields[key] ?? "";
+  const setEdit = (key: string, value: string) =>
+    setEdits((prev) => ({ ...prev, [key]: value }));
 
   return (
     <main className="min-h-screen bg-white text-gray-900">
-      {/* Full-width navy header — title flush to the top-left. */}
       <header className="bg-navy-800">
         <div className="flex h-16 items-center px-5 sm:px-8">
           <span className="text-base font-semibold text-white sm:text-lg">
@@ -194,7 +198,7 @@ export default function SurveyConfirmPage({
         ) : status === "submitted" ? (
           <SuccessPanel
             title="Thank you — your updates are in"
-            body="Our team will review your response before any changes are applied. You can safely close this page."
+            body="Our team will review your response before any changes are applied to your record. You can safely close this page."
           />
         ) : status === "confirmed" ? (
           <SuccessPanel
@@ -207,129 +211,20 @@ export default function SurveyConfirmPage({
             }
           />
         ) : status === "editing" ? (
-          <>
-            <div>
-              <h1 className="text-3xl font-semibold leading-tight tracking-tight text-navy-800">
-                Update your information
-              </h1>
-              <p className="mt-3 max-w-prose text-base leading-relaxed text-gray-600">
-                Everything is filled in with what we have on file. Just change
-                anything that is out of date.
-              </p>
-            </div>
-
-            <form
-              className="mt-8 space-y-6"
-              onSubmit={(e) => {
-                e.preventDefault();
-                setStatus("submitted");
-              }}
-            >
-              <div className="space-y-5 rounded-lg border border-gray-200 bg-white p-5 sm:p-6">
-                {/* Headshot — review & replace */}
-                <div>
-                  <span className="text-sm font-medium text-gray-900">
-                    Profile photo
-                  </span>
-                  <div className="mt-2 flex items-center gap-4">
-                    {photoPreview ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={photoPreview}
-                        alt="New profile photo preview"
-                        className="h-16 w-16 shrink-0 rounded-full object-cover"
-                      />
-                    ) : (
-                      <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-navy-800 text-base font-semibold text-white">
-                        {initialsOf(name)}
-                      </span>
-                    )}
-                    <div className="min-w-0">
-                      <label className="inline-flex cursor-pointer items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus-within:outline-none focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="sr-only"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) setPhotoPreview(URL.createObjectURL(file));
-                          }}
-                        />
-                        {photoPreview ? "Choose a different photo" : "Change photo"}
-                      </label>
-                      <p className="mt-1 text-xs text-gray-500">
-                        JPG or PNG. Replaces the photo we have on file.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {inlineQuestions.map((q) => (
-                  <FieldControl key={q.id} question={q} fields={fields} />
-                ))}
-              </div>
-
-              {engagementQuestions.length > 0 ? (
-                <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-                  <button
-                    type="button"
-                    onClick={() => setEngagementOpen((o) => !o)}
-                    aria-expanded={engagementOpen}
-                    aria-controls="survey-engagement-panel"
-                    className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-inset sm:px-6"
-                  >
-                    <span>
-                      <span className="block text-sm font-semibold text-gray-900">
-                        Ways to get involved
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        Optional · {engagementQuestions.length} quick questions
-                      </span>
-                    </span>
-                    <ChevronDown
-                      className={cn(
-                        "h-5 w-5 shrink-0 text-gray-400 transition-transform",
-                        engagementOpen && "rotate-180",
-                      )}
-                      aria-hidden="true"
-                    />
-                  </button>
-                  {engagementOpen ? (
-                    <div
-                      id="survey-engagement-panel"
-                      className="space-y-5 border-t border-gray-200 px-5 py-5 sm:px-6"
-                    >
-                      {engagementQuestions.map((q) => (
-                        <FieldControl key={q.id} question={q} fields={fields} />
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-
-              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setStatus("review")}
-                >
-                  Back
-                </Button>
-                <Button
-                  type="submit"
-                  variant="navy"
-                  size="lg"
-                  className="w-full sm:w-auto"
-                >
-                  Submit my updates
-                </Button>
-              </div>
-            </form>
-
-            <TrustNote />
-          </>
+          <EditFlow
+            firstName={firstName}
+            name={name}
+            valueOf={valueOf}
+            setEdit={setEdit}
+            openSection={openSection}
+            setOpenSection={setOpenSection}
+            photoPreview={photoPreview}
+            setPhotoPreview={setPhotoPreview}
+            onBack={() => setStatus("review")}
+            onSubmit={() => setStatus("submitted")}
+          />
         ) : (
-          /* status === "review" */
+          /* review */
           <>
             <div>
               <div className="flex items-center gap-4">
@@ -351,27 +246,22 @@ export default function SurveyConfirmPage({
               </p>
             </div>
 
-            {/* Your information — one bordered panel, two grouped columns. */}
             <section
               className="mt-8 rounded-lg border border-gray-200"
               aria-labelledby="your-info-heading"
             >
               <div className="border-b border-gray-200 px-5 py-3 sm:px-6">
-                <h2
-                  id="your-info-heading"
-                  className="text-sm font-semibold text-gray-900"
-                >
+                <h2 id="your-info-heading" className="text-sm font-semibold text-gray-900">
                   Your information
                 </h2>
               </div>
               <div className="grid gap-x-8 gap-y-5 px-5 py-5 sm:grid-cols-2 sm:px-6">
-                {reviewSections(fields).map((s) => (
-                  <InfoGroup key={s.title} title={s.title} rows={s.rows} />
+                {INFO_SECTIONS.map((s) => (
+                  <ReviewGroup key={s.id} section={s} fields={fields} />
                 ))}
               </div>
             </section>
 
-            {/* Confirm */}
             <div className="mt-8">
               <p className="text-base font-medium text-gray-900">
                 Is this information correct?
@@ -391,7 +281,10 @@ export default function SurveyConfirmPage({
                   variant="secondary"
                   size="lg"
                   className="w-full sm:w-auto"
-                  onClick={() => setStatus("editing")}
+                  onClick={() => {
+                    setOpenSection(null);
+                    setStatus("editing");
+                  }}
                 >
                   I need to make changes
                 </Button>
@@ -403,41 +296,40 @@ export default function SurveyConfirmPage({
         )}
 
         <footer className="mt-12 text-center">
-          <p className="text-xs text-gray-400">
-            BYU Marriott School of Business
-          </p>
+          <p className="text-xs text-gray-400">BYU Marriott School of Business</p>
         </footer>
       </div>
     </main>
   );
 }
 
-/* ------------------------------------------------------------ info group ---- */
+/* ------------------------------------------------------------ review group -- */
 
-/**
- * One labelled column in the "Your information" panel: a heading over a list of
- * label-above-value rows. Missing values read "Not provided" in muted text (no
- * per-field dividers — the whitespace does the grouping).
- */
-function InfoGroup({ title, rows }: { title: string; rows: InfoRow[] }) {
+function ReviewGroup({ section, fields }: { section: Section; fields: Fields }) {
+  // Collapse spouse first/last into one "Spouse name" row for the read view.
+  const rows: { label: string; value: string }[] = [];
+  for (const f of section.fields) {
+    if (f.key === "profile.spouse_last_name") continue;
+    if (f.key === "profile.spouse_first_name") {
+      const spouse = [fields["profile.spouse_first_name"], fields["profile.spouse_last_name"]]
+        .filter(Boolean)
+        .join(" ");
+      rows.push({ label: "Spouse name", value: spouse });
+    } else {
+      rows.push({ label: f.label, value: fields[f.key] ?? "" });
+    }
+  }
   return (
     <div>
       <h3 className="text-xs font-semibold uppercase tracking-wide text-navy-800">
-        {title}
+        {section.title}
       </h3>
       <dl className="mt-1.5 divide-y divide-gray-100">
         {rows.map((r) => (
-          <div
-            key={r.label}
-            className="flex items-baseline justify-between gap-6 py-1.5"
-          >
+          <div key={r.label} className="flex items-baseline justify-between gap-6 py-1.5">
             <dt className="shrink-0 text-xs text-gray-500">{r.label}</dt>
             <dd className="min-w-0 break-words text-right text-sm font-medium text-gray-900">
-              {r.value ? (
-                r.value
-              ) : (
-                <span className="font-normal text-gray-400">—</span>
-              )}
+              {r.value ? r.value : <span className="font-normal text-gray-400">—</span>}
             </dd>
           </div>
         ))}
@@ -446,9 +338,205 @@ function InfoGroup({ title, rows }: { title: string; rows: InfoRow[] }) {
   );
 }
 
-/* -------------------------------------------------------------- trust ------- */
+/* --------------------------------------------------------------- edit flow -- */
 
-/** Reassurance shown beneath the confirm / update actions. */
+function EditFlow({
+  firstName,
+  name,
+  valueOf,
+  setEdit,
+  openSection,
+  setOpenSection,
+  photoPreview,
+  setPhotoPreview,
+  onBack,
+  onSubmit,
+}: {
+  firstName: string;
+  name: string;
+  valueOf: (key: string) => string;
+  setEdit: (key: string, value: string) => void;
+  openSection: string | null;
+  setOpenSection: (id: string | null) => void;
+  photoPreview: string | null;
+  setPhotoPreview: (v: string | null) => void;
+  onBack: () => void;
+  onSubmit: () => void;
+}) {
+  const section =
+    openSection === "photo"
+      ? null
+      : EDIT_SECTIONS.find((s) => s.id === openSection);
+
+  // A specific section (or the photo screen) is open.
+  if (openSection) {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setOpenSection(null)}
+          className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
+        >
+          ← All sections
+        </button>
+        {openSection === "photo" ? (
+          <PhotoSection
+            name={name}
+            photoPreview={photoPreview}
+            setPhotoPreview={setPhotoPreview}
+          />
+        ) : section ? (
+          <>
+            <h1 className="text-3xl font-semibold leading-tight tracking-tight text-navy-800">
+              {section.title}
+            </h1>
+            <div className="mt-6 space-y-5 rounded-lg border border-gray-200 bg-white p-5 sm:p-6">
+              {section.fields.map((f) => (
+                <FieldControl
+                  key={f.key}
+                  field={f}
+                  value={valueOf(f.key)}
+                  onChange={(v) => setEdit(f.key, v)}
+                />
+              ))}
+            </div>
+          </>
+        ) : null}
+        <div className="mt-6">
+          <Button type="button" variant="navy" size="lg" onClick={() => setOpenSection(null)}>
+            Done
+          </Button>
+        </div>
+      </>
+    );
+  }
+
+  // Section menu.
+  return (
+    <>
+      <div>
+        <h1 className="text-3xl font-semibold leading-tight tracking-tight text-navy-800">
+          What would you like to update, {firstName}?
+        </h1>
+        <p className="mt-3 max-w-prose text-base leading-relaxed text-gray-600">
+          Pick a section to edit. Change anything that&apos;s out of date, then
+          submit — our team reviews updates before they&apos;re applied.
+        </p>
+      </div>
+
+      <ul className="mt-6 divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200">
+        <SectionRow
+          title="Profile photo"
+          blurb="Upload a new headshot"
+          onClick={() => setOpenSection("photo")}
+        />
+        {EDIT_SECTIONS.map((s) => (
+          <SectionRow
+            key={s.id}
+            title={s.title}
+            blurb={s.blurb}
+            onClick={() => setOpenSection(s.id)}
+          />
+        ))}
+      </ul>
+
+      <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Button type="button" variant="ghost" onClick={onBack}>
+          Back
+        </Button>
+        <Button
+          type="button"
+          variant="navy"
+          size="lg"
+          className="w-full sm:w-auto"
+          onClick={onSubmit}
+        >
+          Submit my updates
+        </Button>
+      </div>
+
+      <TrustNote />
+    </>
+  );
+}
+
+function SectionRow({
+  title,
+  blurb,
+  onClick,
+}: {
+  title: string;
+  blurb: string;
+  onClick: () => void;
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-inset"
+      >
+        <span>
+          <span className="block text-sm font-semibold text-gray-900">{title}</span>
+          <span className="text-xs text-gray-500">{blurb}</span>
+        </span>
+        <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" aria-hidden="true" />
+      </button>
+    </li>
+  );
+}
+
+function PhotoSection({
+  name,
+  photoPreview,
+  setPhotoPreview,
+}: {
+  name: string;
+  photoPreview: string | null;
+  setPhotoPreview: (v: string | null) => void;
+}) {
+  return (
+    <>
+      <h1 className="text-3xl font-semibold leading-tight tracking-tight text-navy-800">
+        Profile photo
+      </h1>
+      <div className="mt-6 flex items-center gap-4 rounded-lg border border-gray-200 bg-white p-5 sm:p-6">
+        {photoPreview ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={photoPreview}
+            alt="New profile photo preview"
+            className="h-16 w-16 shrink-0 rounded-full object-cover"
+          />
+        ) : (
+          <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-navy-800 text-base font-semibold text-white">
+            {initialsOf(name)}
+          </span>
+        )}
+        <div className="min-w-0">
+          <label className="inline-flex cursor-pointer items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus-within:outline-none focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1">
+            <input
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) setPhotoPreview(URL.createObjectURL(file));
+              }}
+            />
+            {photoPreview ? "Choose a different photo" : "Change photo"}
+          </label>
+          <p className="mt-1 text-xs text-gray-500">
+            JPG or PNG. Replaces the photo we have on file.
+          </p>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* -------------------------------------------------------------- info panels - */
+
 function TrustNote() {
   return (
     <p className="mt-8 border-t border-gray-200 pt-6 text-sm leading-relaxed text-gray-500">
@@ -457,8 +545,6 @@ function TrustNote() {
     </p>
   );
 }
-
-/* ----------------------------------------------------------- invalid link -- */
 
 function InvalidPanel() {
   return (
@@ -477,64 +563,39 @@ function InvalidPanel() {
 
 /* ---------------------------------------------------------- field control -- */
 
-/**
- * One editable survey field, prefilled from the alum's real record (`fields`):
- * text columns render a pre-filled input, boolean columns a Yes/No radio group
- * (plus the Pay It Forward donate link on the giving field).
- */
 function FieldControl({
-  question,
-  fields,
+  field,
+  value,
+  onChange,
 }: {
-  question: SurveyQuestion;
-  fields: Fields;
+  field: EditField;
+  value: string;
+  onChange: (v: string) => void;
 }) {
-  const controlId = `survey-${question.id}`;
+  const controlId = `survey-${field.key}`;
   const labelId = `${controlId}-label`;
-  const field = SURVEY_FIELD_BY_KEY[question.fieldKey] as
-    | SurveyField
-    | undefined;
-  const prefill = fields[question.fieldKey] ?? "";
-
   return (
     <div>
-      <Label
-        id={labelId}
-        htmlFor={controlId}
-        className="text-sm font-medium text-gray-900"
-      >
-        {question.label || (
-          <span className="italic text-gray-400">Untitled question</span>
-        )}
-        {question.required ? (
+      <Label id={labelId} htmlFor={controlId} className="text-sm font-medium text-gray-900">
+        {field.label}
+        {field.required ? (
           <span className="ml-1 text-danger-600" aria-hidden="true">
             *
           </span>
         ) : null}
       </Label>
-      {question.helpText ? (
-        <p className="mt-0.5 text-xs text-gray-500">{question.helpText}</p>
-      ) : null}
-
       <div className="mt-1.5">
-        {!field ? (
-          <p className="text-xs text-danger-600">
-            This question isn&apos;t linked to a field.
-          </p>
-        ) : field.kind === "text" ? (
+        {field.kind === "text" ? (
           <Input
             id={controlId}
-            defaultValue={prefill}
-            required={question.required}
+            value={value}
+            required={field.required}
             placeholder="Add a value"
+            onChange={(e) => onChange(e.target.value)}
           />
         ) : (
           <>
-            <div
-              className="flex gap-2"
-              role="radiogroup"
-              aria-labelledby={labelId}
-            >
+            <div className="flex gap-2" role="radiogroup" aria-labelledby={labelId}>
               {["Yes", "No"].map((opt) => (
                 <label
                   key={opt}
@@ -544,6 +605,8 @@ function FieldControl({
                     type="radio"
                     name={controlId}
                     value={opt}
+                    checked={value === opt}
+                    onChange={() => onChange(opt)}
                     className="h-4 w-4 border-gray-300 text-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
                   />
                   {opt}
@@ -585,12 +648,8 @@ function SuccessPanel({
       <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-success-50">
         <Check className="h-7 w-7 text-success-600" aria-hidden="true" />
       </div>
-      <h1 className="mt-5 text-xl font-semibold tracking-tight text-navy-800">
-        {title}
-      </h1>
-      <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-gray-600">
-        {body}
-      </p>
+      <h1 className="mt-5 text-xl font-semibold tracking-tight text-navy-800">{title}</h1>
+      <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-gray-600">{body}</p>
       {action ? <div className="mt-6 flex justify-center">{action}</div> : null}
     </div>
   );
