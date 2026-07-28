@@ -70,12 +70,13 @@ const INFO_SECTIONS: Section[] = [
   {
     id: "personal",
     title: "Personal",
-    blurb: "Spouse, email, LinkedIn",
+    blurb: "Spouse, email, phone, LinkedIn",
     fields: [
       { key: "profile.spouse_first_name", label: "Spouse first name", kind: "text" },
       { key: "profile.spouse_last_name", label: "Spouse last name", kind: "text" },
       { key: "contact.personal_email", label: "Permanent email", kind: "text", required: true },
       { key: "contact.work_email", label: "Work email", kind: "text" },
+      { key: "contact.phone", label: "Phone", kind: "text" },
       { key: "profile.linkedin_url", label: "LinkedIn", kind: "text" },
     ],
   },
