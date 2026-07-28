@@ -364,7 +364,7 @@ export default function SurveyConfirmPage({
                   Your information
                 </h2>
               </div>
-              <div className="grid gap-x-10 gap-y-8 px-5 py-6 sm:grid-cols-2 sm:px-6">
+              <div className="grid gap-x-8 gap-y-5 px-5 py-5 sm:grid-cols-2 sm:px-6">
                 {reviewSections(fields).map((s) => (
                   <InfoGroup key={s.title} title={s.title} rows={s.rows} />
                 ))}
@@ -422,16 +422,21 @@ export default function SurveyConfirmPage({
 function InfoGroup({ title, rows }: { title: string; rows: InfoRow[] }) {
   return (
     <div>
-      <h3 className="text-sm font-semibold text-navy-800">{title}</h3>
-      <dl className="mt-4 space-y-4">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-navy-800">
+        {title}
+      </h3>
+      <dl className="mt-1.5 divide-y divide-gray-100">
         {rows.map((r) => (
-          <div key={r.label}>
-            <dt className="text-xs font-medium text-gray-500">{r.label}</dt>
-            <dd className="mt-0.5 text-sm font-medium text-gray-900">
+          <div
+            key={r.label}
+            className="flex items-baseline justify-between gap-6 py-1.5"
+          >
+            <dt className="shrink-0 text-xs text-gray-500">{r.label}</dt>
+            <dd className="min-w-0 break-words text-right text-sm font-medium text-gray-900">
               {r.value ? (
                 r.value
               ) : (
-                <span className="font-normal text-gray-400">Not provided</span>
+                <span className="font-normal text-gray-400">—</span>
               )}
             </dd>
           </div>
