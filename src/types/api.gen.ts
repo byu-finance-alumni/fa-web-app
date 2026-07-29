@@ -2958,6 +2958,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/survey/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Survey Send Usage
+         * @description Real Resend send usage (emails actually sent today / this calendar month),
+         *     for the console's daily/monthly tallies against the send caps.
+         */
+        get: operations["survey_send_usage_survey_usage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/survey/campaigns/{grad_year}/send": {
         parameters: {
             query?: never;
@@ -6109,6 +6130,19 @@ export interface components {
             change_count: number;
             /** Survey Response Id */
             survey_response_id: number | null;
+        };
+        /**
+         * SurveyUsage
+         * @description Real Resend send usage for the console's daily/monthly tallies — emails
+         *     actually sent today and this calendar month (summed from the `send_survey`
+         *     audit rows). UTC day/month boundaries, matching the rest of the app's date
+         *     filtering.
+         */
+        SurveyUsage: {
+            /** Sent Today */
+            sent_today: number;
+            /** Sent This Month */
+            sent_this_month: number;
         };
         /**
          * TagCreate
@@ -10816,6 +10850,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GraduationYearCount"][];
+                };
+            };
+        };
+    };
+    survey_send_usage_survey_usage_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyUsage"];
                 };
             };
         };
