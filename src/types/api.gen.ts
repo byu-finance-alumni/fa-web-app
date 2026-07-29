@@ -2996,6 +2996,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/survey/schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Survey Schedules
+         * @description All auto-send schedules (newest cohort first) + per-stage sent counts.
+         */
+        get: operations["list_survey_schedules_survey_schedules_get"];
+        put?: never;
+        /**
+         * Create Survey Schedule
+         * @description Create — or replace — the auto-send schedule for a graduation year.
+         */
+        post: operations["create_survey_schedule_survey_schedules_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/schedules/{grad_year}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Survey Schedule
+         * @description Cancel a graduation year's schedule — no further sends.
+         */
+        post: operations["cancel_survey_schedule_survey_schedules__grad_year__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/cron/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Survey Cron Run
+         * @description Run the survey send scheduler (POST). See :func:`_run_cron`.
+         */
+        post: operations["survey_cron_run_survey_cron_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -3135,6 +3199,8 @@ export interface components {
             employment_status: string | null;
             /** Other Designations */
             other_designations: string | null;
+            /** Languages */
+            languages: string | null;
             /** Survey Completed Date */
             survey_completed_date: string | null;
             /** Profile Updated Date */
@@ -3753,6 +3819,8 @@ export interface components {
             employment_status: string | null;
             /** Other Designations */
             other_designations: string | null;
+            /** Languages */
+            languages: string | null;
             /** Survey Completed Date */
             survey_completed_date: string | null;
             /** Profile Updated Date */
@@ -6075,6 +6143,79 @@ export interface components {
             photo_preview_url: string | null;
         };
         /**
+         * SurveyScheduleCreateRequest
+         * @description Create/replace the auto-send schedule for a graduation year (#542).
+         */
+        SurveyScheduleCreateRequest: {
+            /** Graduation Year */
+            graduation_year: number;
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+        };
+        /**
+         * SurveyScheduleItem
+         * @description One survey schedule + how many emails each stage has sent so far.
+         */
+        SurveyScheduleItem: {
+            /** Survey Schedule Id */
+            survey_schedule_id: number;
+            /** Graduation Year */
+            graduation_year: number;
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            /** Status */
+            status: string;
+            /** Last Run At */
+            last_run_at: string | null;
+            /** Created At */
+            created_at: string | null;
+            /**
+             * Sent Initial
+             * @default 0
+             */
+            sent_initial: number;
+            /**
+             * Sent Reminder 1
+             * @default 0
+             */
+            sent_reminder_1: number;
+            /**
+             * Sent Reminder 2
+             * @default 0
+             */
+            sent_reminder_2: number;
+        };
+        /**
+         * SurveyScheduleRunItem
+         * @description What one due schedule did on this cron run.
+         */
+        SurveyScheduleRunItem: {
+            /** Graduation Year */
+            graduation_year: number;
+            /** Stage */
+            stage: number | null;
+            /** Sent */
+            sent: number;
+            /** Remaining */
+            remaining: number;
+            /** Retry After Seconds */
+            retry_after_seconds: number | null;
+        };
+        /**
+         * SurveyScheduleRunSummary
+         * @description Summary of a cron run over every due schedule.
+         */
+        SurveyScheduleRunSummary: {
+            /** Ran */
+            ran: components["schemas"]["SurveyScheduleRunItem"][];
+        };
+        /**
          * SurveySendResult
          * @description Summary returned by the send endpoint.
          *
@@ -6096,6 +6237,8 @@ export interface components {
             remaining: number;
             /** Dry Run */
             dry_run: boolean;
+            /** Retry After Seconds */
+            retry_after_seconds: number | null;
             /** Sample */
             sample: components["schemas"]["SurveySendSample"][];
         };
@@ -10914,6 +11057,110 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_survey_schedules_survey_schedules_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyScheduleItem"][];
+                };
+            };
+        };
+    };
+    create_survey_schedule_survey_schedules_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SurveyScheduleCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyScheduleItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_survey_schedule_survey_schedules__grad_year__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grad_year: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyScheduleItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    survey_cron_run_survey_cron_run_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyScheduleRunSummary"];
                 };
             };
         };
