@@ -3020,6 +3020,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/survey/schedules/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Survey Schedules Bulk
+         * @description Create — or replace — the auto-send schedule for many graduation years in
+         *     one call. A duplicate year in the payload resolves to a single row (last one
+         *     wins). Returns the full, refreshed schedule list.
+         */
+        post: operations["create_survey_schedules_bulk_survey_schedules_bulk_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/survey/schedules/{grad_year}/cancel": {
         parameters: {
             query?: never;
@@ -6141,6 +6163,17 @@ export interface components {
             changes: components["schemas"]["SurveyChange"][];
             /** Photo Preview Url */
             photo_preview_url: string | null;
+        };
+        /**
+         * SurveyScheduleBulkRequest
+         * @description Create/replace the auto-send schedule for many graduation years at once
+         *     (#542). Lets an admin schedule every class from one dialog instead of one at
+         *     a time. A duplicate ``graduation_year`` in the list resolves to a single
+         *     row — last one wins.
+         */
+        SurveyScheduleBulkRequest: {
+            /** Schedules */
+            schedules: components["schemas"]["SurveyScheduleCreateRequest"][];
         };
         /**
          * SurveyScheduleCreateRequest
@@ -11101,6 +11134,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SurveyScheduleItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_survey_schedules_bulk_survey_schedules_bulk_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SurveyScheduleBulkRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyScheduleItem"][];
                 };
             };
             /** @description Validation Error */
