@@ -114,9 +114,15 @@ function freshClass(
     totalAlumni,
     responded,
     patches: [
-      // The initial send's real reply count comes from the DB (#537); the
-      // reminder patches stay mock until per-send tracking exists.
-      { label: "Initial", sentDate: null, recipients: totalAlumni, responses: responded },
+      // The initial send targets only alumni who HAVEN'T replied this cycle
+      // (total − responded) — the backend skips recent responders too. Reply
+      // count comes from the DB (#537); reminder patches stay mock for now.
+      {
+        label: "Initial",
+        sentDate: null,
+        recipients: Math.max(0, totalAlumni - responded),
+        responses: responded,
+      },
       { label: "1-week reminder", sentDate: null, recipients: 0, responses: 0 },
       { label: "2-week reminder", sentDate: null, recipients: 0, responses: 0 },
     ],
@@ -285,8 +291,8 @@ export function SurveyCampaignConsole() {
       : noReplyCount
     : 0;
   const sendLabel = hasNextPatch
-    ? `Send patch ${nextPatchNumber}`
-    : "All patches sent";
+    ? `Send batch ${nextPatchNumber}`
+    : "All batches sent";
   // Split this send into 100/day batches: today's batch goes now, the rest are
   // scheduled on the following days.
   const dailyLeft = Math.max(0, DAILY_LIMIT - sentToday);
@@ -523,7 +529,7 @@ export function SurveyCampaignConsole() {
         {/* Three annual sends — a compact stepper. */}
         <div className="mt-4">
           <p className="text-xs font-medium text-gray-500">
-            Send patches — initial, then 1-week &amp; 2-week reminders to
+            Send batches — initial, then 1-week &amp; 2-week reminders to
             non-responders
           </p>
           <ol className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -867,7 +873,7 @@ export function SurveyCampaignConsole() {
       {/* Send dialog */}
       <Dialog open={sendOpen} onOpenChange={setSendOpen}>
         <DialogContent
-          title={`Send patch ${nextPatchNumber}${
+          title={`Send batch ${nextPatchNumber}${
             sendStage === "first" ? " · initial" : " · follow-up"
           } — graduation year ${selectedYear}`}
           description="Emails each recipient their personal survey link."
