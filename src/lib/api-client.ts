@@ -72,6 +72,50 @@ export async function clientPost<T>(path: string): Promise<T> {
 }
 
 /**
+ * Browser-side POST with a JSON body against the FastAPI backend, authed with
+ * the signed-in user's Supabase access token. Mirrors `clientPost` (same auth,
+ * same `error.message` surfacing, same empty-body handling) but serializes
+ * `body` as `application/json` — for endpoints that take a request model in the
+ * body rather than query params (e.g. creating a survey schedule).
+ */
+export async function clientPostJson<T>(
+  path: string,
+  body: unknown,
+): Promise<T> {
+  const supabase = createClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(session?.access_token
+        ? { Authorization: `Bearer ${session.access_token}` }
+        : {}),
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    let message: string | undefined;
+    try {
+      const errBody = await res.json();
+      if (typeof errBody?.error?.message === "string")
+        message = errBody.error.message;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new ApiClientError(res.status, message);
+  }
+  // 204 / empty-body responses have nothing to parse.
+  if (res.status === 204 || res.headers.get("content-length") === "0") {
+    return undefined as T;
+  }
+  return (await res.json()) as T;
+}
+
+/**
  * Browser-side multipart POST against the FastAPI backend, authed with the
  * signed-in user's Supabase access token.
  *
