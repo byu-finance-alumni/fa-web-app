@@ -121,6 +121,18 @@ export function PendingSubmissions({ gradYear }: { gradYear: number }) {
                 </dl>
               )}
 
+              {r.photo_preview_url ? (
+                <div className="mt-3">
+                  <p className="text-xs text-gray-500">New profile photo</p>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={r.photo_preview_url}
+                    alt={`New profile photo submitted by ${r.name}`}
+                    className="mt-1 h-16 w-16 rounded-full object-cover"
+                  />
+                </div>
+              ) : null}
+
               <div className="mt-3 flex gap-2">
                 <Button
                   type="button"

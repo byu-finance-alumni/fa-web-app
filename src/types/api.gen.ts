@@ -2852,6 +2852,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/survey/respond/{token}/photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Survey Submit Photo
+         * @description PUBLIC (token-gated): attach a NEW profile photo to a just-staged response.
+         *
+         *     A separate step from the JSON field-submit so the field submit is unaffected.
+         *     The signed token gates it (no login); the same JPEG/PNG/WebP + size validation
+         *     as the headshot upload runs here before the image is staged for admin review.
+         *     The photo only becomes the alum's headshot if an admin applies the response.
+         */
+        post: operations["survey_submit_photo_survey_respond__token__photo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/survey/campaigns/{grad_year}/responses": {
         parameters: {
             query?: never;
@@ -4011,6 +4036,13 @@ export interface components {
         Body_preview_update_import_alumni_alumni_import_update_preview_post: {
             /** File */
             file: string;
+        };
+        /** Body_survey_submit_photo_survey_respond__token__photo_post */
+        Body_survey_submit_photo_survey_respond__token__photo_post: {
+            /** Survey Response Id */
+            survey_response_id: number;
+            /** Photo */
+            photo: string;
         };
         /** Body_update_import_alumni_alumni_import_update_post */
         Body_update_import_alumni_alumni_import_update_post: {
@@ -6013,6 +6045,8 @@ export interface components {
             submitted_at: string;
             /** Changes */
             changes: components["schemas"]["SurveyChange"][];
+            /** Photo Preview Url */
+            photo_preview_url: string | null;
         };
         /**
          * SurveySendResult
@@ -6063,12 +6097,18 @@ export interface components {
         /**
          * SurveySubmitResult
          * @description Outcome of a submit — how many changes were staged for review.
+         *
+         *     `survey_response_id` is the id of the staged row (None when nothing was
+         *     staged); the public survey page uses it to attach an optional profile photo
+         *     via `POST /survey/respond/{token}/photo`.
          */
         SurveySubmitResult: {
             /** Staged */
             staged: boolean;
             /** Change Count */
             change_count: number;
+            /** Survey Response Id */
+            survey_response_id: number | null;
         };
         /**
          * TagCreate
@@ -10626,6 +10666,39 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SurveySubmitResult"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    survey_submit_photo_survey_respond__token__photo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_survey_submit_photo_survey_respond__token__photo_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
