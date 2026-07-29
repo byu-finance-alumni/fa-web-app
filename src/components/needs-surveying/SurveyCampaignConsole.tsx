@@ -65,8 +65,8 @@ type SurveyScheduleBulkRequest =
  *
  * Layout: an account card (Resend usage + caps) and the graduation-year picker
  * stay pinned at the top as shared context, then two tabs — "Schedule & send"
- * (the year's overview, per-stage sent counts, manual send, and the
- * "Schedule sends" card incl. the bulk "schedule all years" dialog) and
+ * (leads with the "Schedule sends" card incl. the bulk "schedule all years"
+ * dialog, then the year's overview, per-stage sent counts, and manual send) and
  * "Submissions" (the admin review queue) — so the console isn't one long scroll.
  */
 
@@ -452,69 +452,11 @@ export function SurveyCampaignConsole() {
             <TabsTrigger value="submissions">Submissions</TabsTrigger>
           </TabsList>
 
-          {/* ── Tab 1: the year's overview + per-stage counts + manual send, then
-              the Schedule sends card (per-year + bulk). ── */}
+          {/* ── Tab 1: lead with the Schedule sends card (per-year + bulk),
+              then the year's overview + per-stage counts + manual send. ── */}
           <TabsContent value="schedule">
-            <Card className="p-5">
-              {/* Last auto-send run + current schedule status. */}
-              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-                <MiniStat
-                  icon={<History className="h-4 w-4" aria-hidden="true" />}
-                  label="Last auto-send"
-                  value={formatWhen(selectedSchedule?.last_run_at ?? null)}
-                />
-                <MiniStat
-                  icon={<CalendarClock className="h-4 w-4" aria-hidden="true" />}
-                  label="Schedule"
-                  value={
-                    selectedSchedule
-                      ? STATUS_LABEL[selectedSchedule.status] ??
-                        selectedSchedule.status
-                      : "Not scheduled"
-                  }
-                />
-              </div>
-
-              {/* Per-stage sent counts from the real schedule (0s if none yet). */}
-              <div className="mt-4 border-t border-gray-200 pt-4">
-                <p className="text-xs font-medium text-gray-500">
-                  Emails sent — initial, then 1-week &amp; 2-week reminders to
-                  non-responders
-                </p>
-                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  <StageStat
-                    label="Initial"
-                    count={selectedSchedule?.sent_initial ?? 0}
-                  />
-                  <StageStat
-                    label="1-week reminder"
-                    count={selectedSchedule?.sent_reminder_1 ?? 0}
-                  />
-                  <StageStat
-                    label="2-week reminder"
-                    count={selectedSchedule?.sent_reminder_2 ?? 0}
-                  />
-                </div>
-              </div>
-
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs text-gray-400">
-                  Each recipient gets an email with their personal survey link.
-                </span>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => setSendOpen(true)}
-                  disabled={notYetReplied === 0}
-                >
-                  <Send aria-hidden="true" />
-                  Send now ({notYetReplied.toLocaleString()})
-                </Button>
-              </div>
-            </Card>
-
             {/* ── Schedule sends: create/replace/cancel the year's auto-send. ── */}
-            <Card className="mt-4 p-5">
+            <Card className="p-5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <CalendarPlus
@@ -607,6 +549,65 @@ export function SurveyCampaignConsole() {
                     {cancelling ? "Cancelling…" : "Cancel schedule"}
                   </Button>
                 ) : null}
+              </div>
+            </Card>
+
+            {/* ── Year overview + per-stage counts + manual "Send now". ── */}
+            <Card className="mt-4 p-5">
+              {/* Last auto-send run + current schedule status. */}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                <MiniStat
+                  icon={<History className="h-4 w-4" aria-hidden="true" />}
+                  label="Last auto-send"
+                  value={formatWhen(selectedSchedule?.last_run_at ?? null)}
+                />
+                <MiniStat
+                  icon={<CalendarClock className="h-4 w-4" aria-hidden="true" />}
+                  label="Schedule"
+                  value={
+                    selectedSchedule
+                      ? STATUS_LABEL[selectedSchedule.status] ??
+                        selectedSchedule.status
+                      : "Not scheduled"
+                  }
+                />
+              </div>
+
+              {/* Per-stage sent counts from the real schedule (0s if none yet). */}
+              <div className="mt-4 border-t border-gray-200 pt-4">
+                <p className="text-xs font-medium text-gray-500">
+                  Emails sent — initial, then 1-week &amp; 2-week reminders to
+                  non-responders
+                </p>
+                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <StageStat
+                    label="Initial"
+                    count={selectedSchedule?.sent_initial ?? 0}
+                  />
+                  <StageStat
+                    label="1-week reminder"
+                    count={selectedSchedule?.sent_reminder_1 ?? 0}
+                  />
+                  <StageStat
+                    label="2-week reminder"
+                    count={selectedSchedule?.sent_reminder_2 ?? 0}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs text-gray-400">
+                  Each recipient gets an email with their personal survey link.
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => setSendOpen(true)}
+                  disabled={notYetReplied === 0}
+                >
+                  <Send aria-hidden="true" />
+                  Send now ({notYetReplied.toLocaleString()})
+                </Button>
               </div>
             </Card>
           </TabsContent>
