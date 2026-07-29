@@ -83,6 +83,9 @@ type WorkingClass = Omit<ClassCampaign, "changeRecords"> & {
   changeRecords: WorkingChangeRecord[];
   /** Multi-day delivery schedule, set once a send is kicked off. */
   schedule?: SendBatch[];
+  /** Distinct alumni in this grad year who have submitted a survey response —
+   *  the REAL reply count from the DB (`GraduationYearCount.responded`, #537). */
+  responded?: number;
 };
 
 /** Deep-copy the sample campaigns into editable working state. */
@@ -101,12 +104,19 @@ function initClasses(): WorkingClass[] {
 
 /** A never-surveyed class (all three sends pending) with a real alumni count —
  *  used for graduation years that come from the DB but have no campaign yet. */
-function freshClass(gradYear: number, totalAlumni: number): WorkingClass {
+function freshClass(
+  gradYear: number,
+  totalAlumni: number,
+  responded: number,
+): WorkingClass {
   return {
     gradYear,
     totalAlumni,
+    responded,
     patches: [
-      { label: "Initial", sentDate: null, recipients: totalAlumni, responses: 0 },
+      // The initial send's real reply count comes from the DB (#537); the
+      // reminder patches stay mock until per-send tracking exists.
+      { label: "Initial", sentDate: null, recipients: totalAlumni, responses: responded },
       { label: "1-week reminder", sentDate: null, recipients: 0, responses: 0 },
       { label: "2-week reminder", sentDate: null, recipients: 0, responses: 0 },
     ],
@@ -127,8 +137,8 @@ function classesFromYears(years: GradYearCount[]): WorkingClass[] {
   return years.map((y) => {
     const existing = sample.get(y.graduation_year);
     return existing
-      ? { ...existing, totalAlumni: y.total_alumni }
-      : freshClass(y.graduation_year, y.total_alumni);
+      ? { ...existing, totalAlumni: y.total_alumni, responded: y.responded }
+      : freshClass(y.graduation_year, y.total_alumni, y.responded);
   });
 }
 
@@ -480,6 +490,11 @@ export function SurveyCampaignConsole() {
             </Select>
             <p className="mt-1 flex items-center gap-2 text-xs text-gray-500">
               {selected.totalAlumni.toLocaleString()} alumni graduated this year
+              {typeof selected.responded === "number" ? (
+                <Badge variant="tag">
+                  {selected.responded.toLocaleString()} replied
+                </Badge>
+              ) : null}
               {selected.submitted ? (
                 <Badge variant="success">
                   <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
