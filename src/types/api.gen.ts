@@ -2852,6 +2852,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/survey/respond/{token}/photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Survey Submit Photo
+         * @description PUBLIC (token-gated): attach a NEW profile photo to a just-staged response.
+         *
+         *     A separate step from the JSON field-submit so the field submit is unaffected.
+         *     The signed token gates it (no login); the same JPEG/PNG/WebP + size validation
+         *     as the headshot upload runs here before the image is staged for admin review.
+         *     The photo only becomes the alum's headshot if an admin applies the response.
+         */
+        post: operations["survey_submit_photo_survey_respond__token__photo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/survey/campaigns/{grad_year}/responses": {
         parameters: {
             query?: never;
@@ -2925,6 +2950,27 @@ export interface paths {
          *     newest first — powers the console's year picker.
          */
         get: operations["survey_graduation_years_survey_graduation_years_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Survey Send Usage
+         * @description Real Resend send usage (emails actually sent today / this calendar month),
+         *     for the console's daily/monthly tallies against the send caps.
+         */
+        get: operations["survey_send_usage_survey_usage_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4011,6 +4057,13 @@ export interface components {
         Body_preview_update_import_alumni_alumni_import_update_preview_post: {
             /** File */
             file: string;
+        };
+        /** Body_survey_submit_photo_survey_respond__token__photo_post */
+        Body_survey_submit_photo_survey_respond__token__photo_post: {
+            /** Survey Response Id */
+            survey_response_id: number;
+            /** Photo */
+            photo: string;
         };
         /** Body_update_import_alumni_alumni_import_update_post */
         Body_update_import_alumni_alumni_import_update_post: {
@@ -5152,6 +5205,11 @@ export interface components {
             graduation_year: number;
             /** Total Alumni */
             total_alumni: number;
+            /**
+             * Responded
+             * @default 0
+             */
+            responded: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -6013,6 +6071,8 @@ export interface components {
             submitted_at: string;
             /** Changes */
             changes: components["schemas"]["SurveyChange"][];
+            /** Photo Preview Url */
+            photo_preview_url: string | null;
         };
         /**
          * SurveySendResult
@@ -6059,16 +6119,40 @@ export interface components {
             fields: {
                 [key: string]: string;
             };
+            /**
+             * Has Photo
+             * @default false
+             */
+            has_photo: boolean;
         };
         /**
          * SurveySubmitResult
          * @description Outcome of a submit — how many changes were staged for review.
+         *
+         *     `survey_response_id` is the id of the staged row (None when nothing was
+         *     staged); the public survey page uses it to attach an optional profile photo
+         *     via `POST /survey/respond/{token}/photo`.
          */
         SurveySubmitResult: {
             /** Staged */
             staged: boolean;
             /** Change Count */
             change_count: number;
+            /** Survey Response Id */
+            survey_response_id: number | null;
+        };
+        /**
+         * SurveyUsage
+         * @description Real Resend send usage for the console's daily/monthly tallies — emails
+         *     actually sent today and this calendar month (summed from the `send_survey`
+         *     audit rows). UTC day/month boundaries, matching the rest of the app's date
+         *     filtering.
+         */
+        SurveyUsage: {
+            /** Sent Today */
+            sent_today: number;
+            /** Sent This Month */
+            sent_this_month: number;
         };
         /**
          * TagCreate
@@ -10638,6 +10722,39 @@ export interface operations {
             };
         };
     };
+    survey_submit_photo_survey_respond__token__photo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_survey_submit_photo_survey_respond__token__photo_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     survey_pending_responses_survey_campaigns__grad_year__responses_get: {
         parameters: {
             query?: never;
@@ -10743,6 +10860,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GraduationYearCount"][];
+                };
+            };
+        };
+    };
+    survey_send_usage_survey_usage_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyUsage"];
                 };
             };
         };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   CalendarClock,
   CheckCircle2,
@@ -40,6 +40,8 @@ import type { ClassCampaign, SurveyRound } from "@/types/surveyCampaign";
 type GradYearCount = components["schemas"]["GraduationYearCount"];
 /** The send endpoint's result, straight off the OpenAPI. */
 type SurveySendResult = components["schemas"]["SurveySendResult"];
+/** Real send usage (emails sent today / this month) for the daily/monthly tallies. */
+type SurveyUsage = components["schemas"]["SurveyUsage"];
 
 /**
  * Send re-surveys BY GRADUATION YEAR — the campaign console on the Needs
@@ -81,6 +83,9 @@ type WorkingClass = Omit<ClassCampaign, "changeRecords"> & {
   changeRecords: WorkingChangeRecord[];
   /** Multi-day delivery schedule, set once a send is kicked off. */
   schedule?: SendBatch[];
+  /** Distinct alumni in this grad year who have submitted a survey response —
+   *  the REAL reply count from the DB (`GraduationYearCount.responded`, #537). */
+  responded?: number;
 };
 
 /** Deep-copy the sample campaigns into editable working state. */
@@ -99,12 +104,19 @@ function initClasses(): WorkingClass[] {
 
 /** A never-surveyed class (all three sends pending) with a real alumni count —
  *  used for graduation years that come from the DB but have no campaign yet. */
-function freshClass(gradYear: number, totalAlumni: number): WorkingClass {
+function freshClass(
+  gradYear: number,
+  totalAlumni: number,
+  responded: number,
+): WorkingClass {
   return {
     gradYear,
     totalAlumni,
+    responded,
     patches: [
-      { label: "Initial", sentDate: null, recipients: totalAlumni, responses: 0 },
+      // The initial send's real reply count comes from the DB (#537); the
+      // reminder patches stay mock until per-send tracking exists.
+      { label: "Initial", sentDate: null, recipients: totalAlumni, responses: responded },
       { label: "1-week reminder", sentDate: null, recipients: 0, responses: 0 },
       { label: "2-week reminder", sentDate: null, recipients: 0, responses: 0 },
     ],
@@ -125,8 +137,8 @@ function classesFromYears(years: GradYearCount[]): WorkingClass[] {
   return years.map((y) => {
     const existing = sample.get(y.graduation_year);
     return existing
-      ? { ...existing, totalAlumni: y.total_alumni }
-      : freshClass(y.graduation_year, y.total_alumni);
+      ? { ...existing, totalAlumni: y.total_alumni, responded: y.responded }
+      : freshClass(y.graduation_year, y.total_alumni, y.responded);
   });
 }
 
@@ -187,10 +199,11 @@ export function SurveyCampaignConsole() {
   const [sentCount, setSentCount] = useState(() =>
     initialSentCount(SAMPLE_CAMPAIGNS),
   );
-  // Rolling Resend usage against the caps (seeded so a full class batch visibly
-  // bumps against the 100/day limit).
+  // Real Resend usage against the caps — emails actually sent today / this
+  // calendar month, loaded from GET /survey/usage (#534). 0 until the fetch
+  // resolves (and if it fails, we keep the last-known values).
   const [sentToday, setSentToday] = useState(0);
-  const [sentThisMonth, setSentThisMonth] = useState(640);
+  const [sentThisMonth, setSentThisMonth] = useState(0);
   const [selectedYear, setSelectedYear] = useState<number>(
     SAMPLE_CAMPAIGNS[0].gradYear,
   );
@@ -205,11 +218,27 @@ export function SurveyCampaignConsole() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [drafts, setDrafts] = useState<string[]>([]);
 
+  // Real send usage (today / this month) for the daily+monthly tallies (#534).
+  // Refetched after each send so the numbers reflect what actually went out.
+  const loadUsage = useCallback(() => {
+    clientGet<SurveyUsage>("/survey/usage")
+      .then((u) => {
+        if (!u) return;
+        setSentToday(u.sent_today);
+        setSentThisMonth(u.sent_this_month);
+      })
+      .catch(() => {
+        /* keep the last-known tallies if the usage fetch fails */
+      });
+  }, []);
+
   // Populate the year picker from the REAL database graduation years (so it
   // lists every class in the DB, including the 1900 test cohort) — falling back
-  // to the sample campaigns while loading or if the request fails.
+  // to the sample campaigns while loading or if the request fails. Also loads the
+  // real daily/monthly send usage.
   useEffect(() => {
     let cancelled = false;
+    loadUsage();
     clientGet<GradYearCount[]>("/survey/graduation-years")
       .then((years) => {
         if (cancelled || !years || years.length === 0) return;
@@ -226,7 +255,7 @@ export function SurveyCampaignConsole() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadUsage]);
 
   const selected =
     classes.find((c) => c.gradYear === selectedYear) ?? classes[0];
@@ -306,8 +335,9 @@ export function SurveyCampaignConsole() {
         ),
       );
       setSentCount((n) => n + result.sent);
-      setSentThisMonth((m) => m + result.sent);
-      setSentToday((d) => d + result.sent);
+      // Refetch the real daily/monthly usage now that this batch went out (#534),
+      // rather than optimistically bumping a local counter.
+      loadUsage();
       setSendOpen(false);
       setCustomMessage("");
 
@@ -460,6 +490,11 @@ export function SurveyCampaignConsole() {
             </Select>
             <p className="mt-1 flex items-center gap-2 text-xs text-gray-500">
               {selected.totalAlumni.toLocaleString()} alumni graduated this year
+              {typeof selected.responded === "number" ? (
+                <Badge variant="tag">
+                  {selected.responded.toLocaleString()} replied
+                </Badge>
+              ) : null}
               {selected.submitted ? (
                 <Badge variant="success">
                   <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />

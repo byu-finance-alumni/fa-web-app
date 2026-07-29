@@ -28,6 +28,7 @@ import type { components } from "@/types/api.gen";
 type Status = "review" | "confirmed" | "editing" | "submitted";
 type LoadState = "loading" | "ready" | "invalid";
 type Respondent = components["schemas"]["SurveyRespondInfo"];
+type SubmitResult = components["schemas"]["SurveySubmitResult"];
 type Fields = Record<string, string>;
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -199,6 +200,10 @@ export default function SurveyConfirmPage({
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [edits, setEdits] = useState<Fields>({});
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  // The actual File the alum chose, kept so it can be UPLOADED (the preview is
+  // just an object URL). Sent as a separate token-gated step after the fields.
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoFailed, setPhotoFailed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -261,7 +266,9 @@ export default function SurveyConfirmPage({
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  // Stage the alum's edits for admin review (public, token-gated POST).
+  // Stage the alum's edits for admin review (public, token-gated POST). If a new
+  // profile photo was chosen, upload it as a SECOND token-gated step keyed to the
+  // returned response id — a photo failure never loses the field submission.
   const handleSubmit = async () => {
     if (token === "demo") {
       setStatus("submitted");
@@ -269,16 +276,36 @@ export default function SurveyConfirmPage({
     }
     setSubmitting(true);
     setSubmitError(null);
+    setPhotoFailed(false);
     try {
       const res = await fetch(
         `${API_URL}/survey/respond/${encodeURIComponent(token)}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fields: edits }),
+          // Flag a photo-only submission so the backend still creates a response
+          // row (and returns its id) even when `fields` is empty (#537).
+          body: JSON.stringify({ fields: edits, has_photo: photoFile != null }),
         },
       );
       if (!res.ok) throw new Error(String(res.status));
+      const result = (await res.json()) as SubmitResult;
+      // Fields are safely staged. Attach the photo if one was picked; surface a
+      // soft warning on failure but still treat the submission as successful.
+      if (photoFile && result.survey_response_id != null) {
+        try {
+          const form = new FormData();
+          form.append("survey_response_id", String(result.survey_response_id));
+          form.append("photo", photoFile);
+          const photoRes = await fetch(
+            `${API_URL}/survey/respond/${encodeURIComponent(token)}/photo`,
+            { method: "POST", body: form },
+          );
+          if (!photoRes.ok) setPhotoFailed(true);
+        } catch {
+          setPhotoFailed(true);
+        }
+      }
       setStatus("submitted");
     } catch {
       setSubmitError(
@@ -310,7 +337,11 @@ export default function SurveyConfirmPage({
         ) : status === "submitted" ? (
           <SuccessPanel
             title="Thank you — your updates are in"
-            body="Our team will review your response before any changes are applied to your record. You can safely close this page."
+            body={
+              photoFailed
+                ? "Our team will review your response before any changes are applied to your record. We couldn't upload your new photo this time, but the rest of your updates were received. You can safely close this page."
+                : "Our team will review your response before any changes are applied to your record. You can safely close this page."
+            }
           />
         ) : status === "confirmed" ? (
           <SuccessPanel
@@ -333,6 +364,7 @@ export default function SurveyConfirmPage({
             closeSectionNav={closeSectionNav}
             photoPreview={photoPreview}
             setPhotoPreview={setPhotoPreview}
+            setPhotoFile={setPhotoFile}
             onBack={() => setStatus("review")}
             onSubmit={handleSubmit}
             submitting={submitting}
@@ -465,6 +497,7 @@ function EditFlow({
   closeSectionNav,
   photoPreview,
   setPhotoPreview,
+  setPhotoFile,
   onBack,
   onSubmit,
   submitting,
@@ -481,6 +514,7 @@ function EditFlow({
   closeSectionNav: () => void;
   photoPreview: string | null;
   setPhotoPreview: (v: string | null) => void;
+  setPhotoFile: (v: File | null) => void;
   onBack: () => void;
   onSubmit: () => void;
   submitting: boolean;
@@ -507,6 +541,7 @@ function EditFlow({
             name={name}
             photoPreview={photoPreview}
             setPhotoPreview={setPhotoPreview}
+            setPhotoFile={setPhotoFile}
           />
         ) : section ? (
           <>
@@ -629,10 +664,12 @@ function PhotoSection({
   name,
   photoPreview,
   setPhotoPreview,
+  setPhotoFile,
 }: {
   name: string;
   photoPreview: string | null;
   setPhotoPreview: (v: string | null) => void;
+  setPhotoFile: (v: File | null) => void;
 }) {
   return (
     <>
@@ -660,7 +697,10 @@ function PhotoSection({
               className="sr-only"
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file) setPhotoPreview(URL.createObjectURL(file));
+                if (file) {
+                  setPhotoPreview(URL.createObjectURL(file));
+                  setPhotoFile(file);
+                }
               }}
             />
             {photoPreview ? "Choose a different photo" : "Change photo"}
