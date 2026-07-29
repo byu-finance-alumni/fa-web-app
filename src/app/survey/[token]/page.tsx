@@ -283,7 +283,9 @@ export default function SurveyConfirmPage({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fields: edits }),
+          // Flag a photo-only submission so the backend still creates a response
+          // row (and returns its id) even when `fields` is empty (#537).
+          body: JSON.stringify({ fields: edits, has_photo: photoFile != null }),
         },
       );
       if (!res.ok) throw new Error(String(res.status));

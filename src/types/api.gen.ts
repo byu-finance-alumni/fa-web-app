@@ -5205,6 +5205,11 @@ export interface components {
             graduation_year: number;
             /** Total Alumni */
             total_alumni: number;
+            /**
+             * Responded
+             * @default 0
+             */
+            responded: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -6114,6 +6119,11 @@ export interface components {
             fields: {
                 [key: string]: string;
             };
+            /**
+             * Has Photo
+             * @default false
+             */
+            has_photo: boolean;
         };
         /**
          * SurveySubmitResult
