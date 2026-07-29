@@ -2,6 +2,7 @@ import { Topbar } from "@/components/shell/Topbar";
 import { Card } from "@/components/ui/card";
 import { SurveySampleEditor } from "@/components/needs-surveying/SurveySampleEditor";
 import { SurveyMessageEditor } from "@/components/needs-surveying/SurveyMessageEditor";
+import { SurveyBulkScheduler } from "@/components/needs-surveying/SurveyBulkScheduler";
 import { SurveyCampaignConsole } from "@/components/needs-surveying/SurveyCampaignConsole";
 
 /**
@@ -40,6 +41,7 @@ export default function NeedsSurveyingPage() {
             <div className="flex shrink-0 flex-col gap-2">
               <SurveySampleEditor />
               <SurveyMessageEditor />
+              <SurveyBulkScheduler />
             </div>
           </div>
         </Card>
