@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Select } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
 import {
@@ -62,9 +63,11 @@ type SurveyScheduleBulkRequest =
  *   • POST /survey/schedules + POST /survey/schedules/{year}/cancel — create /
  *     replace / cancel the auto-send schedule for a year.
  *
- * Layout: one account card (Resend usage + caps), a year overview (picker, real
- * reply count, schedule status + per-stage sent counts, manual send), a
- * "Schedule sends" card, and the admin review queue.
+ * Layout: an account card (Resend usage + caps) and the graduation-year picker
+ * stay pinned at the top as shared context, then two tabs — "Schedule & send"
+ * (the year's overview, per-stage sent counts, manual send, and the
+ * "Schedule sends" card incl. the bulk "schedule all years" dialog) and
+ * "Submissions" (the admin review queue) — so the console isn't one long scroll.
  */
 
 // Resend send caps (Free plan): 100 emails/day, 3,000/month. Shown so staff can
@@ -136,6 +139,10 @@ export function SurveyCampaignConsole() {
   // Real auto-send schedules, keyed by graduation year (null while loading).
   const [schedules, setSchedules] = useState<SurveyScheduleItem[] | null>(null);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
+
+  // Which tab is showing — "schedule" (Schedule & send, the default) or
+  // "submissions" (the review queue). Both tabs act on the selected year.
+  const [activeTab, setActiveTab] = useState("schedule");
 
   // Real Resend usage against the caps — emails actually sent today / this
   // calendar month, from GET /survey/usage. 0 until the fetch resolves.
@@ -389,7 +396,8 @@ export function SurveyCampaignConsole() {
         </p>
       </Card>
 
-      {/* ── Year overview: picker, reply count, schedule status + counts, send. ── */}
+      {/* ── Graduation-year picker — pinned above the tabs; the selected year
+          drives both tabs. Also carries the load/empty/select states. ── */}
       <Card className="mt-4 p-5">
         {years === null ? (
           <p className="py-6 text-sm text-gray-500">Loading graduation years…</p>
@@ -397,200 +405,218 @@ export function SurveyCampaignConsole() {
           <p className="py-6 text-sm text-gray-500">
             No graduation years found in the database yet.
           </p>
-        ) : selected === null ? (
-          <p className="py-6 text-sm text-gray-500">
-            Select a graduation year to get started.
-          </p>
         ) : (
-          <>
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="min-w-[13rem]">
-                <Label htmlFor="grad-year">Graduation year</Label>
-                <Select
-                  id="grad-year"
-                  value={selectedYear ?? undefined}
-                  onChange={(e) => changeSelectedYear(Number(e.target.value))}
-                  className="mt-1"
-                >
-                  {years.map((y) => (
-                    <option
-                      key={y.graduation_year}
-                      value={y.graduation_year}
-                    >
-                      {y.graduation_year}
-                    </option>
-                  ))}
-                </Select>
-                <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                  {selected.total_alumni.toLocaleString()} alumni graduated this
-                  year
-                  <Badge variant="tag">
-                    {selected.responded.toLocaleString()} replied
-                  </Badge>
-                </p>
-              </div>
-            </div>
-
-            {/* Last auto-send run + current schedule status. */}
-            <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-gray-200 pt-4">
-              <MiniStat
-                icon={<History className="h-4 w-4" aria-hidden="true" />}
-                label="Last auto-send"
-                value={formatWhen(selectedSchedule?.last_run_at ?? null)}
-              />
-              <MiniStat
-                icon={<CalendarClock className="h-4 w-4" aria-hidden="true" />}
-                label="Schedule"
-                value={
-                  selectedSchedule
-                    ? STATUS_LABEL[selectedSchedule.status] ??
-                      selectedSchedule.status
-                    : "Not scheduled"
-                }
-              />
-            </div>
-
-            {/* Per-stage sent counts from the real schedule (0s if none yet). */}
-            <div className="mt-4">
-              <p className="text-xs font-medium text-gray-500">
-                Emails sent — initial, then 1-week &amp; 2-week reminders to
-                non-responders
+          <div className="min-w-[13rem]">
+            <Label htmlFor="grad-year">Graduation year</Label>
+            <Select
+              id="grad-year"
+              value={selectedYear ?? undefined}
+              onChange={(e) => changeSelectedYear(Number(e.target.value))}
+              className="mt-1"
+            >
+              {years.map((y) => (
+                <option key={y.graduation_year} value={y.graduation_year}>
+                  {y.graduation_year}
+                </option>
+              ))}
+            </Select>
+            {selected ? (
+              <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                {selected.total_alumni.toLocaleString()} alumni graduated this
+                year
+                <Badge variant="tag">
+                  {selected.responded.toLocaleString()} replied
+                </Badge>
               </p>
-              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                <StageStat
-                  label="Initial"
-                  count={selectedSchedule?.sent_initial ?? 0}
-                />
-                <StageStat
-                  label="1-week reminder"
-                  count={selectedSchedule?.sent_reminder_1 ?? 0}
-                />
-                <StageStat
-                  label="2-week reminder"
-                  count={selectedSchedule?.sent_reminder_2 ?? 0}
-                />
-              </div>
-            </div>
-
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs text-gray-400">
-                Each recipient gets an email with their personal survey link.
-              </span>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => setSendOpen(true)}
-                disabled={notYetReplied === 0}
-              >
-                <Send aria-hidden="true" />
-                Send now ({notYetReplied.toLocaleString()})
-              </Button>
-            </div>
-          </>
+            ) : (
+              <p className="mt-1 text-xs text-gray-500">
+                Select a graduation year to get started.
+              </p>
+            )}
+          </div>
         )}
       </Card>
 
-      {/* ── Schedule sends: create/replace/cancel the year's auto-send. ── */}
+      {/* ── Tabs: keep the console from being one long scroll. Both tabs act on
+          the selected year, so they only render once a year is chosen. ── */}
       {selected !== null ? (
-        <Card className="mt-4 p-5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <CalendarPlus
-                className="h-4 w-4 text-brand-blue-600"
-                aria-hidden="true"
-              />
-              <h2 className="text-sm font-semibold text-gray-900">
-                Schedule sends
-              </h2>
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="mt-4 w-full"
+        >
+          {/* `overflow-y-hidden` alongside `overflow-x-auto` prevents a stray
+              vertical scrollbar on the tab strip (same fix as #530). */}
+          <TabsList className="w-full overflow-x-auto overflow-y-hidden">
+            <TabsTrigger value="schedule">Schedule &amp; send</TabsTrigger>
+            <TabsTrigger value="submissions">Submissions</TabsTrigger>
+          </TabsList>
+
+          {/* ── Tab 1: the year's overview + per-stage counts + manual send, then
+              the Schedule sends card (per-year + bulk). ── */}
+          <TabsContent value="schedule">
+            <Card className="p-5">
+              {/* Last auto-send run + current schedule status. */}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                <MiniStat
+                  icon={<History className="h-4 w-4" aria-hidden="true" />}
+                  label="Last auto-send"
+                  value={formatWhen(selectedSchedule?.last_run_at ?? null)}
+                />
+                <MiniStat
+                  icon={<CalendarClock className="h-4 w-4" aria-hidden="true" />}
+                  label="Schedule"
+                  value={
+                    selectedSchedule
+                      ? STATUS_LABEL[selectedSchedule.status] ??
+                        selectedSchedule.status
+                      : "Not scheduled"
+                  }
+                />
+              </div>
+
+              {/* Per-stage sent counts from the real schedule (0s if none yet). */}
+              <div className="mt-4 border-t border-gray-200 pt-4">
+                <p className="text-xs font-medium text-gray-500">
+                  Emails sent — initial, then 1-week &amp; 2-week reminders to
+                  non-responders
+                </p>
+                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <StageStat
+                    label="Initial"
+                    count={selectedSchedule?.sent_initial ?? 0}
+                  />
+                  <StageStat
+                    label="1-week reminder"
+                    count={selectedSchedule?.sent_reminder_1 ?? 0}
+                  />
+                  <StageStat
+                    label="2-week reminder"
+                    count={selectedSchedule?.sent_reminder_2 ?? 0}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs text-gray-400">
+                  Each recipient gets an email with their personal survey link.
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => setSendOpen(true)}
+                  disabled={notYetReplied === 0}
+                >
+                  <Send aria-hidden="true" />
+                  Send now ({notYetReplied.toLocaleString()})
+                </Button>
+              </div>
+            </Card>
+
+            {/* ── Schedule sends: create/replace/cancel the year's auto-send. ── */}
+            <Card className="mt-4 p-5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <CalendarPlus
+                    className="h-4 w-4 text-brand-blue-600"
+                    aria-hidden="true"
+                  />
+                  <h2 className="text-sm font-semibold text-gray-900">
+                    Schedule sends
+                  </h2>
+                  {selectedSchedule ? (
+                    <Badge variant={statusVariant(selectedSchedule.status)}>
+                      {STATUS_LABEL[selectedSchedule.status] ??
+                        selectedSchedule.status}
+                    </Badge>
+                  ) : null}
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={openBulk}
+                >
+                  <CalendarRange aria-hidden="true" />
+                  Schedule all years
+                </Button>
+              </div>
+
+              <p className="mt-2 text-xs text-gray-500">
+                On the chosen date the survey auto-sends to graduation year{" "}
+                {selectedYear}, then follows up with non-responders at 1 &amp; 2
+                weeks.
+              </p>
+
               {selectedSchedule ? (
-                <Badge variant={statusVariant(selectedSchedule.status)}>
-                  {STATUS_LABEL[selectedSchedule.status] ??
-                    selectedSchedule.status}
-                </Badge>
-              ) : null}
-            </div>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={openBulk}
-            >
-              <CalendarRange aria-hidden="true" />
-              Schedule all years
-            </Button>
-          </div>
+                <div className="mt-3 rounded-md border border-brand-blue-300/50 bg-brand-blue-50 p-3">
+                  <p className="text-xs font-semibold text-navy-800">
+                    Starts {formatDate(selectedSchedule.start_date)}
+                  </p>
+                  <p className="mt-1 text-xs tabular-nums text-gray-700">
+                    Initial {selectedSchedule.sent_initial.toLocaleString()} sent
+                    · reminders{" "}
+                    {selectedSchedule.sent_reminder_1.toLocaleString()},{" "}
+                    {selectedSchedule.sent_reminder_2.toLocaleString()}
+                  </p>
+                </div>
+              ) : (
+                <p className="mt-3 text-xs text-gray-400">
+                  No schedule yet for this graduation year.
+                </p>
+              )}
 
-          <p className="mt-2 text-xs text-gray-500">
-            On the chosen date the survey auto-sends to graduation year{" "}
-            {selectedYear}, then follows up with non-responders at 1 &amp; 2
-            weeks.
-          </p>
+              <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-gray-200 pt-4">
+                <div className="min-w-[12rem]">
+                  <Label htmlFor="schedule-date">
+                    {selectedSchedule ? "Reschedule start date" : "Start date"}
+                  </Label>
+                  <Input
+                    id="schedule-date"
+                    type="date"
+                    min={todayIso()}
+                    value={scheduleDate}
+                    onChange={(e) => setScheduleDate(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={submitSchedule}
+                  disabled={!scheduleDate || scheduling}
+                >
+                  <CalendarPlus aria-hidden="true" />
+                  {scheduling
+                    ? "Scheduling…"
+                    : selectedSchedule
+                      ? "Reschedule"
+                      : "Schedule"}
+                </Button>
+                {selectedSchedule &&
+                selectedSchedule.status !== "cancelled" &&
+                selectedSchedule.status !== "completed" ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={cancelSchedule}
+                    disabled={cancelling}
+                  >
+                    <XCircle aria-hidden="true" />
+                    {cancelling ? "Cancelling…" : "Cancel schedule"}
+                  </Button>
+                ) : null}
+              </div>
+            </Card>
+          </TabsContent>
 
-          {selectedSchedule ? (
-            <div className="mt-3 rounded-md border border-brand-blue-300/50 bg-brand-blue-50 p-3">
-              <p className="text-xs font-semibold text-navy-800">
-                Starts {formatDate(selectedSchedule.start_date)}
-              </p>
-              <p className="mt-1 text-xs tabular-nums text-gray-700">
-                Initial {selectedSchedule.sent_initial.toLocaleString()} sent ·
-                reminders {selectedSchedule.sent_reminder_1.toLocaleString()},{" "}
-                {selectedSchedule.sent_reminder_2.toLocaleString()}
-              </p>
-            </div>
-          ) : (
-            <p className="mt-3 text-xs text-gray-400">
-              No schedule yet for this graduation year.
-            </p>
-          )}
-
-          <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-gray-200 pt-4">
-            <div className="min-w-[12rem]">
-              <Label htmlFor="schedule-date">
-                {selectedSchedule ? "Reschedule start date" : "Start date"}
-              </Label>
-              <Input
-                id="schedule-date"
-                type="date"
-                min={todayIso()}
-                value={scheduleDate}
-                onChange={(e) => setScheduleDate(e.target.value)}
-                className="mt-1"
-              />
-            </div>
-            <Button
-              type="button"
-              size="sm"
-              onClick={submitSchedule}
-              disabled={!scheduleDate || scheduling}
-            >
-              <CalendarPlus aria-hidden="true" />
-              {scheduling
-                ? "Scheduling…"
-                : selectedSchedule
-                  ? "Reschedule"
-                  : "Schedule"}
-            </Button>
-            {selectedSchedule &&
-            selectedSchedule.status !== "cancelled" &&
-            selectedSchedule.status !== "completed" ? (
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={cancelSchedule}
-                disabled={cancelling}
-              >
-                <XCircle aria-hidden="true" />
-                {cancelling ? "Cancelling…" : "Cancel schedule"}
-              </Button>
-            ) : null}
-          </div>
-        </Card>
-      ) : null}
-
-      {/* ── Admin review queue: real alum submissions to apply/reject ── */}
-      {selected !== null ? (
-        <PendingSubmissions gradYear={selected.graduation_year} />
+          {/* ── Tab 2: admin review queue — real alum submissions to apply/reject.
+              Keeps its own "N to review" badge inside the panel. ── */}
+          <TabsContent value="submissions">
+            <PendingSubmissions gradYear={selected.graduation_year} />
+          </TabsContent>
+        </Tabs>
       ) : null}
 
       {/* Send dialog */}
