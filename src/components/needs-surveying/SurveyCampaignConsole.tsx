@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   CalendarClock,
   CalendarPlus,
+  CalendarRange,
   History,
   Send,
   XCircle,
@@ -44,6 +45,9 @@ type SurveyScheduleItem = components["schemas"]["SurveyScheduleItem"];
 /** Body for creating/replacing a year's schedule. */
 type SurveyScheduleCreateRequest =
   components["schemas"]["SurveyScheduleCreateRequest"];
+/** Body for bulk creating/replacing schedules for many years in one call. */
+type SurveyScheduleBulkRequest =
+  components["schemas"]["SurveyScheduleBulkRequest"];
 
 /**
  * Send re-surveys BY GRADUATION YEAR — the campaign console on the Needs
@@ -145,6 +149,12 @@ export function SurveyCampaignConsole() {
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduling, setScheduling] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+
+  // Bulk "schedule all years" dialog: a start date per graduation year.
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkDates, setBulkDates] = useState<Record<number, string>>({});
+  const [bulkApplyAll, setBulkApplyAll] = useState("");
+  const [bulkScheduling, setBulkScheduling] = useState(false);
 
   // Real send usage (today / this month). Refetched after each send so the
   // numbers reflect what actually went out.
@@ -296,6 +306,64 @@ export function SurveyCampaignConsole() {
     }
   };
 
+  // Open the bulk dialog, prefilling each year's date from its existing
+  // schedule's start_date (blank for years that have no schedule yet).
+  const openBulk = () => {
+    const seed: Record<number, string> = {};
+    for (const y of years ?? []) {
+      const existing = schedules?.find(
+        (sch) => sch.graduation_year === y.graduation_year,
+      );
+      seed[y.graduation_year] = existing?.start_date ?? "";
+    }
+    setBulkDates(seed);
+    setBulkApplyAll("");
+    setBulkOpen(true);
+  };
+
+  // "Apply to all": fill every row with one date.
+  const applyDateToAll = (date: string) => {
+    setBulkApplyAll(date);
+    if (!date) return;
+    const next: Record<number, string> = {};
+    for (const y of years ?? []) next[y.graduation_year] = date;
+    setBulkDates(next);
+  };
+
+  // Only rows with a date set are scheduled; blank rows are skipped.
+  const bulkFilled = (years ?? []).filter(
+    (y) => (bulkDates[y.graduation_year] ?? "").length > 0,
+  );
+
+  const submitBulk = async () => {
+    if (bulkScheduling || bulkFilled.length === 0) return;
+    setBulkScheduling(true);
+    try {
+      const body: SurveyScheduleBulkRequest = {
+        schedules: bulkFilled.map((y) => ({
+          graduation_year: y.graduation_year,
+          start_date: bulkDates[y.graduation_year],
+        })),
+      };
+      await clientPostJson<SurveyScheduleItem[]>(
+        "/survey/schedules/bulk",
+        body,
+      );
+      loadSchedules();
+      setBulkOpen(false);
+      const n = body.schedules.length;
+      toast.success(`Scheduled ${n} ${n === 1 ? "year" : "years"}.`);
+    } catch (err) {
+      const msg =
+        err instanceof ApiClientError && err.message
+          ? err.message
+          : "the request failed.";
+      toast.error(`Couldn't schedule: ${msg}`);
+    } finally {
+      setBulkScheduling(false);
+    }
+  };
+
   return (
     <>
       {/* ── Account usage + Resend send caps — for the WHOLE account, across
@@ -425,20 +493,31 @@ export function SurveyCampaignConsole() {
       {/* ── Schedule sends: create/replace/cancel the year's auto-send. ── */}
       {selected !== null ? (
         <Card className="mt-4 p-5">
-          <div className="flex items-center gap-2">
-            <CalendarPlus
-              className="h-4 w-4 text-brand-blue-600"
-              aria-hidden="true"
-            />
-            <h2 className="text-sm font-semibold text-gray-900">
-              Schedule sends
-            </h2>
-            {selectedSchedule ? (
-              <Badge variant={statusVariant(selectedSchedule.status)}>
-                {STATUS_LABEL[selectedSchedule.status] ??
-                  selectedSchedule.status}
-              </Badge>
-            ) : null}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <CalendarPlus
+                className="h-4 w-4 text-brand-blue-600"
+                aria-hidden="true"
+              />
+              <h2 className="text-sm font-semibold text-gray-900">
+                Schedule sends
+              </h2>
+              {selectedSchedule ? (
+                <Badge variant={statusVariant(selectedSchedule.status)}>
+                  {STATUS_LABEL[selectedSchedule.status] ??
+                    selectedSchedule.status}
+                </Badge>
+              ) : null}
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={openBulk}
+            >
+              <CalendarRange aria-hidden="true" />
+              Schedule all years
+            </Button>
           </div>
 
           <p className="mt-2 text-xs text-gray-500">
@@ -552,6 +631,100 @@ export function SurveyCampaignConsole() {
             >
               <Send aria-hidden="true" />
               {sending ? "Sending…" : "Send now"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk schedule dialog — one date per graduation year, plus apply-to-all. */}
+      <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
+        <DialogContent
+          title="Schedule all graduation years"
+          description="Set a start date per class, or apply one date to every year. Blank rows are skipped."
+        >
+          <DialogBody className="space-y-4">
+            {/* Apply-to-all convenience row. */}
+            <div className="flex flex-wrap items-end gap-3 rounded-md border border-brand-blue-300/50 bg-brand-blue-50 p-3">
+              <div className="min-w-[12rem] flex-1">
+                <Label htmlFor="bulk-apply-all">Apply one date to all</Label>
+                <Input
+                  id="bulk-apply-all"
+                  type="date"
+                  min={todayIso()}
+                  value={bulkApplyAll}
+                  onChange={(e) => applyDateToAll(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <p className="flex-1 text-xs text-gray-500">
+                Fills every year below — adjust individual rows afterward.
+              </p>
+            </div>
+
+            {/* One row per graduation year (scrollable). */}
+            <div className="max-h-[22rem] divide-y divide-gray-100 overflow-y-auto rounded-md border border-gray-200">
+              {(years ?? []).length === 0 ? (
+                <p className="px-4 py-6 text-sm text-gray-500">
+                  No graduation years found.
+                </p>
+              ) : (
+                (years ?? []).map((y) => {
+                  const existing = schedules?.find(
+                    (sch) => sch.graduation_year === y.graduation_year,
+                  );
+                  return (
+                    <div
+                      key={y.graduation_year}
+                      className="flex items-center justify-between gap-3 px-4 py-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium tabular-nums text-gray-900">
+                          {y.graduation_year}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {existing
+                            ? `${STATUS_LABEL[existing.status] ?? existing.status} · starts ${formatDate(existing.start_date)}`
+                            : "Not scheduled"}
+                        </p>
+                      </div>
+                      <Input
+                        type="date"
+                        min={todayIso()}
+                        aria-label={`Start date for graduation year ${y.graduation_year}`}
+                        value={bulkDates[y.graduation_year] ?? ""}
+                        onChange={(e) =>
+                          setBulkDates((d) => ({
+                            ...d,
+                            [y.graduation_year]: e.target.value,
+                          }))
+                        }
+                        className="w-[10.5rem]"
+                      />
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setBulkOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={submitBulk}
+              disabled={bulkScheduling || bulkFilled.length === 0}
+            >
+              <CalendarRange aria-hidden="true" />
+              {bulkScheduling
+                ? "Scheduling…"
+                : `Schedule ${bulkFilled.length} ${bulkFilled.length === 1 ? "year" : "years"}`}
             </Button>
           </DialogFooter>
         </DialogContent>
