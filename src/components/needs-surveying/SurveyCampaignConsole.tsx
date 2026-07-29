@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   CalendarClock,
   CheckCircle2,
@@ -40,6 +40,8 @@ import type { ClassCampaign, SurveyRound } from "@/types/surveyCampaign";
 type GradYearCount = components["schemas"]["GraduationYearCount"];
 /** The send endpoint's result, straight off the OpenAPI. */
 type SurveySendResult = components["schemas"]["SurveySendResult"];
+/** Real send usage (emails sent today / this month) for the daily/monthly tallies. */
+type SurveyUsage = components["schemas"]["SurveyUsage"];
 
 /**
  * Send re-surveys BY GRADUATION YEAR — the campaign console on the Needs
@@ -187,10 +189,11 @@ export function SurveyCampaignConsole() {
   const [sentCount, setSentCount] = useState(() =>
     initialSentCount(SAMPLE_CAMPAIGNS),
   );
-  // Rolling Resend usage against the caps (seeded so a full class batch visibly
-  // bumps against the 100/day limit).
+  // Real Resend usage against the caps — emails actually sent today / this
+  // calendar month, loaded from GET /survey/usage (#534). 0 until the fetch
+  // resolves (and if it fails, we keep the last-known values).
   const [sentToday, setSentToday] = useState(0);
-  const [sentThisMonth, setSentThisMonth] = useState(640);
+  const [sentThisMonth, setSentThisMonth] = useState(0);
   const [selectedYear, setSelectedYear] = useState<number>(
     SAMPLE_CAMPAIGNS[0].gradYear,
   );
@@ -205,11 +208,27 @@ export function SurveyCampaignConsole() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [drafts, setDrafts] = useState<string[]>([]);
 
+  // Real send usage (today / this month) for the daily+monthly tallies (#534).
+  // Refetched after each send so the numbers reflect what actually went out.
+  const loadUsage = useCallback(() => {
+    clientGet<SurveyUsage>("/survey/usage")
+      .then((u) => {
+        if (!u) return;
+        setSentToday(u.sent_today);
+        setSentThisMonth(u.sent_this_month);
+      })
+      .catch(() => {
+        /* keep the last-known tallies if the usage fetch fails */
+      });
+  }, []);
+
   // Populate the year picker from the REAL database graduation years (so it
   // lists every class in the DB, including the 1900 test cohort) — falling back
-  // to the sample campaigns while loading or if the request fails.
+  // to the sample campaigns while loading or if the request fails. Also loads the
+  // real daily/monthly send usage.
   useEffect(() => {
     let cancelled = false;
+    loadUsage();
     clientGet<GradYearCount[]>("/survey/graduation-years")
       .then((years) => {
         if (cancelled || !years || years.length === 0) return;
@@ -226,7 +245,7 @@ export function SurveyCampaignConsole() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadUsage]);
 
   const selected =
     classes.find((c) => c.gradYear === selectedYear) ?? classes[0];
@@ -306,8 +325,9 @@ export function SurveyCampaignConsole() {
         ),
       );
       setSentCount((n) => n + result.sent);
-      setSentThisMonth((m) => m + result.sent);
-      setSentToday((d) => d + result.sent);
+      // Refetch the real daily/monthly usage now that this batch went out (#534),
+      // rather than optimistically bumping a local counter.
+      loadUsage();
       setSendOpen(false);
       setCustomMessage("");
 
