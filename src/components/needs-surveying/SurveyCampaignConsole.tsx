@@ -391,46 +391,32 @@ export function SurveyCampaignConsole() {
               the manual "Send now". ── */}
           <TabsContent value="schedule">
             <Card className="p-5">
-              {/* Top: last-run + schedule status on the LEFT, the per-year
-                  schedule control (date + Schedule/Reschedule + Cancel) on the
-                  RIGHT. */}
+              {/* Top: the "Last auto-send" stat on the LEFT, the per-year
+                  schedule control (date + Schedule/Reschedule + status badge +
+                  Cancel) filling the SCHEDULE slot on the RIGHT. */}
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div className="grid grid-cols-2 gap-x-4 gap-y-3 lg:flex-1">
+                <div className="lg:flex-1">
                   <MiniStat
                     icon={<History className="h-4 w-4" aria-hidden="true" />}
                     label="Last auto-send"
                     value={formatWhen(selectedSchedule?.last_run_at ?? null)}
                   />
-                  <MiniStat
-                    icon={
-                      <CalendarClock className="h-4 w-4" aria-hidden="true" />
-                    }
-                    label="Schedule"
-                    value={
-                      selectedSchedule
-                        ? STATUS_LABEL[selectedSchedule.status] ??
-                          selectedSchedule.status
-                        : "Not scheduled"
-                    }
-                  />
                 </div>
 
-                {/* Per-year schedule control (top-right of the box). */}
+                {/* SCHEDULE slot — the per-year schedule control (top-right of
+                    the box), replacing the old "Schedule status" stat. Its
+                    label matches the "Last auto-send" stat's label style. */}
                 <div className="lg:w-auto lg:max-w-xs lg:border-l lg:border-gray-200 lg:pl-5">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="schedule-date" className="mb-0">
-                      {selectedSchedule
-                        ? "Reschedule start date"
-                        : "Start date"}
-                    </Label>
-                    {selectedSchedule ? (
-                      <Badge variant={statusVariant(selectedSchedule.status)}>
-                        {STATUS_LABEL[selectedSchedule.status] ??
-                          selectedSchedule.status}
-                      </Badge>
-                    ) : null}
-                  </div>
-                  <div className="mt-1 flex flex-wrap items-end gap-2">
+                  <Label
+                    htmlFor="schedule-date"
+                    className="flex items-center gap-1 text-xs font-medium text-gray-500"
+                  >
+                    <span className="text-gray-400">
+                      <CalendarClock className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                    Schedule
+                  </Label>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
                     <Input
                       id="schedule-date"
                       type="date"
@@ -452,6 +438,12 @@ export function SurveyCampaignConsole() {
                           ? "Reschedule"
                           : "Schedule"}
                     </Button>
+                    {selectedSchedule ? (
+                      <Badge variant={statusVariant(selectedSchedule.status)}>
+                        {STATUS_LABEL[selectedSchedule.status] ??
+                          selectedSchedule.status}
+                      </Badge>
+                    ) : null}
                     {selectedSchedule &&
                     selectedSchedule.status !== "cancelled" &&
                     selectedSchedule.status !== "completed" ? (
