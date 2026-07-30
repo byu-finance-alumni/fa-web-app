@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import {
   CalendarClock,
   CalendarPlus,
+  Check,
+  ChevronDown,
   History,
   Send,
   XCircle,
@@ -21,7 +23,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Select } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
@@ -342,18 +349,55 @@ export function SurveyCampaignConsole() {
         ) : (
           <div className="min-w-[13rem]">
             <Label htmlFor="grad-year">Graduation year</Label>
-            <Select
-              id="grad-year"
-              value={selectedYear ?? undefined}
-              onChange={(e) => changeSelectedYear(Number(e.target.value))}
-              className="mt-1"
-            >
-              {years.map((y) => (
-                <option key={y.graduation_year} value={y.graduation_year}>
-                  {y.graduation_year}
-                </option>
-              ))}
-            </Select>
+            {/* Radix dropdown (not a native <select>) so we can FORCE the menu
+                to open downward — a native select's open direction is
+                browser-controlled and can't be pinned. */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  id="grad-year"
+                  type="button"
+                  className={cn(
+                    "mt-1 flex h-11 w-full items-center justify-between rounded-md border border-gray-300 bg-white px-3 text-base text-gray-900 md:h-9 md:text-sm",
+                    "focus-visible:border-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
+                  )}
+                >
+                  <span className={cn(selectedYear === null && "text-gray-400")}>
+                    {selectedYear ?? "Select a year"}
+                  </span>
+                  <ChevronDown
+                    className="ml-2 h-4 w-4 shrink-0 text-gray-400"
+                    aria-hidden="true"
+                  />
+                </button>
+              </DropdownMenuTrigger>
+              {/* Pinned downward: side/align/sideOffset + avoidCollisions={false}
+                  so Radix never flips it up. Scrolls internally when a class has
+                  many years. Width tracks the trigger. */}
+              <DropdownMenuContent
+                side="bottom"
+                align="start"
+                sideOffset={4}
+                avoidCollisions={false}
+                className="max-h-72 w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto"
+              >
+                {years.map((y) => (
+                  <DropdownMenuItem
+                    key={y.graduation_year}
+                    className="justify-between"
+                    onSelect={() => changeSelectedYear(y.graduation_year)}
+                  >
+                    {y.graduation_year}
+                    {y.graduation_year === selectedYear ? (
+                      <Check
+                        className="h-4 w-4 text-brand-blue-600"
+                        aria-hidden="true"
+                      />
+                    ) : null}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
             {selected ? (
               <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500">
                 {selected.total_alumni.toLocaleString()} alumni graduated this
