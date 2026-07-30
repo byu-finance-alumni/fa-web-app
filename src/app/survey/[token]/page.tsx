@@ -1,8 +1,9 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import { Check, ChevronRight, ExternalLink, Heart } from "lucide-react";
 
+import { HeadshotCropper } from "@/components/alumni/HeadshotCropper";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -660,6 +661,10 @@ function SectionRow({
   );
 }
 
+// Image types the canvas cropper can safely decode + export.
+const PHOTO_ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const PHOTO_MAX_BYTES = 20 * 1024 * 1024;
+
 function PhotoSection({
   name,
   photoPreview,
@@ -671,45 +676,109 @@ function PhotoSection({
   setPhotoPreview: (v: string | null) => void;
   setPhotoFile: (v: File | null) => void;
 }) {
+  // Object URL open in the crop modal (null = closed). We keep the ORIGINAL
+  // picked image's URL in a ref so "Adjust" can reopen the cropper on the full
+  // photo (not the already-cropped result).
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const origSrc = useRef<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const setOrig = (url: string | null) => {
+    if (origSrc.current) URL.revokeObjectURL(origSrc.current);
+    origSrc.current = url;
+  };
+
+  // Validate, then open the cropper so the alum positions the photo in the
+  // circle — same "adjust the frame" step the staff profile uses.
+  const onPick = (file: File | null) => {
+    if (!file) return;
+    if (!PHOTO_ACCEPTED_TYPES.includes(file.type)) {
+      setError("That image type isn't supported. Use a JPG, PNG, or WebP.");
+      return;
+    }
+    if (file.size > PHOTO_MAX_BYTES) {
+      setError("That image is too large. Please use one under 20 MB.");
+      return;
+    }
+    setError(null);
+    const url = URL.createObjectURL(file);
+    setOrig(url);
+    setCropSrc(url);
+  };
+
+  // Cropper saved: the cropped square becomes the photo to upload + the preview.
+  const onCropSave = (blob: Blob) => {
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+    setPhotoFile(new File([blob], "headshot.jpg", { type: "image/jpeg" }));
+    setPhotoPreview(URL.createObjectURL(blob));
+    setCropSrc(null);
+  };
+
   return (
     <>
       <h1 className="text-3xl font-semibold leading-tight tracking-tight text-navy-800">
         Profile photo
       </h1>
-      <div className="mt-6 flex items-center gap-4 rounded-lg border border-gray-200 bg-white p-5 sm:p-6">
+      <div className="mt-6 flex flex-col items-center gap-5 rounded-lg border border-gray-200 bg-white p-6 sm:p-8">
         {photoPreview ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={photoPreview}
             alt="New profile photo preview"
-            className="h-16 w-16 shrink-0 rounded-full object-cover"
+            className="h-48 w-48 shrink-0 rounded-full object-cover shadow-sm"
           />
         ) : (
-          <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-navy-800 text-base font-semibold text-white">
+          <span className="flex h-48 w-48 shrink-0 items-center justify-center rounded-full bg-navy-800 text-5xl font-semibold text-white">
             {initialsOf(name)}
           </span>
         )}
-        <div className="min-w-0">
-          <label className="inline-flex cursor-pointer items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus-within:outline-none focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1">
-            <input
-              type="file"
-              accept="image/*"
-              className="sr-only"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) {
-                  setPhotoPreview(URL.createObjectURL(file));
-                  setPhotoFile(file);
-                }
-              }}
-            />
-            {photoPreview ? "Choose a different photo" : "Change photo"}
-          </label>
-          <p className="mt-1 text-xs text-gray-500">
-            JPG or PNG. Replaces the photo we have on file.
-          </p>
+
+        <div className="flex flex-col items-center gap-2">
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm">
+            <label className="inline-flex cursor-pointer items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 font-medium text-gray-700 transition-colors hover:bg-gray-50 focus-within:outline-none focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1">
+              <input
+                ref={inputRef}
+                type="file"
+                accept={PHOTO_ACCEPTED_TYPES.join(",")}
+                className="sr-only"
+                onChange={(e) => {
+                  onPick(e.target.files?.[0] ?? null);
+                  // Reset so re-picking the SAME file still fires onChange.
+                  e.target.value = "";
+                }}
+              />
+              {photoPreview ? "Choose a different photo" : "Upload a photo"}
+            </label>
+            {photoPreview && origSrc.current ? (
+              <button
+                type="button"
+                onClick={() => setCropSrc(origSrc.current)}
+                className="font-medium text-brand-blue-600 hover:text-brand-blue-500"
+              >
+                Adjust
+              </button>
+            ) : null}
+          </div>
+          {error ? (
+            <p className="text-xs text-danger-600">{error}</p>
+          ) : (
+            <p className="text-xs text-gray-500">
+              JPG, PNG, or WebP — you&apos;ll position it in the circle. Replaces
+              the photo we have on file.
+            </p>
+          )}
         </div>
       </div>
+
+      {cropSrc ? (
+        <HeadshotCropper
+          src={cropSrc}
+          busy={false}
+          onCancel={() => setCropSrc(null)}
+          onSave={onCropSave}
+        />
+      ) : null}
     </>
   );
 }
