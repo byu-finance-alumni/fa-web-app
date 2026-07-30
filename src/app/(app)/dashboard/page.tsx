@@ -52,25 +52,6 @@ interface Summary {
     unknown: number;
     graduate_student: number;
   };
-  /**
-   * The next scheduled survey send (soonest upcoming across scheduled/active
-   * campaigns), or null when nothing is scheduled. Drives the "Next survey" KPI.
-   */
-  next_survey: {
-    graduation_year: number;
-    send_date: string; // ISO date (YYYY-MM-DD)
-    stage: string; // "initial" | "1-week reminder" | "2-week reminder"
-  } | null;
-}
-
-/** Format an ISO date (YYYY-MM-DD) as e.g. "Aug 15, 2026" without a TZ shift. */
-function formatSurveyDate(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
 }
 
 /**
@@ -448,7 +429,7 @@ export default async function DashboardPage() {
                 dashboard is search-first, so the KPIs and Industry breakdown are
                 dropped and this whole column is hidden below lg. */}
             <div className="hidden flex-col gap-4 lg:flex lg:min-h-0 lg:flex-1 lg:gap-5">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <MetricCard
                   size="lg"
                   label="Total alumni"
@@ -469,27 +450,6 @@ export default async function DashboardPage() {
                   value={s?.attended_event_this_month ?? "—"}
                   href={`/events?from=${thirtyDaysAgo}&to=${today}`}
                   linkLabel="View events held this month"
-                />
-                <MetricCard
-                  size="lg"
-                  label="Next survey"
-                  value={
-                    s?.next_survey ? (
-                      <span className="flex flex-col leading-tight">
-                        <span>{formatSurveyDate(s.next_survey.send_date)}</span>
-                        <span className="text-xs font-normal text-gray-500">
-                          Class of {s.next_survey.graduation_year}
-                          {s.next_survey.stage !== "initial"
-                            ? ` · ${s.next_survey.stage}`
-                            : ""}
-                        </span>
-                      </span>
-                    ) : (
-                      "None scheduled"
-                    )
-                  }
-                  href="/needs-surveying"
-                  linkLabel="Open the survey console"
                 />
               </div>
               {/* Industry breakdown fills the entire leftover column space

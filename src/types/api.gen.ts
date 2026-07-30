@@ -4510,23 +4510,6 @@ export interface components {
             count: number;
         };
         /**
-         * DashboardNextSurvey
-         * @description The next scheduled survey send for the dashboard's "Next survey" KPI:
-         *     which class, on what date, and which stage (initial vs a reminder). ``None``
-         *     on the summary when no runnable schedule has an upcoming send.
-         */
-        DashboardNextSurvey: {
-            /** Graduation Year */
-            graduation_year: number;
-            /**
-             * Send Date
-             * Format: date
-             */
-            send_date: string;
-            /** Stage */
-            stage: string;
-        };
-        /**
          * DashboardPresetCreate
          * @description Add a quick-filter preset (engineer / super_admin).
          */
@@ -4621,7 +4604,6 @@ export interface components {
             /** By State */
             by_state: components["schemas"]["DashboardStateCount"][];
             industry_breakdown: components["schemas"]["DashboardIndustryBreakdown"];
-            next_survey: components["schemas"]["DashboardNextSurvey"] | null;
         };
         /**
          * DataQuality
@@ -5875,6 +5857,8 @@ export interface components {
              * @default []
              */
             surveys: components["schemas"]["SurveyRead"][];
+            /** Next Survey Date */
+            next_survey_date: string | null;
             /**
              * Interactions
              * @default []
