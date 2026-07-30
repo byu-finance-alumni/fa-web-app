@@ -5,6 +5,7 @@ import {
   CalendarClock,
   CalendarPlus,
   Check,
+  CheckCircle2,
   ChevronDown,
   History,
   Send,
@@ -559,6 +560,26 @@ export function SurveyCampaignConsole() {
                     label="Last auto-send"
                     value={formatWhen(selectedSchedule?.last_run_at ?? null)}
                   />
+                  {/* Reply tally for the selected class — replied vs. the class
+                      total, with the not-yet-replied count. */}
+                  <div className="mt-3">
+                    <MiniStat
+                      icon={
+                        <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                      }
+                      label="Replies"
+                      value={
+                        selected
+                          ? `${selected.responded.toLocaleString()} of ${selected.total_alumni.toLocaleString()} replied`
+                          : "—"
+                      }
+                      sub={
+                        selected
+                          ? `${notYetReplied.toLocaleString()} not yet`
+                          : undefined
+                      }
+                    />
+                  </div>
                 </div>
 
                 {/* SCHEDULE slot — the per-year schedule control (top-right of
