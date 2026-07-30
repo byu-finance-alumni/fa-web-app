@@ -34,8 +34,10 @@ import {
 /** Image types the backend accepts; also used for client-side pre-validation. */
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const ACCEPT_ATTR = ACCEPTED_TYPES.join(",");
-// Matches the bucket's size limit; reject client-side for a friendly message.
-const MAX_HEADSHOT_BYTES = 20 * 1024 * 1024;
+// Ceiling on the ORIGINAL picked file. It's cropped to a small (≤1024px) JPEG
+// before upload, so this only guards against decoding an absurdly large source
+// — generous so big phone photos (20-40 MB) aren't rejected before cropping.
+const MAX_HEADSHOT_BYTES = 50 * 1024 * 1024;
 // Publishable (browser-safe) key, sent on the direct-to-storage PUT.
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
 
@@ -98,7 +100,7 @@ export function ProfileHeadshot({
       return;
     }
     if (file.size > MAX_HEADSHOT_BYTES) {
-      toast.error("That image is too large. Please use one under 20 MB.");
+      toast.error("That image is too large. Please use one under 50 MB.");
       return;
     }
     setCropSrc(URL.createObjectURL(file));
@@ -143,7 +145,7 @@ export function ProfileHeadshot({
         if (!put.ok) {
           toast.error(
             put.status === 413
-              ? "That image is too large. Please use one under 20 MB."
+              ? "That image is too large. Please use one under 50 MB."
               : "Couldn't upload the photo — try again.",
           );
           return;

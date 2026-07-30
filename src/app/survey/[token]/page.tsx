@@ -663,7 +663,11 @@ function SectionRow({
 
 // Image types the canvas cropper can safely decode + export.
 const PHOTO_ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
-const PHOTO_MAX_BYTES = 20 * 1024 * 1024;
+// Ceiling on the ORIGINAL picked file. The cropper always exports a small
+// (≤1024px) JPEG, so the actual upload is tiny regardless — this only guards
+// against decoding an absurdly large source. Generous so modern phone photos
+// (often 20-40 MB) get through instead of being rejected before cropping.
+const PHOTO_MAX_BYTES = 50 * 1024 * 1024;
 
 function PhotoSection({
   name,
@@ -698,7 +702,7 @@ function PhotoSection({
       return;
     }
     if (file.size > PHOTO_MAX_BYTES) {
-      setError("That image is too large. Please use one under 20 MB.");
+      setError("That image is too large. Please use one under 50 MB.");
       return;
     }
     setError(null);

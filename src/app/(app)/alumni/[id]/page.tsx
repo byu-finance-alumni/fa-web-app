@@ -44,6 +44,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { designationFullName, splitDesignations } from "@/lib/designations";
 import { blankIfNa } from "@/lib/na";
+import { formatPhone } from "@/lib/phone";
 
 /* ----------------------------------------------------------------- helpers */
 
@@ -133,7 +134,7 @@ function HeaderContact({
       if (canViewContactDetails && contact?.phone)
         primary = {
           label: "Phone",
-          value: contact.phone,
+          value: formatPhone(contact.phone),
           href: `tel:${contact.phone}`,
         };
       break;
@@ -1113,7 +1114,7 @@ export async function AlumniProfileView({
                         />
                         <ContactField
                           label="Cell phone"
-                          value={c?.phone ?? null}
+                          value={c?.phone ? formatPhone(c.phone) : null}
                           href={c?.phone ? `tel:${c.phone}` : undefined}
                           hrefLabel="Call"
                           preferred={c?.preferred_contact_method === "phone"}
