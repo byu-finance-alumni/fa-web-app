@@ -90,10 +90,16 @@ export function SurveyBulkScheduler() {
       setSchedules(scheds);
       const seed: Record<number, string> = {};
       for (const y of ys) {
-        const existing = scheds.find(
-          (s) => s.graduation_year === y.graduation_year,
+        // Seed the date only from a RUNNABLE schedule (scheduled/active) so a
+        // cancelled/completed year starts BLANK — it's skipped on submit and
+        // never silently re-created from a leftover start date. (The per-row
+        // label below still shows the real status, e.g. "Cancelled".)
+        const runnable = scheds.find(
+          (s) =>
+            s.graduation_year === y.graduation_year &&
+            (s.status === "scheduled" || s.status === "active"),
         );
-        seed[y.graduation_year] = existing?.start_date ?? "";
+        seed[y.graduation_year] = runnable?.start_date ?? "";
       }
       setBulkDates(seed);
       setApplyAll("");
