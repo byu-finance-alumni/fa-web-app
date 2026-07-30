@@ -8,6 +8,7 @@ import {
   ChevronDown,
   History,
   Send,
+  Settings2,
   XCircle,
 } from "lucide-react";
 
@@ -52,6 +53,16 @@ type SurveyScheduleItem = components["schemas"]["SurveyScheduleItem"];
 /** Body for creating/replacing a year's schedule. */
 type SurveyScheduleCreateRequest =
   components["schemas"]["SurveyScheduleCreateRequest"];
+/**
+ * Account-wide send-cap config from GET/POST `/survey/send-config`. Not in the
+ * OpenAPI yet (backend feature landing in parallel), so typed locally. When
+ * `enabled` is false the cap is off — sends are limited only by Resend itself.
+ */
+type SurveySendConfig = {
+  enabled: boolean;
+  daily_limit: number;
+  monthly_limit: number;
+};
 
 /**
  * Send re-surveys BY GRADUATION YEAR — the campaign console on the Needs
@@ -75,34 +86,10 @@ type SurveyScheduleCreateRequest =
  * (`SurveyBulkScheduler`), not here.
  */
 
-// Resend send caps (Free plan): 100 emails/day, 3,000/month. Shown so staff can
-// see how much headroom a send has; the backend enforces them server-side.
-const DAILY_LIMIT = 100;
-const MONTHLY_LIMIT = 3000;
-
-/** Human labels for a schedule status. */
-const STATUS_LABEL: Record<string, string> = {
-  scheduled: "Scheduled",
-  active: "Active",
-  completed: "Completed",
-  cancelled: "Cancelled",
-};
-
-/** Badge variant per schedule status. */
-function statusVariant(
-  status: string,
-): "tag" | "success" | "neutral" | "muted" {
-  switch (status) {
-    case "active":
-      return "success";
-    case "scheduled":
-      return "tag";
-    case "completed":
-      return "neutral";
-    default:
-      return "muted";
-  }
-}
+// Fallback send caps used only until GET /survey/send-config resolves (and if
+// it ever fails). The live caps come from that endpoint and are staff-editable.
+const DEFAULT_DAILY_LIMIT = 100;
+const DEFAULT_MONTHLY_LIMIT = 3000;
 
 /** Today as an ISO `YYYY-MM-DD` (local, no tz drift) — the min for scheduling. */
 function todayIso(): string {
@@ -154,8 +141,19 @@ export function SurveyCampaignConsole() {
   const [sentToday, setSentToday] = useState(0);
   const [sentThisMonth, setSentThisMonth] = useState(0);
 
+  // Account-wide send-cap config from GET /survey/send-config (null while
+  // loading). Drives the capacity meters, caption, and send-dialog copy.
+  const [sendConfig, setSendConfig] = useState<SurveySendConfig | null>(null);
+
   const [sendOpen, setSendOpen] = useState(false);
   const [sending, setSending] = useState(false);
+
+  // "Edit caps" dialog — draft values, prefilled from sendConfig on open.
+  const [capsOpen, setCapsOpen] = useState(false);
+  const [savingCaps, setSavingCaps] = useState(false);
+  const [capEnabledDraft, setCapEnabledDraft] = useState(true);
+  const [dailyDraft, setDailyDraft] = useState(DEFAULT_DAILY_LIMIT);
+  const [monthlyDraft, setMonthlyDraft] = useState(DEFAULT_MONTHLY_LIMIT);
 
   // Schedule form for the selected year.
   const [scheduleDate, setScheduleDate] = useState("");
@@ -183,12 +181,24 @@ export function SurveyCampaignConsole() {
       .catch(() => setSchedules([]));
   }, []);
 
+  // Account-wide send-cap config. Keeps the last-known config if the fetch fails.
+  const loadConfig = useCallback(() => {
+    clientGet<SurveySendConfig>("/survey/send-config")
+      .then((c) => {
+        if (c) setSendConfig(c);
+      })
+      .catch(() => {
+        /* keep the last-known config if the fetch fails */
+      });
+  }, []);
+
   // Populate the year picker from the REAL database graduation years, load the
   // real usage tallies, and load the real schedules — all on mount.
   useEffect(() => {
     let cancelled = false;
     loadUsage();
     loadSchedules();
+    loadConfig();
     clientGet<GradYearCount[]>("/survey/graduation-years")
       .then((data) => {
         if (cancelled) return;
@@ -218,7 +228,7 @@ export function SurveyCampaignConsole() {
         );
       }
     };
-  }, [loadUsage, loadSchedules]);
+  }, [loadUsage, loadSchedules, loadConfig]);
 
   const selected =
     years?.find((y) => y.graduation_year === selectedYear) ?? null;
@@ -234,8 +244,19 @@ export function SurveyCampaignConsole() {
     setScheduleDate(selectedStartDate);
   }, [selectedStartDate]);
 
-  const dailyLeft = Math.max(0, DAILY_LIMIT - sentToday);
-  const monthlyLeft = Math.max(0, MONTHLY_LIMIT - sentThisMonth);
+  // Effective caps for display + math. Until the config loads, fall back to the
+  // previous defaults; when the cap is disabled, the limits are effectively
+  // unlimited (Resend is the only ceiling), so the meters/preview show "No cap".
+  const capEnabled = sendConfig ? sendConfig.enabled : true;
+  const dailyLimit = capEnabled
+    ? (sendConfig?.daily_limit ?? DEFAULT_DAILY_LIMIT)
+    : Infinity;
+  const monthlyLimit = capEnabled
+    ? (sendConfig?.monthly_limit ?? DEFAULT_MONTHLY_LIMIT)
+    : Infinity;
+
+  const dailyLeft = Math.max(0, dailyLimit - sentToday);
+  const monthlyLeft = Math.max(0, monthlyLimit - sentThisMonth);
 
   // Estimated recipients for a manual send: alumni who haven't replied this
   // cycle (the backend also skips recent responders and anyone without a
@@ -340,6 +361,45 @@ export function SurveyCampaignConsole() {
     }
   };
 
+  // Open the "Edit caps" dialog, prefilling the drafts from the live config.
+  const openCaps = () => {
+    setCapEnabledDraft(sendConfig?.enabled ?? true);
+    setDailyDraft(sendConfig?.daily_limit ?? DEFAULT_DAILY_LIMIT);
+    setMonthlyDraft(sendConfig?.monthly_limit ?? DEFAULT_MONTHLY_LIMIT);
+    setCapsOpen(true);
+  };
+
+  const saveCaps = async () => {
+    if (savingCaps) return;
+    setSavingCaps(true);
+    try {
+      const body: SurveySendConfig = {
+        enabled: capEnabledDraft,
+        daily_limit: Math.max(0, Math.trunc(dailyDraft) || 0),
+        monthly_limit: Math.max(0, Math.trunc(monthlyDraft) || 0),
+      };
+      const updated = await clientPostJson<SurveySendConfig>(
+        "/survey/send-config",
+        body,
+      );
+      setSendConfig(updated ?? body);
+      setCapsOpen(false);
+      toast.success(
+        capEnabledDraft
+          ? `Send cap updated — ${body.daily_limit.toLocaleString()}/day, ${body.monthly_limit.toLocaleString()}/month.`
+          : "Send cap turned off — sends are now limited only by Resend.",
+      );
+    } catch (err) {
+      const msg =
+        err instanceof ApiClientError && err.message
+          ? err.message
+          : "the request failed.";
+      toast.error(`Couldn't update send caps: ${msg}`);
+    } finally {
+      setSavingCaps(false);
+    }
+  };
+
   return (
     <>
       {/* ── Account usage + Resend send caps — for the WHOLE account, across
@@ -357,12 +417,30 @@ export function SurveyCampaignConsole() {
               survey emails across the whole account, all graduation years
             </p>
           </div>
-          <CapacityMeters dailyLeft={dailyLeft} monthlyLeft={monthlyLeft} />
+          <CapacityMeters
+            enabled={capEnabled}
+            dailyLeft={dailyLeft}
+            dailyTotal={dailyLimit}
+            monthlyLeft={monthlyLeft}
+            monthlyTotal={monthlyLimit}
+          />
         </div>
-        <p className="mt-3 border-t border-gray-200 pt-3 text-xs text-gray-400">
-          Send limits are account-wide across every graduation year — 100 emails
-          per day, 3,000 per month.
-        </p>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-3">
+          <p className="text-xs text-gray-400">
+            {capEnabled
+              ? `Send limits are account-wide across every graduation year — ${dailyLimit.toLocaleString()} emails per day, ${monthlyLimit.toLocaleString()} per month.`
+              : "No send cap — sends are limited only by Resend."}
+          </p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={openCaps}
+          >
+            <Settings2 aria-hidden="true" />
+            Edit caps
+          </Button>
+        </div>
       </Card>
 
       {/* ── Graduation-year picker — pinned above the tabs; the selected year
@@ -511,12 +589,6 @@ export function SurveyCampaignConsole() {
                           ? "Reschedule"
                           : "Schedule"}
                     </Button>
-                    {selectedSchedule ? (
-                      <Badge variant={statusVariant(selectedSchedule.status)}>
-                        {STATUS_LABEL[selectedSchedule.status] ??
-                          selectedSchedule.status}
-                      </Badge>
-                    ) : null}
                     {selectedSchedule &&
                     selectedSchedule.status !== "cancelled" &&
                     selectedSchedule.status !== "completed" ? (
@@ -605,9 +677,10 @@ export function SurveyCampaignConsole() {
                   {notYetReplied.toLocaleString()}
                 </span>{" "}
                 alumni in graduation year {selectedYear} who haven&apos;t replied
-                this cycle and have a personal email on file. Resend caps sends
-                at {DAILY_LIMIT}/day — rerun to continue if there&apos;s a
-                remainder.
+                this cycle and have a personal email on file.{" "}
+                {capEnabled
+                  ? `Sends are capped at ${dailyLimit.toLocaleString()}/day — rerun to continue if there's a remainder; everything goes out in a single same-day batch when it fits.`
+                  : "No send cap — everything goes out in a single same-day batch, limited only by Resend."}
               </span>
             </div>
           </DialogBody>
@@ -628,6 +701,79 @@ export function SurveyCampaignConsole() {
             >
               <Send aria-hidden="true" />
               {sending ? "Sending…" : "Send now"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit send caps dialog */}
+      <Dialog open={capsOpen} onOpenChange={setCapsOpen}>
+        <DialogContent
+          title="Edit send caps"
+          description="Account-wide daily & monthly limits across every graduation year."
+        >
+          <DialogBody className="space-y-4">
+            <label className="flex cursor-pointer items-start gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={capEnabledDraft}
+                onChange={(e) => setCapEnabledDraft(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
+              />
+              <span>
+                <span className="font-medium text-gray-900">
+                  Enforce daily &amp; monthly send cap
+                </span>
+                <span className="mt-0.5 block text-xs text-gray-400">
+                  Turn this off if you upgrade your Resend plan — sends will then
+                  be limited only by Resend.
+                </span>
+              </span>
+            </label>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="caps-daily">Daily limit</Label>
+                <Input
+                  id="caps-daily"
+                  type="number"
+                  min={0}
+                  value={dailyDraft}
+                  disabled={!capEnabledDraft}
+                  onChange={(e) => setDailyDraft(e.target.valueAsNumber || 0)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="caps-monthly">Monthly limit</Label>
+                <Input
+                  id="caps-monthly"
+                  type="number"
+                  min={0}
+                  value={monthlyDraft}
+                  disabled={!capEnabledDraft}
+                  onChange={(e) => setMonthlyDraft(e.target.valueAsNumber || 0)}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setCapsOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={saveCaps}
+              disabled={savingCaps}
+            >
+              {savingCaps ? "Saving…" : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -688,26 +834,44 @@ function StageStat({ label, count }: { label: string; count: number }) {
 /* --------------------------------------------------------------- capacity ---- */
 
 /**
- * Resend send capacity — the daily (100) and monthly (3,000) caps shown as two
- * separate remaining-capacity meters so staff can see how much room a send has.
+ * Send capacity — the daily and monthly caps shown as two separate
+ * remaining-capacity meters so staff can see how much room a send has. When the
+ * cap is disabled (`enabled` false) each meter shows "No cap" instead of a
+ * misleading bar — sends are then limited only by Resend.
  */
 function CapacityMeters({
+  enabled,
   dailyLeft,
+  dailyTotal,
   monthlyLeft,
+  monthlyTotal,
 }: {
+  enabled: boolean;
   dailyLeft: number;
+  dailyTotal: number;
   monthlyLeft: number;
+  monthlyTotal: number;
 }) {
   return (
     <div
       className="flex flex-wrap gap-x-5 gap-y-2"
-      title="Resend Free plan: 100 emails/day · 3,000/month"
+      title={
+        enabled
+          ? `Send cap: ${dailyTotal.toLocaleString()} emails/day · ${monthlyTotal.toLocaleString()}/month`
+          : "No send cap — limited only by Resend"
+      }
     >
-      <CapacityMeter label="Today" left={dailyLeft} total={DAILY_LIMIT} />
+      <CapacityMeter
+        label="Today"
+        left={dailyLeft}
+        total={dailyTotal}
+        enabled={enabled}
+      />
       <CapacityMeter
         label="This month"
         left={monthlyLeft}
-        total={MONTHLY_LIMIT}
+        total={monthlyTotal}
+        enabled={enabled}
       />
     </div>
   );
@@ -717,11 +881,29 @@ function CapacityMeter({
   label,
   left,
   total,
+  enabled,
 }: {
   label: string;
   left: number;
   total: number;
+  enabled: boolean;
 }) {
+  // Cap off (or a non-finite total) — no meaningful bar to draw; show "No cap".
+  if (!enabled || !Number.isFinite(total)) {
+    return (
+      <div className="min-w-[9rem]">
+        <div className="flex items-baseline justify-between gap-2 text-xs">
+          <span className="font-medium text-gray-500">{label}</span>
+          <span className="font-semibold text-gray-700">No cap</span>
+        </div>
+        <Progress
+          value={0}
+          className="mt-1 h-1.5"
+          barClassName="bg-brand-blue-500"
+        />
+      </div>
+    );
+  }
   const usedPct = ((total - left) / total) * 100;
   const empty = left === 0;
   const low = left / total <= 0.15;
