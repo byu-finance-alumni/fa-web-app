@@ -232,8 +232,16 @@ export function SurveyCampaignConsole() {
 
   const selected =
     years?.find((y) => y.graduation_year === selectedYear) ?? null;
+  // Only a RUNNABLE schedule (scheduled/active) counts as "this year is
+  // scheduled". A cancelled/completed row is treated as no schedule, so the
+  // control clears (blank date, "Schedule" not "Reschedule", no Cancel button)
+  // and a cancelled year can't look — or be silently re-created as — live.
   const selectedSchedule =
-    schedules?.find((s) => s.graduation_year === selectedYear) ?? null;
+    schedules?.find(
+      (s) =>
+        s.graduation_year === selectedYear &&
+        (s.status === "scheduled" || s.status === "active"),
+    ) ?? null;
 
   // Prefill the per-year date input from the selected year's existing schedule
   // (set individually OR via the bulk "all years" dialog), or clear it when the
