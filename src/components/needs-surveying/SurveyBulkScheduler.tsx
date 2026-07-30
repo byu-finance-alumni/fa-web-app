@@ -59,8 +59,9 @@ function formatDate(iso: string): string {
  * from the year's current schedule, offers an "apply one date to all" shortcut,
  * and POSTs the filled rows to `/survey/schedules/bulk`.
  *
- * Note: this doesn't share state with the campaign console below, so a bulk
- * schedule here won't live-refresh the console — a reload reflects it.
+ * On a successful bulk save it dispatches a `survey:schedules-changed` window
+ * event so the campaign console below live-refreshes its schedules (and its
+ * prefilled per-year date) without a page reload.
  */
 export function SurveyBulkScheduler() {
   const { toast } = useToast();
@@ -132,6 +133,10 @@ export function SurveyBulkScheduler() {
         "/survey/schedules/bulk",
         body,
       );
+      // Let the campaign console live-refresh its schedules + prefilled date.
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("survey:schedules-changed"));
+      }
       setOpen(false);
       const n = body.schedules.length;
       toast.success(`Scheduled ${n} ${n === 1 ? "year" : "years"}.`);

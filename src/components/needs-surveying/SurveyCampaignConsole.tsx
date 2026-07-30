@@ -203,8 +203,20 @@ export function SurveyCampaignConsole() {
       .catch(() => {
         if (!cancelled) setYears([]);
       });
+    // Stay in sync with the bulk "Schedule all years" dialog (and any other
+    // surface): re-fetch schedules whenever one is created/cancelled elsewhere.
+    const onSchedulesChanged = () => loadSchedules();
+    if (typeof window !== "undefined") {
+      window.addEventListener("survey:schedules-changed", onSchedulesChanged);
+    }
     return () => {
       cancelled = true;
+      if (typeof window !== "undefined") {
+        window.removeEventListener(
+          "survey:schedules-changed",
+          onSchedulesChanged,
+        );
+      }
     };
   }, [loadUsage, loadSchedules]);
 
@@ -212,6 +224,15 @@ export function SurveyCampaignConsole() {
     years?.find((y) => y.graduation_year === selectedYear) ?? null;
   const selectedSchedule =
     schedules?.find((s) => s.graduation_year === selectedYear) ?? null;
+
+  // Prefill the per-year date input from the selected year's existing schedule
+  // (set individually OR via the bulk "all years" dialog), or clear it when the
+  // year has no schedule. Runs whenever the selected year's schedule date
+  // changes — i.e. on year change or when the loaded schedules refresh.
+  const selectedStartDate = selectedSchedule?.start_date ?? "";
+  useEffect(() => {
+    setScheduleDate(selectedStartDate);
+  }, [selectedStartDate]);
 
   const dailyLeft = Math.max(0, DAILY_LIMIT - sentToday);
   const monthlyLeft = Math.max(0, MONTHLY_LIMIT - sentThisMonth);
@@ -224,8 +245,8 @@ export function SurveyCampaignConsole() {
     : 0;
 
   const changeSelectedYear = (year: number) => {
+    // The auto-fill effect prefills the date input from this year's schedule.
     setSelectedYear(year);
-    setScheduleDate("");
   };
 
   const confirmSend = async () => {
@@ -277,7 +298,10 @@ export function SurveyCampaignConsole() {
       };
       await clientPostJson<SurveyScheduleItem>("/survey/schedules", body);
       loadSchedules();
-      setScheduleDate("");
+      // Keep the bulk scheduler (and any other surface) in sync.
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("survey:schedules-changed"));
+      }
       toast.success(
         `Scheduled graduation year ${selectedYear} to auto-send on ${formatDate(
           scheduleDate,
@@ -300,6 +324,10 @@ export function SurveyCampaignConsole() {
     try {
       await clientPost(`/survey/schedules/${selectedYear}/cancel`);
       loadSchedules();
+      // Keep the bulk scheduler (and any other surface) in sync.
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("survey:schedules-changed"));
+      }
       toast.success(`Cancelled the schedule for graduation year ${selectedYear}.`);
     } catch (err) {
       const msg =
@@ -438,8 +466,8 @@ export function SurveyCampaignConsole() {
               {/* Top: the "Last auto-send" stat on the LEFT, the per-year
                   schedule control (date + Schedule/Reschedule + status badge +
                   Cancel) filling the SCHEDULE slot on the RIGHT. */}
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div className="lg:flex-1">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+                <div className="lg:flex-1 lg:pr-5">
                   <MiniStat
                     icon={<History className="h-4 w-4" aria-hidden="true" />}
                     label="Last auto-send"
@@ -448,9 +476,10 @@ export function SurveyCampaignConsole() {
                 </div>
 
                 {/* SCHEDULE slot — the per-year schedule control (top-right of
-                    the box), replacing the old "Schedule status" stat. Its
+                    the box), replacing the old "Schedule status" stat. Equal
+                    width with the left column so the divider sits centered. Its
                     label matches the "Last auto-send" stat's label style. */}
-                <div className="lg:w-auto lg:max-w-xs lg:border-l lg:border-gray-200 lg:pl-5">
+                <div className="lg:flex-1 lg:border-l lg:border-gray-200 lg:pl-5">
                   <Label
                     htmlFor="schedule-date"
                     className="flex items-center gap-1 text-xs font-medium text-gray-500"
@@ -504,9 +533,12 @@ export function SurveyCampaignConsole() {
                     ) : null}
                   </div>
                   <p className="mt-2 text-xs text-gray-400">
-                    On the chosen date the survey auto-sends to graduation year{" "}
-                    {selectedYear}, then follows up with non-responders at 1
-                    &amp; 2 weeks.
+                    On the chosen date, the survey automatically sends to the{" "}
+                    {selectedYear !== null
+                      ? `Class of ${selectedYear}`
+                      : "selected class"}
+                    , then follows up with anyone who hasn&apos;t replied after 1
+                    and 2 weeks.
                   </p>
                 </div>
               </div>
