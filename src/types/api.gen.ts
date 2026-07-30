@@ -2979,6 +2979,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/survey/send-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Survey Send Config
+         * @description The account-wide send cap the scheduler paces against — the daily/monthly
+         *     email budget and whether it's enforced.
+         */
+        get: operations["get_survey_send_config_survey_send_config_get"];
+        put?: never;
+        /**
+         * Update Survey Send Config
+         * @description Update the send cap. ``enabled=false`` removes the internal cap (e.g. after
+         *     upgrading the Resend plan) — sends are then limited only by Resend itself.
+         */
+        post: operations["update_survey_send_config_survey_send_config_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/survey/campaigns/{grad_year}/send": {
         parameters: {
             query?: never;
@@ -6247,6 +6273,35 @@ export interface components {
         SurveyScheduleRunSummary: {
             /** Ran */
             ran: components["schemas"]["SurveyScheduleRunItem"][];
+        };
+        /**
+         * SurveySendConfigItem
+         * @description The account-wide send cap the scheduler paces against. When ``enabled``,
+         *     the daily cron sends at most ``daily_limit`` emails per UTC day and
+         *     ``monthly_limit`` per calendar month across every graduation year, spreading
+         *     a big cohort over several days. When disabled there is no internal cap —
+         *     sends are limited only by Resend.
+         */
+        SurveySendConfigItem: {
+            /** Enabled */
+            enabled: boolean;
+            /** Daily Limit */
+            daily_limit: number;
+            /** Monthly Limit */
+            monthly_limit: number;
+        };
+        /**
+         * SurveySendConfigUpdateRequest
+         * @description Update the send cap (in-console admin control). ``enabled`` false turns
+         *     the cap off (e.g. after upgrading the Resend plan).
+         */
+        SurveySendConfigUpdateRequest: {
+            /** Enabled */
+            enabled: boolean;
+            /** Daily Limit */
+            daily_limit: number;
+            /** Monthly Limit */
+            monthly_limit: number;
         };
         /**
          * SurveySendResult
@@ -11056,6 +11111,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SurveyUsage"];
+                };
+            };
+        };
+    };
+    get_survey_send_config_survey_send_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveySendConfigItem"];
+                };
+            };
+        };
+    };
+    update_survey_send_config_survey_send_config_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SurveySendConfigUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveySendConfigItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
