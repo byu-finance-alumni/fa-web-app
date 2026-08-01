@@ -4,7 +4,10 @@ import { useActionState, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import type { FormState, PreviewState } from "@/app/(app)/alumni/actions";
 import type { Alumni, HygienePreview } from "@/types/alumni";
-import { PRIMARY_INDUSTRY_OPTIONS } from "@/constants/dropdowns";
+import {
+  EMPLOYMENT_STATUS_OPTIONS,
+  PRIMARY_INDUSTRY_OPTIONS,
+} from "@/constants/dropdowns";
 import {
   useStateRegions,
   useVocabOptions,
@@ -762,10 +765,15 @@ export function AlumniForm({
         />
         {/* Top-level alumni field (not nested under `career`), so it's named
             plainly and flows through the core payload — grouped here with the
-            current-role fields for context. */}
-        <Field
+            current-role fields for context. Same seven options as the survey
+            (#568); `withValue` keeps a legacy free-text status selectable. */}
+        <SelectField
           label="Employment status"
           name="employment_status"
+          options={withValue(
+            EMPLOYMENT_STATUS_OPTIONS,
+            defaults?.employment_status ?? "",
+          )}
           defaultValue={defaults?.employment_status ?? ""}
           error={errors.employment_status}
         />

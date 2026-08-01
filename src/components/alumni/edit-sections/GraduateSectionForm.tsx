@@ -6,8 +6,10 @@ import {
   type FormState,
 } from "@/app/(app)/alumni/actions";
 import { FocusedEditForm } from "@/components/alumni/FocusedEditForm";
-import { Field, FieldLabel } from "@/components/alumni/form-fields";
+import { Field, FieldLabel, SelectField } from "@/components/alumni/form-fields";
 import { Select } from "@/components/ui/select";
+import { EMPLOYMENT_STATUS_OPTIONS } from "@/constants/dropdowns";
+import { withValue } from "@/hooks/useVocabOptions";
 
 /** The four degree buckets; "Other" reveals a free-text "Specify" input. */
 const DEGREES = ["MBA", "Law", "Medical", "Other"] as const;
@@ -45,9 +47,16 @@ export function GraduateSectionForm({
       cancelHref={`/alumni/${id}`}
       pickerHref={`/alumni/${id}/edit`}
     >
-      <Field
+      {/* Same seven-option list as the Employment section and the survey
+          (#568) — this writes the same `alumni.employment_status` column, so a
+          legacy value off the list is preserved rather than blanked. */}
+      <SelectField
         label="Employment status (shared with Employment)"
         name="employment_status"
+        options={withValue(
+          EMPLOYMENT_STATUS_OPTIONS,
+          defaults.employment_status,
+        )}
         defaultValue={defaults.employment_status}
         error={errors.employment_status}
       />
