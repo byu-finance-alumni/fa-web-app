@@ -10,7 +10,10 @@ import { Field, SelectField } from "@/components/alumni/form-fields";
 import { RegionSelect } from "@/components/alumni/RegionSelect";
 import { SecondaryIndustryCombobox } from "@/components/alumni/SecondaryIndustryCombobox";
 import { StateCombobox } from "@/components/alumni/StateCombobox";
-import { PRIMARY_INDUSTRY_OPTIONS } from "@/constants/dropdowns";
+import {
+  EMPLOYMENT_STATUS_OPTIONS,
+  PRIMARY_INDUSTRY_OPTIONS,
+} from "@/constants/dropdowns";
 import {
   useStateRegions,
   useVocabOptions,
@@ -120,9 +123,16 @@ export function EmploymentSectionForm({
       cancelHref={`/alumni/${id}`}
       pickerHref={`/alumni/${id}/edit`}
     >
-      <Field
+      {/* The same seven options the survey offers (#568). A record holding a
+          legacy free-text status ("Employed") keeps it as a selectable option
+          via `withValue`, so editing the company can't rewrite the status. */}
+      <SelectField
         label="Employment Status"
         name="employment_status"
+        options={withValue(
+          EMPLOYMENT_STATUS_OPTIONS,
+          defaults.employment_status,
+        )}
         defaultValue={defaults.employment_status}
         error={errors.employment_status}
       />

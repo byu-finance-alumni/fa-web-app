@@ -9,7 +9,10 @@ import { Label } from "@/components/ui/label";
 import { SAMPLE_ALUM, SAMPLE_ALUM_NAME } from "@/lib/sampleAlumni";
 import { PAY_IT_FORWARD_URL } from "@/types/survey";
 import { STATE_NAMES } from "@/lib/geo/state-field";
-import { PRIMARY_INDUSTRY_OPTIONS } from "@/constants/dropdowns";
+import {
+  EMPLOYMENT_STATUS_OPTIONS,
+  PRIMARY_INDUSTRY_OPTIONS,
+} from "@/constants/dropdowns";
 import type { components } from "@/types/api.gen";
 
 /**
@@ -74,7 +77,8 @@ type FieldKind =
   | "date"
   | "usState"
   | "country"
-  | "industry";
+  | "industry"
+  | "employmentStatus";
 type EditField = {
   key: string;
   label: string;
@@ -83,22 +87,26 @@ type EditField = {
   donateUrl?: string;
   /** Helper/placeholder text for a free-text input (e.g. grad-program examples). */
   placeholder?: string;
+  /** Guidance shown under the label — examples too long to sit in the label. */
+  helpText?: string;
 };
 type Section = { id: string; title: string; blurb: string; fields: EditField[] };
 
 // The single source of truth for BOTH the review panel and the edit form —
-// Industry leads, then the rest of the Career Directors' list, grouped.
+// Employment status leads, then the rest of the Career Directors' list, grouped
+// (order per Tanya, #568: status first, because the answer to it decides how
+// much of the rest of the section even applies).
 const INFO_SECTIONS: Section[] = [
   {
     id: "employment",
     title: "Employment",
-    blurb: "Industry, company, title, work location",
+    blurb: "Status, company, title, industry, work location",
     fields: [
-      { key: "employment.current_industry", label: "Industry", kind: "industry" },
-      { key: "profile.employment_status", label: "Employment status", kind: "text" },
+      { key: "profile.employment_status", label: "Employment Status", kind: "employmentStatus" },
       { key: "employment.current_employer", label: "Company", kind: "text" },
-      { key: "employment.current_title", label: "Title", kind: "text" },
-      { key: "employment.current_industry_secondary", label: "Secondary industry", kind: "text" },
+      { key: "employment.current_title", label: "Job Title", kind: "text" },
+      { key: "employment.current_industry", label: "Industry", kind: "industry" },
+      { key: "employment.current_industry_secondary", label: "Secondary Industry", kind: "text" },
       { key: "employment.current_city", label: "Employment city", kind: "text" },
       { key: "employment.current_state", label: "Employment state", kind: "usState" },
       { key: "employment.current_country", label: "Employment country", kind: "country" },
@@ -136,16 +144,30 @@ const INFO_SECTIONS: Section[] = [
   {
     id: "grad",
     title: "Graduate school",
-    blurb: "Program, school, projected year",
+    blurb: "Program, school, graduation year",
+    // Labels per Tanya (#569) — the examples cover the responses alumni actually
+    // give, and sit in `helpText` rather than the label so the review panel's
+    // two-column rows stay scannable.
     fields: [
       {
         key: "profile.graduate_degree",
-        label: "Program",
+        label: "Graduate Program",
         kind: "text",
-        placeholder: "e.g. MBA, JD, MD, MS…",
+        helpText: "ex: MBA, JD/LAW, Medical, Dental, PhD, MHA, MRED, etc.",
+        placeholder: "e.g. MBA, JD/LAW, PhD…",
       },
-      { key: "profile.graduate_school", label: "School", kind: "text" },
-      { key: "profile.graduate_graduation_year", label: "Projected graduation year", kind: "text" },
+      {
+        key: "profile.graduate_school",
+        label: "Graduate School",
+        kind: "text",
+        helpText: "ex: Duke, Harvard, Northwestern, BYU, etc.",
+        placeholder: "e.g. Duke, Harvard, BYU…",
+      },
+      {
+        key: "profile.graduate_graduation_year",
+        label: "Projected or completed graduation year",
+        kind: "text",
+      },
     ],
   },
   {
@@ -851,6 +873,7 @@ function FieldControl({
 }) {
   const controlId = `survey-${field.key}`;
   const labelId = `${controlId}-label`;
+  const helpId = field.helpText ? `${controlId}-help` : undefined;
   return (
     <div>
       <Label id={labelId} htmlFor={controlId} className="text-sm font-medium text-gray-900">
@@ -861,12 +884,18 @@ function FieldControl({
           </span>
         ) : null}
       </Label>
+      {field.helpText ? (
+        <p id={helpId} className="mt-0.5 text-xs leading-relaxed text-gray-500">
+          {field.helpText}
+        </p>
+      ) : null}
       <div className="mt-1.5">
         {field.kind === "text" ? (
           <Input
             id={controlId}
             value={value}
             required={field.required}
+            aria-describedby={helpId}
             placeholder={field.placeholder ?? "Add a value"}
             onChange={(e) => onChange(e.target.value)}
           />
@@ -892,6 +921,14 @@ function FieldControl({
             value={value}
             options={COUNTRY_OPTIONS}
             placeholder="Select a country"
+            onChange={onChange}
+          />
+        ) : field.kind === "employmentStatus" ? (
+          <SelectControl
+            id={controlId}
+            value={value}
+            options={EMPLOYMENT_STATUS_OPTIONS}
+            placeholder="Select your status"
             onChange={onChange}
           />
         ) : field.kind === "industry" ? (
