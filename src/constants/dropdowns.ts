@@ -128,6 +128,34 @@ export const EMPLOYMENT_STATUS_OPTIONS = [
 export type EmploymentStatus = (typeof EMPLOYMENT_STATUS_OPTIONS)[number];
 
 /**
+ * Stored statuses that are a NON-ANSWER rather than a real one (#572).
+ *
+ * Prod holds 41 alumni whose status is `Unknown` / `UNKNOWN` — imported to mean
+ * "we asked and we don't know". Jake's call: keep it in the database (it is real
+ * information about the record) but never hand it back to an alum as something
+ * they can pick, since offering it re-collects the non-answer we're trying to
+ * clear. The survey therefore renders it as blank; the STAFF forms still show it
+ * via `withValue()`, because staff need to see the record's true state.
+ */
+export const EMPLOYMENT_STATUS_PLACEHOLDERS = ["Unknown"] as const;
+
+const EMPLOYMENT_STATUS_PLACEHOLDERS_LOWER = new Set<string>(
+  EMPLOYMENT_STATUS_PLACEHOLDERS.map((v) => v.toLowerCase()),
+);
+
+/**
+ * True when a stored status is a placeholder, not a real answer. Matched
+ * case-insensitively and whitespace-trimmed: the intake sheet was free text, so
+ * the same non-answer arrived as both "Unknown" and "UNKNOWN".
+ */
+export function isEmploymentStatusPlaceholder(
+  value: string | null | undefined,
+): boolean {
+  const v = value?.trim().toLowerCase();
+  return v ? EMPLOYMENT_STATUS_PLACEHOLDERS_LOWER.has(v) : false;
+}
+
+/**
  * The six canonical U.S. regions, in display order.
  *
  * FALLBACK ONLY, like `INDUSTRY_OPTIONS` — the live list comes from

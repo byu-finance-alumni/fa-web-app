@@ -13,6 +13,7 @@ import { STATE_NAMES } from "@/lib/geo/state-field";
 import {
   EMPLOYMENT_STATUS_OPTIONS,
   PRIMARY_INDUSTRY_OPTIONS,
+  isEmploymentStatusPlaceholder,
 } from "@/constants/dropdowns";
 import type { components } from "@/types/api.gen";
 
@@ -92,6 +93,24 @@ type EditField = {
   helpText?: string;
 };
 type Section = { id: string; title: string; blurb: string; fields: EditField[] };
+
+/**
+ * What the alum SEES for a stored value — a placeholder non-answer reads as
+ * blank (#572).
+ *
+ * Only `edits` is POSTed on submit, so blanking the display never writes: an
+ * untouched field is absent from the payload and the stored `Unknown` survives
+ * untouched in the database. It disappears only when the alum actually picks a
+ * real status. Used by BOTH the review panel and the edit control so the two
+ * can't disagree — reading "Unknown" on review and then finding an empty
+ * dropdown after clicking edit is exactly the confusion this avoids.
+ */
+function displayValue(field: EditField, value: string): string {
+  if (field.kind === "employmentStatus" && isEmploymentStatusPlaceholder(value)) {
+    return "";
+  }
+  return value;
+}
 
 // The single source of truth for BOTH the review panel and the edit form —
 // Employment status leads, then the rest of the Career Directors' list, grouped
@@ -486,7 +505,7 @@ function ReviewGroup({ section, fields }: { section: Section; fields: Fields }) 
         .join(" ");
       rows.push({ label: "Spouse name", value: spouse });
     } else {
-      rows.push({ label: f.label, value: fields[f.key] ?? "" });
+      rows.push({ label: f.label, value: displayValue(f, fields[f.key] ?? "") });
     }
   }
   return (
@@ -939,13 +958,16 @@ function IndustryControl({
 
 function FieldControl({
   field,
-  value,
+  value: storedValue,
   onChange,
 }: {
   field: EditField;
   value: string;
   onChange: (v: string) => void;
 }) {
+  // A placeholder non-answer ("Unknown") renders as an untouched, empty control
+  // — so it is never offered back as a choice — while staying in the DB (#572).
+  const value = displayValue(field, storedValue);
   const controlId = `survey-${field.key}`;
   const labelId = `${controlId}-label`;
   const helpId = field.helpText ? `${controlId}-help` : undefined;
