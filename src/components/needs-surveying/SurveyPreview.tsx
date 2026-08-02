@@ -1,11 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ClipboardList } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { SAMPLE_ALUM, SAMPLE_ALUM_NAME } from "@/lib/sampleAlumni";
+import {
+  DEFAULT_SURVEY_MESSAGE,
+  loadMessage,
+  saveMessage,
+} from "@/lib/surveyStore";
 import {
   EditFlow,
   INFO_SECTIONS,
@@ -33,6 +40,11 @@ import {
  * lied. Sharing the components is what makes "the preview matches" true by
  * construction. Do not re-add a parallel question model here.
  *
+ * The email intro that carries the survey link sits on top and is editable
+ * right here, saved through the same `surveyStore` the "Edit email message"
+ * dialog uses — so the two are always showing the same copy, whichever one
+ * staff happen to open.
+ *
  * Nothing is sent: no API call, no token, and Submit only advances to the
  * thank-you screen so the last step is visible too.
  */
@@ -55,7 +67,7 @@ export function SurveyPreview() {
         <DialogContent
           className="max-w-3xl"
           title="Sample survey"
-          description="Exactly what an alum sees, using a sample record. Click through it — nothing is sent and no record is touched."
+          description="The email message, then exactly what an alum sees, using a sample record. Click through it — no email is sent and no record is touched."
         >
           {/* Remounting on each open resets the walkthrough, so the dialog
               always opens on the review screen rather than wherever the last
@@ -90,6 +102,23 @@ function PreviewBody() {
   const [edits, setEdits] = useState<Fields>({});
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
+  // The email copy IS saved (unlike everything else in this dialog) — it's the
+  // real message, edited here or in "Edit email message", both reading and
+  // writing the same key. Load in an effect, never during render: localStorage
+  // doesn't exist on the server.
+  const [message, setMessage] = useState(DEFAULT_SURVEY_MESSAGE);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setMessage(loadMessage());
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    saveMessage(message);
+  }, [message, hydrated]);
+
   const valueOf = (key: string) => edits[key] ?? fields[key] ?? "";
   const setEdit = (key: string, value: string) =>
     setEdits((prev) => ({ ...prev, [key]: value }));
@@ -98,8 +127,36 @@ function PreviewBody() {
     <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
       <p className="mb-5 rounded-md border border-brand-blue-300/50 bg-brand-blue-50 px-4 py-2 text-xs text-navy-800">
         Preview — this is the live survey with a sample alum&apos;s details.
-        Nothing you type here is saved or sent.
+        Nothing you type in the form is saved or sent; the email message below
+        is real and saves as you type.
       </p>
+
+      <div className="mb-6 rounded-lg border border-gray-200">
+        <div className="border-b border-gray-200 px-4 py-2.5">
+          <Label
+            htmlFor="preview-email-message"
+            className="text-sm font-semibold text-gray-900"
+          >
+            Email message
+          </Label>
+          <p className="mt-0.5 text-xs text-gray-500">
+            What they read in the email before opening the survey. Edit it here
+            — it saves as you type. The closing and the on-file details block
+            live in &quot;Edit email message&quot;.
+          </p>
+        </div>
+        <div className="px-4 py-3">
+          <p className="text-sm text-gray-900">Hello {firstName},</p>
+          <Textarea
+            id="preview-email-message"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder={DEFAULT_SURVEY_MESSAGE}
+            rows={6}
+            className="mt-2"
+          />
+        </div>
+      </div>
 
       {status === "submitted" ? (
         <SuccessPanel
