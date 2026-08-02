@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   EMPLOYMENT_STATUS_OPTIONS,
+  EMPLOYMENT_STATUS_PLACEHOLDERS,
   INDUSTRY_OPTIONS,
+  isEmploymentStatusPlaceholder,
   PRIMARY_EXCLUDED_INDUSTRIES,
   PRIMARY_INDUSTRY_OPTIONS,
   SECONDARY_INDUSTRY_OPTIONS,
@@ -134,6 +136,46 @@ describe("EMPLOYMENT_STATUS_OPTIONS", () => {
   it("fits alumni.employment_status varchar(50)", () => {
     for (const v of EMPLOYMENT_STATUS_OPTIONS) {
       expect(v.length).toBeLessThanOrEqual(50);
+    }
+  });
+});
+
+describe("isEmploymentStatusPlaceholder", () => {
+  it("matches Unknown case-insensitively — prod holds both spellings", () => {
+    // 24 rows are "Unknown", 17 are "UNKNOWN" (free-text intake sheet).
+    expect(isEmploymentStatusPlaceholder("Unknown")).toBe(true);
+    expect(isEmploymentStatusPlaceholder("UNKNOWN")).toBe(true);
+    expect(isEmploymentStatusPlaceholder("unknown")).toBe(true);
+  });
+
+  it("ignores surrounding whitespace", () => {
+    expect(isEmploymentStatusPlaceholder("  Unknown ")).toBe(true);
+  });
+
+  it("treats blank/missing as not a placeholder — there is nothing to hide", () => {
+    expect(isEmploymentStatusPlaceholder("")).toBe(false);
+    expect(isEmploymentStatusPlaceholder("   ")).toBe(false);
+    expect(isEmploymentStatusPlaceholder(null)).toBe(false);
+    expect(isEmploymentStatusPlaceholder(undefined)).toBe(false);
+  });
+
+  it("leaves real answers alone, including legacy ones off the list", () => {
+    // "Employed" is a real (if ambiguous) answer on 3 prod rows — it must keep
+    // the normal preserve-and-offer behaviour, not be blanked.
+    for (const v of ["Employed", "Full-time", "Graduate Student", "Retired"]) {
+      expect(isEmploymentStatusPlaceholder(v)).toBe(false);
+    }
+  });
+
+  it("never hides one of the seven real options", () => {
+    for (const v of EMPLOYMENT_STATUS_OPTIONS) {
+      expect(isEmploymentStatusPlaceholder(v)).toBe(false);
+    }
+  });
+
+  it("keeps the placeholder list disjoint from the offered options", () => {
+    for (const p of EMPLOYMENT_STATUS_PLACEHOLDERS) {
+      expect(EMPLOYMENT_STATUS_OPTIONS).not.toContain(p);
     }
   });
 });
