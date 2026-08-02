@@ -102,6 +102,32 @@ export const PRIMARY_INDUSTRY_OPTIONS = filterPrimaryIndustries(INDUSTRY_OPTIONS
 export const SECONDARY_INDUSTRY_OPTIONS: readonly string[] = INDUSTRY_OPTIONS;
 
 /**
+ * Employment status — what an alum is currently doing (`alumni.employment_status`).
+ *
+ * Tanya, 2026-08-01 (#568): this was free text everywhere it was entered, so the
+ * column collected one-off spellings ("Employed", "employed full time"). These
+ * seven, in this order, are the answers the survey offers and the staff forms
+ * pick from.
+ *
+ * NOT a `vocabulary_terms` category — the column is plain `varchar(50)` and the
+ * backend still accepts any string, so a record that already stores something
+ * off-list keeps it: every dropdown re-adds the stored value via `withValue()`
+ * (staff forms) or `SelectControl`'s preserve-unknown branch (survey). Editing
+ * an unrelated field must never silently rewrite what's on file.
+ */
+export const EMPLOYMENT_STATUS_OPTIONS = [
+  "Full-time",
+  "Part-time",
+  "Self-Employed",
+  "Graduate Student",
+  "Military",
+  "Not in the Labor Force",
+  "Unemployed",
+] as const;
+
+export type EmploymentStatus = (typeof EMPLOYMENT_STATUS_OPTIONS)[number];
+
+/**
  * The six canonical U.S. regions, in display order.
  *
  * FALLBACK ONLY, like `INDUSTRY_OPTIONS` — the live list comes from

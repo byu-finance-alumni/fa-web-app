@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  EMPLOYMENT_STATUS_OPTIONS,
   INDUSTRY_OPTIONS,
   PRIMARY_EXCLUDED_INDUSTRIES,
   PRIMARY_INDUSTRY_OPTIONS,
@@ -103,6 +104,37 @@ describe("SECONDARY_INDUSTRY_OPTIONS", () => {
 
   it("is the full industry list (finance + Unknown/Graduate Student/Other)", () => {
     expect(SECONDARY_INDUSTRY_OPTIONS).toHaveLength(23);
+  });
+});
+
+describe("EMPLOYMENT_STATUS_OPTIONS", () => {
+  // Unlike the industry lists this one is NOT a fallback — there's no
+  // `/vocabulary/employment_status` endpoint, so this array IS what every
+  // dropdown shows. Pin it verbatim: the order is Tanya's (#568), not
+  // alphabetical, and "Not in the Labor Force" vs "Unemployed" is a distinction
+  // the dashboard counts on.
+  it("is exactly the seven statuses, in Tanya's order", () => {
+    expect([...EMPLOYMENT_STATUS_OPTIONS]).toEqual([
+      "Full-time",
+      "Part-time",
+      "Self-Employed",
+      "Graduate Student",
+      "Military",
+      "Not in the Labor Force",
+      "Unemployed",
+    ]);
+  });
+
+  it("has no duplicates", () => {
+    expect(new Set(EMPLOYMENT_STATUS_OPTIONS).size).toBe(
+      EMPLOYMENT_STATUS_OPTIONS.length,
+    );
+  });
+
+  it("fits alumni.employment_status varchar(50)", () => {
+    for (const v of EMPLOYMENT_STATUS_OPTIONS) {
+      expect(v.length).toBeLessThanOrEqual(50);
+    }
   });
 });
 
