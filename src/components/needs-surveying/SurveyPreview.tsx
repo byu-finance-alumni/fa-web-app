@@ -7,10 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import { SAMPLE_ALUM, SAMPLE_ALUM_NAME } from "@/lib/sampleAlumni";
 import {
+  DEFAULT_SURVEY_CLOSING,
   DEFAULT_SURVEY_MESSAGE,
+  loadClosing,
   loadMessage,
+  saveClosing,
   saveMessage,
 } from "@/lib/surveyStore";
 import {
@@ -40,10 +44,11 @@ import {
  * lied. Sharing the components is what makes "the preview matches" true by
  * construction. Do not re-add a parallel question model here.
  *
- * The email intro that carries the survey link sits on top and is editable
- * right here, saved through the same `surveyStore` the "Edit email message"
- * dialog uses — so the two are always showing the same copy, whichever one
- * staff happen to open.
+ * Laid out in the order the alum meets it — email intro, the survey, then the
+ * closing and sign-off — so reading the dialog top to bottom is reading the
+ * whole thing in sequence. Both blocks of email copy are editable in place and
+ * saved through the same `surveyStore` the "Edit email message" dialog uses, so
+ * the two always show the same copy whichever one staff happen to open.
  *
  * Nothing is sent: no API call, no token, and Submit only advances to the
  * thank-you screen so the last step is visible too.
@@ -104,13 +109,20 @@ function PreviewBody() {
 
   // The email copy IS saved (unlike everything else in this dialog) — it's the
   // real message, edited here or in "Edit email message", both reading and
-  // writing the same key. Load in an effect, never during render: localStorage
+  // writing the same keys. Load in an effect, never during render: localStorage
   // doesn't exist on the server.
+  //
+  // Intro and closing render ABOVE and BELOW the survey respectively, in the
+  // order the alum meets them: greeting -> intro -> the survey itself -> closing
+  // and sign-off. Two separate blocks with the survey between them, not one
+  // stacked pile of text boxes.
   const [message, setMessage] = useState(DEFAULT_SURVEY_MESSAGE);
+  const [closing, setClosing] = useState(DEFAULT_SURVEY_CLOSING);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     setMessage(loadMessage());
+    setClosing(loadClosing());
     setHydrated(true);
   }, []);
 
@@ -119,6 +131,11 @@ function PreviewBody() {
     saveMessage(message);
   }, [message, hydrated]);
 
+  useEffect(() => {
+    if (!hydrated) return;
+    saveClosing(closing);
+  }, [closing, hydrated]);
+
   const valueOf = (key: string) => edits[key] ?? fields[key] ?? "";
   const setEdit = (key: string, value: string) =>
     setEdits((prev) => ({ ...prev, [key]: value }));
@@ -126,37 +143,26 @@ function PreviewBody() {
   return (
     <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
       <p className="mb-5 rounded-md border border-brand-blue-300/50 bg-brand-blue-50 px-4 py-2 text-xs text-navy-800">
-        Preview — this is the live survey with a sample alum&apos;s details.
-        Nothing you type in the form is saved or sent; the email message below
-        is real and saves as you type.
+        Preview — top to bottom, in the order an alum meets it: the email intro,
+        the survey itself, then the closing. Nothing you type in the survey is
+        saved or sent; the email copy is real and saves as you type.
       </p>
 
-      <div className="mb-6 rounded-lg border border-gray-200">
-        <div className="border-b border-gray-200 px-4 py-2.5">
-          <Label
-            htmlFor="preview-email-message"
-            className="text-sm font-semibold text-gray-900"
-          >
-            Email message
-          </Label>
-          <p className="mt-0.5 text-xs text-gray-500">
-            What they read in the email before opening the survey. Edit it here
-            — it saves as you type. The closing and the on-file details block
-            live in &quot;Edit email message&quot;.
-          </p>
-        </div>
-        <div className="px-4 py-3">
-          <p className="text-sm text-gray-900">Hello {firstName},</p>
-          <Textarea
-            id="preview-email-message"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder={DEFAULT_SURVEY_MESSAGE}
-            rows={6}
-            className="mt-2"
-          />
-        </div>
-      </div>
+      <EmailCopyBlock
+        id="preview-email-message"
+        step="1 · Email"
+        title="Message (intro)"
+        hint={`Read first, above their details. The greeting ("Hello ${firstName},") is added automatically.`}
+        greeting={`Hello ${firstName},`}
+        value={message}
+        onChange={setMessage}
+        placeholder={DEFAULT_SURVEY_MESSAGE}
+        rows={6}
+      />
+
+      <p className="mb-3 mt-6 text-xs font-semibold uppercase tracking-wide text-gray-500">
+        2 · The survey they open
+      </p>
 
       {status === "submitted" ? (
         <SuccessPanel
@@ -264,6 +270,74 @@ function PreviewBody() {
           <TrustNote />
         </>
       )}
+
+      <EmailCopyBlock
+        id="preview-email-closing"
+        step="3 · Email"
+        title="Closing & sign-off"
+        hint="Read last, below their details and the button — confirm instructions and the sign-off."
+        value={closing}
+        onChange={setClosing}
+        placeholder={DEFAULT_SURVEY_CLOSING}
+        rows={7}
+        className="mt-6"
+      />
+    </div>
+  );
+}
+
+/**
+ * One editable block of email copy. Intro and closing are the same control with
+ * different copy, so they stay visually identical wherever they sit — the only
+ * thing that tells them apart is their position around the survey.
+ */
+function EmailCopyBlock({
+  id,
+  step,
+  title,
+  hint,
+  greeting,
+  value,
+  onChange,
+  placeholder,
+  rows,
+  className,
+}: {
+  id: string;
+  step: string;
+  title: string;
+  hint: string;
+  /** Intro only: the automatic "Hello {first name}," line above the textarea. */
+  greeting?: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  rows: number;
+  className?: string;
+}) {
+  return (
+    <div className={cn("rounded-lg border border-gray-200", className)}>
+      <div className="border-b border-gray-200 px-4 py-2.5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+          {step}
+        </p>
+        <Label htmlFor={id} className="mt-0.5 block text-sm font-semibold text-gray-900">
+          {title}
+        </Label>
+        <p className="mt-0.5 text-xs text-gray-500">{hint}</p>
+      </div>
+      <div className="px-4 py-3">
+        {greeting ? (
+          <p className="mb-2 text-sm text-gray-900">{greeting}</p>
+        ) : null}
+        <Textarea
+          id={id}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          rows={rows}
+        />
+      </div>
     </div>
   );
 }
