@@ -1,16 +1,17 @@
-import { DEFAULT_SURVEY_QUESTIONS, type SurveyQuestion } from "@/types/survey";
-
 /**
- * Frontend-only persistence for the authored "confirm your info" survey.
+ * Frontend-only persistence for the staff-authored survey EMAIL copy.
  *
- * There is no backend survey endpoint, so the edited question set lives in
- * `localStorage`. This stands in for "what Resend would send": edits survive
- * reloads on localhost. All access is SSR-guarded — callers only invoke these
- * from effects/handlers, never during render.
+ * There is no backend for this yet, so the intro/closing text and the choice of
+ * which on-file fields the email previews live in `localStorage`. All access is
+ * SSR-guarded — callers only invoke these from effects/handlers, never during
+ * render.
+ *
+ * The survey's QUESTIONS are deliberately not here: they are the live survey's
+ * own sections (`components/survey/survey-screens`). A parallel authored
+ * question set used to live in this file, and because nothing read it the
+ * preview drifted from what alumni were actually sent (#574). Don't reintroduce
+ * one without a backend and a survey page that reads it.
  */
-// v2: questions are now column-bound (fieldKey → SURVEY_FIELDS) with no
-// free-form types, so any v1 payload is discarded and reseeded from the default.
-const STORAGE_KEY = "fa:needs-surveying:questions:v2";
 
 // Staff-settable email copy. The email reads: greeting → intro message →
 // "here's what we have on file" → CTA → closing (sign-off). Intro and closing
@@ -32,62 +33,6 @@ export const DEFAULT_SURVEY_MESSAGE =
  */
 export const DEFAULT_SURVEY_CLOSING =
   "If everything above is correct, please confirm that your information is up to date at the bottom of the survey. If anything has changed, please update the applicable questions in the survey. We have also included a few optional questions that will help us better connect with and support our alumni community.\n\nThank you for being an important part of the BYU Finance family. We look forward to staying connected with you in the years ahead!\n\nWarmest regards,\nTanya Harmon & Amy Densley\nBYU Finance Career Directors";
-
-/** A fresh copy of the default seed (never hand out the shared constant). */
-export function defaultQuestions(): SurveyQuestion[] {
-  return DEFAULT_SURVEY_QUESTIONS.map((q) => ({ ...q }));
-}
-
-function isQuestion(value: unknown): value is SurveyQuestion {
-  if (typeof value !== "object" || value === null) return false;
-  const q = value as Record<string, unknown>;
-  return (
-    typeof q.id === "string" &&
-    typeof q.fieldKey === "string" &&
-    typeof q.label === "string" &&
-    typeof q.required === "boolean"
-  );
-}
-
-/**
- * Load the saved question set, or the default seed if nothing is stored / the
- * stored value is unusable. Returns the default (not an empty list) on any
- * parse/shape failure so the UI always has something sensible to show.
- */
-export function loadQuestions(): SurveyQuestion[] {
-  if (typeof window === "undefined") return defaultQuestions();
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultQuestions();
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed) || !parsed.every(isQuestion)) {
-      return defaultQuestions();
-    }
-    return parsed as SurveyQuestion[];
-  } catch {
-    return defaultQuestions();
-  }
-}
-
-/** Persist the current question set. No-op during SSR. */
-export function saveQuestions(questions: SurveyQuestion[]): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(questions));
-  } catch {
-    // Storage full / disabled (private mode) — edits simply won't persist.
-  }
-}
-
-/** Clear the saved set so the next load falls back to the default seed. */
-export function clearQuestions(): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // Ignore — nothing else to do.
-  }
-}
 
 /**
  * Load the staff-set intro message, or `DEFAULT_SURVEY_MESSAGE` if nothing is

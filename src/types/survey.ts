@@ -12,9 +12,11 @@
  *                 flags that drive tags, hiring flags, designations, and the Pay
  *                 It Forward donor flag).
  *
- * There is NO backend survey endpoint yet — the authored question set is edited
- * and previewed entirely in the browser and persisted to `localStorage` (see
- * `src/lib/surveyStore.ts`). This stands in for "what Resend would send".
+ * These columns back the survey EMAIL's "here's what we have on file" preview
+ * block (see `src/lib/surveyStore.ts`). The survey FORM itself is defined by
+ * `components/survey/survey-screens` — the authored-question model that used to
+ * live here was removed in #574 because nothing read it, so the staff preview
+ * had drifted from the form alumni were actually sent.
  */
 
 /** External Pay It Forward donation page (shown on the giving question). */
@@ -116,68 +118,3 @@ export const SURVEY_FIELDS: SurveyField[] = [
 /** Fast lookup from a question's `fieldKey` to its column definition. */
 export const SURVEY_FIELD_BY_KEY: Record<string, SurveyField> =
   Object.fromEntries(SURVEY_FIELDS.map((f) => [f.key, f]));
-
-/**
- * One authored survey question. It carries only the wording + which column it
- * targets; the control (text vs Yes/No) comes from the referenced field's kind.
- */
-export interface SurveyQuestion {
-  /** Stable, unique identifier (React key + reordering). */
-  id: string;
-  /** The column this question reads/writes — a `key` from `SURVEY_FIELDS`. */
-  fieldKey: string;
-  /** The question text the alum reads. */
-  label: string;
-  /** Optional helper text shown under the label. */
-  helpText?: string;
-  required: boolean;
-}
-
-/**
- * The default annual "confirm / update your info" question set. Seeded on first
- * load and restored by "Reset to default". Ordered the way an alum answers it:
- * employment first (what changes most), then contact details, then the
- * willingness/engagement Yes-No asks, and the Pay It Forward giving ask last.
- * Every entry is bound to a real column.
- */
-export const DEFAULT_SURVEY_QUESTIONS: SurveyQuestion[] = [
-  // Employment (leads — this is what changes most year to year)
-  { id: "q-emp-status", fieldKey: "profile.employment_status", label: "What's your current employment status?", required: false },
-  { id: "q-employer", fieldKey: "employment.current_employer", label: "Where do you currently work? (Company)", required: false },
-  { id: "q-title", fieldKey: "employment.current_title", label: "What's your current job title?", required: false },
-  { id: "q-industry", fieldKey: "employment.current_industry", label: "What industry are you in?", required: false },
-  { id: "q-industry2", fieldKey: "employment.current_industry_secondary", label: "Secondary industry (if applicable)", required: false },
-  { id: "q-emp-city", fieldKey: "employment.current_city", label: "What city do you work in?", required: false },
-  { id: "q-emp-state", fieldKey: "employment.current_state", label: "What state do you work in?", required: false },
-  { id: "q-emp-country", fieldKey: "employment.current_country", label: "What country do you work in?", required: false },
-  // Residence (contact)
-  { id: "q-city", fieldKey: "contact.city", label: "What city do you live in?", required: false },
-  { id: "q-state", fieldKey: "contact.state", label: "What state do you live in?", required: false },
-  { id: "q-country", fieldKey: "contact.country", label: "What country do you live in?", required: false },
-  // Personal
-  { id: "q-spouse-first", fieldKey: "profile.spouse_first_name", label: "Spouse first name", required: false },
-  { id: "q-spouse-last", fieldKey: "profile.spouse_last_name", label: "Spouse last name", required: false },
-  { id: "q-personal-email", fieldKey: "contact.personal_email", label: "Is this still your best (permanent) email?", helpText: "We'll use this to reach you about events and opportunities.", required: true },
-  { id: "q-work-email", fieldKey: "contact.work_email", label: "Is this still your work email?", required: false },
-  { id: "q-linkedin", fieldKey: "profile.linkedin_url", label: "Is this your current LinkedIn profile?", required: false },
-  // Graduate school
-  { id: "q-grad-program", fieldKey: "profile.graduate_degree", label: "Graduate Program (ex: MBA, JD/LAW, PhD)", required: false },
-  { id: "q-grad-school", fieldKey: "profile.graduate_school", label: "Graduate School (ex: Duke, Harvard, BYU)", required: false },
-  { id: "q-grad-year", fieldKey: "profile.graduate_graduation_year", label: "Projected or completed graduation year", required: false },
-  // Finance designations
-  { id: "q-designations", fieldKey: "profile.other_designations", label: "Finance designations (CFA, CFP, etc.)", required: false },
-  // Willingness / engagement (→ tags)
-  { id: "q-mentor", fieldKey: "program.mentor_willing", label: "Are you willing to mentor students?", required: false },
-  { id: "q-wif-mentor", fieldKey: "program.women_in_finance_mentor_willing", label: "Are you willing to mentor for Women in Finance?", required: false },
-  { id: "q-speaker", fieldKey: "program.guest_speaker_willing", label: "Are you willing to be a guest speaker?", required: false },
-  { id: "q-help-event", fieldKey: "program.help_at_event_willing", label: "Are you willing to help at an event?", required: false },
-  { id: "q-nettrek", fieldKey: "program.nettrek_host_willing", label: "Are you willing to host a NetTrek company visit?", required: false },
-  { id: "q-conference", fieldKey: "program.finance_conference_willing", label: "Are you willing to take part in the finance conference?", required: false },
-  { id: "q-sponsor", fieldKey: "program.company_event_sponsor_willing", label: "Are you willing to sponsor a company event?", required: false },
-  { id: "q-case-comp", fieldKey: "program.case_competition_host_willing", label: "Are you willing to host a case competition?", required: false },
-  // Hiring
-  { id: "q-hired-intern", fieldKey: "program.hired_finance_intern", label: "Have you hired a BYU finance intern in the past year?", required: false },
-  { id: "q-hired-ft", fieldKey: "program.hired_finance_full_time", label: "Have you hired a BYU finance grad full-time in the past year?", required: false },
-  // Giving
-  { id: "q-piff", fieldKey: "program.piff_donor", label: "Would you like to donate to the Pay It Forward fund?", helpText: "Your gift helps fund student scholarships and program experiences.", required: false },
-];
