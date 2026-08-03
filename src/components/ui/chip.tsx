@@ -8,8 +8,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * Chip — a pill-shaped filter / quick-action control. Used for the filter chips
- * above tables (industry, grad year, region), dashboard quick filters, and
- * activity/event type filters. Render as a Link with `asChild` for deep-link
+ * above tables (industry, grad year, region) and activity/event type
+ * filters. Render as a Link with `asChild` for deep-link
  * filters, or as a button for toggles. `active` shows the selected state.
  */
 const chipVariants = cva(

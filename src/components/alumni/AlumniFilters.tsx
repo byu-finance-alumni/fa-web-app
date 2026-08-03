@@ -8,6 +8,13 @@ import { MultiSelect } from "@/components/alumni/MultiSelect";
 import { ExportAlumniButton } from "@/components/alumni/ExportAlumniButton";
 import { toExportFilters } from "@/lib/exportFilters";
 import { parseAlumniQuery } from "@/lib/alumniQueryParser";
+import {
+  EMPTY_FILTERS,
+  FACETS,
+  countActiveFilters,
+  toAlumniFilterQs as toQs,
+  type AlumniFilterState,
+} from "@/lib/alumniFilterParams";
 import type { FilterOptions } from "@/types/filters";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,127 +29,16 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 
-/** Everything the backend GET /alumni supports, mirrored in the URL. */
-export interface AlumniFilterState {
-  q: string;
-  /** Grad-year range (inclusive). Same value in both = exact year. */
-  ymin: string;
-  ymax: string;
-  // Multi-select facets (repeated URL params; OR within a facet).
-  pastEmployer: string[];
-  industry: string[];
-  title: string[];
-  seniority: string[];
-  city: string[];
-  state: string[];
-  tag: string[];
-  statusLabel: string[];
-  leadership: string[];
-  surveyStatus: string[];
-  /** Professional-designation filter (#404): multi-select over CFP/CFA/CPA with
-   *  OR semantics (an alumnus holding ANY selected designation matches). Sent to
-   *  GET /alumni as repeatable `designations=` params. Distinct from the cfa/cpa
-   *  booleans below, which each AND-narrow to holders of that single designation. */
-  designations: string[];
-  /** Gender filter (#360): "" = all, else the single-letter code. Combinable
-   *  with every other facet (e.g. females in a given industry). */
-  gender: "" | "M" | "F";
-  /** Industry grouping deep-link (dashboard → list): "other" = non-finance/Other
-   *  bucket, "unknown" = missing industry. Mutually exclusive with picking
-   *  specific industries; "" = no grouping filter. */
-  industryGroup: "" | "other" | "unknown";
-  // Last-contacted (derived from interactions).
-  contactedAfter: string;
-  contactedBefore: string;
-  neverContacted: boolean;
-  attended: boolean;
-  donor: boolean;
-  mentor: boolean;
-  speaker: boolean;
-  cfa: boolean;
-  cpa: boolean;
-  graduateDegree: boolean;
-  archived: boolean;
-  deceased: "" | "only" | "exclude";
-  missingEmail: boolean;
-  missingEmployer: boolean;
-  duplicate: boolean;
-  /** "Needs Surveying" view: alumni DUE for the biennial re-survey. Forced on by
-   *  the /needs-surveying page (admin tier only) and never surfaced as a toggle/
-   *  chip here — it's not serialized into the query string (the route, not the
-   *  URL, owns it), but it DOES flow into the export filters so an export from
-   *  that page covers exactly the due set. */
-  needsSurvey: boolean;
-  sort:
-    | "name"
-    | "grad_desc"
-    | "grad_asc"
-    | "industry"
-    | "city"
-    | "state"
-    | "employer"
-    | "gender"
-    | "updated";
-}
-
-export const EMPTY_FILTERS: AlumniFilterState = {
-  q: "",
-  ymin: "",
-  ymax: "",
-  pastEmployer: [],
-  industry: [],
-  title: [],
-  seniority: [],
-  city: [],
-  state: [],
-  tag: [],
-  statusLabel: [],
-  leadership: [],
-  surveyStatus: [],
-  designations: [],
-  gender: "",
-  industryGroup: "",
-  contactedAfter: "",
-  contactedBefore: "",
-  neverContacted: false,
-  attended: false,
-  donor: false,
-  mentor: false,
-  speaker: false,
-  cfa: false,
-  cpa: false,
-  graduateDegree: false,
-  archived: false,
-  deceased: "",
-  missingEmail: false,
-  missingEmployer: false,
-  duplicate: false,
-  needsSurvey: false,
-  sort: "name",
-};
-
 /**
- * Each multi-select facet: state key, display label, the URL/query param name,
- * and which FilterOptions list feeds it. Drives the panel, the chips, and
- * serialization so all three stay in sync.
+ * The filter model, its URL parser, its serializer and the facet table all live
+ * in `@/lib/alumniFilterParams` — this panel re-serializes its whole state into
+ * the querystring on every interaction, so anything the model doesn't carry is
+ * destroyed. Keeping the three in one module (with a test that round-trips them)
+ * is what stops a newly shipped filter param from silently vanishing here.
+ * Re-exported for the existing import sites.
  */
-const FACETS: {
-  key: keyof AlumniFilterState;
-  label: string;
-  param: string;
-  optKey: keyof FilterOptions;
-}[] = [
-  { key: "pastEmployer", label: "Past employer", param: "past_employer", optKey: "past_employers" },
-  { key: "industry", label: "Industry", param: "industry", optKey: "industries" },
-  { key: "title", label: "Job title", param: "title", optKey: "titles" },
-  { key: "seniority", label: "Seniority", param: "seniority", optKey: "seniority_levels" },
-  { key: "city", label: "City", param: "city", optKey: "cities" },
-  { key: "state", label: "State", param: "state", optKey: "states" },
-  { key: "tag", label: "Engagement tag", param: "tag", optKey: "tags" },
-  { key: "statusLabel", label: "Status label", param: "status_label", optKey: "status_labels" },
-  { key: "leadership", label: "Leadership role", param: "leadership_role", optKey: "leadership_roles" },
-  { key: "surveyStatus", label: "Survey status", param: "survey_status", optKey: "survey_statuses" },
-];
+export type { AlumniFilterState };
+export { EMPTY_FILTERS };
 
 /** Fixed professional-designation vocabulary for the #404 filter. Static (not
  *  drawn from FilterOptions) — the backend validates values against exactly
@@ -160,45 +56,14 @@ const SORT_OPTIONS: { value: AlumniFilterState["sort"]; label: string }[] = [
   { value: "state", label: "State (A–Z)" },
 ];
 
-/** Serialize filter state to the canonical /alumni query string. */
-function toQs(f: AlumniFilterState): string {
-  const p = new URLSearchParams();
-  if (f.q.trim()) p.set("q", f.q.trim());
-  if (f.ymin.trim()) p.set("ymin", f.ymin.trim());
-  if (f.ymax.trim()) p.set("ymax", f.ymax.trim());
-  for (const facet of FACETS) {
-    for (const v of f[facet.key] as string[]) p.append(facet.param, v);
-  }
-  // Designations (#404): repeated param, OR semantics server-side.
-  for (const v of f.designations) p.append("designations", v);
-  if (f.gender) p.set("gender", f.gender);
-  if (f.industryGroup) p.set("industry_group", f.industryGroup);
-  if (f.contactedAfter) p.set("contacted_after", f.contactedAfter);
-  if (f.contactedBefore) p.set("contacted_before", f.contactedBefore);
-  if (f.neverContacted) p.set("never_contacted", "1");
-  if (f.attended) p.set("attended", "1");
-  if (f.donor) p.set("donor", "1");
-  if (f.mentor) p.set("mentor", "1");
-  if (f.speaker) p.set("speaker", "1");
-  if (f.cfa) p.set("cfa", "1");
-  if (f.cpa) p.set("cpa", "1");
-  if (f.graduateDegree) p.set("graduate_degree", "1");
-  if (f.archived) p.set("archived", "1");
-  if (f.deceased === "only") p.set("deceased", "1");
-  if (f.deceased === "exclude") p.set("deceased", "0");
-  if (f.missingEmail) p.set("missing_email", "1");
-  if (f.missingEmployer) p.set("missing_employer", "1");
-  if (f.duplicate) p.set("duplicate", "1");
-  if (f.sort && f.sort !== "name") p.set("sort", f.sort);
-  return p.toString();
-}
-
 const EMPTY_OPTIONS: FilterOptions = {
   employers: [],
   past_employers: [],
   titles: [],
   seniority_levels: [],
   industries: [],
+  secondary_industries: [],
+  employment_statuses: [],
   cities: [],
   states: [],
   tags: [],
@@ -321,31 +186,10 @@ export function AlumniFilters({
     }
   };
 
-  const facetCount = FACETS.reduce(
-    (n, facet) => n + (f[facet.key] as string[]).length,
-    0,
-  );
-  const activeCount =
-    facetCount +
-    f.designations.length +
-    (f.gender ? 1 : 0) +
-    (f.industryGroup ? 1 : 0) +
-    (f.ymin.trim() || f.ymax.trim() ? 1 : 0) +
-    (f.contactedAfter ? 1 : 0) +
-    (f.contactedBefore ? 1 : 0) +
-    (f.neverContacted ? 1 : 0) +
-    (f.attended ? 1 : 0) +
-    (f.donor ? 1 : 0) +
-    (f.mentor ? 1 : 0) +
-    (f.speaker ? 1 : 0) +
-    (f.cfa ? 1 : 0) +
-    (f.cpa ? 1 : 0) +
-    (f.graduateDegree ? 1 : 0) +
-    (f.archived ? 1 : 0) +
-    (f.deceased ? 1 : 0) +
-    (f.missingEmail ? 1 : 0) +
-    (f.missingEmployer ? 1 : 0) +
-    (f.duplicate ? 1 : 0);
+  // Counted from the shared FACETS / BOOLEAN_FLAGS tables, so a facet added to
+  // the model is counted here without a second edit (the old hand-written sum
+  // is exactly what let three new filters go uncounted).
+  const activeCount = countActiveFilters(f);
 
   const isDirty = serialized !== "";
 
@@ -405,6 +249,7 @@ export function AlumniFilters({
   if (f.mentor) chips.push({ label: "Willing to mentor", remove: () => set("mentor", false) });
   if (f.speaker) chips.push({ label: "Willing to guest speak", remove: () => set("speaker", false) });
   if (f.cfa) chips.push({ label: "CFA", remove: () => set("cfa", false) });
+  if (f.cfp) chips.push({ label: "CFP", remove: () => set("cfp", false) });
   if (f.cpa) chips.push({ label: "CPA", remove: () => set("cpa", false) });
   if (f.graduateDegree)
     chips.push({
@@ -422,7 +267,7 @@ export function AlumniFilters({
     });
 
   const checkboxRow = (
-    key: "attended" | "donor" | "mentor" | "speaker" | "cfa" | "cpa" | "graduateDegree" | "archived" | "neverContacted" | "missingEmail" | "missingEmployer" | "duplicate",
+    key: "attended" | "donor" | "mentor" | "speaker" | "cfa" | "cfp" | "cpa" | "graduateDegree" | "archived" | "neverContacted" | "missingEmail" | "missingEmployer" | "duplicate",
     label: string,
   ) => (
     <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -776,7 +621,14 @@ export function AlumniFilters({
                   {checkboxRow("donor", "PIFF donor")}
                   {checkboxRow("mentor", "Willing to mentor")}
                   {checkboxRow("speaker", "Willing to guest speak")}
+                  {/* All three finance designations the survey collects (#529).
+                      These are the BOOLEAN cfa/cfp/cpa params — each AND-narrows
+                      to holders of that one designation — which is a different
+                      question from the "Designations" multi-select above (OR
+                      across the picked ones). Both mechanisms are intentional;
+                      don't merge them. */}
                   {checkboxRow("cfa", "CFA designation")}
+                  {checkboxRow("cfp", "CFP designation")}
                   {checkboxRow("cpa", "CPA designation")}
                   {checkboxRow("graduateDegree", "Graduate degree")}
                 </div>

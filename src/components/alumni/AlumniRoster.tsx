@@ -6,7 +6,13 @@ import type { FilterOptions } from "@/types/filters";
 import { hasFullAccess, canEditAlumni, canAddInteraction } from "@/constants/roles";
 import { Topbar } from "@/components/shell/Topbar";
 import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
-import { AlumniFilters, type AlumniFilterState } from "@/components/alumni/AlumniFilters";
+import { AlumniFilters } from "@/components/alumni/AlumniFilters";
+import {
+  arr,
+  one,
+  parseAlumniFilters,
+  type AlumniFilterState,
+} from "@/lib/alumniFilterParams";
 import { AlumniTable } from "@/components/alumni/AlumniTable";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -50,37 +56,6 @@ function avatarName(a: Alumni): string {
  * select params) a string[]. */
 type SP = Record<string, string | string[] | undefined>;
 
-/** Normalize a search param to a clean string[] (handles single + repeated). */
-const arr = (v: string | string[] | undefined): string[] =>
-  v == null ? [] : (Array.isArray(v) ? v : [v]).filter(Boolean);
-
-/** First value of a possibly-repeated param. */
-const one = (v: string | string[] | undefined): string =>
-  (Array.isArray(v) ? v[0] : v) ?? "";
-
-/** Truthy boolean URL param: accepts "1" or "true" (case-insensitive). */
-const isTrue = (v: string | string[] | undefined): boolean => {
-  const s = one(v).toLowerCase();
-  return s === "1" || s === "true";
-};
-
-const SORT_VALUES = [
-  "grad_desc",
-  "grad_asc",
-  "industry",
-  "city",
-  "state",
-  "employer",
-  "gender",
-  "updated",
-] as const;
-
-function parseSort(raw: string): AlumniFilterState["sort"] {
-  return (SORT_VALUES as readonly string[]).includes(raw)
-    ? (raw as AlumniFilterState["sort"])
-    : "name";
-}
-
 /**
  * The shared alumni/friends roster (list). `/alumni` and `/friends` render this
  * with a fixed `kind` + `basePath`; the friends route sends `kind=friend` to the
@@ -99,56 +74,11 @@ export async function AlumniRoster({
   const noun = isFriend ? "friends" : "alumni";
   const offset = Math.max(0, Number(one(sp.offset) || "0") || 0);
 
-  const filters: AlumniFilterState = {
-    q: one(sp.q),
-    ymin: one(sp.ymin) || one(sp.year),
-    ymax: one(sp.ymax) || one(sp.year),
-    pastEmployer: arr(sp.past_employer),
-    industry: arr(sp.industry),
-    title: arr(sp.title),
-    seniority: arr(sp.seniority),
-    city: arr(sp.city),
-    state: arr(sp.state),
-    tag: arr(sp.tag),
-    statusLabel: arr(sp.status_label),
-    leadership: arr(sp.leadership_role),
-    surveyStatus: arr(sp.survey_status),
-    designations: arr(sp.designations),
-    gender:
-      one(sp.gender).toUpperCase() === "F"
-        ? "F"
-        : one(sp.gender).toUpperCase() === "M"
-          ? "M"
-          : "",
-    industryGroup:
-      one(sp.industry_group).toLowerCase() === "other"
-        ? "other"
-        : one(sp.industry_group).toLowerCase() === "unknown"
-          ? "unknown"
-          : "",
-    contactedAfter: one(sp.contacted_after),
-    contactedBefore: one(sp.contacted_before),
-    neverContacted: isTrue(sp.never_contacted),
-    attended: isTrue(sp.attended),
-    donor: isTrue(sp.donor),
-    mentor: isTrue(sp.mentor),
-    speaker: isTrue(sp.speaker),
-    cfa: isTrue(sp.cfa),
-    cpa: isTrue(sp.cpa),
-    graduateDegree: isTrue(sp.graduate_degree),
-    archived: isTrue(sp.archived),
-    deceased: isTrue(sp.deceased)
-      ? "only"
-      : one(sp.deceased) === "0" || one(sp.deceased).toLowerCase() === "false"
-        ? "exclude"
-        : "",
-    missingEmail: isTrue(sp.missing_email) || one(sp.missing) === "email",
-    missingEmployer:
-      isTrue(sp.missing_employer) || one(sp.missing) === "employer",
-    duplicate: isTrue(sp.duplicate),
-    needsSurvey: false,
-    sort: parseSort(one(sp.sort)),
-  };
+  // One shared parser, inverse of the Filters panel's serializer (see
+  // `@/lib/alumniFilterParams`). Parsing here and serializing there used to be
+  // two hand-written lists that drifted — when they did, the panel wiped the
+  // params it hadn't learned about.
+  const filters: AlumniFilterState = parseAlumniFilters(sp);
 
   const params = new URLSearchParams({
     limit: String(LIMIT),
@@ -163,6 +93,12 @@ export async function AlumniRoster({
   const appendAll = (name: string, values: string[]) => {
     for (const v of values) params.append(name, v);
   };
+  // Pass-through: the dashboard Advanced search deep-links `employer` but the
+  // list's own filter panel has no control for it (dropped in #153), so it's
+  // read straight off the URL rather than through `filters`. Known consequence:
+  // touching a control in the Filters slide-over re-serializes its own state and
+  // drops it. Keep `PASS_THROUGH_PARAMS` in `@/lib/alumniFilterParams` in step
+  // with anything added here — the test enforces it.
   appendAll("employer", arr(sp.employer));
   for (const field of [
     "net_id",
@@ -174,8 +110,13 @@ export async function AlumniRoster({
     const v = one(sp[field]).trim();
     if (v) params.set(field, v);
   }
+  appendAll("employment_status", filters.employmentStatus);
   appendAll("past_employer", filters.pastEmployer);
   appendAll("industry", filters.industry);
+  // #584: secondary industry is its own axis — the backend narrowed `industry`
+  // to the PRIMARY column (fa-web-api#363), so alumni matched on their secondary
+  // industry are only reachable through this facet.
+  appendAll("secondary_industry", filters.secondaryIndustry);
   appendAll("title", filters.title);
   appendAll("seniority", filters.seniority);
   appendAll("city", filters.city);
@@ -204,6 +145,7 @@ export async function AlumniRoster({
   if (filters.mentor) params.set("mentor_willing", "true");
   if (filters.speaker) params.set("guest_speaker_willing", "true");
   if (filters.cfa) params.set("cfa", "true");
+  if (filters.cfp) params.set("cfp", "true");
   if (filters.cpa) params.set("cpa", "true");
   if (filters.graduateDegree) params.set("graduate_degree", "true");
   const isoDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);

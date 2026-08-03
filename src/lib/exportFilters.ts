@@ -35,6 +35,11 @@ export function toExportFilters(f: AlumniFilterState): AlumniExportFilters {
     employer: null,
     past_employer: orNull(f.pastEmployer),
     industry: orNull(f.industry),
+    // Secondary industry / employment status (#584). The list panel holds both
+    // in state now, so an export mirrors them — leaving them null exported a
+    // WIDER population than the rows the user was looking at.
+    secondary_industry: orNull(f.secondaryIndustry),
+    employment_status: orNull(f.employmentStatus),
     // Gender + industry-group facets mirror the list's URL params so an export
     // matches the filtered view (#360 / #351-#352).
     gender: f.gender || null,
@@ -59,6 +64,7 @@ export function toExportFilters(f: AlumniFilterState): AlumniExportFilters {
     duplicate: f.duplicate,
     include_archived: f.archived,
     cfa: f.cfa,
+    cfp: f.cfp,
     cpa: f.cpa,
     // needs_survey is forced on by the /needs-surveying view so an export there
     // covers exactly the biennial-due set.
