@@ -6141,7 +6141,16 @@ export interface components {
             /** After */
             after: string;
         };
-        /** SurveyRead */
+        /**
+         * SurveyRead
+         * @description One row of the profile's Surveys tab.
+         *
+         *     Mostly NOT a stored row: `profile._derive_survey_history` builds these from
+         *     `survey_responses` / `survey_send_log` / `survey_schedule`, plus any legacy
+         *     `surveys` rows. Derived rows carry a synthetic `survey_id` (0 or negative) —
+         *     it is a list key only, never a handle to fetch or mutate. See
+         *     `models.crm.Survey` before adding a write path.
+         */
         SurveyRead: {
             /** Survey Id */
             survey_id: number;
