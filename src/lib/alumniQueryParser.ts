@@ -7,7 +7,18 @@ import { STATE_NAME_TO_ABBR } from "@/lib/usStates";
  * Turns a typed phrase like
  *   "alumni near Las Vegas that work in investment banking"
  * into a deep-link the alumni list already understands
- *   /alumni?industry=Investment+Banking&city=Las+Vegas
+ *   /alumni?industry=Investment+Banking&near=Las+Vegas
+ *
+ * The phrasings it understands:
+ *   "Gilbert, Arizona" / "Provo, UT"      → city + state (no preposition needed)
+ *   "alumni in Gilbert"                   → city
+ *   "alumni in Arizona"                   → state
+ *   "near Los Angeles, California"        → near (backend geocodes it)
+ *   "within 50 miles of Seattle"          → near + radius
+ *   "Bay Area" / "Greater Seattle area"   → near
+ *   "…that work in investment banking"    → industry
+ *   "mentors" / "willing to mentor"       → mentor intent
+ *   "recent grads" / "last 5 years"       → graduation-year window
  *
  * It only recognizes the known facets (industries from INDUSTRY_OPTIONS, US
  * states/cities, and a few intents). Anything it can't structure falls back to
@@ -39,10 +50,41 @@ const INDUSTRY_ALIASES: Record<string, string> = {
  */
 const STATE_NAME_TO_CODE = STATE_NAME_TO_ABBR;
 
-/** Words that look like a captured "place" but aren't — never set as a city. */
+/**
+ * State names, LONGEST FIRST. Order matters: matched in map order, "west
+ * virginia" would be read as "virginia" (VA) and "washington dc" as
+ * "washington" (WA), because the shorter name is a substring of the longer one.
+ */
+const STATE_NAMES_LONGEST_FIRST = Object.entries(STATE_NAME_TO_CODE).sort(
+  (a, b) => b[0].length - a[0].length,
+);
+
+/** Every USPS code we accept in the "<City>, ST" form. */
+const STATE_CODES = new Set(Object.values(STATE_NAME_TO_CODE));
+
+/**
+ * Words that look like a captured "place" but aren't — never set as a city.
+ *
+ * Covers the lead-in people actually type ("find me all alumni in …") plus the
+ * connective tissue around a place, so none of it leaks into the city filter.
+ * Deliberately excludes anything that is also a real city word — "new" (New
+ * York), "lake", "city", "saint", "fort", "north"… — since these are matched
+ * word-by-word.
+ */
 const NOT_A_CITY = new Set([
   "the", "a", "an", "this", "that", "alumni", "someone", "anyone", "people",
   "finance", "banking", "tech", "industry", "work", "working",
+  // Lead-in / filler.
+  "find", "show", "list", "search", "get", "give", "look", "looking", "up",
+  "me", "my", "us", "our", "all", "any", "some", "every", "everyone", "please",
+  "there", "who", "whom", "which", "are", "is", "was", "were", "and", "or",
+  // Stray prepositions left behind by a half-typed phrase ("alumni in, Utah").
+  "in", "at", "on", "to", "for", "with", "from", "near", "by",
+  // Describing the person, not the place.
+  "alum", "alums", "alumnus", "alumna", "grad", "grads", "graduate",
+  "graduates", "graduated", "student", "students", "folks", "guys",
+  "currently", "still", "live", "lives", "living", "based", "located",
+  "employed", "works", "worked", "mentor", "mentors",
 ]);
 
 function titleCase(s: string): string {
@@ -60,6 +102,73 @@ function cleanPlace(s: string): string {
     .trim()
     .split(/\s+(?:that|who|whom|which|working|works?|employed|and|with|in)\b/i)[0];
   return cut.replace(/^[\s,.;]+|[\s,.;]+$/g, "").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Reduce a captured phrase to a bare city name, or null when what's left isn't
+ * one (#585).
+ *
+ * Everything up to the LAST location preposition is lead-in, not the place —
+ * "find me all alumni in gilbert" is the city "Gilbert", not "me all alumni in
+ * Gilbert" and not "all". What survives is then stripped of filler words and
+ * capped at three words, because a longer phrase is almost never a city and a
+ * junk city filter silently returns nothing.
+ */
+function cleanCity(phrase: string): string | null {
+  let s = phrase
+    .toLowerCase()
+    .replace(/[^a-z .'-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const leadIn = s.match(/^.*\b(?:based in|located in|living in|lives? in|from|in|at)\s+/);
+  if (leadIn) s = s.slice(leadIn[0].length);
+
+  const words = s.split(" ").filter(Boolean);
+  while (words.length && NOT_A_CITY.has(words[0])) words.shift();
+  while (words.length && NOT_A_CITY.has(words[words.length - 1])) words.pop();
+  if (!words.length || words.length > 3) return null;
+  if (words.some((w) => NOT_A_CITY.has(w))) return null;
+
+  return titleCase(words.join(" "));
+}
+
+/** A comma followed by a state — the full name ("…, arizona") or a USPS code
+ *  ("…, az"). Names are longest-first; the 2-letter fallback is validated
+ *  against STATE_CODES, and `(?![a-z])` keeps it from biting off the front of a
+ *  longer word ("gunnell, jake"). */
+const CITY_STATE_RE = new RegExp(
+  `,\\s*(${[
+    ...STATE_NAMES_LONGEST_FIRST.map(([name]) => name.replace(/\./g, "\\.")),
+    "[a-z]{2}",
+  ].join("|")})(?![a-z])`,
+);
+
+/**
+ * The "<City>, <State>" form — the single most natural way to type a location,
+ * and the one #585 was dropping on the floor (city and state were mutually
+ * exclusive, and the state won, so "Gilbert, Arizona" searched all of Arizona).
+ *
+ * The comma is a strong enough signal that no preposition is needed: a bare
+ * "Gilbert, Arizona" parses. Returns the span it matched so the caller can cut
+ * it out of the remaining text.
+ */
+function matchCityState(
+  text: string,
+): { city: string | null; state: string; from: number; to: number } | null {
+  const m = CITY_STATE_RE.exec(text);
+  if (!m) return null;
+
+  const token = m[1];
+  const code = STATE_NAME_TO_CODE[token] ?? token.toUpperCase();
+  if (!STATE_CODES.has(code)) return null;
+
+  return {
+    city: cleanCity(text.slice(0, m.index)),
+    state: code,
+    from: m.index,
+    to: m.index + m[0].length,
+  };
 }
 
 /**
@@ -132,27 +241,42 @@ export function parseAlumniQuery(raw: string): string {
     text = text.replace(loc.near.toLowerCase(), " ");
     structured = true;
   } else {
-    // 2b) State — match a full state name (word-boundary), remove on hit.
-    for (const [name, code] of Object.entries(STATE_NAME_TO_CODE)) {
-      const re = new RegExp(`\\b${name.replace(/\./g, "\\.")}\\b`);
-      if (re.test(text)) {
-        params.set("state", code);
-        text = text.replace(re, " ");
-        structured = true;
-        break;
+    // 2b) "<City>, <State>" — sets BOTH facets. City and state are independent
+    //     filters, so "Gilbert, Arizona" must narrow to Gilbert rather than
+    //     collapse to every alum in Arizona (#585).
+    const cityState = matchCityState(text);
+    if (cityState) {
+      if (cityState.city) params.set("city", cityState.city);
+      params.set("state", cityState.state);
+      // Cut the ", <state>" span first — removing the city would shift it.
+      text = `${text.slice(0, cityState.from)} ${text.slice(cityState.to)}`;
+      if (cityState.city) text = text.replace(cityState.city.toLowerCase(), " ");
+      structured = true;
+    }
+
+    // 2c) State — match a full state name (word-boundary), remove on hit.
+    if (!params.has("state")) {
+      for (const [name, code] of STATE_NAMES_LONGEST_FIRST) {
+        const re = new RegExp(`\\b${name.replace(/\./g, "\\.")}\\b`);
+        if (re.test(text)) {
+          params.set("state", code);
+          text = text.replace(re, " ");
+          structured = true;
+          break;
+        }
       }
     }
 
-    // 3) City — "in|from|based in … <place>" up to a stop word/end.
-    if (!params.has("state") && !params.has("city")) {
+    // 3) City — "in|from|based in … <place>" up to a stop word/end. Runs even
+    //    when a state matched: both can be true at once ("in Gilbert Arizona").
+    if (!params.has("city")) {
       const m = text.match(
-        /\b(?:based in|located in|living in|from|in)\s+([a-z][a-z .'-]*?)(?=\s+(?:that|who|whom|which|working|works|work|employed|and|with|in|near|,|\.)|\s*$)/,
+        /\b(?:based in|located in|living in|from|in)\s+([a-z][a-z .'-]*?)(?=\s*[,.]|\s+(?:that|who|whom|which|working|works|work|employed|and|with|in|near)|\s*$)/,
       );
       if (m) {
-        const place = m[1].trim();
-        const words = place.split(/\s+/);
-        if (place && words.length <= 3 && !NOT_A_CITY.has(place)) {
-          params.set("city", titleCase(place));
+        const city = cleanCity(m[1]);
+        if (city) {
+          params.set("city", city);
           structured = true;
         }
       }
