@@ -167,14 +167,20 @@ describe("the alumni list forwards the new params (#584)", () => {
   // The dashboard only ever navigates to /alumni; the roster re-maps the URL
   // onto the API call, so a param it doesn't know about is silently dropped and
   // the facet looks broken rather than erroring.
+  //
+  // These originally arrived as PASS-THROUGHS read straight off `sp`, which
+  // shipped a worse bug: the list's own Filters slide-over rebuilds the whole
+  // querystring from its model, so one click deleted all three. They now go
+  // through the shared filter model instead — see `alumniFilterParams.test.ts`
+  // for the round trip that pins it.
   const roster = read("src/components/alumni/AlumniRoster.tsx");
 
   it("passes secondary_industry and employment_status through", () => {
-    expect(roster).toContain('appendAll("secondary_industry", arr(sp.secondary_industry))');
-    expect(roster).toContain('appendAll("employment_status", arr(sp.employment_status))');
+    expect(roster).toContain('appendAll("employment_status", filters.employmentStatus)');
+    expect(roster).toContain('appendAll("secondary_industry", filters.secondaryIndustry)');
   });
 
   it("passes the cfp flag through", () => {
-    expect(roster).toContain('if (isTrue(sp.cfp)) params.set("cfp", "true")');
+    expect(roster).toContain('if (filters.cfp) params.set("cfp", "true")');
   });
 });
