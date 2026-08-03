@@ -3032,6 +3032,11 @@ export interface paths {
         /**
          * List Survey Schedules
          * @description All auto-send schedules (newest cohort first) + per-stage sent counts.
+         *
+         *     Also backs the engineer Surveys console (which needs who started each
+         *     campaign and when) — the console reads this rather than a second endpoint,
+         *     since it wants exactly this list. The engineer holds every capability, so
+         *     the full-access gate already admits them.
          */
         get: operations["list_survey_schedules_survey_schedules_get"];
         put?: never;
@@ -3082,6 +3087,34 @@ export interface paths {
          * @description Cancel a graduation year's schedule — no further sends.
          */
         post: operations["cancel_survey_schedule_survey_schedules__grad_year__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/schedules/cancel-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel All Survey Schedules
+         * @description Stop EVERY running survey campaign at once — the engineer kill switch.
+         *
+         *     Cancels all scheduled/active schedules in one statement, which is what stops
+         *     the daily cron sending (it only picks up those two statuses). Deliberately
+         *     narrower than the full-access per-year cancel: a blanket stop of every cohort
+         *     is a maintenance action, so it is engineer-gated (RequireEngineer) like the
+         *     rest of the engineer console. Returns the count + the years cancelled so the
+         *     console can report exactly what it stopped; calling it with nothing running
+         *     succeeds and reports 0.
+         */
+        post: operations["cancel_all_survey_schedules_survey_schedules_cancel_all_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6213,6 +6246,21 @@ export interface components {
             schedules: components["schemas"]["SurveyScheduleCreateRequest"][];
         };
         /**
+         * SurveyScheduleCancelAllResult
+         * @description Outcome of the engineer kill switch (``POST /survey/schedules/cancel-all``).
+         *
+         *     Reports exactly what was stopped so the console can say so honestly rather
+         *     than claiming a blanket success: ``cancelled`` is the number of campaigns
+         *     moved to ``cancelled``, and ``graduation_years`` names them. Both are empty /
+         *     0 when nothing was running — the call is idempotent.
+         */
+        SurveyScheduleCancelAllResult: {
+            /** Cancelled */
+            cancelled: number;
+            /** Graduation Years */
+            graduation_years: number[];
+        };
+        /**
          * SurveyScheduleCreateRequest
          * @description Create/replace the auto-send schedule for a graduation year (#542).
          */
@@ -6245,6 +6293,8 @@ export interface components {
             last_run_at: string | null;
             /** Created At */
             created_at: string | null;
+            /** Created By */
+            created_by: string | null;
             /**
              * Sent Initial
              * @default 0
@@ -11326,6 +11376,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_all_survey_schedules_survey_schedules_cancel_all_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyScheduleCancelAllResult"];
                 };
             };
         };
