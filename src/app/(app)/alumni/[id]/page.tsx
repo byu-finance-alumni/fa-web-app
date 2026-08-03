@@ -1316,6 +1316,12 @@ export async function AlumniProfileView({
               ) : undefined
             }
             surveys={
+              /* `profile.surveys` is DERIVED server-side (#40) from the alum's
+                 real survey activity — responses, the send log, and their
+                 cohort's campaign — not read from a stored table. So if a row
+                 here is missing, wrong, or has no due date, the fix is in
+                 `profile._derive_survey_history` in fa-web-api, not here. The
+                 tab is hidden entirely when they have no survey activity. */
               profile.surveys.length ? (
                 (() => {
                   // Survey summary (#292): most-recent completed survey, the

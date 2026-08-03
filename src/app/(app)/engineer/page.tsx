@@ -37,6 +37,12 @@ const TOOLS: Tool[] = [
       "Add, rename, or hide the controlled-vocabulary options that populate the app's dropdowns. Also available to any role granted the vocab capability.",
   },
   {
+    href: "/engineer/surveys",
+    title: "Surveys",
+    description:
+      "What survey campaigns are running, who started each one and when — pause and resume any of them, or stop them all.",
+  },
+  {
     href: "/engineer/logins",
     title: "Logins",
     description:

@@ -17,7 +17,10 @@ export const SAMPLE_ALUM: Record<string, string> = {
   "contact.country": "United States",
   // Profile
   "profile.employment_status": "Employed",
-  "profile.other_designations": "CFA",
+  // Designations (#529): the CFA is a ticked box backed by its own column, so
+  // the free text carries only what the presets don't cover.
+  "program.cfa_designation": "Yes",
+  "profile.other_designations": "Series 7, Series 66",
   "profile.linkedin_url": "linkedin.com/in/jordan-avery",
   "profile.graduate_degree": "MBA",
   "profile.graduate_school": "BYU Marriott School of Business",
