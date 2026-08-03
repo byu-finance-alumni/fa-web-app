@@ -69,6 +69,7 @@ export const NAV: NavItem[] = [
       { href: "/engineer/permissions", label: "Permissions", engineerOnly: true },
       { href: "/engineer/preview", label: "Preview as role", engineerOnly: true },
       { href: "/admin/quick-filters", label: "Quick filters", engineerOnly: true },
+      { href: "/engineer/surveys", label: "Surveys", engineerOnly: true },
       { href: "/engineer/logins", label: "Logins", engineerOnly: true },
       {
         href: "/engineer/login-failures",
