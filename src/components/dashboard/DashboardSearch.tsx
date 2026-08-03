@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { MultiSelect } from "@/components/alumni/MultiSelect";
+import { facetOptions } from "@/lib/alumniFilterParams";
 import type { FilterOptions } from "@/types/filters";
 
 /**
@@ -91,6 +92,12 @@ const FACETS: {
   // shoulder-to-shoulder with Status Label, which is a different thing entirely
   // — a survey-suppression flag (Inactive / Deceased / Lost Contact / Retired /
   // Do Not Contact, fa-web-api#354). Jake's call: two rows, never merged.
+  //
+  // Its `optKey` is retained for the shape, but `facetOptions` short-circuits it
+  // to the FIXED seven (FIXED_FACET_OPTIONS → EMPLOYMENT_STATUS_OPTIONS): the
+  // data-derived `employment_statuses` only listed values alumni already held,
+  // so Military / Part-time / Unemployed were missing from the dropdown until a
+  // survey answer created them.
   {
     key: "employmentStatus",
     label: "Employment Status",
@@ -395,7 +402,7 @@ export function DashboardSearch({ options }: { options: FilterOptions }) {
                 <div key={facet.key} className={facet.wide ? "sm:col-span-2" : undefined}>
                   <MultiSelect
                     label={facet.label}
-                    options={(options[facet.optKey] as string[]) ?? []}
+                    options={facetOptions(facet.optKey, options)}
                     selected={facets[facet.key] ?? []}
                     onChange={(next) =>
                       setFacets((prev) => ({ ...prev, [facet.key]: next }))
