@@ -1,5 +1,6 @@
 import { INDUSTRY_OPTIONS } from "@/constants/dropdowns";
 import { STATE_NAME_TO_ABBR } from "@/lib/usStates";
+import { STATE_NAMES, toFullStateName } from "@/lib/geo/state-field";
 
 /**
  * Lightweight, deterministic natural-language → alumni-filter parser (NO AI).
@@ -61,6 +62,34 @@ const STATE_NAMES_LONGEST_FIRST = Object.entries(STATE_NAME_TO_CODE).sort(
 
 /** Every USPS code we accept in the "<City>, ST" form. */
 const STATE_CODES = new Set(Object.values(STATE_NAME_TO_CODE));
+
+/**
+ * The stored spelling for a state token (full name or USPS code), or null when
+ * it isn't a state at all.
+ *
+ * The alumni list matches `state` against `current_employment.current_state`
+ * with a literal case-insensitive LIKE — there is NO abbreviation expansion
+ * server-side — and that column stores full names ("Arizona", "Utah",
+ * "District of Columbia"). Emitting a code therefore produced a filter that
+ * matched nothing: `?state=AZ` returned 0 alumni while `?state=Arizona`
+ * returned 17. That is the empty page Tanya hit on "Gilbert, Arizona" even
+ * after city/state extraction was fixed (#585) — the parse was right and the
+ * search was still empty.
+ *
+ * `toFullStateName` is the app's existing canonical resolver (it mirrors
+ * `to_full_name` in fa-web-api/app/core/us_states.py), so this deliberately
+ * reuses it rather than deriving a second name table that could drift from the
+ * one the state combobox and the backend already agree on.
+ */
+function canonicalStateName(token: string): string | null {
+  const t = token.trim().toLowerCase();
+  // Resolve through the CODE first, because the alias map carries spellings the
+  // canonical list doesn't ("washington dc", "d.c." -> DC -> "District of
+  // Columbia"). A bare 2-letter token is already a code.
+  const code = STATE_NAME_TO_CODE[t] ?? (t.length === 2 ? t.toUpperCase() : null);
+  const full = toFullStateName(code ?? token);
+  return full && STATE_NAMES.includes(full) ? full : null;
+}
 
 /**
  * Words that look like a captured "place" but aren't — never set as a city.
@@ -160,12 +189,12 @@ function matchCityState(
   if (!m) return null;
 
   const token = m[1];
-  const code = STATE_NAME_TO_CODE[token] ?? token.toUpperCase();
-  if (!STATE_CODES.has(code)) return null;
+  const name = canonicalStateName(token);
+  if (!name) return null;
 
   return {
     city: cleanCity(text.slice(0, m.index)),
-    state: code,
+    state: name,
     from: m.index,
     to: m.index + m[0].length,
   };
@@ -256,10 +285,11 @@ export function parseAlumniQuery(raw: string): string {
 
     // 2c) State — match a full state name (word-boundary), remove on hit.
     if (!params.has("state")) {
-      for (const [name, code] of STATE_NAMES_LONGEST_FIRST) {
+      for (const [name] of STATE_NAMES_LONGEST_FIRST) {
         const re = new RegExp(`\\b${name.replace(/\./g, "\\.")}\\b`);
         if (re.test(text)) {
-          params.set("state", code);
+          // The stored spelling, not the code — see CODE_TO_STATE_NAME.
+          params.set("state", canonicalStateName(name) ?? name);
           text = text.replace(re, " ");
           structured = true;
           break;
