@@ -13,9 +13,6 @@ import { hasFullAccess, canAddInteraction } from "@/constants/roles";
 import { DATA_VIZ_PALETTE, CHART_MUTED_COLOR } from "@/constants/chart";
 import type { UserContext } from "@/types/alumni";
 import type { FilterOptions } from "@/types/filters";
-import type { components } from "@/types/api.gen";
-
-type DashboardPreset = components["schemas"]["DashboardPresetRead"];
 
 /**
  * Hand-written shape for `/dashboard/summary` — keep it in sync with the API
@@ -267,18 +264,13 @@ export default async function DashboardPage() {
   // tolerantly so a hiccup just leaves the facets empty rather than blanking the
   // dashboard.
   let filterOptions: FilterOptions | null = null;
-  let presets: DashboardPreset[] = [];
   let industryVocab: string[] | null = null;
   if (!notProvisioned) {
-    [filterOptions, presets, industryVocab] = await Promise.all([
+    [filterOptions, industryVocab] = await Promise.all([
       apiGet<FilterOptions>("/alumni/filter-options", {
         revalidate: 300,
         tags: ["alumni-filter-options"],
       }).catch(() => null),
-      apiGet<DashboardPreset[]>("/dashboard/presets", {
-        revalidate: 60,
-        tags: ["dashboard-presets"],
-      }).catch(() => []),
       // Advanced-search Industry facet offers the admin-curated vocabulary
       // (Admin → Vocabulary), same as the alumni list filter — so a vocab edit
       // shows up here instead of only the industries already present in data.
@@ -379,17 +371,14 @@ export default async function DashboardPage() {
       ]
     : [];
 
-  // Quick-filter presets on the Quick search tab — engineer/super-admin-managed
-  // (GET /dashboard/presets), each a common compound search deep-linking into
-  // the alumni list. One per line.
-  const alumniShortcuts = presets.map((p) => ({ label: p.label, href: p.href }));
-
   const EMPTY_OPTIONS: FilterOptions = {
     employers: [],
     past_employers: [],
     titles: [],
     seniority_levels: [],
     industries: [],
+    secondary_industries: [],
+    employment_statuses: [],
     cities: [],
     states: [],
     tags: [],
@@ -419,10 +408,7 @@ export default async function DashboardPage() {
                 workspace (quick / advanced) below it */}
             <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:gap-5">
               <SearchHero greeting={greeting} />
-              <DashboardSearch
-                options={filterOptions ?? EMPTY_OPTIONS}
-                alumniShortcuts={alumniShortcuts}
-              />
+              <DashboardSearch options={filterOptions ?? EMPTY_OPTIONS} />
             </div>
 
             {/* RIGHT — KPI strip + the chart. Desktop only: on a phone the

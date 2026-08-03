@@ -163,7 +163,17 @@ export async function AlumniRoster({
   const appendAll = (name: string, values: string[]) => {
     for (const v of values) params.append(name, v);
   };
+  // Pass-through facets: the dashboard Advanced search deep-links these but the
+  // list's own filter panel has no control for them, so they're read straight
+  // off the URL rather than through `filters` (same as `employer` and `near`).
+  // Consequence, matching those: touching a control in the Filters slide-over
+  // re-serializes its own state and drops them — acceptable until the panel
+  // grows matching facets.
   appendAll("employer", arr(sp.employer));
+  // #584: secondary industry is now its own axis (the backend narrowed
+  // `industry` to the primary column), and employment_status is a new facet.
+  appendAll("secondary_industry", arr(sp.secondary_industry));
+  appendAll("employment_status", arr(sp.employment_status));
   for (const field of [
     "net_id",
     "first_name",
@@ -204,6 +214,9 @@ export async function AlumniRoster({
   if (filters.mentor) params.set("mentor_willing", "true");
   if (filters.speaker) params.set("guest_speaker_willing", "true");
   if (filters.cfa) params.set("cfa", "true");
+  // CFP is dashboard-deep-link-only for now (#584) — the list panel exposes CFA
+  // and CPA tickboxes plus the combined `designations` facet, not a CFP box.
+  if (isTrue(sp.cfp)) params.set("cfp", "true");
   if (filters.cpa) params.set("cpa", "true");
   if (filters.graduateDegree) params.set("graduate_degree", "true");
   const isoDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);

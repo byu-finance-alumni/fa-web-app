@@ -3441,10 +3441,14 @@ export interface components {
             past_employer: string[] | null;
             /** Industry */
             industry: string[] | null;
+            /** Secondary Industry */
+            secondary_industry: string[] | null;
             /** Title */
             title: string[] | null;
             /** Seniority */
             seniority: string[] | null;
+            /** Employment Status */
+            employment_status: string[] | null;
             /** City */
             city: string[] | null;
             /** State */
@@ -3491,6 +3495,11 @@ export interface components {
              * @default false
              */
             guest_speaker_willing: boolean;
+            /**
+             * Cfp
+             * @default false
+             */
+            cfp: boolean;
             /**
              * Cfa
              * @default false
@@ -5310,6 +5319,10 @@ export interface components {
             seniority_levels: string[];
             /** Industries */
             industries: string[];
+            /** Secondary Industries */
+            secondary_industries: string[];
+            /** Employment Statuses */
+            employment_statuses: string[];
             /** Cities */
             cities: string[];
             /** States */
@@ -7055,12 +7068,16 @@ export interface operations {
                 employer?: string[] | null;
                 /** @description Prior employer(s) from employment history — repeatable. */
                 past_employer?: string[] | null;
-                /** @description Industry / work area (primary or secondary) — repeatable. */
+                /** @description PRIMARY industry / work area — repeatable (OR), exact match. Narrowed to the primary column (#584): it no longer also matches the secondary industry — use 'secondary_industry' for that. */
                 industry?: string[] | null;
+                /** @description SECONDARY industry / work area (#584) — repeatable (OR), exact match. Combined with 'industry' it AND-s: primary is X AND secondary is Y. */
+                secondary_industry?: string[] | null;
                 /** @description Current job title(s) — repeatable, exact match. */
                 title?: string[] | null;
                 /** @description Seniority level(s) — repeatable, exact match. */
                 seniority?: string[] | null;
+                /** @description Employment status(es) (#584) — repeatable (OR), exact match. Canonical values: Full-time, Part-time, Self-Employed, Graduate Student, Military, Not in the Labor Force, Unemployed. The column is free text and also holds off-list legacy values, so anything on file is accepted; 'filter-options.employment_statuses' lists what actually exists in the data. */
+                employment_status?: string[] | null;
                 /** @description Current city/cities — repeatable, exact match. */
                 city?: string[] | null;
                 /** @description Current state(s) — repeatable, exact match. */
@@ -7093,6 +7110,8 @@ export interface operations {
                 mentor_willing?: boolean;
                 /** @description Only alumni willing to guest speak. */
                 guest_speaker_willing?: boolean;
+                /** @description Only alumni holding the CFP designation. */
+                cfp?: boolean;
                 /** @description Only alumni holding the CFA designation. */
                 cfa?: boolean;
                 /** @description Only alumni holding the CPA designation. */
