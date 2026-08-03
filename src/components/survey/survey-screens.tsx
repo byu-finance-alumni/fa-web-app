@@ -212,11 +212,15 @@ export const INFO_SECTIONS: Section[] = [
     fields: [
       { key: "program.cfa_designation", label: "CFA", kind: "designation" },
       { key: "program.cfp_designation", label: "CFP", kind: "designation" },
+      // CPA joined the tickboxes on 2026-08-03. It had a column and a filter all
+      // along but no way for an alum to populate it, so a CPA went into an
+      // "Other" blank as free text and never showed up in the CPA filter.
+      { key: "program.cpa_designation", label: "CPA", kind: "designation" },
       {
         key: "profile.other_designations",
         label: "Other designations",
         kind: "otherDesignations",
-        helpText: "Anything else you hold — ex: Series 7, Series 65, CPA, FRM.",
+        helpText: "Anything else you hold — ex: Series 7, Series 65, FRM.",
       },
     ],
   },
