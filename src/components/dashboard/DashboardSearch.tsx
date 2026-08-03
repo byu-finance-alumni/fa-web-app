@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,10 +13,10 @@ import type { FilterOptions } from "@/types/filters";
 /**
  * Dashboard search workspace — the left column's primary tool. Two tabs under
  * the page heading:
- *   1. Quick search  — identity fields (Net ID / first / last / preferred /
- *      email) + grad-year range, deep-linking into the alumni list.
+ *   1. Quick search  — identity fields (first / last / preferred / Net ID) +
+ *      grad-year range, deep-linking into the alumni list.
  *   2. Advanced search — the same identity fields plus the full facet set
- *      (industry, title, employer, location, engagement, …).
+ *      (employment, industry, location, engagement, …).
  *
  * Searches navigate to /alumni so the existing results table, sorting,
  * pagination, and export stay the single source of truth (per the field params
@@ -27,46 +26,88 @@ import type { FilterOptions } from "@/types/filters";
  */
 
 interface Identity {
-  net_id: string;
   first_name: string;
   last_name: string;
   preferred_name: string;
-  email: string;
+  net_id: string;
 }
 
 const EMPTY_IDENTITY: Identity = {
-  net_id: "",
   first_name: "",
   last_name: "",
   preferred_name: "",
-  email: "",
+  net_id: "",
 };
 
+/**
+ * Identity fields, in grid order — the 2-up grid fills row-major, so this list
+ * IS the layout (#584):
+ *     First name       Last name
+ *     Preferred name   Net ID
+ * Preferred name sits under First name (it's the same question asked twice) and
+ * Net ID under Last name. Email was dropped: staff search people by name, and
+ * the free-text `q` box on the alumni list already matches on email.
+ */
 const IDENTITY_FIELDS: { key: keyof Identity; label: string }[] = [
-  { key: "net_id", label: "Net ID" },
   { key: "first_name", label: "First name" },
   { key: "last_name", label: "Last name" },
   { key: "preferred_name", label: "Preferred name" },
-  { key: "email", label: "Email" },
+  { key: "net_id", label: "Net ID" },
 ];
 
-/** Advanced multi-select facets → /alumni query param + FilterOptions list. */
+/**
+ * Advanced multi-select facets → /alumni query param + FilterOptions list, in
+ * grid order (row-major, 2-up on sm+) — Tanya's ordering from #584:
+ *     Employment Status  (full width — see below)
+ *     Current Employer   Current Industry
+ *     Past Employer      Secondary Industry
+ *     Employment City    Employment State
+ *     Job Title          Status Label
+ *     FS Leadership Role Engagement Tag
+ *
+ * Naming notes, all deliberate:
+ *  - "Employment City/State" — these bind to the EMPLOYER's address, not a home
+ *    address (there is no residence data; see the work-location rebind,
+ *    fa-web-api#287). The old bare "City"/"State" implied otherwise.
+ *  - "FS Leadership Role" — FS = Finance Society, so it doesn't read as a job
+ *    seniority level.
+ *  - "Current Industry" now matches the PRIMARY industry only; it used to match
+ *    primary OR secondary (fa-web-api#363). That's why "Secondary Industry" is
+ *    its own facet — alumni matched by their secondary industry are found there.
+ *  - Seniority is gone (#584): it duplicated Job Title in practice.
+ */
 const FACETS: {
   key: string;
   label: string;
   param: string;
   optKey: keyof FilterOptions;
+  /** Span both grid columns instead of taking one half-row. */
+  wide?: boolean;
 }[] = [
-  { key: "industry", label: "Industry", param: "industry", optKey: "industries" },
-  { key: "title", label: "Job title", param: "title", optKey: "titles" },
-  { key: "seniority", label: "Seniority", param: "seniority", optKey: "seniority_levels" },
-  { key: "employer", label: "Current employer", param: "employer", optKey: "employers" },
-  { key: "pastEmployer", label: "Past employer", param: "past_employer", optKey: "past_employers" },
-  { key: "city", label: "City", param: "city", optKey: "cities" },
-  { key: "state", label: "State", param: "state", optKey: "states" },
-  { key: "tag", label: "Engagement tag", param: "tag", optKey: "tags" },
-  { key: "statusLabel", label: "Status label", param: "status_label", optKey: "status_labels" },
-  { key: "leadership", label: "Leadership role", param: "leadership_role", optKey: "leadership_roles" },
+  // Employment Status leads the block and spans the full width: it's the
+  // broadest employment cut (Full-time / Part-time / Self-Employed / Graduate
+  // Student / Military / Not in the Labor Force / Unemployed), and everything
+  // below narrows *within* it. Full width also keeps it from sitting
+  // shoulder-to-shoulder with Status Label, which is a different thing entirely
+  // — a survey-suppression flag (Inactive / Deceased / Lost Contact / Retired /
+  // Do Not Contact, fa-web-api#354). Jake's call: two rows, never merged.
+  {
+    key: "employmentStatus",
+    label: "Employment Status",
+    param: "employment_status",
+    optKey: "employment_statuses",
+    wide: true,
+  },
+  { key: "employer", label: "Current Employer", param: "employer", optKey: "employers" },
+  { key: "industry", label: "Current Industry", param: "industry", optKey: "industries" },
+  { key: "pastEmployer", label: "Past Employer", param: "past_employer", optKey: "past_employers" },
+  { key: "secondaryIndustry", label: "Secondary Industry", param: "secondary_industry", optKey: "secondary_industries" },
+  { key: "city", label: "Employment City", param: "city", optKey: "cities" },
+  { key: "state", label: "Employment State", param: "state", optKey: "states" },
+  { key: "title", label: "Job Title", param: "title", optKey: "titles" },
+  { key: "statusLabel", label: "Status Label", param: "status_label", optKey: "status_labels" },
+  { key: "leadership", label: "FS Leadership Role", param: "leadership_role", optKey: "leadership_roles" },
+  { key: "tag", label: "Engagement Tag", param: "tag", optKey: "tags" },
 ];
 
 /** Advanced engagement checkboxes → /alumni boolean param (=1). */
@@ -75,7 +116,10 @@ const ENGAGEMENT: { key: string; label: string; param: string }[] = [
   { key: "donor", label: "PIFF donor", param: "donor" },
   { key: "mentor", label: "Willing to mentor", param: "mentor" },
   { key: "speaker", label: "Willing to guest speak", param: "speaker" },
+  // All three finance designations the survey collects (#529) are searchable —
+  // CFP joined CFA/CPA once the backend grew a `cfp` param (fa-web-api#363).
   { key: "cfa", label: "CFA designation", param: "cfa" },
+  { key: "cfp", label: "CFP designation", param: "cfp" },
   { key: "cpa", label: "CPA designation", param: "cpa" },
 ];
 
@@ -96,7 +140,7 @@ function IdentityGrid({
             onChange={(e) => onChange({ ...value, [f.key]: e.target.value })}
             placeholder={f.label}
             autoComplete="off"
-            type={f.key === "email" ? "email" : "text"}
+            type="text"
             // Compact 36px fields on mobile to match the slim search bar; 16px
             // text is preserved (no iOS zoom). Desktop is already h-9.
             className="h-9"
@@ -174,37 +218,6 @@ function GradYearRange({
   );
 }
 
-interface Shortcut {
-  label: string;
-  href: string;
-}
-
-/** One-click shortcut tiles that fill the bottom of the Quick / Events tabs.
- *  With `fill`, the tile grid grows to occupy the remaining card height so the
- *  tab reads as intentionally full rather than a thin strip over empty space. */
-function Shortcuts({ items }: { items: Shortcut[] }) {
-  if (items.length === 0) return null;
-  return (
-    <div className="border-t border-gray-100 pt-4">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-        Quick filters
-      </p>
-      {/* One preset per line, left-aligned — each is a common compound search. */}
-      <div className="flex flex-col gap-2">
-        {items.map((s) => (
-          <Link
-            key={s.label}
-            href={s.href}
-            className="flex items-center rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:border-brand-blue-300 hover:bg-brand-blue-50/40 hover:text-brand-blue-600"
-          >
-            {s.label}
-          </Link>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 /** "Friends of the program" toggle. When checked, the Quick search targets the
  *  Friends roster (/friends — is_alumni=false via the backend `kind=friend`
  *  param) instead of Alumni. This mirrors how the rest of the app scopes to
@@ -229,13 +242,7 @@ function FriendsToggle({
   );
 }
 
-export function DashboardSearch({
-  options,
-  alumniShortcuts = [],
-}: {
-  options: FilterOptions;
-  alumniShortcuts?: Shortcut[];
-}) {
+export function DashboardSearch({ options }: { options: FilterOptions }) {
   const router = useRouter();
 
   // --- Quick search ----------------------------------------------------------
@@ -350,11 +357,6 @@ export function DashboardSearch({
               Reset
             </Button>
           </div>
-          {/* Quick-filter shortcuts are desktop-only — mobile keeps the dashboard
-              lean and search-first. */}
-          <div className="hidden lg:block">
-            <Shortcuts items={alumniShortcuts} />
-          </div>
         </TabsContent>
 
         {/* ------------------------------------------------------- Advanced -- */}
@@ -385,17 +387,21 @@ export function DashboardSearch({
               }}
               error={advYearError}
             />
+            {/* Single column on mobile, so the pairings above collapse to the
+                same top-to-bottom reading order. `wide` facets span both columns
+                on sm+ and are simply full-width on mobile like everything else. */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {FACETS.map((facet) => (
-                <MultiSelect
-                  key={facet.key}
-                  label={facet.label}
-                  options={(options[facet.optKey] as string[]) ?? []}
-                  selected={facets[facet.key] ?? []}
-                  onChange={(next) =>
-                    setFacets((prev) => ({ ...prev, [facet.key]: next }))
-                  }
-                />
+                <div key={facet.key} className={facet.wide ? "sm:col-span-2" : undefined}>
+                  <MultiSelect
+                    label={facet.label}
+                    options={(options[facet.optKey] as string[]) ?? []}
+                    selected={facets[facet.key] ?? []}
+                    onChange={(next) =>
+                      setFacets((prev) => ({ ...prev, [facet.key]: next }))
+                    }
+                  />
+                </div>
               ))}
             </div>
             <div>

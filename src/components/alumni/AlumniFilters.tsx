@@ -199,6 +199,8 @@ const EMPTY_OPTIONS: FilterOptions = {
   titles: [],
   seniority_levels: [],
   industries: [],
+  secondary_industries: [],
+  employment_statuses: [],
   cities: [],
   states: [],
   tags: [],

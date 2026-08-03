@@ -99,8 +99,8 @@ export function PersonalSectionForm({
       />
       {/* border-t divider marks the end of the contact-method cluster above
           and the start of the remaining personal fields below (same
-          within-card separator idiom as DashboardSearch's "Quick filters"
-          block and the profile page's section dividers). */}
+          within-card separator idiom as DashboardSearch's action bar and the
+          profile page's section dividers). */}
       <div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-4">
         <Field
           label="NetID"
