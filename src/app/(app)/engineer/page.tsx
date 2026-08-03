@@ -40,7 +40,7 @@ const TOOLS: Tool[] = [
     href: "/engineer/surveys",
     title: "Surveys",
     description:
-      "What survey campaigns are running, who started each one and when — and a single control to stop them all.",
+      "What survey campaigns are running, who started each one and when — pause and resume any of them, or stop them all.",
   },
   {
     href: "/engineer/logins",
