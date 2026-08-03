@@ -105,19 +105,21 @@ function read(relPath: string): string {
 describe("survey designations section (#529)", () => {
   const src = read("src/components/survey/survey-screens.tsx");
 
-  it("ticks CFA/CFP into their own columns, not the free text", () => {
+  it("ticks CFA/CFP/CPA into their own columns, not the free text", () => {
     // If a tickbox ever wrote `profile.other_designations`, that alum would drop
-    // out of the CFA/CFP filter and the designation counts — a data bug, not a
-    // cosmetic one. Pin the keys.
+    // out of the designation filter and the counts — a data bug, not a cosmetic
+    // one. Pin the keys.
     expect(src).toContain('key: "program.cfa_designation", label: "CFA", kind: "designation"');
     expect(src).toContain('key: "program.cfp_designation", label: "CFP", kind: "designation"');
+    expect(src).toContain('key: "program.cpa_designation", label: "CPA", kind: "designation"');
   });
 
-  it("offers CFA and CFP only — no other presets", () => {
-    // Jake's spec is literally CFA, CFP, and three blanks; the preset list only
-    // grows once the responses show what's actually common.
-    expect(src.match(/kind: "designation"/g)).toHaveLength(2);
-    expect(src).not.toContain("cpa_designation");
+  it("offers exactly three presets — no others", () => {
+    // Jake's spec was CFA, CFP and three blanks (#529); CPA was added on
+    // 2026-08-03 because it had a column and a filter but no way for an alum to
+    // populate it. The preset list only grows on an explicit call like that —
+    // otherwise it waits for the responses to show what's actually common.
+    expect(src.match(/kind: "designation"/g)).toHaveLength(3);
   });
 
   it("keeps the three blanks as ONE field over the free-text column", () => {
