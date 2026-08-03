@@ -65,3 +65,44 @@ export function splitDesignations(text: string): string[] {
     .map((t) => t.trim())
     .filter(Boolean);
 }
+
+/* ------------------------------------------- survey "Other" blanks (#529) -- */
+
+/**
+ * How many free-text "Other" blanks the survey offers alongside the CFA and CFP
+ * tickboxes. Jake's spec is literally three; the rest of this module derives
+ * from the constant so widening it later is a one-line change.
+ */
+export const OTHER_DESIGNATION_SLOTS = 3;
+
+/**
+ * Fill the survey's fixed set of "Other" blanks from the single comma-joined
+ * `other_designations` string we store.
+ *
+ * Always returns exactly `OTHER_DESIGNATION_SLOTS` entries. An alum with MORE
+ * designations than there are blanks (dev already has 3-value rows, so 4+ is
+ * plausible) keeps the overflow in the LAST blank, re-joined with ", " — the
+ * alternative is dropping what they told us last year the moment they open the
+ * form, which is worse than one crowded box they can edit.
+ */
+export function splitOtherDesignationSlots(text: string): string[] {
+  const parts = splitDesignations(text ?? "");
+  const slots: string[] = [];
+  for (let i = 0; i < OTHER_DESIGNATION_SLOTS - 1; i += 1) {
+    slots.push(parts[i] ?? "");
+  }
+  slots.push(parts.slice(OTHER_DESIGNATION_SLOTS - 1).join(", "));
+  return slots;
+}
+
+/**
+ * Collapse the "Other" blanks back into the one stored string. Empty blanks are
+ * skipped rather than emitted as stray commas, and the alum's own order is
+ * preserved — we never sort or dedupe what they typed.
+ */
+export function joinOtherDesignationSlots(slots: readonly string[]): string {
+  return slots
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join(", ");
+}

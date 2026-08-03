@@ -27,6 +27,10 @@ import { Label } from "@/components/ui/label";
 import { PAY_IT_FORWARD_URL } from "@/types/survey";
 import { STATE_NAMES } from "@/lib/geo/state-field";
 import {
+  joinOtherDesignationSlots,
+  splitOtherDesignationSlots,
+} from "@/lib/designations";
+import {
   EMPLOYMENT_STATUS_OPTIONS,
   PRIMARY_INDUSTRY_OPTIONS,
   isEmploymentStatusPlaceholder,
@@ -76,7 +80,14 @@ export type FieldKind =
   | "usState"
   | "country"
   | "industry"
-  | "employmentStatus";
+  | "employmentStatus"
+  // A single tickbox for "do you hold this designation" (#529). Distinct from
+  // `boolean`, whose Yes/No radios ask a question; a checklist of designations
+  // reads as a checklist, and it's what Jake's mock draws.
+  | "designation"
+  // The three free-text "Other" blanks, which are ONE field: they merge into the
+  // single `other_designations` column. See `OtherDesignationsControl`.
+  | "otherDesignations";
 export type EditField = {
   key: string;
   label: string;
@@ -189,9 +200,24 @@ export const INFO_SECTIONS: Section[] = [
   {
     id: "designations",
     title: "Finance designations",
-    blurb: "CFA, CFP, etc.",
+    blurb: "CFA, CFP, and anything else you hold",
+    // Per Jake (#529): CFA and CFP are the only presets — every other answer the
+    // survey has drawn so far (Series 7, Series 65 and the rest of the NASAA
+    // series) goes in a free-text blank, and the preset list only grows once the
+    // responses show what's actually common.
+    //
+    // CFA/CFP write DEDICATED columns (alumni_program_engagement), not the free
+    // text: the designation filter and counts read those columns, so a ticked
+    // CFA stored as free text would make that alum invisible to the CFA filter.
     fields: [
-      { key: "profile.other_designations", label: "Finance designations (CFA, CFP, etc.)", kind: "text" },
+      { key: "program.cfa_designation", label: "CFA", kind: "designation" },
+      { key: "program.cfp_designation", label: "CFP", kind: "designation" },
+      {
+        key: "profile.other_designations",
+        label: "Other designations",
+        kind: "otherDesignations",
+        helpText: "Anything else you hold — ex: Series 7, Series 65, CPA, FRM.",
+      },
     ],
   },
 ];
@@ -686,6 +712,58 @@ function IndustryControl({
   );
 }
 
+/**
+ * The three free-text "Other" blanks (#529), which are ONE field: they merge
+ * into the single `other_designations` column, joined with ", ".
+ *
+ * The blanks are LOCAL state seeded once from the stored string, because the
+ * parent only ever sees the joined result. Re-splitting that on every render
+ * would shuffle text between boxes mid-edit — clearing blank 1 would yank blank
+ * 2's text up into it under the alum's cursor. How they arrange their answers is
+ * theirs; the join is only how we store it.
+ */
+function OtherDesignationsControl({
+  id,
+  labelId,
+  helpId,
+  value,
+  onChange,
+}: {
+  id: string;
+  labelId: string;
+  helpId?: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const [slots, setSlots] = useState(() => splitOtherDesignationSlots(value));
+
+  const setSlot = (index: number, next: string) => {
+    const updated = slots.map((s, i) => (i === index ? next : s));
+    setSlots(updated);
+    // Emit the WHOLE column value, never just the edited blank: one column backs
+    // all three, so touching blank 1 has to carry blanks 2 and 3 along or
+    // submitting would blank them out.
+    onChange(joinOtherDesignationSlots(updated));
+  };
+
+  return (
+    <div role="group" aria-labelledby={labelId} aria-describedby={helpId} className="space-y-2">
+      {slots.map((slot, i) => (
+        <Input
+          key={i}
+          // Only the first blank claims the visible label's `htmlFor`, so
+          // clicking "Other designations" focuses where you'd start typing.
+          id={i === 0 ? id : undefined}
+          value={slot}
+          aria-label={`Other designation ${i + 1}`}
+          placeholder="Other"
+          onChange={(e) => setSlot(i, e.target.value)}
+        />
+      ))}
+    </div>
+  );
+}
+
 function FieldControl({
   field,
   value: storedValue,
@@ -701,6 +779,32 @@ function FieldControl({
   const controlId = `survey-${field.key}`;
   const labelId = `${controlId}-label`;
   const helpId = field.helpText ? `${controlId}-help` : undefined;
+
+  // A designation is one tick, so its label belongs ON the box rather than as a
+  // heading above it — "CFA" over an unlabelled checkbox reads as a question
+  // with the answer missing. Yes/No radios (the `boolean` kind) would work too,
+  // but four controls for a two-item checklist is heavier than what's being
+  // asked, and Jake's mock draws it as a checklist. Values stay the "Yes"/"No"
+  // the backend already parses, so nothing new has to learn a third vocabulary.
+  //
+  // `flex w-fit` rather than `inline-flex`: the section stacks its fields with
+  // `space-y`, so two inline boxes would land side by side on one line with a
+  // stray vertical offset between them.
+  if (field.kind === "designation") {
+    return (
+      <label className="flex w-fit cursor-pointer items-center gap-2 rounded-md border border-gray-300 px-4 py-1.5 text-sm text-gray-700 transition-colors hover:border-brand-blue-500 has-[:checked]:border-brand-blue-600 has-[:checked]:bg-brand-blue-50 has-[:checked]:font-medium has-[:checked]:text-navy-800">
+        <input
+          id={controlId}
+          type="checkbox"
+          checked={value === "Yes"}
+          onChange={(e) => onChange(e.target.checked ? "Yes" : "No")}
+          className="h-4 w-4 rounded border-gray-300 text-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
+        />
+        {field.label}
+      </label>
+    );
+  }
+
   return (
     <div>
       <Label id={labelId} htmlFor={controlId} className="text-sm font-medium text-gray-900">
@@ -760,6 +864,14 @@ function FieldControl({
           />
         ) : field.kind === "industry" ? (
           <IndustryControl id={controlId} value={value} onChange={onChange} />
+        ) : field.kind === "otherDesignations" ? (
+          <OtherDesignationsControl
+            id={controlId}
+            labelId={labelId}
+            helpId={helpId}
+            value={value}
+            onChange={onChange}
+          />
         ) : (
           <>
             <div className="flex gap-2" role="radiogroup" aria-labelledby={labelId}>
