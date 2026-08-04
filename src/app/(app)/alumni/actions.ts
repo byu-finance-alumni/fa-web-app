@@ -26,6 +26,11 @@ import type {
 } from "@/types/export";
 import type { FilterOptions } from "@/types/filters";
 import type { Note, NoteEntityType } from "@/types/notes";
+import type {
+  BulkHeadshotConfirmFile,
+  BulkHeadshotUploadTarget,
+  HeadshotBulkResult,
+} from "@/lib/photoImport";
 
 /**
  * Result of a form server action.
@@ -1562,6 +1567,74 @@ export async function confirmHeadshotUpload(
       error: e instanceof ApiError ? e.message : "Couldn't save the photo — try again.",
     };
   }
+}
+
+// --- Bulk photo import (direct-to-storage) -----------------------------------
+//
+// Same two-step shape as the single headshot above, batched (#595). Only file
+// NAMES and per-file outcomes cross these actions — image bytes go straight from
+// the browser to Supabase Storage, because anything routed through a serverless
+// function dies at Vercel's ~4.5 MB request-body cap (which is what made the old
+// multipart bulk route fail as a phantom CORS error).
+
+/**
+ * Mint signed upload URLs for a chunk of the batch (POST
+ * /alumni/headshots/bulk/upload-urls; full_access+). Every target's object key
+ * is chosen server-side from the matched alumnus, so a file name can never point
+ * an upload somewhere else, and unmatched / non-image names come back reported
+ * with no URL at all.
+ */
+export async function getBulkHeadshotUploadUrls(
+  filenames: string[],
+): Promise<
+  | { ok: true; targets: BulkHeadshotUploadTarget[] }
+  | { ok: false; error: string }
+> {
+  try {
+    const res = await apiPost<{ targets: BulkHeadshotUploadTarget[] }>(
+      "/alumni/headshots/bulk/upload-urls",
+      { filenames },
+    );
+    return { ok: true, targets: res?.targets ?? [] };
+  } catch (e) {
+    return { ok: false, error: bulkImportError(e) };
+  }
+}
+
+/**
+ * Validate + audit the objects a chunk landed (POST
+ * /alumni/headshots/bulk/confirm; full_access+) and return the authoritative
+ * per-file report. The backend re-derives every net ID and re-checks every
+ * object, so the outcomes sent here only decide what is worth probing.
+ */
+export async function confirmBulkHeadshotUpload(
+  files: BulkHeadshotConfirmFile[],
+): Promise<
+  { ok: true; result: HeadshotBulkResult } | { ok: false; error: string }
+> {
+  try {
+    const result = await apiPost<HeadshotBulkResult>(
+      "/alumni/headshots/bulk/confirm",
+      { files },
+    );
+    return { ok: true, result };
+  } catch (e) {
+    return { ok: false, error: bulkImportError(e) };
+  }
+}
+
+/** Friendly copy for the failures the photo import can actually hit. */
+function bulkImportError(e: unknown): string {
+  if (e instanceof ApiError) {
+    if (e.status === 429) {
+      return "Too many photo uploads in a short window. Please wait a few minutes and try again.";
+    }
+    if (e.status === 401 || e.status === 403) {
+      return "You don't have permission to import photos, or your session expired. Sign in again and retry.";
+    }
+    return e.message || "Couldn't import the photos — please try again.";
+  }
+  return "Couldn't import the photos — please try again.";
 }
 
 /** Remove an alumnus's headshot (DELETE /alumni/{id}/headshot, full_access+). */

@@ -2,173 +2,287 @@
 
 import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
-import type { components } from "@/types/api.gen";
-import { clientPostForm, ApiClientError } from "@/lib/api-client";
+import { unzipSync } from "fflate";
+import {
+  ACCEPT_ATTR,
+  HEIC_REASON,
+  MAX_ARCHIVE_BYTES,
+  MAX_FILES,
+  MAX_FILE_BYTES,
+  REQUEST_CHUNK,
+  UPLOAD_CONCURRENCY,
+  chunk,
+  contentTypeForName,
+  formatBytes,
+  limitBatch,
+  makeArchiveFilter,
+  mapWithConcurrency,
+  partitionPicked,
+  type BulkHeadshotConfirmFile,
+  type HeadshotBulkItem,
+  type HeadshotBulkResult,
+  type SkippedFile,
+} from "@/lib/photoImport";
+import {
+  confirmBulkHeadshotUpload,
+  getBulkHeadshotUploadUrls,
+} from "@/app/(app)/alumni/actions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
-type HeadshotBulkResult = components["schemas"]["HeadshotBulkResult"];
-type HeadshotBulkItem = components["schemas"]["HeadshotBulkItem"];
-
-// Mirror the backend's accepted image types and per-request ceilings (#401). The
-// backend re-enforces every one of these; the client checks are purely for a
-// friendly, immediate message before a large upload leaves the browser.
-const IMAGE_EXTS = [".jpg", ".jpeg", ".png", ".webp"];
-const ZIP_EXTS = [".zip"];
-const ACCEPT_ATTR = ".zip,image/jpeg,image/png,image/webp";
-const MAX_FILES = 1000;
-const MAX_TOTAL_BYTES = 200 * 1024 * 1024;
-
-const hasExt = (name: string, exts: string[]) =>
-  exts.some((ext) => name.toLowerCase().endsWith(ext));
-
-const isZip = (file: File) =>
-  hasExt(file.name, ZIP_EXTS) ||
-  file.type === "application/zip" ||
-  file.type === "application/x-zip-compressed";
-
-const isImage = (file: File) =>
-  hasExt(file.name, IMAGE_EXTS) || file.type.startsWith("image/");
-
-const fmtBytes = (bytes: number) => {
-  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-  return `${(bytes / 1024).toFixed(1)} KB`;
-};
+// Publishable (browser-safe) key, sent on the direct-to-storage PUT — the same
+// header the single-headshot upload uses.
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
 
 /** Human label + tone for each per-file status returned by the backend. */
-const STATUS_META: Record<
-  string,
-  { label: string; className: string }
-> = {
+const STATUS_META: Record<string, { label: string; className: string }> = {
   matched: { label: "Matched", className: "text-success-600" },
   no_match: { label: "No match", className: "text-warning-600" },
   invalid: { label: "Invalid", className: "text-danger-600" },
   error: { label: "Error", className: "text-danger-600" },
 };
 
+const emptyResult = (): HeadshotBulkResult => ({
+  total: 0,
+  matched: 0,
+  no_match: 0,
+  invalid: 0,
+  errors: 0,
+  items: [],
+});
+
+/** Fold a chunk's report into the running total for the whole import. */
+function mergeResult(
+  into: HeadshotBulkResult,
+  next: HeadshotBulkResult,
+): HeadshotBulkResult {
+  return {
+    total: into.total + next.total,
+    matched: into.matched + next.matched,
+    no_match: into.no_match + next.no_match,
+    invalid: into.invalid + next.invalid,
+    errors: into.errors + next.errors,
+    items: [...into.items, ...next.items],
+  };
+}
+
 /**
- * Mass photo import (#401). Uploads EITHER a single .zip of images OR many image
- * files in one request to `POST /alumni/headshots/bulk`. Each photo is matched to
- * an alumnus by the net ID in its filename (`jsmith.jpg` → net_id `jsmith`).
+ * Mass photo import (#401), reworked for #595.
  *
- * The upload goes straight to the backend via {@link clientPostForm} — not a
- * Server Action — because the batch can reach 200 MB, far over the serverless
- * body cap. The route is full_access+ and rate-limited (10 req / 10 min); a 429
- * surfaces a friendly "try again shortly" message. Text-only controls per the
- * app's no-icons convention.
+ * Each photo is matched to an alumnus by the net ID in its filename
+ * (`jsmith.jpg` → net_id `jsmith`), exactly as before. What changed is HOW the
+ * bytes travel: the old flow POSTed the whole batch to the API as one multipart
+ * body, which Vercel rejects above ~4.5 MB at the edge — surfacing in the
+ * browser as a bogus CORS error. Now the API only ever sees metadata:
+ *
+ *   1. ask the backend for signed upload URLs for a chunk of file names — it
+ *      resolves each net ID and only mints a URL for files that matched;
+ *   2. PUT each image straight to Supabase Storage, a few at a time;
+ *   3. ask the backend to validate + audit what landed and report on it.
+ *
+ * A `.zip` is expanded here in the browser (fflate) so the existing archive
+ * workflow keeps working; its members then follow the same path as picked files.
+ * Text-only controls per the app's no-icons convention.
  */
 export function PhotoImportWizard() {
   const [files, setFiles] = useState<File[]>([]);
+  const [skipped, setSkipped] = useState<SkippedFile[]>([]);
   const [fileError, setFileError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [expanding, setExpanding] = useState(false);
 
   const [result, setResult] = useState<HeadshotBulkResult | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
   const [uploading, startUploading] = useTransition();
 
   const inputRef = useRef<HTMLInputElement>(null);
 
   const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
-  const zipCount = files.filter(isZip).length;
+
+  /**
+   * Expand a `.zip` in the browser. Synchronous on purpose: fflate's async API
+   * runs in a worker created from a `blob:` URL, which this app's CSP
+   * (`default-src 'self'`, no `worker-src blob:`) refuses. A few dozen photos
+   * decompress in well under a second, and the UI shows an "Expanding…" state.
+   *
+   * Bounded before anything is allocated — this used to run on the server behind
+   * hard caps, and a decompression bomb would otherwise take the operator's tab
+   * down with it. See `makeArchiveFilter`.
+   */
+  const expandArchive = async (archive: File): Promise<File[]> => {
+    if (archive.size > MAX_ARCHIVE_BYTES) {
+      throw new Error("archive too large");
+    }
+    const bytes = new Uint8Array(await archive.arrayBuffer());
+    const entries = unzipSync(bytes, { filter: makeArchiveFilter() });
+    const out: File[] = [];
+    for (const [path, data] of Object.entries(entries)) {
+      const name = path.replace(/\\/g, "/").split("/").pop() ?? path;
+      const type = contentTypeForName(name) ?? "application/octet-stream";
+      out.push(new File([data], name, { type }));
+    }
+    return out;
+  };
 
   const pickFiles = (picked: FileList | File[] | null) => {
     setResult(null);
     setUploadError(null);
+    setProgress(null);
     const next = picked ? Array.from(picked) : [];
     if (next.length === 0) {
       setFiles([]);
+      setSkipped([]);
       setFileError(null);
       return;
     }
 
-    const rejected = next.filter((f) => !isZip(f) && !isImage(f));
-    if (rejected.length > 0) {
-      setFiles([]);
+    // Keep every valid photo and report the rest one by one. Discarding the
+    // whole batch over one stray file was the second half of #595.
+    const { accepted, archives, skipped: rejected } = partitionPicked(next);
+
+    const finish = (images: File[], notes: SkippedFile[]) => {
+      const { kept, skipped: trimmed } = limitBatch(images);
+      setFiles(kept);
+      setSkipped([...notes, ...trimmed]);
       setFileError(
-        `${rejected.length} file${rejected.length === 1 ? " isn't" : "s aren't"} a .zip or an image (JPEG, PNG, WebP). Choose a single .zip of photos, or image files.`,
+        kept.length === 0
+          ? "None of those files can be imported — see the list below."
+          : null,
       );
+    };
+
+    if (archives.length === 0) {
+      finish(accepted, rejected);
       return;
     }
 
-    const zips = next.filter(isZip);
-    if (zips.length > 1) {
-      setFiles([]);
-      setFileError("Upload only one .zip at a time.");
-      return;
-    }
-    if (zips.length === 1 && next.length > 1) {
-      setFiles([]);
-      setFileError(
-        "Upload a single .zip on its own, or individual image files — not both together.",
-      );
-      return;
-    }
-
-    if (next.length > MAX_FILES) {
-      setFiles([]);
-      setFileError(
-        `That's ${next.length.toLocaleString()} files — the limit is ${MAX_FILES.toLocaleString()} per upload. Split them into smaller batches or use a .zip.`,
-      );
-      return;
-    }
-
-    const bytes = next.reduce((sum, f) => sum + f.size, 0);
-    if (bytes > MAX_TOTAL_BYTES) {
-      setFiles([]);
-      setFileError(
-        `That's ${fmtBytes(bytes)} — the limit is 200 MB per upload. Split the photos into smaller batches.`,
-      );
-      return;
-    }
-
-    setFileError(null);
-    setFiles(next);
+    setExpanding(true);
+    void (async () => {
+      const images = [...accepted];
+      const notes = [...rejected];
+      for (const archive of archives) {
+        try {
+          const members = await expandArchive(archive);
+          const inner = partitionPicked(members);
+          images.push(...inner.accepted);
+          notes.push(...inner.skipped);
+          if (inner.accepted.length === 0 && inner.skipped.length === 0) {
+            notes.push({
+              name: archive.name,
+              reason: "The archive has no JPEG, PNG, or WebP photos in it.",
+            });
+          }
+        } catch {
+          notes.push({
+            name: archive.name,
+            reason:
+              archive.size > MAX_ARCHIVE_BYTES
+                ? `Archive is over ${formatBytes(MAX_ARCHIVE_BYTES)} — split it into smaller zips.`
+                : "Couldn't read that .zip — re-create it and try again.",
+          });
+        }
+      }
+      finish(images, notes);
+      setExpanding(false);
+    })();
   };
 
   const onUpload = () => {
     if (files.length === 0) return;
     setUploadError(null);
     startUploading(async () => {
-      const fd = new FormData();
-      for (const f of files) fd.append("files", f, f.name);
-      try {
-        const data = await clientPostForm<HeadshotBulkResult>(
-          "/alumni/headshots/bulk",
-          fd,
-        );
-        setResult(data);
-      } catch (e) {
-        if (e instanceof ApiClientError) {
-          if (e.status === 429) {
-            setUploadError(
-              "Too many photo uploads in a short window. Please wait a few minutes and try again.",
-            );
-          } else if (e.status === 413) {
-            setUploadError(
-              "That upload is too large. Keep each batch under 200 MB.",
-            );
-          } else if (e.status === 401 || e.status === 403) {
-            setUploadError(
-              "You don't have permission to import photos, or your session expired. Sign in again and retry.",
-            );
-          } else {
-            setUploadError(
-              e.message ||
-                "Couldn't upload the photos — please try again.",
-            );
-          }
-        } else {
-          setUploadError("Couldn't upload the photos — please try again.");
+      let report = emptyResult();
+      let done = 0;
+      setProgress({ done: 0, total: files.length });
+
+      // Metadata rides in chunks so no single request outgrows the backend's
+      // per-request cap; the photos themselves never touch it.
+      for (const batch of chunk(files, REQUEST_CHUNK)) {
+        const minted = await getBulkHeadshotUploadUrls(batch.map((f) => f.name));
+        if (!minted.ok) {
+          setUploadError(minted.error);
+          setProgress(null);
+          return;
         }
+        // The backend reports one target per name, in the order we sent them.
+        if (minted.targets.length !== batch.length) {
+          setUploadError("Couldn't import the photos — please try again.");
+          setProgress(null);
+          return;
+        }
+
+        const outcomes = await mapWithConcurrency(
+          batch,
+          UPLOAD_CONCURRENCY,
+          async (file, index): Promise<BulkHeadshotConfirmFile> => {
+            const target = minted.targets[index];
+            // No URL means the backend didn't match this file to an alumnus (or
+            // storage was unavailable). Report it; never invent a destination.
+            if (!target?.upload_url) {
+              done += 1;
+              setProgress({ done, total: files.length });
+              return { filename: file.name, uploaded: false, message: null };
+            }
+            let outcome: BulkHeadshotConfirmFile;
+            try {
+              const put = await fetch(target.upload_url, {
+                method: "PUT",
+                headers: {
+                  "content-type":
+                    contentTypeForName(file.name) ?? "application/octet-stream",
+                  "x-upsert": "true",
+                  apikey: SUPABASE_KEY,
+                },
+                body: file,
+              });
+              outcome = put.ok
+                ? { filename: file.name, uploaded: true, message: null }
+                : {
+                    filename: file.name,
+                    uploaded: false,
+                    message:
+                      put.status === 413
+                        ? "The photo is over the 20 MB limit."
+                        : "Storage rejected the upload — try this one again.",
+                  };
+            } catch {
+              outcome = {
+                filename: file.name,
+                uploaded: false,
+                message: "The upload didn't finish — check your connection.",
+              };
+            }
+            done += 1;
+            setProgress({ done, total: files.length });
+            return outcome;
+          },
+        );
+
+        const confirmed = await confirmBulkHeadshotUpload(outcomes);
+        if (!confirmed.ok) {
+          setUploadError(confirmed.error);
+          setProgress(null);
+          return;
+        }
+        report = mergeResult(report, confirmed.result);
       }
+
+      setProgress(null);
+      setResult(report);
     });
   };
 
   const reset = () => {
     setFiles([]);
+    setSkipped([]);
     setFileError(null);
     setResult(null);
     setUploadError(null);
+    setProgress(null);
   };
 
   // --- Results view ---------------------------------------------------------
@@ -227,6 +341,15 @@ export function PhotoImportWizard() {
           </Card>
         )}
 
+        {skipped.length > 0 && (
+          <Card className="p-4">
+            <SkippedList
+              skipped={skipped}
+              caption="Left out before the upload started, so they aren't in the table above."
+            />
+          </Card>
+        )}
+
         <div className="flex items-center justify-end gap-3">
           <Button variant="secondary" onClick={reset}>
             Import more photos
@@ -245,9 +368,9 @@ export function PhotoImportWizard() {
       <Card className="p-6">
         <h2 className="text-lg font-semibold text-gray-900">Import photos</h2>
         <p className="mt-1 text-sm text-gray-500">
-          Bulk-add alumni headshots. Upload a single <strong>.zip</strong> of
-          images, or select many image files at once. Each photo is matched to an
-          alumnus by the <strong>net ID in its filename</strong> — e.g.{" "}
+          Bulk-add alumni headshots. Drop in image files, a <strong>.zip</strong>{" "}
+          of images, or both. Each photo is matched to an alumnus by the{" "}
+          <strong>net ID in its filename</strong> — e.g.{" "}
           <code className="rounded bg-gray-100 px-1 py-0.5 text-xs text-gray-700">
             jsmith.jpg
           </code>{" "}
@@ -256,8 +379,15 @@ export function PhotoImportWizard() {
             jsmith
           </code>
           . Files whose net ID doesn&apos;t match anyone are reported back, not
-          uploaded. JPEG, PNG, or WebP — up to 1,000 files / 200&nbsp;MB per
-          upload.
+          uploaded.
+        </p>
+        <p className="mt-2 text-sm text-gray-500">
+          JPEG, PNG, or WebP — up to {formatBytes(MAX_FILE_BYTES)} per photo and{" "}
+          {MAX_FILES.toLocaleString()} photos per import. Photos upload straight
+          to storage, so there&apos;s no cap on the batch as a whole; a big batch
+          just takes a while, so leave this page open until it finishes.{" "}
+          <strong>HEIC isn&apos;t supported</strong> — convert iPhone photos to
+          JPEG first.
         </p>
 
         <label
@@ -290,10 +420,11 @@ export function PhotoImportWizard() {
             }}
           />
           <p className="text-sm font-medium text-gray-900">
-            Drag a .zip or image files here, or click to choose
+            Drag photos or a .zip here, or click to choose
           </p>
           <p className="mt-1 text-xs text-gray-500">
-            One .zip of photos, or multiple JPEG / PNG / WebP files
+            Anything that isn&apos;t a JPEG, PNG, or WebP is listed and skipped —
+            the rest of the batch still uploads
           </p>
         </label>
 
@@ -303,23 +434,64 @@ export function PhotoImportWizard() {
           </p>
         )}
 
+        {expanding && (
+          <p className="mt-3 text-sm text-gray-500">Expanding archive…</p>
+        )}
+
         {files.length > 0 && (
           <div className="mt-4 flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-gray-900">
-                {zipCount === 1
+                {files.length === 1
                   ? files[0].name
-                  : `${files.length.toLocaleString()} image file${
-                      files.length === 1 ? "" : "s"
-                    } selected`}
+                  : `${files.length.toLocaleString()} photos ready to import`}
               </p>
-              <p className="text-xs text-gray-500">
-                {zipCount === 1 ? "Archive" : "Total"} {fmtBytes(totalBytes)}
+              <p className="text-xs tabular-nums text-gray-500">
+                {formatBytes(totalBytes)} total
               </p>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => pickFiles(null)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => pickFiles(null)}
+              disabled={uploading}
+            >
               Remove
             </Button>
+          </div>
+        )}
+
+        <SkippedList
+          skipped={skipped}
+          caption="Skipped — the rest of the batch is unaffected."
+        />
+
+        {progress && (
+          <div className="mt-4">
+            <div className="flex items-baseline justify-between text-sm">
+              <span className="text-gray-700">Uploading photos…</span>
+              <span className="tabular-nums text-gray-500">
+                {progress.done.toLocaleString()} of{" "}
+                {progress.total.toLocaleString()}
+              </span>
+            </div>
+            <div
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={progress.total}
+              aria-valuenow={progress.done}
+              aria-label="Photo upload progress"
+              className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-gray-200"
+            >
+              <div
+                className="h-full bg-brand-blue-600"
+                style={{
+                  width: `${Math.round(
+                    (progress.done / Math.max(progress.total, 1)) * 100,
+                  )}%`,
+                }}
+              />
+            </div>
           </div>
         )}
 
@@ -345,19 +517,58 @@ export function PhotoImportWizard() {
         <Button
           variant="primary"
           onClick={onUpload}
-          disabled={files.length === 0 || uploading}
+          disabled={files.length === 0 || uploading || expanding}
         >
           {uploading
             ? "Uploading…"
             : files.length === 0
               ? "Upload photos"
-              : zipCount === 1
-                ? "Upload archive"
-                : `Upload ${files.length.toLocaleString()} photo${
-                    files.length === 1 ? "" : "s"
-                  }`}
+              : `Upload ${files.length.toLocaleString()} photo${
+                  files.length === 1 ? "" : "s"
+                }`}
         </Button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Files left out before the upload — a stray `.DS_Store`, a HEIC, an oversized
+ * photo. Listed individually rather than silently dropped, and WITHOUT
+ * discarding the rest of the selection (#595).
+ */
+function SkippedList({
+  skipped,
+  caption,
+}: {
+  skipped: SkippedFile[];
+  caption: string;
+}) {
+  if (skipped.length === 0) return null;
+  const heic = skipped.some((s) => s.reason === HEIC_REASON);
+  return (
+    <div className="mt-4 rounded-lg border border-warning-600/30 bg-warning-50 px-3 py-2.5">
+      <p className="text-sm font-medium text-gray-900">
+        {skipped.length.toLocaleString()} file
+        {skipped.length === 1 ? "" : "s"} skipped
+      </p>
+      <p className="mt-0.5 text-xs text-gray-600">{caption}</p>
+      <ul className="mt-2 max-h-40 space-y-1 overflow-auto text-xs text-gray-700">
+        {skipped.map((s, i) => (
+          <li key={`${s.name}-${i}`} className="flex gap-2">
+            <span className="max-w-[14rem] shrink-0 truncate font-medium">
+              {s.name}
+            </span>
+            <span className="text-gray-500">{s.reason}</span>
+          </li>
+        ))}
+      </ul>
+      {heic && (
+        <p className="mt-2 text-xs text-gray-600">
+          HEIC is what iPhones save by default. Switching the camera format is a
+          one-time change, or export the photos as JPEG before importing.
+        </p>
+      )}
     </div>
   );
 }

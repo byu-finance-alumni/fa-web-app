@@ -422,7 +422,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/alumni/headshots/bulk": {
+    "/alumni/headshots/bulk/upload-urls": {
         parameters: {
             query?: never;
             header?: never;
@@ -432,19 +432,59 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Bulk Upload Headshots
-         * @description Bulk-upload alumni headshots (full_access and up, #401).
+         * Create Bulk Headshot Upload Urls
+         * @description Mint per-file signed upload URLs for a bulk photo import (full_access+).
          *
-         *     Accepts EITHER a single ``.zip`` of images OR several image files in one
-         *     multipart request. For each image the net_id is the file name minus its
-         *     extension; the alumnus is looked up by net_id (case-insensitive) and, when
-         *     matched, the JPEG/PNG/WebP is stored in the private ``headshots`` bucket under
-         *     the net_id key (overwriting any existing image) — the SAME validation, bucket,
-         *     and key as the single-headshot upload. Returns a per-file report; a matched
-         *     upload is audited (``upload_headshot``). Per-file (20 MB) and total (200 MB)
-         *     size caps apply; an oversized batch or bad archive is a 413 / 400.
+         *     Takes FILE NAMES ONLY — no image bytes — so the request stays a few KB no
+         *     matter how big the batch is. Each name's net ID is its basename minus the
+         *     extension, matched to an alumnus case-insensitively; a name that matches
+         *     nobody, or isn't a JPEG/PNG/WebP, comes back reported and WITHOUT a URL, so
+         *     it can never be uploaded. Every minted URL is scoped by the server to that
+         *     alumnus's own object key, so the browser never chooses where bytes land and
+         *     never sees the service key.
+         *
+         *     Like the single-headshot route, minting writes an ``upload_headshot_started``
+         *     audit row: it is the attributable precondition for an image change, so the
+         *     FERPA trail survives a browser that never reaches confirm. Confirm writes the
+         *     terminal ``upload_headshot`` / ``upload_headshot_rejected``.
          */
-        post: operations["bulk_upload_headshots_alumni_headshots_bulk_post"];
+        post: operations["create_bulk_headshot_upload_urls_alumni_headshots_bulk_upload_urls_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alumni/headshots/bulk/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Bulk Headshot Upload
+         * @description Validate + audit the objects a bulk photo import landed (full_access+).
+         *
+         *     Takes every file in the batch with the browser's per-file upload outcome and
+         *     returns the authoritative report the wizard renders (``matched`` /
+         *     ``no_match`` / ``invalid`` / ``error`` plus tallies). Nothing the browser
+         *     sends is trusted: net IDs are re-derived, alumni re-resolved, and each landed
+         *     object re-validated (type, size, sniffed magic bytes). A non-conforming
+         *     object is DELETED and audited ``upload_headshot_rejected``; a conforming one
+         *     is audited ``upload_headshot``, exactly like the single-headshot path.
+         *
+         *     The per-file ``uploaded`` flag decides only what we REPORT, never whether we
+         *     look. Every matched alumnus's object is probed either way, so a client that
+         *     PUTs a bad image and then claims the upload failed can't skip validation and
+         *     leave that object sitting in the bucket. Conversely, a file the client says
+         *     failed is never audited ``upload_headshot`` even if a conforming object is
+         *     present — that object may be the alumnus's PREVIOUS headshot, and a failed
+         *     upload must not be recorded as a successful one.
+         */
+        post: operations["confirm_bulk_headshot_upload_alumni_headshots_bulk_confirm_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3051,6 +3091,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/survey/schedules/{grad_year}/new-cycle/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview Survey New Cycle
+         * @description What starting a new survey cycle for this year would do (#357).
+         *
+         *     Read-only: nothing is scheduled and nothing is sent. Backs the confirmation
+         *     shown before the irreversible `new-cycle` call, so staff see how many alumni
+         *     would be emailed — and how many of those already received the current
+         *     cycle — before committing to it.
+         */
+        get: operations["preview_survey_new_cycle_survey_schedules__grad_year__new_cycle_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/schedules/{grad_year}/new-cycle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Survey New Cycle
+         * @description Start the NEXT survey campaign for a graduation year (#357).
+         *
+         *     Advances the year's cycle, making the whole eligible cohort emailable again
+         *     while every previous cycle's send log stays intact as history. Nothing is
+         *     deleted.
+         *
+         *     Deliberately separate from `POST /schedules`, which REPLACES a year's
+         *     schedule without advancing the cycle (Jake, 2026-08-03). That one is the
+         *     "I mistyped the start date" correction and must never re-email anyone; this
+         *     one is the annual re-run and always will. Confirm with the user against
+         *     `new-cycle/preview` first — the send it sets up cannot be recalled.
+         */
+        post: operations["start_survey_new_cycle_survey_schedules__grad_year__new_cycle_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/survey/schedules/bulk": {
         parameters: {
             query?: never;
@@ -4230,14 +4325,6 @@ export interface components {
             birth_month: number | null;
             /** Birth Day */
             birth_day: number | null;
-        };
-        /** Body_bulk_upload_headshots_alumni_headshots_bulk_post */
-        Body_bulk_upload_headshots_alumni_headshots_bulk_post: {
-            /**
-             * Files
-             * @description Either a single .zip of images OR multiple image files. Each image's net_id is its file name minus extension.
-             */
-            files: string[];
         };
         /** Body_import_alumni_alumni_import_post */
         Body_import_alumni_alumni_import_post: {
@@ -5457,6 +5544,33 @@ export interface components {
             detail: components["schemas"]["ValidationError"][];
         };
         /**
+         * HeadshotBulkConfirmFile
+         * @description One file's client-reported upload outcome. ``uploaded`` is the browser's
+         *     claim that its direct PUT succeeded — the server re-derives the net_id,
+         *     re-resolves the alumnus, and re-validates the landed object regardless, so
+         *     this only decides whether an object is worth probing.
+         */
+        HeadshotBulkConfirmFile: {
+            /** Filename */
+            filename: string;
+            /**
+             * Uploaded
+             * @default false
+             */
+            uploaded: boolean;
+            /** Message */
+            message: string | null;
+        };
+        /**
+         * HeadshotBulkConfirmRequest
+         * @description ``POST /alumni/headshots/bulk/confirm`` request: every file in the batch
+         *     with the browser's per-file upload outcome.
+         */
+        HeadshotBulkConfirmRequest: {
+            /** Files */
+            files: components["schemas"]["HeadshotBulkConfirmFile"][];
+        };
+        /**
          * HeadshotBulkItem
          * @description Per-file outcome in a bulk headshot import (#401).
          *
@@ -5480,7 +5594,7 @@ export interface components {
         };
         /**
          * HeadshotBulkResult
-         * @description ``POST /alumni/headshots/bulk`` per-file report + tallies.
+         * @description ``POST /alumni/headshots/bulk/confirm`` per-file report + tallies.
          */
         HeadshotBulkResult: {
             /** Total */
@@ -5495,6 +5609,49 @@ export interface components {
             errors: number;
             /** Items */
             items: components["schemas"]["HeadshotBulkItem"][];
+        };
+        /**
+         * HeadshotBulkUploadRequest
+         * @description Filenames the browser wants signed upload URLs for (#595). METADATA ONLY
+         *     — image bytes never travel through the function, which is what broke the old
+         *     multipart route on Vercel's ~4.5 MB request-body cap.
+         */
+        HeadshotBulkUploadRequest: {
+            /** Filenames */
+            filenames: string[];
+        };
+        /**
+         * HeadshotBulkUploadTarget
+         * @description Per-filename outcome of minting bulk upload URLs.
+         *
+         *     ``status`` is one of:
+         *       * ``ready``    — the net_id matched an alumnus; PUT the image to
+         *         ``upload_url`` (which is scoped SERVER-SIDE to that alumnus's object
+         *         key — the browser never chooses a key);
+         *       * ``no_match`` — no alumnus has that net_id; nothing to upload;
+         *       * ``invalid``  — the file name has no usable net_id or isn't a
+         *         JPEG/PNG/WebP by extension.
+         *     Only ``ready`` carries an ``upload_url``.
+         */
+        HeadshotBulkUploadTarget: {
+            /** Filename */
+            filename: string;
+            /** Net Id */
+            net_id: string | null;
+            /** Status */
+            status: string;
+            /** Message */
+            message: string;
+            /** Upload Url */
+            upload_url: string | null;
+        };
+        /**
+         * HeadshotBulkUploadUrls
+         * @description ``POST /alumni/headshots/bulk/upload-urls`` response.
+         */
+        HeadshotBulkUploadUrls: {
+            /** Targets */
+            targets: components["schemas"]["HeadshotBulkUploadTarget"][];
         };
         /** HealthResponse */
         HealthResponse: {
@@ -6266,6 +6423,44 @@ export interface components {
             after: string;
         };
         /**
+         * SurveyNewCyclePreview
+         * @description What ``POST /survey/schedules/{year}/new-cycle`` WOULD do (#357).
+         *
+         *     Backs the confirmation staff see before starting the next annual campaign.
+         *     Starting a cycle emails the whole eligible cohort again and cannot be
+         *     undone, so the dialog states the blast size in real numbers rather than
+         *     asking "are you sure?" about an abstraction.
+         */
+        SurveyNewCyclePreview: {
+            /** Graduation Year */
+            graduation_year: number;
+            /** Current Cycle */
+            current_cycle: number;
+            /** Next Cycle */
+            next_cycle: number;
+            /** Current Status */
+            current_status: string;
+            /** Would Email */
+            would_email: number;
+            /** Previously Emailed */
+            previously_emailed: number;
+        };
+        /**
+         * SurveyNewCycleRequest
+         * @description Start the next survey campaign for a graduation year (#357).
+         *
+         *     Carries only the new start date — the cycle number is server-assigned, never
+         *     client-supplied, so a caller can neither skip a cycle nor re-open an old one
+         *     and re-email against its log.
+         */
+        SurveyNewCycleRequest: {
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+        };
+        /**
          * SurveyRead
          * @description One row of the profile's Surveys tab.
          *
@@ -6380,6 +6575,11 @@ export interface components {
             start_date: string;
             /** Status */
             status: string;
+            /**
+             * Cycle Seq
+             * @default 1
+             */
+            cycle_seq: number;
             /** Last Run At */
             last_run_at: string | null;
             /** Created At */
@@ -7376,7 +7576,7 @@ export interface operations {
             };
         };
     };
-    bulk_upload_headshots_alumni_headshots_bulk_post: {
+    create_bulk_headshot_upload_urls_alumni_headshots_bulk_upload_urls_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -7385,7 +7585,40 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "multipart/form-data": components["schemas"]["Body_bulk_upload_headshots_alumni_headshots_bulk_post"];
+                "application/json": components["schemas"]["HeadshotBulkUploadRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HeadshotBulkUploadUrls"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_bulk_headshot_upload_alumni_headshots_bulk_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HeadshotBulkConfirmRequest"];
             };
         };
         responses: {
@@ -11408,6 +11641,72 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["SurveyScheduleCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyScheduleItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_survey_new_cycle_survey_schedules__grad_year__new_cycle_preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grad_year: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyNewCyclePreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_survey_new_cycle_survey_schedules__grad_year__new_cycle_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grad_year: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SurveyNewCycleRequest"];
             };
         };
         responses: {

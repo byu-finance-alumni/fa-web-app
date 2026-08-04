@@ -115,42 +115,10 @@ export async function clientPostJson<T>(
   return (await res.json()) as T;
 }
 
-/**
- * Browser-side multipart POST against the FastAPI backend, authed with the
- * signed-in user's Supabase access token.
- *
- * Uploads go straight to the backend (not through a Next.js Server Action) on
- * purpose: a large multipart body — the bulk headshot import accepts up to
- * 1000 files / 200 MB — would blow the ~4.5 MB serverless request-body cap if
- * it were routed through a Server Action. `Content-Type` is intentionally NOT
- * set so the browser derives the correct `multipart/form-data; boundary=…`.
- * On a non-2xx the backend's `error.message` (when present) is surfaced.
- */
-export async function clientPostForm<T>(
-  path: string,
-  formData: FormData,
-): Promise<T> {
-  const supabase = createClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  const res = await fetch(`${API_URL}${path}`, {
-    method: "POST",
-    headers: session?.access_token
-      ? { Authorization: `Bearer ${session.access_token}` }
-      : {},
-    body: formData,
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    let message: string | undefined;
-    try {
-      const body = await res.json();
-      if (typeof body?.error?.message === "string") message = body.error.message;
-    } catch {
-      /* non-JSON error body */
-    }
-    throw new ApiClientError(res.status, message);
-  }
-  return (await res.json()) as T;
-}
+// NOTE: there is deliberately no browser-side multipart POST helper here. The
+// only caller was the bulk photo import, and posting a batch to the API was the
+// bug (#595): Vercel rejects any request body over ~4.5 MB at the edge — for the
+// API function just as much as for a Server Action — and that platform error
+// carries no CORS headers, so the browser blamed CORS. Bulk photos now upload
+// direct-to-storage via signed URLs (see `src/lib/photoImport.ts`); if you need
+// to send a large payload, do the same rather than reviving this.

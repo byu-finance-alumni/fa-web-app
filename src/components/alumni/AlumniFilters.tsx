@@ -6,14 +6,18 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { Loader2, Plus, Search, SlidersHorizontal, X } from "lucide-react";
 import { MultiSelect } from "@/components/alumni/MultiSelect";
 import { ExportAlumniButton } from "@/components/alumni/ExportAlumniButton";
-import { toExportFilters } from "@/lib/exportFilters";
+import { exportParityGaps, toExportFilters } from "@/lib/exportFilters";
 import { parseAlumniQuery } from "@/lib/alumniQueryParser";
 import {
   EMPTY_FILTERS,
+  EMPTY_PASS_THROUGH,
   FACETS,
   countActiveFilters,
+  hasPassThroughFilters,
+  facetOptions,
   toAlumniFilterQs as toQs,
   type AlumniFilterState,
+  type PassThroughFilters,
 } from "@/lib/alumniFilterParams";
 import type { FilterOptions } from "@/types/filters";
 import { Button } from "@/components/ui/button";
@@ -91,6 +95,7 @@ export function AlumniFilters({
   total,
   basePath = "/alumni",
   isFriend = false,
+  passThrough = EMPTY_PASS_THROUGH,
 }: {
   initial: AlumniFilterState;
   options?: FilterOptions;
@@ -103,8 +108,15 @@ export function AlumniFilters({
    *  route (and keeps any route-owned scope in effect). */
   basePath?: string;
   /** Friends roster (#218): switches the Add control to create a friend. The
-   *  roster scope itself is fixed by the route (basePath), not a query param. */
+   *  roster scope itself is fixed by the route (basePath), not a query param —
+   *  and it is a POPULATION predicate, so the export carries it as
+   *  `is_alumni=false` (#592). */
   isFriend?: boolean;
+  /** URL-only narrowing params the roster honoured on this request (employer,
+   *  identity fields, location search, guest-speaker dates). The panel has no
+   *  control for them, but an export has to cover the same people the list
+   *  does, so they travel into the export body (#592). */
+  passThrough?: PassThroughFilters;
 }) {
   const router = useRouter();
   const [f, setF] = useState<AlumniFilterState>(initial);
@@ -192,6 +204,16 @@ export function AlumniFilters({
   const activeCount = countActiveFilters(f);
 
   const isDirty = serialized !== "";
+
+  /* The CSV export covers THIS view (#592). All three inputs matter: the panel's
+     state, the route's scope (alumni vs friends of the program) and the URL-only
+     params the roster applied. `exportGaps` lists any active filter the export
+     API cannot express — non-empty means the file would contain people the list
+     is excluding, so the dialog refuses instead of over-disclosing. */
+  const scope = isFriend ? "friend" : "alumni";
+  const exportFilters = toExportFilters(f, scope, passThrough);
+  const exportGaps = exportParityGaps(f, scope, passThrough);
+  const exportFiltersActive = isDirty || hasPassThroughFilters(passThrough);
 
   // Flat list of removable chips across every active filter.
   const chips: { label: string; remove: () => void }[] = [];
@@ -373,8 +395,10 @@ export function AlumniFilters({
         {canExport ? (
           <span className="hidden md:inline-flex">
             <ExportAlumniButton
-              filters={toExportFilters(f)}
-              filtersActive={isDirty}
+              filters={exportFilters}
+              filtersActive={exportFiltersActive}
+              unsupportedFilters={exportGaps}
+              noun={isFriend ? "friends of the program" : "alumni"}
               total={total}
             />
           </span>
@@ -433,8 +457,10 @@ export function AlumniFilters({
           own; the mobile menu drives its open state). */}
       {canExport ? (
         <ExportAlumniButton
-          filters={toExportFilters(f)}
-          filtersActive={isDirty}
+          filters={exportFilters}
+          filtersActive={exportFiltersActive}
+          unsupportedFilters={exportGaps}
+          noun={isFriend ? "friends of the program" : "alumni"}
           total={total}
           open={mobileExportOpen}
           onOpenChange={setMobileExportOpen}
@@ -502,11 +528,16 @@ export function AlumniFilters({
             </div>
 
             <div className="flex-1 space-y-4 overflow-auto px-5 py-4">
+              {/* `facetOptions` resolves each facet's list: the data-derived
+                  one from /alumni/filter-options, EXCEPT where the facet has a
+                  fixed vocabulary (Employment status — see FIXED_FACET_OPTIONS).
+                  Shared with the dashboard's Advanced search so the two panels
+                  can't offer different options for the same facet. */}
               {FACETS.map((facet) => (
                 <MultiSelect
                   key={facet.key as string}
                   label={facet.label}
-                  options={options[facet.optKey] as string[]}
+                  options={facetOptions(facet.optKey, options)}
                   selected={f[facet.key] as string[]}
                   onChange={(next) => set(facet.key, next as never)}
                 />
