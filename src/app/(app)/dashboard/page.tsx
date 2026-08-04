@@ -26,9 +26,16 @@ interface Summary {
   missing_email: number;
   missing_employer: number;
   contacted_this_month: number;
+  /**
+   * #606: active alumni whose `updated_at` falls in the CURRENT CALENDAR month
+   * (1st 00:00 UTC through now) — deliberately NOT the rolling 30-day window
+   * `contacted_this_month` uses, so the two tiles legitimately disagree.
+   * Optional here because the field only exists on a backend that has the #606
+   * change deployed; the tile falls back to "—" until then.
+   */
+  alumni_edited_this_month?: number;
   upcoming_follow_ups: number;
   duplicate_count: number;
-  attended_event_this_month: number;
   upcoming_events: number;
   willing_mentors: number;
   events_this_month: number;
@@ -70,11 +77,6 @@ function isoDaysAgo(days: number): string {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() - days);
   return d.toISOString().slice(0, 10);
-}
-
-/** Today as YYYY-MM-DD (UTC). */
-function isoToday(): string {
-  return new Date().toISOString().slice(0, 10);
 }
 
 /** A clean first name from the auth context, or null if there's nothing usable.
@@ -240,7 +242,6 @@ function IndustryBarList({
 
 export default async function DashboardPage() {
   const thirtyDaysAgo = isoDaysAgo(30);
-  const today = isoToday();
 
   let s: Summary | null = null;
   let ctx: UserContext | null = null;
@@ -430,12 +431,18 @@ export default async function DashboardPage() {
                   href={`/alumni?contacted_after=${thirtyDaysAgo}`}
                   linkLabel="View alumni contacted this month"
                 />
+                {/* #606: replaces the old "Events attended this month" tile.
+                    Counts alumni records touched in the CURRENT CALENDAR month
+                    — note the tile to its left is a rolling 30 days, so the two
+                    numbers are not directly comparable. Deep-links to the
+                    alumni list sorted most-recently-edited first, whose "Last
+                    updated" column makes the count checkable. */}
                 <MetricCard
                   size="lg"
-                  label="Events attended this month"
-                  value={s?.attended_event_this_month ?? "—"}
-                  href={`/events?from=${thirtyDaysAgo}&to=${today}`}
-                  linkLabel="View events held this month"
+                  label="Alumni edited this month"
+                  value={s?.alumni_edited_this_month ?? "—"}
+                  href="/alumni?sort=updated"
+                  linkLabel="View alumni sorted by most recently edited"
                 />
               </div>
               {/* Industry breakdown fills the entire leftover column space
@@ -474,7 +481,10 @@ export default async function DashboardPage() {
             ) : null}
             {canCreate ? (
               <Button asChild variant="secondary">
-                <Link href="/events/import">Add event</Link>
+                {/* The plain create form — an event needs no attendee list to
+                  exist (#611). Bulk CSV import lives on the Events page as its
+                  own clearly-labelled secondary action. */}
+              <Link href="/events/new">Add event</Link>
               </Button>
             ) : null}
             {canCreate ? (

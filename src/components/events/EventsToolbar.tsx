@@ -51,14 +51,21 @@ function toQs(f: EventsFilterState): string {
 export function EventsToolbar({
   initial,
   types,
-  canManageEvents = false,
+  canCreate = false,
+  canImport = false,
 }: {
   initial: EventsFilterState;
   /** Distinct event-type options for the menu (from GET /events/options). */
   types: string[];
-  /** full_access tier — gates the "Add event" entry point. view_only
-   *  ("Professor") never sees it; the backend re-enforces every write. */
-  canManageEvents?: boolean;
+  /**
+   * Whether to show "Add event" (the single-event form) and "Import events from
+   * CSV" (the bulk wizard). The caller resolves each from the viewer's
+   * CAPABILITIES — `events.create` and `events.import` respectively
+   * (fa-web-api #378) — so this component stays out of the permission model.
+   * The backend re-enforces both gates on submit regardless.
+   */
+  canCreate?: boolean;
+  canImport?: boolean;
 }) {
   const router = useRouter();
   const [f, setF] = useState<EventsFilterState>(initial);
@@ -125,10 +132,23 @@ export function EventsToolbar({
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white p-3 shadow-card">
-      {/* Add event — desktop toolbar only (mobile: in the menu). */}
-      {canManageEvents ? (
+      {/* Add event — desktop toolbar only (mobile: in the FAB). Points at the
+          plain create form: creating ONE event is the common case and it needs
+          no attendee list (#611). Bulk CSV import sits beside it as the
+          clearly-labelled secondary action, never the default. Each is gated on
+          its own capability (#378). */}
+      {canCreate ? (
         <Button asChild className="hidden shrink-0 md:inline-flex">
-          <Link href="/events/import">Add event</Link>
+          <Link href="/events/new">Add event</Link>
+        </Button>
+      ) : null}
+      {canImport ? (
+        <Button
+          asChild
+          variant="secondary"
+          className="hidden shrink-0 md:inline-flex"
+        >
+          <Link href="/events/import">Import events from CSV</Link>
         </Button>
       ) : null}
 

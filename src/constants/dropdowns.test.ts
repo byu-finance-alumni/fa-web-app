@@ -7,6 +7,7 @@ import {
   PRIMARY_EXCLUDED_INDUSTRIES,
   PRIMARY_INDUSTRY_OPTIONS,
   SECONDARY_INDUSTRY_OPTIONS,
+  SURVEY_EMPLOYMENT_STATUS_OPTIONS,
   filterPrimaryIndustries,
 } from "./dropdowns";
 
@@ -109,22 +110,45 @@ describe("SECONDARY_INDUSTRY_OPTIONS", () => {
   });
 });
 
+// The seven that shipped in #568, frozen verbatim: #377 only APPENDS to them.
+const SEVEN_BEFORE_377 = [
+  "Full-time",
+  "Part-time",
+  "Self-Employed",
+  "Graduate Student",
+  "Military",
+  "Not in the Labor Force",
+  "Unemployed",
+];
+
 describe("EMPLOYMENT_STATUS_OPTIONS", () => {
   // Unlike the industry lists this one is NOT a fallback — there's no
   // `/vocabulary/employment_status` endpoint, so this array IS what every
   // dropdown shows. Pin it verbatim: the order is Tanya's (#568), not
   // alphabetical, and "Not in the Labor Force" vs "Unemployed" is a distinction
   // the dashboard counts on.
-  it("is exactly the seven statuses, in Tanya's order", () => {
+  it("is the seven statuses plus Unknown, in Tanya's order", () => {
     expect([...EMPLOYMENT_STATUS_OPTIONS]).toEqual([
-      "Full-time",
-      "Part-time",
-      "Self-Employed",
-      "Graduate Student",
-      "Military",
-      "Not in the Labor Force",
-      "Unemployed",
+      ...SEVEN_BEFORE_377,
+      "Unknown",
     ]);
+  });
+
+  it("pins Unknown last rather than sorting it in", () => {
+    // Mirrors how INDUSTRY_OPTIONS pins its own "Unknown" (#295).
+    expect(EMPLOYMENT_STATUS_OPTIONS.at(-1)).toBe("Unknown");
+  });
+
+  it("did not disturb the original seven's order", () => {
+    // #377 is additive. A "helpful" alphabetization here silently reorders the
+    // filter, both staff forms and the survey at once.
+    expect(EMPLOYMENT_STATUS_OPTIONS.slice(0, -1)).toEqual(SEVEN_BEFORE_377);
+  });
+
+  it("offers Unknown, which ~65 prod alumni hold after the 2026-08-04 cleanup", () => {
+    // The urgent bit of #377: it is live in the production database, so it has
+    // to be a real option or those records fail validation on the next edit.
+    expect(EMPLOYMENT_STATUS_OPTIONS).toContain("Unknown");
   });
 
   it("has no duplicates", () => {
@@ -167,16 +191,53 @@ describe("isEmploymentStatusPlaceholder", () => {
     }
   });
 
-  it("never hides one of the seven real options", () => {
-    for (const v of EMPLOYMENT_STATUS_OPTIONS) {
+  it("never hides one of the seven real answers", () => {
+    for (const v of SEVEN_BEFORE_377) {
       expect(isEmploymentStatusPlaceholder(v)).toBe(false);
     }
   });
 
-  it("keeps the placeholder list disjoint from the offered options", () => {
+  it("keeps the placeholder list disjoint from what the SURVEY offers", () => {
+    // #377 made "Unknown" a canonical option, so the disjointness that matters
+    // is against the survey list — the one place it must never be offered.
     for (const p of EMPLOYMENT_STATUS_PLACEHOLDERS) {
-      expect(EMPLOYMENT_STATUS_OPTIONS).not.toContain(p);
+      expect(SURVEY_EMPLOYMENT_STATUS_OPTIONS).not.toContain(p);
+      // …but it IS a canonical option; it is not a parallel vocabulary.
+      expect(EMPLOYMENT_STATUS_OPTIONS).toContain(p);
     }
+  });
+});
+
+describe("SURVEY_EMPLOYMENT_STATUS_OPTIONS", () => {
+  it("does NOT offer Unknown as a self-description (#377)", () => {
+    // Nobody describes themselves as unknown, and offering it back to an alum
+    // re-collects the non-answer the survey exists to clear.
+    expect(SURVEY_EMPLOYMENT_STATUS_OPTIONS).not.toContain("Unknown");
+  });
+
+  it("is the canonical list minus exactly the placeholders", () => {
+    expect([...SURVEY_EMPLOYMENT_STATUS_OPTIONS]).toEqual(SEVEN_BEFORE_377);
+    expect(
+      EMPLOYMENT_STATUS_OPTIONS.filter(
+        (v) => !SURVEY_EMPLOYMENT_STATUS_OPTIONS.includes(v),
+      ),
+    ).toEqual([...EMPLOYMENT_STATUS_PLACEHOLDERS]);
+  });
+
+  it("preserves the canonical order", () => {
+    expect([...SURVEY_EMPLOYMENT_STATUS_OPTIONS]).toEqual(
+      EMPLOYMENT_STATUS_OPTIONS.filter((v) =>
+        SURVEY_EMPLOYMENT_STATUS_OPTIONS.includes(v),
+      ),
+    );
+  });
+
+  it("is derived, not a second hand-typed list", () => {
+    // A ninth status must reach the survey without anyone remembering to update
+    // a parallel array — that drift is exactly what #568 removed.
+    expect(SURVEY_EMPLOYMENT_STATUS_OPTIONS.length).toBe(
+      EMPLOYMENT_STATUS_OPTIONS.length - EMPLOYMENT_STATUS_PLACEHOLDERS.length,
+    );
   });
 });
 

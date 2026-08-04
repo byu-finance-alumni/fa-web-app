@@ -7,6 +7,7 @@ import { Fab } from "@/components/shared/Fab";
 import { EventsExplorer, type EventRow } from "@/components/events/EventsExplorer";
 import { EventsToolbar } from "@/components/events/EventsToolbar";
 import { hasFullAccess } from "@/constants/roles";
+import { canCreateEvents, canImportEvents } from "@/constants/capabilities";
 import type { UserContext } from "@/types/alumni";
 
 type SP = {
@@ -78,22 +79,43 @@ export default async function EventsPage({
     types = optionsResult.value.types;
   }
 
-  // Event management (create/edit, attendance, discussion notes #39) is
-  // full_access only — mirrors backend require_full_access. Fetch the caller's
-  // role context once; default to read-only if the account isn't provisioned.
-  // Both flags resolve from the same tier today, but they're kept distinct so
-  // the gates read by intent. The backend re-enforces every write.
+  // Three DIFFERENT gates, deliberately not one flag (fa-web-api #378):
+  //
+  //   * canManageEvents / canWriteNotes — editing and deleting an event, its
+  //     attendee roster, and discussion notes (#39). Still the `alumni.full`
+  //     tier, so still a role check.
+  //   * canCreate — POST /events, now the editable `events.create` CAPABILITY.
+  //   * canImport — the bulk-upload wizard, now the editable `events.import`
+  //     CAPABILITY.
+  //
+  // The last two must be read from `ctx.capabilities`, NOT from the role: an
+  // engineer can grant either one to a role that isn't full_access, and a role
+  // check would keep the button hidden from someone the backend would happily
+  // let through (and vice versa). Fetch the caller's context once; default to
+  // read-only if the account isn't provisioned. The backend re-enforces every
+  // write regardless.
   let canManageEvents = false;
   let canWriteNotes = false;
+  let canCreate = false;
+  let canImport = false;
   try {
     const ctx = await apiGet<UserContext>("/auth/context");
     canManageEvents = hasFullAccess(ctx.roles);
     canWriteNotes = hasFullAccess(ctx.roles);
+    canCreate = canCreateEvents(ctx.capabilities);
+    canImport = canImportEvents(ctx.capabilities);
   } catch {
     canManageEvents = false;
     canWriteNotes = false;
+    canCreate = false;
+    canImport = false;
   }
 
+  // "Add event" is the plain create form: an event needs no attendee list to
+  // exist (#611), and creating one event is the common case. The bulk CSV
+  // wizard sits beside it as the clearly-labelled secondary action, never the
+  // default. Each is gated on its own capability (#378), so a user may see
+  // one, both, or neither.
   return (
     <>
       <Topbar title="Events" />
@@ -101,7 +123,8 @@ export default async function EventsPage({
         <EventsToolbar
           initial={filters}
           types={types}
-          canManageEvents={canManageEvents}
+          canCreate={canCreate}
+          canImport={canImport}
         />
 
         {error ? (
@@ -126,12 +149,23 @@ export default async function EventsPage({
           />
         )}
 
-        {/* Mobile FAB — Add event. Desktop keeps its inline toolbar button. */}
-        {canManageEvents ? (
+        {/* Mobile FAB — Add event (the plain create form; an event needs no
+            attendee list to exist, #611) with the bulk CSV import beneath it as
+            the clearly separate, secondary action. Desktop keeps the equivalent
+            pair of inline toolbar buttons. Each entry is gated on its own
+            capability (#378). */}
+        {canCreate || canImport ? (
           <Fab label="Add event">
-            <Button asChild>
-              <Link href="/events/import">Add event</Link>
-            </Button>
+            {canCreate ? (
+              <Button asChild>
+                <Link href="/events/new">Add event</Link>
+              </Button>
+            ) : null}
+            {canImport ? (
+              <Button asChild variant="secondary">
+                <Link href="/events/import">Import events from CSV</Link>
+              </Button>
+            ) : null}
           </Fab>
         ) : null}
       </main>

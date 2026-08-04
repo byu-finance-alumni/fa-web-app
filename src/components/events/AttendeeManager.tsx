@@ -213,13 +213,19 @@ export function AttendeeManager({
           <Badge variant="neutral" className="tabular-nums">
             {attendees.length}
           </Badge>
+          {/* Conference lists don't carry Net IDs (#612), so the bulk path in
+              is the name/email matcher rather than the Net-ID attendee CSV. */}
+          <Button asChild variant="secondary" size="sm" className="ml-auto">
+            <Link href={`/events/${eventId}/attendees/import`}>
+              Upload attendee list
+            </Link>
+          </Button>
           <Button
             type="button"
             variant="secondary"
             size="sm"
             onClick={handleExport}
             disabled={exporting || attendees.length === 0}
-            className="ml-auto"
           >
             {exporting ? "Downloading…" : "Download attendees (CSV)"}
           </Button>
