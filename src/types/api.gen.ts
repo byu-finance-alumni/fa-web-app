@@ -720,12 +720,14 @@ export interface paths {
         put?: never;
         /**
          * Preview Update Import Alumni
-         * @description Dry-run a bulk UPDATE from a round-trip CSV (full_access, NO writes).
+         * @description Dry-run a bulk UPDATE from an uploaded CSV (full_access, NO writes).
          *
-         *     Parses + maps the uploaded CSV against the alumni template columns, then for
-         *     each row resolves the match (BYU ID -> Net ID, active only) and computes a
-         *     per-field diff against the CURRENT stored values. Returns the structured
-         *     preview; a bad header set surfaces as ``columns_ok: false``.
+         *     Maps whichever of the alumni template columns the file carries (a Net ID or
+         *     BYU ID column is required; unrecognized columns are ignored and echoed in
+         *     ``ignored_columns``), then for each row resolves the match (BYU ID -> Net ID,
+         *     active only) and computes a per-field diff against the CURRENT stored values.
+         *     Returns the structured preview; an unusable header row surfaces as
+         *     ``columns_ok: false``.
          */
         post: operations["preview_update_import_alumni_alumni_import_update_preview_post"];
         delete?: never;
@@ -745,13 +747,15 @@ export interface paths {
         put?: never;
         /**
          * Update Import Alumni
-         * @description Commit a bulk UPDATE from a round-trip CSV (full_access).
+         * @description Commit a bulk UPDATE from an uploaded CSV (full_access).
          *
          *     Re-evaluates and applies every matched, changed row in one transaction, each
          *     through the single-record edit path (so cleaning + provenance + per-field
-         *     audit fire). Blank cells are left unchanged; unmatched rows are reported,
-         *     never created; rows with no effective change are reported ``unchanged``. A bad
-         *     header set updates nothing.
+         *     audit fire). Parses with the same partial header rules as the preview, so the
+         *     two agree on which columns count. Blank cells are left unchanged, columns the
+         *     file omits are left unchanged, unrecognized columns are ignored; unmatched
+         *     rows are reported, never created; rows with no effective change are reported
+         *     ``unchanged``. An unusable header row updates nothing.
          */
         post: operations["update_import_alumni_alumni_import_update_post"];
         delete?: never;
@@ -2043,8 +2047,15 @@ export interface paths {
         put?: never;
         /**
          * Create Event
-         * @description Create an event (full_access). Stamps the acting user and audits the
+         * @description Create an event (``events.create``). Stamps the acting user and audits the
          *     write (entity_type "event", action "create").
+         *
+         *     Gated on the editable ``events.create`` capability (#378), seeded to the same
+         *     roles that previously held ``alumni.full``. Note that PATCH/DELETE and the
+         *     attendee-roster routes below deliberately stay on ``alumni.full`` — this
+         *     issue scoped the new toggles to authoring (create + bulk upload), and
+         *     silently widening who can edit or delete existing events would be a
+         *     different, unreviewed permission change.
          */
         post: operations["create_event_events_post"];
         delete?: never;
@@ -2082,11 +2093,39 @@ export interface paths {
         };
         /**
          * Events Import Template
-         * @description Download the events bulk-import CSV template (full_access): the exact
+         * @description Download the events bulk-import CSV template (``events.import``): the exact
          *     columns plus a few example rows (two attendees share one event to show how
          *     rows group into a single event).
          */
         get: operations["events_import_template_events_import_template_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/attendees/match/template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Attendee Match Template
+         * @description Download a STARTING-POINT conference-attendee CSV (#612, full_access).
+         *
+         *     Only a starting point: unlike every other importer here, the attendee
+         *     matcher does not require these columns. It aliases the header spellings a
+         *     conference registration export actually uses (Email / E-mail Address /
+         *     Company / Employer / Organization / Job Title ...) and IGNORES anything it
+         *     doesn't recognise, so a raw registration export can be uploaded untouched.
+         *
+         *     Declared before the ``/{event_id}`` routes so the literal path wins.
+         */
+        get: operations["attendee_match_template_events_attendees_match_template_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2106,7 +2145,7 @@ export interface paths {
         put?: never;
         /**
          * Preview Import Events
-         * @description Dry-run a single-event attendee CSV import (full_access, NO writes).
+         * @description Dry-run a single-event attendee CSV import (``events.import``, NO writes).
          *
          *     The event's identity (title/date/type/…) comes from the wizard as form
          *     fields; the CSV is the attendee roster. Resolves attendees by Net ID and
@@ -2131,7 +2170,7 @@ export interface paths {
         put?: never;
         /**
          * Import Events Commit
-         * @description Commit a single-event attendee CSV import (full_access). Re-evaluates and,
+         * @description Commit a single-event attendee CSV import (``events.import``). Re-evaluates and,
          *     if the event identity is valid and new, inserts the event + its matched
          *     attendees in one transaction (audit logging fires for the event and each
          *     attendee); unmatched attendees are skipped and reported. A bad header set
@@ -2237,6 +2276,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/events/{event_id}/attendees/import/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Event Attendee Import
+         * @description Dry-run an attendee CSV against an EXISTING event (full_access, NO writes).
+         *
+         *     Same file shape as ``POST /events/import`` (one template serves both), but
+         *     the event already exists — so nothing about the event's identity is read
+         *     from the request and the event is never touched. Reports each row as
+         *     matched-new, already-attending (skipped), or unmatched (skipped). 404 if the
+         *     event is unknown; a bad header set surfaces as ``columns_ok: false``.
+         */
+        post: operations["preview_event_attendee_import_events__event_id__attendees_import_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/{event_id}/attendees/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Event Attendees
+         * @description Add an attendee CSV's roster to an EXISTING event (full_access).
+         *
+         *     ADDS to the event — it never creates, replaces, or edits the event itself.
+         *     Attendees already on the roster are skipped rather than 409ing, so re-running
+         *     the same file is safe; unmatched Net IDs are reported and skipped. Each added
+         *     attendee is audited as ``event``/``add_attendee``, identical to the manual
+         *     single-attendee route. 404 if the event is unknown.
+         */
+        post: operations["import_event_attendees_events__event_id__attendees_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/events/{event_id}/attendees/{alumni_id}": {
         parameters: {
             query?: never;
@@ -2254,6 +2345,106 @@ export interface paths {
          *     "remove_attendee", entity_id event_id, old_value the alumni id).
          */
         delete: operations["remove_event_attendee_events__event_id__attendees__alumni_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/{event_id}/attendees/match/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Attendee Match
+         * @description Propose matches for a conference attendee list (full_access, NO writes).
+         *
+         *     Matching precedence, per row:
+         *       1. **Email**, when the file gives one - an exact, case-insensitive hit on
+         *          the alumnus's personal OR work email. Treated as high confidence, and
+         *          when an email hit exists the name-only candidates for that row are
+         *          dropped (Jake, 2026-08-04).
+         *       2. **Name**, otherwise - surname against ``last_name`` AND ``birth_name``
+         *          (the maiden-name column), given name against ``first_name`` /
+         *          ``preferred_first_name`` / ``middle_name`` through a nickname table.
+         *       3. **Given name + employer**, as the safety net for an alumna whose
+         *          married surname this database has never seen.
+         *
+         *     Company corroborates (raising confidence) and never keys or rejects.
+         *     Rows with several plausible records come back ``ambiguous`` with EVERY
+         *     candidate listed - the top-scoring one is never silently chosen. 404 if the
+         *     event is unknown.
+         *
+         *     Audited as a disclosure preview: row counts only, never the data.
+         */
+        post: operations["preview_attendee_match_events__event_id__attendees_match_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/{event_id}/attendees/match/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Attendee Matches
+         * @description Record attendance for HUMAN-APPROVED matches (full_access).
+         *
+         *     Approving a match marks that person as attending THIS event and changes
+         *     nothing else on the alumnus (Jake, 2026-08-04). Every ``alumni_id`` is
+         *     re-validated server-side (must exist and not be archived) - the client's
+         *     proposal is never trusted.
+         *
+         *     **Idempotent per (event, alumni):** an alumnus already on the roster is
+         *     reported ``already_attending`` and skipped, so re-running the same file
+         *     never double-adds. 404 if the event is unknown.
+         */
+        post: operations["approve_attendee_matches_events__event_id__attendees_match_approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/{event_id}/attendees/match/friends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Attendee Friends
+         * @description Create "friend of the program" records for chosen no-match rows
+         *     (full_access) and attach each to this event.
+         *
+         *     ``rows`` is a comma-separated list of the 1-based spreadsheet row numbers the
+         *     reviewer chose. The SAME file is re-posted and re-parsed server-side rather
+         *     than trusting a client-built payload - the same defence-in-depth stance the
+         *     alumni importer takes.
+         *
+         *     Each friend carries **everything in the file that maps to an existing DB
+         *     column** (Jake, 2026-08-04): the row is mapped through the alumni importer's
+         *     own column mapping with ``is_alumni = false`` and written through the shared
+         *     ``create_alumni`` path, so cleaning, duplicate detection and audit logging
+         *     fire exactly as for a manual create. Columns that map to nothing are
+         *     ignored, never an error. 404 if the event is unknown.
+         */
+        post: operations["create_attendee_friends_events__event_id__attendees_match_friends_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -4336,8 +4527,11 @@ export interface components {
             columns_ok: boolean;
             /** Header Errors */
             header_errors: string[];
-            /** Ignored Columns */
-            ignored_columns?: string[];
+            /**
+             * Ignored Columns
+             * @default []
+             */
+            ignored_columns: string[];
             summary: components["schemas"]["AlumniUpdateSummary"];
             /** Rows */
             rows: components["schemas"]["AlumniUpdateRowReport"][];
@@ -4438,6 +4632,70 @@ export interface components {
             uploaded_by: string | null;
         };
         /**
+         * AttendeeApplyItem
+         * @description Per-approval outcome. ``status`` is ``added``, ``already_attending``
+         *     (idempotent no-op — re-running the same file never double-adds), or
+         *     ``not_found`` (unknown or archived alumnus).
+         */
+        AttendeeApplyItem: {
+            /** Alumni Id */
+            alumni_id: number;
+            /** Row */
+            row: number | null;
+            /** Status */
+            status: string;
+            /** Name */
+            name: string | null;
+            /** Message */
+            message: string | null;
+        };
+        /**
+         * AttendeeApplyResult
+         * @description ``POST /events/{event_id}/attendees/match/approve`` result.
+         */
+        AttendeeApplyResult: {
+            /** Event Id */
+            event_id: number;
+            /** Added */
+            added: number;
+            /** Already Attending */
+            already_attending: number;
+            /** Not Found */
+            not_found: number;
+            /**
+             * Items
+             * @default []
+             */
+            items: components["schemas"]["AttendeeApplyItem"][];
+        };
+        /**
+         * AttendeeApproval
+         * @description One human-approved match. ``alumni_id`` is the record the reviewer PICKED
+         *     — for an ambiguous row that is a real choice between candidates, and the
+         *     server re-validates it (exists, not archived) before writing.
+         */
+        AttendeeApproval: {
+            /** Alumni Id */
+            alumni_id: number;
+            /** Row */
+            row: number | null;
+            /** Attendance Status */
+            attendance_status: string | null;
+            /** Notes */
+            notes: string | null;
+        };
+        /**
+         * AttendeeApprovalRequest
+         * @description ``POST /events/{event_id}/attendees/match/approve`` body.
+         *
+         *     There is deliberately no "approve everything above X% confidence" option:
+         *     the client can only send ids a human ticked.
+         */
+        AttendeeApprovalRequest: {
+            /** Approvals */
+            approvals: components["schemas"]["AttendeeApproval"][];
+        };
+        /**
          * AttendeeCreate
          * @description Body for adding an attendee to an event (full_access). ``extra='forbid'``
          *     rejects unknown keys; ``alumni_id`` is required; ``attendance_status`` is an
@@ -4453,6 +4711,255 @@ export interface components {
             attendance_status?: string | null;
             /** Notes */
             notes?: string | null;
+        };
+        /**
+         * AttendeeFriendItem
+         * @description Per-row outcome of creating a friend from a no-match row. ``status`` is
+         *     ``created``, ``skipped`` (somebody with this name + employer is already on
+         *     the event's roster — the idempotency guard, so re-posting the same file
+         *     never creates a second copy) or ``rejected`` (the create path refused it,
+         *     e.g. an exact duplicate).
+         */
+        AttendeeFriendItem: {
+            /** Row */
+            row: number;
+            /** Name */
+            name: string;
+            /** Status */
+            status: string;
+            /** Alumni Id */
+            alumni_id: number | null;
+            /** Message */
+            message: string | null;
+        };
+        /**
+         * AttendeeFriendResult
+         * @description ``POST /events/{event_id}/attendees/match/friends`` result. Every created
+         *     friend is ALSO attached to the event, so the operator never has to make two
+         *     passes.
+         */
+        AttendeeFriendResult: {
+            /** Event Id */
+            event_id: number;
+            /** Created */
+            created: number;
+            /** Attached */
+            attached: number;
+            /** Rejected */
+            rejected: number;
+            /**
+             * Skipped
+             * @default 0
+             */
+            skipped: number;
+            /**
+             * Items
+             * @default []
+             */
+            items: components["schemas"]["AttendeeFriendItem"][];
+            /**
+             * Header Errors
+             * @default []
+             */
+            header_errors: string[];
+        };
+        /**
+         * AttendeeMatchAttendee
+         * @description The attendee AS THE FILE DESCRIBES THEM, echoed beside the candidates so
+         *     the reviewer compares like with like.
+         */
+        AttendeeMatchAttendee: {
+            /** Name */
+            name: string;
+            /** First Name */
+            first_name: string | null;
+            /** Last Name */
+            last_name: string | null;
+            /** Maiden Name */
+            maiden_name: string | null;
+            /** Email */
+            email: string | null;
+            /** Company */
+            company: string | null;
+            /** Title */
+            title: string | null;
+            /** Graduation Year */
+            graduation_year: number | null;
+        };
+        /**
+         * AttendeeMatchCandidate
+         * @description One proposed alumnus for one attendee row.
+         *
+         *     Carries enough context to DECIDE (name, grad year, employer, title, work
+         *     city/state, net id, emails) plus ``evidence`` — the human-readable reasons
+         *     this record was proposed, including the ones that argue against it (an
+         *     employer that differs is listed too). ``score``/``confidence`` rank
+         *     candidates; they never authorise an automatic write.
+         */
+        AttendeeMatchCandidate: {
+            /** Alumni Id */
+            alumni_id: number;
+            /** Name */
+            name: string;
+            /** First Name */
+            first_name: string | null;
+            /** Middle Name */
+            middle_name: string | null;
+            /** Last Name */
+            last_name: string | null;
+            /** Preferred First Name */
+            preferred_first_name: string | null;
+            /** Birth Name */
+            birth_name: string | null;
+            /** Net Id */
+            net_id: string | null;
+            /** Graduation Year */
+            graduation_year: number | null;
+            /**
+             * Is Alumni
+             * @default true
+             */
+            is_alumni: boolean;
+            /** Employer */
+            employer: string | null;
+            /** Title */
+            title: string | null;
+            /** City */
+            city: string | null;
+            /** State */
+            state: string | null;
+            /** Personal Email */
+            personal_email: string | null;
+            /** Work Email */
+            work_email: string | null;
+            /** Tier */
+            tier: string;
+            /** Score */
+            score: number;
+            /** Confidence */
+            confidence: string;
+            /**
+             * Evidence
+             * @default []
+             */
+            evidence: string[];
+            /**
+             * Already Attending
+             * @default false
+             */
+            already_attending: boolean;
+        };
+        /**
+         * AttendeeMatchEventEcho
+         * @description The event the upload is scoped to — there is always an obvious
+         *     "attending what?" answer (Jake, 2026-08-04).
+         */
+        AttendeeMatchEventEcho: {
+            /** Event Id */
+            event_id: number;
+            /** Event Name */
+            event_name: string;
+            /** Event Date */
+            event_date: string | null;
+        };
+        /**
+         * AttendeeMatchPreview
+         * @description ``POST /events/{event_id}/attendees/match/preview`` — a DRY RUN.
+         *
+         *     ``ignored_columns`` are the file's columns that map to no DB field. They are
+         *     dropped, reported, and never an error (Jake, 2026-08-04).
+         */
+        AttendeeMatchPreview: {
+            /** Columns Ok */
+            columns_ok: boolean;
+            /**
+             * Header Errors
+             * @default []
+             */
+            header_errors: string[];
+            /**
+             * Ignored Columns
+             * @default []
+             */
+            ignored_columns: string[];
+            event: components["schemas"]["AttendeeMatchEventEcho"] | null;
+            summary: components["schemas"]["AttendeeMatchSummary"];
+            /**
+             * Rows
+             * @default []
+             */
+            rows: components["schemas"]["AttendeeMatchRow"][];
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: {
+                [key: string]: unknown;
+            }[];
+        };
+        /**
+         * AttendeeMatchRow
+         * @description One row of the uploaded attendee list and what was proposed for it.
+         *
+         *     ``status``:
+         *       * ``matched``    — exactly ONE plausible record. Still a proposal: it is
+         *         written only when a human approves that specific ``alumni_id``.
+         *       * ``ambiguous``  — several plausible records. ALL of them are in
+         *         ``candidates``; the top-scoring one is never silently chosen.
+         *       * ``no_match``   — nothing plausible. Eligible for friend creation.
+         *       * ``not_reviewed`` — the review hit its aggregate disclosure budget before
+         *         reaching this row. NOT the same as ``no_match``: re-upload the remaining
+         *         rows as a smaller file rather than creating friends for them.
+         *     ``friend_fields`` lists the DB fields a friend record built from this row
+         *     would carry, so "create a friend" is not a black box.
+         */
+        AttendeeMatchRow: {
+            /** Row */
+            row: number;
+            /** Status */
+            status: string;
+            attendee: components["schemas"]["AttendeeMatchAttendee"];
+            /** Match Key */
+            match_key: string;
+            /**
+             * Candidates
+             * @default []
+             */
+            candidates: components["schemas"]["AttendeeMatchCandidate"][];
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: string[];
+            /**
+             * Friend Fields
+             * @default []
+             */
+            friend_fields: string[];
+        };
+        /**
+         * AttendeeMatchSummary
+         * @description ``not_reviewed`` counts rows the review deliberately stopped short of:
+         *     one preview may surface at most ``MAX_CANDIDATES_TOTAL`` alumni records, and
+         *     saying "not reviewed" is honest where "no match" would read as "she isn't in
+         *     the database" and invite a duplicate friend record.
+         */
+        AttendeeMatchSummary: {
+            /** Total Rows */
+            total_rows: number;
+            /** Matched */
+            matched: number;
+            /** Ambiguous */
+            ambiguous: number;
+            /** No Match */
+            no_match: number;
+            /**
+             * Not Reviewed
+             * @default 0
+             */
+            not_reviewed: number;
+            /** Already Attending */
+            already_attending: number;
         };
         /**
          * AttendeeRead
@@ -4530,6 +5037,13 @@ export interface components {
             /** Birth Day */
             birth_day: number | null;
         };
+        /** Body_create_attendee_friends_events__event_id__attendees_match_friends_post */
+        Body_create_attendee_friends_events__event_id__attendees_match_friends_post: {
+            /** File */
+            file: string;
+            /** Rows */
+            rows: string;
+        };
         /** Body_import_alumni_alumni_import_post */
         Body_import_alumni_alumni_import_post: {
             /** File */
@@ -4537,6 +5051,11 @@ export interface components {
         };
         /** Body_import_donations_commit_donations_import_post */
         Body_import_donations_commit_donations_import_post: {
+            /** File */
+            file: string;
+        };
+        /** Body_import_event_attendees_events__event_id__attendees_import_post */
+        Body_import_event_attendees_events__event_id__attendees_import_post: {
             /** File */
             file: string;
         };
@@ -4554,6 +5073,16 @@ export interface components {
             event_location?: string | null;
             /** Event Notes */
             event_notes?: string | null;
+        };
+        /** Body_preview_attendee_match_events__event_id__attendees_match_preview_post */
+        Body_preview_attendee_match_events__event_id__attendees_match_preview_post: {
+            /** File */
+            file: string;
+        };
+        /** Body_preview_event_attendee_import_events__event_id__attendees_import_preview_post */
+        Body_preview_event_attendee_import_events__event_id__attendees_import_preview_post: {
+            /** File */
+            file: string;
         };
         /** Body_preview_import_alumni_alumni_import_preview_post */
         Body_preview_import_alumni_alumni_import_preview_post: {
@@ -4986,6 +5515,8 @@ export interface components {
             missing_employer: number;
             /** Contacted This Month */
             contacted_this_month: number;
+            /** Alumni Edited This Month */
+            alumni_edited_this_month: number;
             /** Not Contacted 6Mo */
             not_contacted_6mo: number;
             /** Not Contacted 12Mo */
@@ -5422,6 +5953,90 @@ export interface components {
             event_location: string | null;
             /** Attendance Status */
             attendance_status: string | null;
+        };
+        /**
+         * EventAttendeeImportEvent
+         * @description Which event the roster is being added to (echoed back for confirmation).
+         */
+        EventAttendeeImportEvent: {
+            /** Event Id */
+            event_id: number;
+            /** Event Name */
+            event_name: string | null;
+            /** Event Date */
+            event_date: string | null;
+        };
+        /**
+         * EventAttendeeImportPreview
+         * @description ``POST /events/{event_id}/attendees/import/preview`` dry-run report.
+         */
+        EventAttendeeImportPreview: {
+            /** Columns Ok */
+            columns_ok: boolean;
+            /** Header Errors */
+            header_errors: string[];
+            event: components["schemas"]["EventAttendeeImportEvent"];
+            /** Importable */
+            importable: boolean;
+            summary: components["schemas"]["EventAttendeeImportSummary"];
+            /** Attendees */
+            attendees: components["schemas"]["EventAttendeeImportRow"][];
+            /** Warnings */
+            warnings: {
+                [key: string]: unknown;
+            }[];
+        };
+        /**
+         * EventAttendeeImportResult
+         * @description ``POST /events/{event_id}/attendees/import`` commit result. The event is
+         *     never created or modified — only attendance rows are added.
+         */
+        EventAttendeeImportResult: {
+            /** Imported */
+            imported: boolean;
+            /** Event Id */
+            event_id: number;
+            /** Added */
+            added: number;
+            /** Skipped Existing */
+            skipped_existing: number;
+            /** Unmatched */
+            unmatched: components["schemas"]["EventImportUnmatched"][];
+            /** Error */
+            error: string | null;
+        };
+        /** EventAttendeeImportRow */
+        EventAttendeeImportRow: {
+            /** Row */
+            row: number;
+            /** Net Id */
+            net_id: string | null;
+            /** Name */
+            name: string | null;
+            /** Notes */
+            notes: string | null;
+            /** Matched */
+            matched: boolean;
+            /** Alumni Id */
+            alumni_id: number | null;
+            /**
+             * Already Attending
+             * @default false
+             */
+            already_attending: boolean;
+        };
+        /** EventAttendeeImportSummary */
+        EventAttendeeImportSummary: {
+            /** Total Rows */
+            total_rows: number;
+            /** Attendees Matched */
+            attendees_matched: number;
+            /** Attendees Unmatched */
+            attendees_unmatched: number;
+            /** Attendees Existing */
+            attendees_existing: number;
+            /** Attendees New */
+            attendees_new: number;
         };
         /**
          * EventCreate
@@ -7678,7 +8293,7 @@ export interface operations {
                 title?: string[] | null;
                 /** @description Seniority level(s) — repeatable, exact match. */
                 seniority?: string[] | null;
-                /** @description Employment status(es) (#584) — repeatable (OR), exact match. Canonical values: Full-time, Part-time, Self-Employed, Graduate Student, Military, Not in the Labor Force, Unemployed. The column is free text and also holds off-list legacy values, so anything on file is accepted; 'filter-options.employment_statuses' lists what actually exists in the data. */
+                /** @description Employment status(es) (#584) — repeatable (OR), exact match. Canonical values: Full-time, Part-time, Self-Employed, Graduate Student, Military, Not in the Labor Force, Unemployed, Unknown. The column is free text and also holds off-list legacy values, so anything on file is accepted; 'filter-options.employment_statuses' lists what actually exists in the data. */
                 employment_status?: string[] | null;
                 /** @description Current city/cities — repeatable, exact match. */
                 city?: string[] | null;
@@ -10147,6 +10762,26 @@ export interface operations {
             };
         };
     };
+    attendee_match_template_events_attendees_match_template_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
     preview_import_events_events_import_preview_post: {
         parameters: {
             query?: never;
@@ -10415,6 +11050,76 @@ export interface operations {
             };
         };
     };
+    preview_event_attendee_import_events__event_id__attendees_import_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                event_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_preview_event_attendee_import_events__event_id__attendees_import_preview_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventAttendeeImportPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_event_attendees_events__event_id__attendees_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                event_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_import_event_attendees_events__event_id__attendees_import_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventAttendeeImportResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     remove_event_attendee_events__event_id__attendees__alumni_id__delete: {
         parameters: {
             query?: never;
@@ -10436,6 +11141,111 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_attendee_match_events__event_id__attendees_match_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                event_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_preview_attendee_match_events__event_id__attendees_match_preview_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttendeeMatchPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_attendee_matches_events__event_id__attendees_match_approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                event_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttendeeApprovalRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttendeeApplyResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_attendee_friends_events__event_id__attendees_match_friends_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                event_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_create_attendee_friends_events__event_id__attendees_match_friends_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttendeeFriendResult"];
                 };
             };
             /** @description Validation Error */
