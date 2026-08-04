@@ -735,10 +735,20 @@ describe("filters the export API cannot express block the export", () => {
     expect(exportParityGaps(EMPTY_FILTERS, "friend")).toEqual([]);
   });
 
-  it("disables the download while one is active", () => {
+  it("warns about them but still allows the download (Jake, 2026-08-03)", () => {
+    // The gaps were originally a hard block. Jake chose warn-but-allow: he
+    // would rather have the file and know it is wider than not have it at all.
+    // The warning is therefore the ONLY thing standing between the operator and
+    // a CSV containing people the list excluded — if it stops rendering, the
+    // export silently lies. That is what this pins.
     const dialog = read("src/components/alumni/ExportAlumniButton.tsx");
     expect(dialog).toContain("const blocked = unsupportedFilters.length > 0;");
-    expect(dialog).toContain("disabled={blocked || pending");
+    // Rendered as a warning...
+    expect(dialog).toContain("{blocked ? (");
+    expect(dialog).toContain("This file will have extra people in it");
+    // ...but the download is NOT gated on it.
+    expect(dialog).not.toContain("disabled={blocked");
+    expect(dialog).toContain("disabled={pending || loading");
     // …and the panel actually hands the gaps to the dialog.
     const panel = read("src/components/alumni/AlumniFilters.tsx");
     expect(panel).toContain("unsupportedFilters={exportGaps}");

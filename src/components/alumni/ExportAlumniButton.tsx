@@ -131,12 +131,6 @@ export function ExportAlumniButton({
   }
 
   function runExport() {
-    if (blocked) {
-      // Belt and braces: the button is disabled, but never let a filter the
-      // export can't apply turn into a file of people the list excluded.
-      toast.error("This view has a filter the export can't apply yet.");
-      return;
-    }
     if (selected.size === 0) {
       toast.error("Pick at least one column to export.");
       return;
@@ -204,16 +198,17 @@ export function ExportAlumniButton({
               {blocked ? (
                 <div className="mt-3 rounded-lg border border-warning-600 bg-warning-50 p-3 text-sm text-gray-700">
                   <p className="font-semibold text-gray-900">
-                    This view can&apos;t be exported yet
+                    This file will have extra people in it
                   </p>
                   <p className="mt-1">
-                    The CSV export can&apos;t apply{" "}
+                    The export can&apos;t apply{" "}
                     {unsupportedFilters.length === 1
                       ? "this filter"
                       : "these filters"}
-                    : {unsupportedFilters.join(", ")}. Exporting anyway would
-                    include people this list is leaving out, so remove{" "}
-                    {unsupportedFilters.length === 1 ? "it" : "them"} first.
+                    : {unsupportedFilters.join(", ")}. The file will include
+                    people this list is leaving out. Remove{" "}
+                    {unsupportedFilters.length === 1 ? "it" : "them"} first if
+                    you need the file to match exactly.
                   </p>
                 </div>
               ) : null}
@@ -285,7 +280,7 @@ export function ExportAlumniButton({
                 </Button>
                 <Button
                   type="button"
-                  disabled={blocked || pending || loading || selected.size === 0}
+                  disabled={pending || loading || selected.size === 0}
                   onClick={runExport}
                 >
                   {pending
