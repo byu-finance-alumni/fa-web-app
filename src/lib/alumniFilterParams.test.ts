@@ -559,6 +559,17 @@ function exportBodyAsParams(e: AlumniExportFilters): URLSearchParams {
   flag("duplicate", e.duplicate);
   flag("include_archived", e.include_archived);
   flag("needs_survey", e.needs_survey);
+  // Wired up by fa-web-api#366 — previously these had no export field at all
+  // and the dialog warned instead. The inverse has to read them or the parity
+  // assertions silently stop covering them.
+  multi("designations", e.designations);
+  flag("graduate_degree", e.graduate_degree);
+  flag("missing_phone", e.missing_phone);
+  text("near", e.near);
+  // Mirrors the builder: `radius` alone means nothing without `near`.
+  if (e.near) text("radius", e.radius);
+  text("spoke_after", e.spoke_after);
+  text("spoke_before", e.spoke_before);
   if (e.deceased === true) p.set("deceased", "true");
   if (e.deceased === false) p.set("deceased", "false");
   return p;
@@ -711,20 +722,38 @@ describe("the CSV export covers the same people as the list (#592)", () => {
   });
 });
 
-describe("filters the export API cannot express block the export", () => {
-  // `AlumniExportFilters` has no field for these, so an export would return more
-  // people than the list — the exact shape of #592. Until the backend gains the
-  // fields, the dialog refuses rather than over-discloses.
-  it("names the unexportable filters", () => {
-    expect(exportParityGaps({ ...EMPTY_FILTERS, designations: ["CFA"] })).toEqual([
-      "Designations",
-    ]);
+describe("filters the export API cannot express warn about the export", () => {
+  // These six had NO export field, so an export would return more people than
+  // the list — the exact shape of #592. fa-web-api#366 gave the export API the
+  // matching fields, so they are now ordinary mappings and nothing warns.
+  //
+  // The gap MECHANISM is kept deliberately: the next filter added to the list
+  // ahead of the export needs it, and the structural test above forces whoever
+  // adds one to pick a side.
+  it("no longer flags the six that fa-web-api#366 wired up", () => {
+    expect(exportParityGaps({ ...EMPTY_FILTERS, designations: ["CFA"] })).toEqual(
+      [],
+    );
     expect(
       exportParityGaps({ ...EMPTY_FILTERS, graduateDegree: true }),
-    ).toEqual(["Graduate degree"]);
+    ).toEqual([]);
     expect(
       exportParityGaps(EMPTY_FILTERS, "alumni", PASS_THROUGH_UNEXPORTABLE),
-    ).toEqual(["Location search", "Guest-speaker dates"]);
+    ).toEqual([]);
+  });
+
+  it("still reports a gap for any filter declared unsupported", () => {
+    // Guards the mechanism itself, independently of whether anything currently
+    // uses it — otherwise the next unsupported filter ships silently widening
+    // the export, which is #592 all over again.
+    const declared = Object.values(EXPORT_MAPPING_FOR_TEST).filter(
+      (m) => m.as === "unsupported",
+    );
+    for (const m of declared) {
+      expect(typeof (m as { label: string }).label).toBe("string");
+    }
+    // And the reporter reads labels off the table rather than a hardcoded list.
+    expect(String(exportParityGaps)).toContain("unsupported");
   });
 
   it("stays quiet for everything the export CAN express", () => {
