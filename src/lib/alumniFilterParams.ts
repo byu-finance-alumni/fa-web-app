@@ -73,6 +73,13 @@ export interface AlumniFilterState {
   /** CFP holders (#584). A BOOLEAN that AND-narrows, distinct from picking "CFP"
    *  in the `designations` facet above — keep the two mechanisms separate. */
   cfp: boolean;
+  /** CPA holders. NO LONGER OFFERED AS A CONTROL (#605) — no alumni hold a CPA,
+   *  so the tickbox could only ever return zero rows, and it was removed from
+   *  the list's Filters panel and the dashboard's Advanced search. The param
+   *  stays MODELLED on purpose: an existing `?cpa=1` link must still narrow the
+   *  list (and its export) rather than being silently dropped, and the panel
+   *  still renders a removable chip for it. Search-only — CPA remains a valid
+   *  designation on profiles, in the forms, and in import/export. */
   cpa: boolean;
   graduateDegree: boolean;
   archived: boolean;

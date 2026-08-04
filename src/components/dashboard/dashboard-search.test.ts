@@ -117,9 +117,13 @@ describe("advanced facets", () => {
 describe("designation tickboxes", () => {
   const src = read(SEARCH);
 
-  it("offers all three: CFA, CFP, CPA", () => {
+  it("offers CFA and CFP, but not CPA (#605)", () => {
     // CFP was unsearchable until the backend grew a `cfp` param
     // (fa-web-api#363) even though the survey has collected it since #529.
+    //
+    // CPA came back out: no alumni hold one, so the tickbox could only ever
+    // return zero results. SEARCH-ONLY — the survey still collects it, the
+    // profile still shows it, and the backend still accepts the `cpa` param.
     expect(paramsOf(src, "ENGAGEMENT")).toEqual([
       "attended",
       "donor",
@@ -127,8 +131,12 @@ describe("designation tickboxes", () => {
       "speaker",
       "cfa",
       "cfp",
-      "cpa",
     ]);
+  });
+
+  it("leaves no CPA control behind on the dashboard search card", () => {
+    expect(src).not.toContain('param: "cpa"');
+    expect(src).not.toContain('label: "CPA designation"');
   });
 });
 

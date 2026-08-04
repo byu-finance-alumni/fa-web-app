@@ -333,11 +333,32 @@ describe("the panel can re-apply what it now preserves", () => {
     expect(panel).toContain("FACETS.map((facet)");
   });
 
-  it("offers a CFP tickbox alongside CFA and CPA", () => {
+  it("offers a CFP tickbox alongside CFA", () => {
     const panel = read("src/components/alumni/AlumniFilters.tsx");
     expect(panel).toContain('checkboxRow("cfa", "CFA designation")');
     expect(panel).toContain('checkboxRow("cfp", "CFP designation")');
-    expect(panel).toContain('checkboxRow("cpa", "CPA designation")');
+  });
+
+  it("no longer offers a CPA tickbox or a CPA designation option (#605)", () => {
+    // Nobody holds a CPA, so both CPA controls could only ever return zero
+    // rows. SEARCH-ONLY: the `cpa` param stays modelled (below) so a saved
+    // ?cpa=1 link still narrows, and CPA is untouched on profiles, in the
+    // forms and in import/export.
+    const panel = read("src/components/alumni/AlumniFilters.tsx");
+    expect(panel).not.toContain('checkboxRow("cpa"');
+    expect(panel).toContain('const DESIGNATION_OPTIONS = ["CFP", "CFA"]');
+  });
+
+  it("keeps honouring an existing ?cpa=1 deep link", () => {
+    // The removal is of the CONTROL, not the predicate — dropping the param
+    // from the model would silently widen a saved link's results.
+    expect(parseAlumniFilters({ cpa: "1" }).cpa).toBe(true);
+    expect(
+      toAlumniPopulationParams({ ...EMPTY_FILTERS, cpa: true }).get("cpa"),
+    ).toBe("true");
+    // …and the panel still renders a chip so it can be cleared.
+    const panel = read("src/components/alumni/AlumniFilters.tsx");
+    expect(panel).toContain('label: "CPA", remove: () => set("cpa", false)');
   });
 
   it("uses the employment_statuses option list that was previously unused", () => {

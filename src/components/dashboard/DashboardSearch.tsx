@@ -123,11 +123,15 @@ const ENGAGEMENT: { key: string; label: string; param: string }[] = [
   { key: "donor", label: "PIFF donor", param: "donor" },
   { key: "mentor", label: "Willing to mentor", param: "mentor" },
   { key: "speaker", label: "Willing to guest speak", param: "speaker" },
-  // All three finance designations the survey collects (#529) are searchable —
-  // CFP joined CFA/CPA once the backend grew a `cfp` param (fa-web-api#363).
+  // The finance designations worth searching on. CFP joined CFA once the
+  // backend grew a `cfp` param (fa-web-api#363).
+  //
+  // CPA is NOT offered (#605): no alumni hold one, so the tickbox could only
+  // ever return zero rows. Search-only — CPA is still collected by the survey
+  // (#529), still stored, still shown on a profile, and the backend still
+  // accepts the `cpa` param, so an existing deep link keeps working.
   { key: "cfa", label: "CFA designation", param: "cfa" },
   { key: "cfp", label: "CFP designation", param: "cfp" },
-  { key: "cpa", label: "CPA designation", param: "cpa" },
 ];
 
 function IdentityGrid({
