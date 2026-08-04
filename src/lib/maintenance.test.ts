@@ -190,11 +190,23 @@ describe("maintenance mode UI conventions", () => {
     expect(src).not.toContain("lucide-react");
   });
 
-  it("does not hand-edit the generated API types", () => {
-    // The maintenance endpoints are new, so their types are declared locally
-    // until api.gen.ts is regenerated. Guard that nobody added them by hand.
+  it("uses the GENERATED maintenance types, not local copies", () => {
+    // These were declared locally while the backend was unshipped. api.gen.ts
+    // has since been regenerated against the deployed API, so the local copies
+    // are gone and the actions read the generated schemas. A hand-written
+    // duplicate is what let `message` drift on the bulk-headshot types earlier
+    // in this batch — one source, or none.
     const generated = read("src/types/api.gen.ts");
-    expect(generated).not.toContain("MaintenanceEnableRequest");
+    expect(generated).toContain("MaintenanceState");
+    expect(generated).toContain("MaintenanceEnableResult");
+
+    const actions = read("src/app/(app)/engineer/maintenance/actions.ts");
+    expect(actions).toContain('components["schemas"]["MaintenanceState"]');
+    expect(actions).toContain(
+      'components["schemas"]["MaintenanceEnableResult"]',
+    );
+    // No local re-declaration of the shape.
+    expect(actions).not.toMatch(/export type MaintenanceState = \{/);
   });
 });
 

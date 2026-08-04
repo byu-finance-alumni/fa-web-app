@@ -2,31 +2,18 @@
 
 import { revalidatePath } from "next/cache";
 import { apiGet, apiPost, ApiError } from "@/lib/api";
+import type { components } from "@/types/api.gen";
 
 /**
  * Engineer maintenance-mode controls.
- *
- * NOTE ON TYPES: these shapes are hand-declared because the backend endpoints
- * are new and `src/types/api.gen.ts` is GENERATED from the deployed API's
- * OpenAPI schema — it cannot contain them until the backend ships to dev and the
- * types are regenerated (`npm run gen:api-types`). Once that lands, replace
- * these with `components["schemas"]["MaintenanceState"]` etc. and delete the
- * local declarations. They are kept minimal and match the backend schemas in
- * `app/schemas/maintenance.py` exactly.
  */
 
 /** Engineer-console view of the switch. */
-export type MaintenanceState = {
-  enabled: boolean;
-  message: string | null;
-  enabled_at: string | null;
-  enabled_by_email: string | null;
-};
+export type MaintenanceState = components["schemas"]["MaintenanceState"];
 
 /** State after enabling, plus how many sessions the switch ended. */
-export type MaintenanceEnableResult = MaintenanceState & {
-  sessions_ended: number;
-};
+export type MaintenanceEnableResult =
+  components["schemas"]["MaintenanceEnableResult"];
 
 /**
  * Read the current state. Engineer-only on the backend (`GET /maintenance`);
