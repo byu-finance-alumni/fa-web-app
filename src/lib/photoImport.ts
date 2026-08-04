@@ -58,6 +58,15 @@ export const REQUEST_CHUNK = 100;
  *  without opening a connection per photo. */
 export const UPLOAD_CONCURRENCY = 4;
 
+// Zip expansion moved from the server to the browser, so the caps that used to
+// guard it there have to come along — a decompression bomb now costs the
+// operator their tab instead of our function. These bound the raw archive we
+// read into memory, the total we let it expand to, and how many members we'll
+// even walk.
+export const MAX_ARCHIVE_BYTES = 200 * 1024 * 1024;
+export const MAX_ARCHIVE_EXPANDED_BYTES = 400 * 1024 * 1024;
+export const MAX_ARCHIVE_ENTRIES = 10_000;
+
 export const HEIC_REASON =
   "HEIC/HEIF isn't supported. On iPhone set Settings > Camera > Formats to " +
   '"Most Compatible", or export the photo as JPEG, then re-add it.';
@@ -124,6 +133,34 @@ export function isArchiveJunk(path: string): boolean {
   }
   const base = normalized.split("/").pop() ?? "";
   return base === "" || base.startsWith(".");
+}
+
+/** What a zip member has to say about itself before we decompress it. */
+export type ArchiveEntryInfo = { name: string; originalSize: number };
+
+/**
+ * Build the stateful `filter` for a single archive expansion: it decides which
+ * members are decompressed AT ALL, so the caps apply before the bytes are
+ * allocated rather than after.
+ *
+ * Drops OS junk, refuses any member declaring more than the per-photo limit,
+ * stops once the declared sizes add up to `MAX_ARCHIVE_EXPANDED_BYTES`, and
+ * stops walking after `MAX_ARCHIVE_ENTRIES` members. Declared sizes come from
+ * the archive itself, so they can lie — a member that lies SMALL then overruns
+ * fails to inflate and is dropped by the caller, and one that lies LARGE only
+ * excludes itself. Either way the budget holds.
+ */
+export function makeArchiveFilter(): (entry: ArchiveEntryInfo) => boolean {
+  let budget = MAX_ARCHIVE_EXPANDED_BYTES;
+  let seen = 0;
+  return (entry) => {
+    if (seen++ >= MAX_ARCHIVE_ENTRIES) return false;
+    if (isArchiveJunk(entry.name)) return false;
+    const size = entry.originalSize ?? 0;
+    if (size > MAX_FILE_BYTES || size > budget) return false;
+    budget -= size;
+    return true;
+  };
 }
 
 /**

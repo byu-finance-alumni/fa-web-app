@@ -6,6 +6,7 @@ import { unzipSync } from "fflate";
 import {
   ACCEPT_ATTR,
   HEIC_REASON,
+  MAX_ARCHIVE_BYTES,
   MAX_FILES,
   MAX_FILE_BYTES,
   REQUEST_CHUNK,
@@ -13,8 +14,8 @@ import {
   chunk,
   contentTypeForName,
   formatBytes,
-  isArchiveJunk,
   limitBatch,
+  makeArchiveFilter,
   mapWithConcurrency,
   partitionPicked,
   type BulkHeadshotConfirmFile,
@@ -107,10 +108,17 @@ export function PhotoImportWizard() {
    * runs in a worker created from a `blob:` URL, which this app's CSP
    * (`default-src 'self'`, no `worker-src blob:`) refuses. A few dozen photos
    * decompress in well under a second, and the UI shows an "Expanding…" state.
+   *
+   * Bounded before anything is allocated — this used to run on the server behind
+   * hard caps, and a decompression bomb would otherwise take the operator's tab
+   * down with it. See `makeArchiveFilter`.
    */
   const expandArchive = async (archive: File): Promise<File[]> => {
+    if (archive.size > MAX_ARCHIVE_BYTES) {
+      throw new Error("archive too large");
+    }
     const bytes = new Uint8Array(await archive.arrayBuffer());
-    const entries = unzipSync(bytes, { filter: (f) => !isArchiveJunk(f.name) });
+    const entries = unzipSync(bytes, { filter: makeArchiveFilter() });
     const out: File[] = [];
     for (const [path, data] of Object.entries(entries)) {
       const name = path.replace(/\\/g, "/").split("/").pop() ?? path;
@@ -171,7 +179,10 @@ export function PhotoImportWizard() {
         } catch {
           notes.push({
             name: archive.name,
-            reason: "Couldn't read that .zip — re-create it and try again.",
+            reason:
+              archive.size > MAX_ARCHIVE_BYTES
+                ? `Archive is over ${formatBytes(MAX_ARCHIVE_BYTES)} — split it into smaller zips.`
+                : "Couldn't read that .zip — re-create it and try again.",
           });
         }
       }

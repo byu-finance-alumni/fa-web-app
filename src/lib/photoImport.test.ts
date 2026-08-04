@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   HEIC_REASON,
+  MAX_ARCHIVE_ENTRIES,
+  MAX_ARCHIVE_EXPANDED_BYTES,
   MAX_FILES,
   MAX_FILE_BYTES,
   REQUEST_CHUNK,
@@ -9,6 +11,7 @@ import {
   contentTypeForName,
   isArchiveJunk,
   limitBatch,
+  makeArchiveFilter,
   mapWithConcurrency,
   netIdFromFilename,
   partitionPicked,
@@ -119,6 +122,41 @@ describe("isArchiveJunk", () => {
     expect(isArchiveJunk("photos/__MACOSX/._jdoe.jpg")).toBe(true);
     expect(isArchiveJunk("photos/.DS_Store")).toBe(true);
     expect(isArchiveJunk("photos/jdoe.jpg")).toBe(false);
+  });
+});
+
+describe("makeArchiveFilter", () => {
+  const entry = (name: string, originalSize = 1024) => ({ name, originalSize });
+
+  it("keeps real photos and drops junk", () => {
+    const filter = makeArchiveFilter();
+    expect(filter(entry("photos/jdoe.jpg"))).toBe(true);
+    expect(filter(entry("photos/.DS_Store"))).toBe(false);
+    expect(filter(entry("__MACOSX/._jdoe.jpg"))).toBe(false);
+    expect(filter(entry("photos/"))).toBe(false);
+  });
+
+  it("refuses a member that declares more than the per-photo limit", () => {
+    const filter = makeArchiveFilter();
+    expect(filter(entry("huge.jpg", MAX_FILE_BYTES + 1))).toBe(false);
+    expect(filter(entry("fine.jpg", MAX_FILE_BYTES))).toBe(true);
+  });
+
+  it("stops decompressing once the expansion budget is spent (zip bomb)", () => {
+    const filter = makeArchiveFilter();
+    const each = MAX_FILE_BYTES;
+    const affordable = Math.floor(MAX_ARCHIVE_EXPANDED_BYTES / each);
+    for (let i = 0; i < affordable; i++) {
+      expect(filter(entry(`photo${i}.jpg`, each))).toBe(true);
+    }
+    // Budget exhausted — nothing else is allocated, however many members follow.
+    expect(filter(entry("bomb.jpg", each))).toBe(false);
+  });
+
+  it("stops walking after the member-count ceiling", () => {
+    const filter = makeArchiveFilter();
+    for (let i = 0; i < MAX_ARCHIVE_ENTRIES; i++) filter(entry(`p${i}.jpg`, 1));
+    expect(filter(entry("one-too-many.jpg", 1))).toBe(false);
   });
 });
 
