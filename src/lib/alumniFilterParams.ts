@@ -20,6 +20,11 @@
  * listed in `PASS_THROUGH_PARAMS` as a known, accepted casualty. There is no
  * third option, and `alumniFilterParams.test.ts` fails the build if a new one
  * appears in the roster without a home.
+ *
+ * It also owns a FOURTH thing (#592): `toAlumniPopulationParams` — the single
+ * definition of WHICH PEOPLE a view covers. The roster builds its `GET /alumni`
+ * call from it and `@/lib/exportFilters` derives the export body from it, so the
+ * list and its CSV export cannot resolve to different populations.
  */
 import { EMPLOYMENT_STATUS_OPTIONS } from "@/constants/dropdowns";
 import type { FilterOptions } from "@/types/filters";
@@ -206,9 +211,16 @@ export function facetOptions(
 }
 
 /**
- * Boolean flags: state key → URL param. Serialized as `=1`, parsed with
- * `isTrue` (so a deep link may send `1` or `true`), counted as one active
- * filter each, and each gets a checkbox in the panel.
+ * Boolean flags: state key → URL param → API param. Serialized into the URL as
+ * `=1`, parsed with `isTrue` (so a deep link may send `1` or `true`), counted as
+ * one active filter each, and each gets a checkbox in the panel.
+ *
+ * `api` is the name `GET /alumni` (and the export body) knows the flag by — four
+ * of them differ from the URL spelling (`attended` → `attended_event`, `mentor`
+ * → `mentor_willing`, `speaker` → `guest_speaker_willing`, `archived` →
+ * `include_archived`). Keeping the pair in ONE row is what lets
+ * `toAlumniPopulationParams` build the API call off this table instead of a
+ * hand-written second list.
  */
 export const BOOLEAN_FLAGS: {
   key: Extract<
@@ -228,20 +240,21 @@ export const BOOLEAN_FLAGS: {
     | "duplicate"
   >;
   param: string;
+  api: string;
 }[] = [
-  { key: "neverContacted", param: "never_contacted" },
-  { key: "attended", param: "attended" },
-  { key: "donor", param: "donor" },
-  { key: "mentor", param: "mentor" },
-  { key: "speaker", param: "speaker" },
-  { key: "cfa", param: "cfa" },
-  { key: "cfp", param: "cfp" },
-  { key: "cpa", param: "cpa" },
-  { key: "graduateDegree", param: "graduate_degree" },
-  { key: "archived", param: "archived" },
-  { key: "missingEmail", param: "missing_email" },
-  { key: "missingEmployer", param: "missing_employer" },
-  { key: "duplicate", param: "duplicate" },
+  { key: "neverContacted", param: "never_contacted", api: "never_contacted" },
+  { key: "attended", param: "attended", api: "attended_event" },
+  { key: "donor", param: "donor", api: "donor" },
+  { key: "mentor", param: "mentor", api: "mentor_willing" },
+  { key: "speaker", param: "speaker", api: "guest_speaker_willing" },
+  { key: "cfa", param: "cfa", api: "cfa" },
+  { key: "cfp", param: "cfp", api: "cfp" },
+  { key: "cpa", param: "cpa", api: "cpa" },
+  { key: "graduateDegree", param: "graduate_degree", api: "graduate_degree" },
+  { key: "archived", param: "archived", api: "include_archived" },
+  { key: "missingEmail", param: "missing_email", api: "missing_email" },
+  { key: "missingEmployer", param: "missing_employer", api: "missing_employer" },
+  { key: "duplicate", param: "duplicate", api: "duplicate" },
 ];
 
 /**
@@ -264,6 +277,12 @@ export const BOOLEAN_FLAGS: {
  *  - `sort`          modelled; listed because the roster reads it via a helper.
  *
  * Anything NOT in this list and not modelled is a bug — see the test.
+ *
+ * "No home in the model" does NOT mean "invisible": the narrowing ones are
+ * parsed by `parsePassThroughFilters` and folded into
+ * `toAlumniPopulationParams`, so the CSV export covers the same people as a
+ * deep-linked list (#592). Only `year` / `missing` (aliases), `offset` and
+ * `sort` are outside that, none of which change WHO matches.
  */
 export const PASS_THROUGH_PARAMS = [
   "employer",
@@ -388,6 +407,157 @@ export function toAlumniFilterQs(f: AlumniFilterState): string {
   if (f.deceased === "exclude") p.set("deceased", "0");
   if (f.sort && f.sort !== "name") p.set("sort", f.sort);
   return p.toString();
+}
+
+/* ----------------------------------------------------------- population ---- */
+
+/**
+ * Which roster the user is on (#218). `alumni` = `/alumni` (graduates only,
+ * `is_alumni=true`); `friend` = `/friends` (friends of the program,
+ * `is_alumni=false`). The ROUTE fixes it — it is never a URL filter — but it is
+ * every bit as much a population predicate as the facets, so it has to travel
+ * with them.
+ */
+export type RosterScope = "alumni" | "friend";
+
+/**
+ * The narrowing params the roster honours straight off the URL, with no home in
+ * the filter model (`PASS_THROUGH_PARAMS`). They are NOT cosmetic: a dashboard
+ * deep link like `?employer=Goldman+Sachs` or `?near=Provo` cuts the list down
+ * hard, so anything that claims to cover "the rows the user is looking at" — the
+ * CSV export above all — has to see them too (#592).
+ */
+export interface PassThroughFilters {
+  employer: string[];
+  net_id: string;
+  first_name: string;
+  last_name: string;
+  preferred_name: string;
+  email: string;
+  /** Plain-English location search (#358) + its optional radius override. */
+  near: string;
+  radius: string;
+  spoke_after: string;
+  spoke_before: string;
+}
+
+export const EMPTY_PASS_THROUGH: PassThroughFilters = {
+  employer: [],
+  net_id: "",
+  first_name: "",
+  last_name: "",
+  preferred_name: "",
+  email: "",
+  near: "",
+  radius: "",
+  spoke_after: "",
+  spoke_before: "",
+};
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * URL search params → the pass-through filters, validated exactly once (the
+ * roster used to validate them inline, which meant the export — reading nothing
+ * — could not have agreed with it even in principle).
+ */
+export function parsePassThroughFilters(sp: SearchParamMap): PassThroughFilters {
+  const text = (v: string | string[] | undefined) => one(v).trim();
+  const radius = text(sp.radius);
+  const spokeAfter = text(sp.spoke_after);
+  const spokeBefore = text(sp.spoke_before);
+  return {
+    employer: arr(sp.employer),
+    net_id: text(sp.net_id),
+    first_name: text(sp.first_name),
+    last_name: text(sp.last_name),
+    preferred_name: text(sp.preferred_name),
+    email: text(sp.email),
+    near: text(sp.near),
+    radius: /^\d{1,4}$/.test(radius) ? radius : "",
+    spoke_after: ISO_DATE.test(spokeAfter) ? spokeAfter : "",
+    spoke_before: ISO_DATE.test(spokeBefore) ? spokeBefore : "",
+  };
+}
+
+/** Is anything outside the filter model narrowing the view right now? */
+export function hasPassThroughFilters(pt: PassThroughFilters): boolean {
+  return (
+    pt.employer.length > 0 ||
+    Boolean(
+      pt.net_id ||
+        pt.first_name ||
+        pt.last_name ||
+        pt.preferred_name ||
+        pt.email ||
+        pt.near ||
+        pt.spoke_after ||
+        pt.spoke_before,
+    )
+  );
+}
+
+/**
+ * **The single definition of which people a view covers** (#592).
+ *
+ * Returns the `GET /alumni` params that decide MEMBERSHIP — no `limit`,
+ * `offset` or `sort`, which change how the matching people are presented but
+ * never who they are. The roster builds its API call from this, and
+ * `toExportFilters` derives the export body from it, so the list and its CSV
+ * cannot answer "who is in this cohort?" differently.
+ *
+ * The bug that forced this: the export sent `is_alumni: null` meaning "let the
+ * backend default it", but an explicitly-null field counts as SET, so the
+ * predicate was dropped entirely and 19 friends of the program rode along in a
+ * file labelled "the 26 alumni matching your current filters". Hence the rule
+ * this function embodies: a predicate is either emitted with a real value or
+ * genuinely absent — never a null standing in for a default.
+ */
+export function toAlumniPopulationParams(
+  f: AlumniFilterState,
+  scope: RosterScope = "alumni",
+  pt: PassThroughFilters = EMPTY_PASS_THROUGH,
+): URLSearchParams {
+  const p = new URLSearchParams();
+  // ALWAYS explicit, even though `alumni` is the backend default. Relying on a
+  // default is what let the export lose it.
+  p.set("kind", scope);
+  if (f.q.trim()) p.set("q", f.q.trim());
+  if (f.ymin.trim()) p.set("grad_year_min", f.ymin.trim());
+  if (f.ymax.trim()) p.set("grad_year_max", f.ymax.trim());
+  for (const facet of FACETS) {
+    for (const v of f[facet.key] as string[]) p.append(facet.param, v);
+  }
+  // Designations (#404): repeated param, OR semantics server-side.
+  for (const v of f.designations) p.append("designations", v);
+  if (f.gender) p.set("gender", f.gender);
+  if (f.industryGroup) p.set("industry_group", f.industryGroup);
+  if (f.contactedAfter) p.set("contacted_after", f.contactedAfter);
+  if (f.contactedBefore) p.set("contacted_before", f.contactedBefore);
+  for (const flag of BOOLEAN_FLAGS) {
+    if (f[flag.key]) p.set(flag.api, "true");
+  }
+  if (f.deceased === "only") p.set("deceased", "true");
+  if (f.deceased === "exclude") p.set("deceased", "false");
+  // Route-owned (/needs-surveying), never in the URL — but it narrows, so it
+  // belongs to the population like anything else.
+  if (f.needsSurvey) p.set("needs_survey", "true");
+  // Pass-through (URL-only) narrowing params.
+  for (const v of pt.employer) p.append("employer", v);
+  if (pt.net_id) p.set("net_id", pt.net_id);
+  if (pt.first_name) p.set("first_name", pt.first_name);
+  if (pt.last_name) p.set("last_name", pt.last_name);
+  if (pt.preferred_name) p.set("preferred_name", pt.preferred_name);
+  if (pt.email) p.set("email", pt.email);
+  if (pt.near) {
+    p.set("near", pt.near);
+    // `radius` alone means nothing to the backend — it only overrides the radius
+    // inferred from a `near` phrase.
+    if (pt.radius) p.set("radius", pt.radius);
+  }
+  if (pt.spoke_after) p.set("spoke_after", pt.spoke_after);
+  if (pt.spoke_before) p.set("spoke_before", pt.spoke_before);
+  return p;
 }
 
 /* ------------------------------------------------------------ counting ---- */

@@ -24,6 +24,8 @@ export function ExportAlumniButton({
   filters,
   filtersActive,
   total,
+  unsupportedFilters = [],
+  noun = "alumni",
   open: openProp,
   onOpenChange,
   hideTrigger = false,
@@ -32,6 +34,13 @@ export function ExportAlumniButton({
   filtersActive: boolean;
   /** Number of alumni the export will cover (= the list's filtered total). */
   total?: number;
+  /** Active filters the export API has no field for (#592), as user-facing
+   *  labels. Non-empty = the CSV would cover MORE people than the list shows, so
+   *  the download is blocked and the reason shown. Empty is the normal case. */
+  unsupportedFilters?: string[];
+  /** What the rows are, for the dialog copy — "alumni", or "friends of the
+   *  program" on the friends roster. */
+  noun?: string;
   /** Controlled open state — lets an external control (e.g. the consolidated
    *  mobile menu) open the dialog. Pass together with `onOpenChange`. */
   open?: boolean;
@@ -46,6 +55,10 @@ export function ExportAlumniButton({
     if (onOpenChange) onOpenChange(o);
     else setOpenState(o);
   };
+  /** An active filter the export API can't express → the CSV would not be this
+   *  view. Refuse: too many rows of real people's data is a disclosure, not a
+   *  rounding error (#592). */
+  const blocked = unsupportedFilters.length > 0;
   const [catalog, setCatalog] = useState<ExportColumnCatalog | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -118,6 +131,12 @@ export function ExportAlumniButton({
   }
 
   function runExport() {
+    if (blocked) {
+      // Belt and braces: the button is disabled, but never let a filter the
+      // export can't apply turn into a file of people the list excluded.
+      toast.error("This view has a filter the export can't apply yet.");
+      return;
+    }
     if (selected.size === 0) {
       toast.error("Pick at least one column to export.");
       return;
@@ -168,7 +187,7 @@ export function ExportAlumniButton({
           >
             <div className="border-b border-gray-200 p-5">
               <h3 className="text-base font-semibold text-gray-900">
-                Export alumni to CSV
+                Export {noun} to CSV
               </h3>
               <p className="mt-1 text-sm tabular-nums text-gray-500">
                 {(() => {
@@ -177,11 +196,27 @@ export function ExportAlumniButton({
                       ? `${total.toLocaleString()} `
                       : "";
                   return filtersActive
-                    ? `Exports the ${count}alumni matching your current filters.`
-                    : `Exports all ${count}alumni.`;
+                    ? `Exports the ${count}${noun} matching your current filters.`
+                    : `Exports all ${count}${noun}.`;
                 })()}{" "}
                 Choose the columns to include.
               </p>
+              {blocked ? (
+                <div className="mt-3 rounded-lg border border-warning-600 bg-warning-50 p-3 text-sm text-gray-700">
+                  <p className="font-semibold text-gray-900">
+                    This view can&apos;t be exported yet
+                  </p>
+                  <p className="mt-1">
+                    The CSV export can&apos;t apply{" "}
+                    {unsupportedFilters.length === 1
+                      ? "this filter"
+                      : "these filters"}
+                    : {unsupportedFilters.join(", ")}. Exporting anyway would
+                    include people this list is leaving out, so remove{" "}
+                    {unsupportedFilters.length === 1 ? "it" : "them"} first.
+                  </p>
+                </div>
+              ) : null}
             </div>
 
             <div className="min-h-0 flex-1 overflow-auto p-5">
@@ -250,7 +285,7 @@ export function ExportAlumniButton({
                 </Button>
                 <Button
                   type="button"
-                  disabled={pending || loading || selected.size === 0}
+                  disabled={blocked || pending || loading || selected.size === 0}
                   onClick={runExport}
                 >
                   {pending
