@@ -14,6 +14,12 @@ import type {
   EventImportPreview,
   EventImportResult,
 } from "@/types/events-import";
+import type {
+  AttendeeApplyResult,
+  AttendeeApproval,
+  AttendeeFriendResult,
+  AttendeeMatchPreview,
+} from "@/types/attendee-match";
 
 /**
  * Result of an event form server action.
@@ -289,6 +295,156 @@ export async function exportEventAttendees(
     return {
       ok: false,
       error: e instanceof ApiError ? e.message : "Couldn't download attendees.",
+    };
+  }
+}
+
+/* ------------------------------------ Conference-attendee matching (#612) ----- */
+//
+// Upload a conference attendee list scoped to ONE event, get PROPOSED matches
+// back, and write only what a human approved. Three legs, mirroring the CSV
+// import wizard's preview -> apply split, except approval is per ROW rather
+// than for the batch.
+//
+// Nothing here can auto-apply: `previewAttendeeMatch` writes nothing, and the
+// two apply actions send only the ids / row numbers the reviewer explicitly
+// ticked (see src/lib/attendeeMatch.ts, which never pre-selects anything).
+
+export type AttendeeMatchPreviewState =
+  | { ok: true; data: AttendeeMatchPreview }
+  | { ok: false; error: string };
+
+export type AttendeeApplyState =
+  | { ok: true; data: AttendeeApplyResult }
+  | { ok: false; error: string };
+
+export type AttendeeFriendState =
+  | { ok: true; data: AttendeeFriendResult }
+  | { ok: false; error: string };
+
+/** Pull the attendee file out of a FormData, or null if it's missing/empty. */
+function attendeeFile(formData: FormData): File | null {
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return null;
+  return file;
+}
+
+/**
+ * Dry-run an attendee list against
+ * POST /events/{id}/attendees/match/preview (full_access, NO writes).
+ *
+ * The attendee list is names/emails/companies — a few hundred KB at worst — so
+ * it goes through the normal multipart server action. It is capped at 4 MiB
+ * server-side, deliberately below Vercel's ~4.5 MB request-body ceiling so the
+ * app's own 413 fires instead of the platform error the browser misreports as
+ * a CORS failure (app #595). A list large enough to need the photo import's
+ * direct-to-storage dance would first hit the backend's 2,000-row limit.
+ */
+export async function previewAttendeeMatch(
+  eventId: number,
+  formData: FormData,
+): Promise<AttendeeMatchPreviewState> {
+  const file = attendeeFile(formData);
+  if (!file) return { ok: false, error: "Choose a .csv file to check." };
+  const fd = new FormData();
+  fd.append("file", file, file.name);
+  try {
+    const data = await apiPostForm<AttendeeMatchPreview>(
+      `/events/${eventId}/attendees/match/preview`,
+      fd,
+    );
+    return { ok: true, data };
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof ApiError
+          ? e.message
+          : "Couldn't read the file — try again.",
+    };
+  }
+}
+
+/**
+ * Record attendance for the matches a human approved
+ * (POST /events/{id}/attendees/match/approve).
+ *
+ * Approving marks that person as attending THIS event and changes nothing else
+ * on their record. The backend re-validates every id and is idempotent per
+ * (event, alumni), so re-running the same file never double-adds.
+ */
+export async function approveAttendeeMatches(
+  eventId: number,
+  approvals: AttendeeApproval[],
+): Promise<AttendeeApplyState> {
+  if (approvals.length === 0) {
+    return { ok: false, error: "Nothing approved yet." };
+  }
+  try {
+    const data = await apiPost<AttendeeApplyResult>(
+      `/events/${eventId}/attendees/match/approve`,
+      { approvals },
+    );
+    revalidatePath("/events");
+    revalidateTag("events");
+    return { ok: true, data };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Couldn't save — try again.",
+    };
+  }
+}
+
+/**
+ * Create friend records for the unmatched rows the reviewer chose and attach
+ * them to the event (POST /events/{id}/attendees/match/friends).
+ *
+ * The SAME file is re-posted: the backend re-parses and re-maps it rather than
+ * trusting a client-built payload, so each friend carries everything in the
+ * file that maps to a DB column.
+ */
+export async function createAttendeeFriends(
+  eventId: number,
+  rows: number[],
+  formData: FormData,
+): Promise<AttendeeFriendState> {
+  const file = attendeeFile(formData);
+  if (!file) return { ok: false, error: "Re-select the .csv file to continue." };
+  if (rows.length === 0) return { ok: false, error: "No rows chosen." };
+  const fd = new FormData();
+  fd.append("file", file, file.name);
+  fd.append("rows", rows.join(","));
+  try {
+    const data = await apiPostForm<AttendeeFriendResult>(
+      `/events/${eventId}/attendees/match/friends`,
+      fd,
+    );
+    revalidatePath("/events");
+    revalidatePath("/friends");
+    revalidateTag("events");
+    revalidateTag("dashboard");
+    return { ok: true, data };
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof ApiError ? e.message : "Couldn't create friends — try again.",
+    };
+  }
+}
+
+/** Fetch the starting-point attendee CSV (GET /events/attendees/match/template). */
+export async function downloadAttendeeMatchTemplate(): Promise<
+  { ok: true; csv: string } | { ok: false; error: string }
+> {
+  try {
+    const csv = await apiGetText("/events/attendees/match/template");
+    return { ok: true, csv };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Couldn't download the template.",
     };
   }
 }
