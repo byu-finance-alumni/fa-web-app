@@ -31,8 +31,8 @@ import {
   splitOtherDesignationSlots,
 } from "@/lib/designations";
 import {
-  EMPLOYMENT_STATUS_OPTIONS,
   PRIMARY_INDUSTRY_OPTIONS,
+  SURVEY_EMPLOYMENT_STATUS_OPTIONS,
   isEmploymentStatusPlaceholder,
 } from "@/constants/dropdowns";
 
@@ -859,10 +859,13 @@ function FieldControl({
             onChange={onChange}
           />
         ) : field.kind === "employmentStatus" ? (
+          // SURVEY_ not EMPLOYMENT_STATUS_OPTIONS: "Unknown" is a real option
+          // everywhere staff work, but meaningless as a SELF-description — the
+          // alum is being asked what they actually do (#377).
           <SelectControl
             id={controlId}
             value={value}
-            options={EMPLOYMENT_STATUS_OPTIONS}
+            options={SURVEY_EMPLOYMENT_STATUS_OPTIONS}
             placeholder="Select your status"
             onChange={onChange}
           />
