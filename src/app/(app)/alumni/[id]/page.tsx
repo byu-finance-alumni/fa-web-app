@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CircleAlert, Check } from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
+import { fetchHeadshotUrl } from "@/lib/headshots";
 import type { Contact, Profile } from "@/types/profile";
 import type { UserContext } from "@/types/alumni";
 import {
@@ -374,14 +375,10 @@ export async function AlumniProfileView({
 
   // Headshot: a short-lived signed URL for the profile photo, readable by every
   // role (the bucket is private, so the signed URL is the only way to view it).
-  // A failure here just falls back to the initials avatar — never breaks the page.
-  let headshotUrl: string | null = null;
-  try {
-    const h = await apiGet<{ url: string | null }>(`/alumni/${id}/headshot`);
-    headshotUrl = h?.url ?? null;
-  } catch {
-    /* no headshot / endpoint error — the initials fallback is shown */
-  }
+  // Cached for a slice of the signature's own lifetime so revisiting a profile
+  // doesn't re-mint a URL that is still valid; a photo change busts the tag. A
+  // failure falls back to the initials avatar — it never breaks the page.
+  const headshotUrl = await fetchHeadshotUrl(Number(id));
 
   // `canEdit` covers editing the EXISTING record + nested data — students get
   // this (mirrors backend require_alumni_edit). `canArchive` is the narrower

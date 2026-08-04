@@ -116,16 +116,24 @@ const EXPORT_MAPPING: Record<string, ParamExport> = {
   include_archived: { as: "flag", field: "include_archived" },
   needs_survey: { as: "flag", field: "needs_survey" },
   deceased: { as: "tristate", field: "deceased" },
-  // ---- Filters `GET /alumni` supports but `AlumniExportFilters` does not ----
-  // Each one narrows the LIST, so exporting while it is active would hand the
-  // user records the screen is excluding. Until the backend schema gains these
-  // fields (fa-web-api), the export dialog refuses rather than over-discloses.
-  designations: { as: "unsupported", label: "Designations" },
-  graduate_degree: { as: "unsupported", label: "Graduate degree" },
-  near: { as: "unsupported", label: "Location search" },
-  radius: { as: "unsupported", label: "Location search" },
-  spoke_after: { as: "unsupported", label: "Guest-speaker dates" },
-  spoke_before: { as: "unsupported", label: "Guest-speaker dates" },
+  // ---- Formerly unsupported, wired up by fa-web-api#366 --------------------
+  // These six narrow the LIST, and until the backend schema gained matching
+  // fields the dialog had to warn that the file would be wider. The backend now
+  // resolves each through the SAME predicate `GET /alumni` uses, so they map
+  // like any other facet and the warning no longer fires for them.
+  //
+  // `near` is the one with teeth: an un-pinpointable phrase is a 422 from the
+  // export rather than a silent nationwide CSV. That refusal is deliberate —
+  // the list can fall back to unfiltered because the operator SEES the widened
+  // result on screen; a downloaded file gives no such tell.
+  designations: { as: "multi", field: "designations" },
+  graduate_degree: { as: "flag", field: "graduate_degree" },
+  near: { as: "text", field: "near" },
+  // Radius is a FLOAT (the backend accepts 1..3000); the "int" case is a
+  // `Number()` parse, which is correct for it despite the name.
+  radius: { as: "int", field: "radius" },
+  spoke_after: { as: "text", field: "spoke_after" },
+  spoke_before: { as: "text", field: "spoke_before" },
 };
 
 /**
@@ -179,6 +187,16 @@ const NO_PREDICATE: AlumniExportFilters = {
   duplicate: false,
   is_alumni: true,
   include_archived: false,
+  // Added by fa-web-api#366. `near`/`radius` null = no location predicate;
+  // the two booleans are non-nullable server-side, so false IS "no predicate".
+  near: null,
+  radius: null,
+  designations: null,
+  graduate_degree: false,
+  spoke_after: null,
+  spoke_before: null,
+  // Supported by GET /alumni and by the export, but no UI surfaces it today.
+  missing_phone: false,
   sort: "name",
 };
 
