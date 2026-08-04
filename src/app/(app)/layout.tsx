@@ -8,6 +8,7 @@ import { SessionGuard } from "@/components/auth/SessionGuard";
 import { PointerEventsGuard } from "@/components/shell/PointerEventsGuard";
 import { PreviewBanner } from "@/components/engineer/PreviewBanner";
 import { getAuthContext } from "@/lib/auth-context";
+import { getMaintenanceStatus } from "@/lib/maintenance";
 import { highestRole, isEngineer, roleLabel } from "@/constants/roles";
 import { asPreviewRole, PREVIEW_COOKIE } from "@/lib/preview";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -57,6 +58,25 @@ export default async function AppLayout({
     userName = [ctx.first_name, ctx.last_name].filter(Boolean).join(" ");
   } catch {
     // 403 = authenticated but not yet provisioned in the users table.
+  }
+
+  // Maintenance mode: while the engineer's site-wide pause is on, every
+  // non-engineer gets the maintenance page instead of the app shell. The backend
+  // is the real enforcement (every data route 503s and their session has already
+  // been ended); this is what makes that legible instead of a wall of failed
+  // requests.
+  //
+  // ENGINEERS ARE SKIPPED ENTIRELY — they are exempt from the pause and are the
+  // only role that can turn it off, so bouncing them here would hide the very
+  // console they need. Note the `getMaintenanceStatus` call is deliberately
+  // AFTER `userIsEngineer` is resolved, and short-circuits: an engineer does not
+  // even ask.
+  //
+  // `redirect()` must run outside the try/catch above — it throws a control-flow
+  // signal a catch would swallow. `getMaintenanceStatus` fails open, so a
+  // backend hiccup can never strand users on the maintenance page.
+  if (!userIsEngineer && (await getMaintenanceStatus()).enabled) {
+    redirect("/maintenance");
   }
 
   // Preview-as-role (#165): only an engineer may preview, and only as a role

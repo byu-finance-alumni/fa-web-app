@@ -13,6 +13,7 @@ import {
   apiPostText,
   ApiError,
 } from "@/lib/api";
+import { HEADSHOT_CACHE_TAG } from "@/lib/headshots";
 import type {
   HygienePreview,
   ImportPreview,
@@ -1463,6 +1464,9 @@ export async function deleteNote(
  * Fetch the current signed headshot URL for an alumnus (GET
  * /alumni/{id}/headshot). Returns `url: null` when none is on file. Used to
  * re-fetch a fresh signed URL after an upload without a full page reload.
+ *
+ * Deliberately UNCACHED, unlike the render-path read in `@/lib/headshots`: this
+ * runs immediately after a photo was replaced, so it must see the new object.
  */
 export async function getHeadshotUrl(
   alumniId: number,
@@ -1499,6 +1503,7 @@ export async function uploadHeadshot(
   try {
     await apiPutForm<void>(`/alumni/${alumniId}/headshot`, fd);
     revalidatePath(`/alumni/${alumniId}`);
+    revalidateTag(HEADSHOT_CACHE_TAG);
     return { ok: true };
   } catch (e) {
     if (e instanceof ApiError) {
@@ -1560,6 +1565,7 @@ export async function confirmHeadshotUpload(
   try {
     await apiPost<void>(`/alumni/${alumniId}/headshot/confirm`, {});
     revalidatePath(`/alumni/${alumniId}`);
+    revalidateTag(HEADSHOT_CACHE_TAG);
     return { ok: true };
   } catch (e) {
     return {
@@ -1617,6 +1623,9 @@ export async function confirmBulkHeadshotUpload(
       "/alumni/headshots/bulk/confirm",
       { files },
     );
+    // A batch can change dozens of photos at once; drop every cached signed URL
+    // so the roster shows the new images on its next render, not after the TTL.
+    revalidateTag(HEADSHOT_CACHE_TAG);
     return { ok: true, result };
   } catch (e) {
     return { ok: false, error: bulkImportError(e) };
@@ -1644,6 +1653,7 @@ export async function deleteHeadshot(
   try {
     await apiDelete(`/alumni/${alumniId}/headshot`);
     revalidatePath(`/alumni/${alumniId}`);
+    revalidateTag(HEADSHOT_CACHE_TAG);
     return { ok: true };
   } catch (e) {
     return {

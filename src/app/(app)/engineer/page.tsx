@@ -55,6 +55,12 @@ const TOOLS: Tool[] = [
       "Every failed sign-in attempt — who, when, from what IP, and why — newest first. The attempted email may not match any account.",
   },
   {
+    href: "/engineer/maintenance",
+    title: "Maintenance mode",
+    description:
+      "Close the site for maintenance: signs out everyone except engineers, blocks their sign-in, and shows a maintenance page. Reversible from the same screen — engineers stay signed in.",
+  },
+  {
     href: "/engineer/support-contacts",
     title: "Support contacts",
     description:

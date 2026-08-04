@@ -52,6 +52,112 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/maintenance/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Maintenance Status
+         * @description PUBLIC (no auth): is the site in maintenance mode, and what should the
+         *     maintenance page say?
+         *
+         *     Intentionally unauthenticated — a logged-out visitor has to be able to learn
+         *     that the site is closed. The response is capped to ``{enabled, message}``
+         *     (see ``MaintenanceStatus``): no actor, no timestamps, no version, no
+         *     account-shaped data of any kind, so it cannot be used to enumerate anything.
+         *     Both fields are single site-wide values that every visitor sees identically.
+         *
+         *     Served from the same short-lived process cache the request gate uses, so
+         *     hammering this endpoint does not translate into database load.
+         */
+        get: operations["maintenance_status_maintenance_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/maintenance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Maintenance State
+         * @description Engineer console view: the public status plus who turned it on and when.
+         *
+         *     Uncached — the console must show the true current value, not a value up to
+         *     a few seconds stale.
+         */
+        get: operations["get_maintenance_state_maintenance_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/maintenance/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enable Maintenance
+         * @description Turn maintenance mode ON.
+         *
+         *     Pauses logins and every authenticated request for non-engineers, and ends
+         *     the live session of every signed-in non-engineer account. Engineers — the
+         *     caller included — keep their session and their access, so this same console
+         *     can turn it back off without signing in again.
+         *
+         *     Rate-limited (``ENABLE_MAINTENANCE_LIMITER``, which resolves the actor
+         *     through ``require_engineer``, so the route stays engineer-gated). The
+         *     matching ``/disable`` is deliberately NOT limited — see the note on the
+         *     limiter for why throttling the recovery direction would be a lockout.
+         */
+        post: operations["enable_maintenance_maintenance_enable_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/maintenance/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Disable Maintenance
+         * @description Turn maintenance mode OFF and restore normal logins.
+         *
+         *     Reachable while maintenance is ON: ``RequireEngineer`` resolves through the
+         *     strict user dependency, whose maintenance gate exempts engineers.
+         */
+        post: operations["disable_maintenance_maintenance_disable_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/me": {
         parameters: {
             query?: never;
@@ -148,6 +254,13 @@ export interface paths {
          *     Best-effort by contract: the frontend never blocks the post-login redirect
          *     on this call. It is deliberately NOT written to ``audit_logs`` — sign-in
          *     events are a security log, not the record-change audit trail.
+         *
+         *     MAINTENANCE MODE: refused (503 / ``maintenance_mode``) for non-exempt users
+         *     while the site-wide pause is on, BEFORE anything is written. That ordering is
+         *     the point — this route is what claims ``active_session_id``, so letting it
+         *     run would hand a paused user a valid session claim and undo the force-logout
+         *     the switch just performed. Engineers are exempt, so an engineer can always
+         *     sign back in and reach the console to turn maintenance off.
          */
         post: operations["record_login_auth_login_post"];
         delete?: never;
@@ -422,6 +535,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/alumni/headshots/urls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Headshot Urls
+         * @description Signed headshot URLs for a BATCH of alumni, keyed by ``alumni_id``.
+         *
+         *     The roster used to call ``GET /alumni/{id}/headshot`` once per visible row —
+         *     25 function invocations and 25 single-row ``SELECT``s to render one page (a
+         *     textbook N+1). This does the same work in one request: one query for all the
+         *     net IDs, then storage round-trips only for the alumni that actually have one.
+         *     Ids are deduplicated first, so the same alumnus is never signed twice in a
+         *     single call.
+         *
+         *     Same read gate as the single-headshot route (any view role). An id that
+         *     doesn't exist, an alumnus with no net ID, or one with no image on file all
+         *     come back ``null`` — the list falls back to the initials avatar — because a
+         *     roster must not fail because one row has no photo.
+         */
+        get: operations["get_headshot_urls_alumni_headshots_urls_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/alumni/headshots/bulk/upload-urls": {
         parameters: {
             query?: never;
@@ -677,9 +822,16 @@ export interface paths {
         /**
          * Export Alumni
          * @description Export the filtered alumni list as CSV with the chosen columns
-         *     (full_access). Hits the SAME population the list view shows (same filters).
-         *     An unknown column key is a 422; a result set larger than the export cap is a
-         *     413 asking the caller to narrow filters. Audit-logged (``export_alumni``).
+         *     (full_access). Hits the SAME population the list view shows: the body
+         *     mirrors every ``GET /alumni`` filter and runs the same
+         *     ``build_alumni_query`` predicates, with ``near``/``radius`` re-resolved
+         *     through the same geocoding path (#366).
+         *
+         *     An unknown column key is a 422; so is an unknown designation token or a
+         *     ``near`` phrase that can't be pinpointed — both fail closed rather than
+         *     dropping the predicate and handing back a wider population than the list
+         *     showed. A result set larger than the export cap is a 413 asking the caller to
+         *     narrow filters. Audit-logged (``export_alumni``).
          */
         post: operations["export_alumni_alumni_export_post"];
         delete?: never;
@@ -2875,8 +3027,8 @@ export interface paths {
         /**
          * Survey Respond Info
          * @description PUBLIC (token-gated, no login): the alum's current on-file info for the
-         *     confirm page. The signed token is the credential — an invalid/expired one
-         *     404s.
+         *     confirm page. The signed token is the credential — an invalid or expired one
+         *     404s with the same message either way.
          */
         get: operations["survey_respond_info_survey_respond__token__get"];
         put?: never;
@@ -3162,6 +3314,36 @@ export interface paths {
          *     wins). Returns the full, refreshed schedule list.
          */
         post: operations["create_survey_schedules_bulk_survey_schedules_bulk_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/schedules/{grad_year}/non-responders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Survey Non Responders
+         * @description Who needs MANUAL follow-up for this year's current campaign (#359).
+         *
+         *     The alumni who received all three of this cycle's emails and never replied —
+         *     #151's third step. `SurveyScheduleItem.non_responders` is the same set as a
+         *     count; this is the call sheet behind it, so "N never responded" is something
+         *     staff can act on rather than just read.
+         *
+         *     Read-only, and gated like the rest of the console (full access) because it
+         *     returns alumni contact details. Empty list = nobody left to chase; 404 = the
+         *     year has no campaign at all. Cycle-scoped: a previous campaign's
+         *     non-responders are not in here.
+         */
+        get: operations["list_survey_non_responders_survey_schedules__grad_year__non_responders_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3548,6 +3730,10 @@ export interface components {
             city: string[] | null;
             /** State */
             state: string[] | null;
+            /** Near */
+            near: string | null;
+            /** Radius */
+            radius: number | null;
             /** Tag */
             tag: string[] | null;
             /** Status Label */
@@ -3575,6 +3761,10 @@ export interface components {
              * @default false
              */
             attended_event: boolean;
+            /** Spoke After */
+            spoke_after: string | null;
+            /** Spoke Before */
+            spoke_before: string | null;
             /**
              * Donor
              * @default false
@@ -3605,6 +3795,13 @@ export interface components {
              * @default false
              */
             cpa: boolean;
+            /** Designations */
+            designations: string[] | null;
+            /**
+             * Graduate Degree
+             * @default false
+             */
+            graduate_degree: boolean;
             /**
              * Missing Email
              * @default false
@@ -3615,6 +3812,11 @@ export interface components {
              * @default false
              */
             missing_employer: boolean;
+            /**
+             * Missing Phone
+             * @default false
+             */
+            missing_phone: boolean;
             /**
              * Duplicate
              * @default false
@@ -5653,6 +5855,21 @@ export interface components {
             /** Targets */
             targets: components["schemas"]["HeadshotBulkUploadTarget"][];
         };
+        /**
+         * HeadshotUrls
+         * @description Signed headshot URLs for a batch of alumni, keyed by ``alumni_id``.
+         *
+         *     Every requested id is present in ``urls``; the value is ``None`` when the
+         *     alumnus has no net ID (the object key) or no image on file. Batching exists
+         *     so a roster page costs ONE request instead of one per row — see
+         *     ``GET /alumni/headshots/urls``.
+         */
+        HeadshotUrls: {
+            /** Urls */
+            urls: {
+                [key: string]: string | null;
+            };
+        };
         /** HealthResponse */
         HealthResponse: {
             /** Status */
@@ -5956,6 +6173,64 @@ export interface components {
             reason: string;
             /** Retry After Seconds */
             retry_after_seconds: number | null;
+        };
+        /**
+         * MaintenanceEnableRequest
+         * @description Optional override for the public maintenance message.
+         *
+         *     Bounded because the value is rendered to the public. Omit (or send null) to
+         *     use the default copy.
+         */
+        MaintenanceEnableRequest: {
+            /** Message */
+            message?: string | null;
+        };
+        /**
+         * MaintenanceEnableResult
+         * @description State after enabling, plus how many sessions the switch ended.
+         */
+        MaintenanceEnableResult: {
+            /** Enabled */
+            enabled: boolean;
+            /** Message */
+            message: string | null;
+            /** Enabled At */
+            enabled_at: string | null;
+            /** Enabled By Email */
+            enabled_by_email: string | null;
+            /**
+             * Sessions Ended
+             * @default 0
+             */
+            sessions_ended: number;
+        };
+        /**
+         * MaintenanceState
+         * @description Engineer-console view: the public status plus operational detail.
+         */
+        MaintenanceState: {
+            /** Enabled */
+            enabled: boolean;
+            /** Message */
+            message: string | null;
+            /** Enabled At */
+            enabled_at: string | null;
+            /** Enabled By Email */
+            enabled_by_email: string | null;
+        };
+        /**
+         * MaintenanceStatus
+         * @description PUBLIC status — the only thing an unauthenticated caller may learn.
+         *
+         *     ``enabled`` plus the engineer-authored public ``message``. NEVER add the
+         *     actor, the timestamps, version/build info, or any other internal detail:
+         *     this endpoint is reachable by anyone on the internet.
+         */
+        MaintenanceStatus: {
+            /** Enabled */
+            enabled: boolean;
+            /** Message */
+            message: string | null;
         };
         /**
          * NoteCreate
@@ -6461,6 +6736,25 @@ export interface components {
             start_date: string;
         };
         /**
+         * SurveyNonResponder
+         * @description One alum who needs manual follow-up (#359): they received every email of
+         *     their year's current campaign and never replied.
+         *
+         *     Enough to act on — a name and an address — and nothing more. The count alone
+         *     (``SurveyScheduleItem.non_responders``) tells staff there is work; this tells
+         *     them who to call.
+         */
+        SurveyNonResponder: {
+            /** Alumni Id */
+            alumni_id: number;
+            /** Name */
+            name: string;
+            /** Email */
+            email: string | null;
+            /** Last Sent At */
+            last_sent_at: string | null;
+        };
+        /**
          * SurveyRead
          * @description One row of the profile's Surveys tab.
          *
@@ -6603,6 +6897,11 @@ export interface components {
              * @default 0
              */
             sent_reminder_2: number;
+            /**
+             * Non Responders
+             * @default 0
+             */
+            non_responders: number;
         };
         /**
          * SurveySchedulePauseAllResult
@@ -6635,6 +6934,8 @@ export interface components {
             remaining: number;
             /** Retry After Seconds */
             retry_after_seconds: number | null;
+            /** Non Responders */
+            non_responders: number | null;
         };
         /**
          * SurveyScheduleRunSummary
@@ -6643,6 +6944,11 @@ export interface components {
         SurveyScheduleRunSummary: {
             /** Ran */
             ran: components["schemas"]["SurveyScheduleRunItem"][];
+            /**
+             * Skipped Locked
+             * @default false
+             */
+            skipped_locked: boolean;
         };
         /**
          * SurveySendConfigItem
@@ -6745,9 +7051,10 @@ export interface components {
         /**
          * SurveyUsage
          * @description Real Resend send usage for the console's daily/monthly tallies — emails
-         *     actually sent today and this calendar month (summed from the `send_survey`
-         *     audit rows). UTC day/month boundaries, matching the rest of the app's date
-         *     filtering.
+         *     actually sent today and this calendar month, counted from `survey_send_log`.
+         *     NOT from the audit trail: an engineer actor's audit row is rerouted to
+         *     `engineer_action_log`, which left the meter reading zero. UTC day/month
+         *     boundaries, matching the rest of the app's date filtering.
          */
         SurveyUsage: {
             /** Sent Today */
@@ -7057,6 +7364,99 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    maintenance_status_maintenance_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaintenanceStatus"];
+                };
+            };
+        };
+    };
+    get_maintenance_state_maintenance_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaintenanceState"];
+                };
+            };
+        };
+    };
+    enable_maintenance_maintenance_enable_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["MaintenanceEnableRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaintenanceEnableResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    disable_maintenance_maintenance_disable_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaintenanceState"];
                 };
             };
         };
@@ -7564,6 +7964,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_headshot_urls_alumni_headshots_urls_get: {
+        parameters: {
+            query: {
+                alumni_ids: number[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HeadshotUrls"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -11750,6 +12181,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SurveyScheduleItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_survey_non_responders_survey_schedules__grad_year__non_responders_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grad_year: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyNonResponder"][];
                 };
             };
             /** @description Validation Error */
