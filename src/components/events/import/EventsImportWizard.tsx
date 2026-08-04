@@ -180,19 +180,6 @@ export function EventsImportWizard() {
                   unmatched ones are reported and skipped. Start from the template
                   so the columns line up.
                 </p>
-                {/* This screen requires a file. Creating one event needs no
-                    attendee list at all — point there rather than let someone
-                    stall here without a roster (#611). */}
-                <p className="mt-2 text-sm text-gray-500">
-                  No attendee list yet?{" "}
-                  <Link
-                    href="/events/new"
-                    className="font-medium text-brand-blue-600 hover:underline"
-                  >
-                    Create the event on its own
-                  </Link>{" "}
-                  and upload its attendees later.
-                </p>
               </div>
               <div className="shrink-0 text-right">
                 <Button
