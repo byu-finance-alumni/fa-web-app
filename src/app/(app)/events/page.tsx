@@ -126,11 +126,17 @@ export default async function EventsPage({
           />
         )}
 
-        {/* Mobile FAB — Add event. Desktop keeps its inline toolbar button. */}
+        {/* Mobile FAB — Add event (the plain create form; an event needs no
+            attendee list to exist, #611) with the bulk CSV import beneath it as
+            the clearly separate, secondary action. Desktop keeps the equivalent
+            pair of inline toolbar buttons. */}
         {canManageEvents ? (
           <Fab label="Add event">
             <Button asChild>
-              <Link href="/events/import">Add event</Link>
+              <Link href="/events/new">Add event</Link>
+            </Button>
+            <Button asChild variant="secondary">
+              <Link href="/events/import">Import events from CSV</Link>
             </Button>
           </Fab>
         ) : null}

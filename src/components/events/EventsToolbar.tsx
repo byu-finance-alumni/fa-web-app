@@ -125,11 +125,23 @@ export function EventsToolbar({
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white p-3 shadow-card">
-      {/* Add event — desktop toolbar only (mobile: in the menu). */}
+      {/* Add event — desktop toolbar only (mobile: in the FAB). Points at the
+          plain create form: creating ONE event is the common case and it needs
+          no attendee list (#611). Bulk CSV import sits beside it as the
+          clearly-labelled secondary action, never the default. */}
       {canManageEvents ? (
-        <Button asChild className="hidden shrink-0 md:inline-flex">
-          <Link href="/events/import">Add event</Link>
-        </Button>
+        <>
+          <Button asChild className="hidden shrink-0 md:inline-flex">
+            <Link href="/events/new">Add event</Link>
+          </Button>
+          <Button
+            asChild
+            variant="secondary"
+            className="hidden shrink-0 md:inline-flex"
+          >
+            <Link href="/events/import">Import events from CSV</Link>
+          </Button>
+        </>
       ) : null}
 
       <div className="flex h-9 min-w-[160px] flex-1 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 focus-within:border-brand-blue-600 focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1 md:min-w-[220px]">

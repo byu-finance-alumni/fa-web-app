@@ -11,6 +11,8 @@ import {
   ApiError,
 } from "@/lib/api";
 import type {
+  EventAttendeeImportPreview,
+  EventAttendeeImportResult,
   EventImportPreview,
   EventImportResult,
 } from "@/types/events-import";
@@ -247,6 +249,81 @@ export async function commitEventsImport(
     const data = await apiPostForm<EventImportResult>("/events/import", fd);
     revalidatePath("/events");
     revalidateTag("events");
+    return { ok: true, data };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Import failed — try again.",
+    };
+  }
+}
+
+/* ------------------- Attendee CSV onto an EXISTING event (#611) ----------- */
+
+export type EventAttendeeImportPreviewState =
+  | { ok: true; data: EventAttendeeImportPreview }
+  | { ok: false; error: string };
+
+export type EventAttendeeImportResultState =
+  | { ok: true; data: EventAttendeeImportResult }
+  | { ok: false; error: string };
+
+/**
+ * Pull just the `file` out of the submitted FormData. Unlike the create-an-event
+ * wizard there are no event identity fields to forward — the event already
+ * exists and is addressed by its id in the URL.
+ */
+function attendeeImportFormData(formData: FormData): FormData | null {
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return null;
+  const fd = new FormData();
+  fd.append("file", file, file.name);
+  return fd;
+}
+
+/**
+ * Dry-run an attendee CSV against an EXISTING event
+ * (POST /events/{id}/attendees/import/preview, full_access). No writes.
+ */
+export async function previewEventAttendeeImport(
+  eventId: number,
+  formData: FormData,
+): Promise<EventAttendeeImportPreviewState> {
+  const fd = attendeeImportFormData(formData);
+  if (!fd) return { ok: false, error: "Choose a .csv file to check." };
+  try {
+    const data = await apiPostForm<EventAttendeeImportPreview>(
+      `/events/${eventId}/attendees/import/preview`,
+      fd,
+    );
+    return { ok: true, data };
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof ApiError ? e.message : "Couldn't read the file — try again.",
+    };
+  }
+}
+
+/**
+ * Commit the attendee CSV onto the EXISTING event
+ * (POST /events/{id}/attendees/import, full_access). ADDS to the event — it
+ * never creates a second event or replaces this one; anyone already on the
+ * roster is skipped server-side, so re-running the same file is safe.
+ */
+export async function commitEventAttendeeImport(
+  eventId: number,
+  formData: FormData,
+): Promise<EventAttendeeImportResultState> {
+  const fd = attendeeImportFormData(formData);
+  if (!fd) return { ok: false, error: "Choose a .csv file to import." };
+  try {
+    const data = await apiPostForm<EventAttendeeImportResult>(
+      `/events/${eventId}/attendees/import`,
+      fd,
+    );
+    revalidatePath("/events");
     return { ok: true, data };
   } catch (e) {
     return {
