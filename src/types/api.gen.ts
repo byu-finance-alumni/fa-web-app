@@ -4336,6 +4336,8 @@ export interface components {
             columns_ok: boolean;
             /** Header Errors */
             header_errors: string[];
+            /** Ignored Columns */
+            ignored_columns?: string[];
             summary: components["schemas"]["AlumniUpdateSummary"];
             /** Rows */
             rows: components["schemas"]["AlumniUpdateRowReport"][];

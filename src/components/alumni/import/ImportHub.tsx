@@ -5,9 +5,15 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { ImportWizard } from "@/components/alumni/import/ImportWizard";
 import { PhotoImportWizard } from "@/components/alumni/import/PhotoImportWizard";
+import { UpdateImportWizard } from "@/components/alumni/import/UpdateImportWizard";
 import { DonationsImportWizard } from "@/components/donations/DonationsImportWizard";
 
-type ImportType = "alumni" | "friends" | "photos" | "pay-it-forward";
+type ImportType =
+  | "alumni"
+  | "alumni-update"
+  | "friends"
+  | "photos"
+  | "pay-it-forward";
 
 type Option = {
   value: ImportType;
@@ -19,7 +25,16 @@ const ALL_OPTIONS: Option[] = [
   {
     value: "alumni",
     label: "CSV — Alumni",
-    description: "Bulk-add or update alumni from a spreadsheet.",
+    description: "Bulk-add alumni from a spreadsheet.",
+  },
+  {
+    // Same wizard as Manage → Update (#610). It lives on its own page too, but
+    // someone who came here to import a spreadsheet shouldn't have to know that
+    // — the two ways of getting a CSV into the database belong side by side.
+    value: "alumni-update",
+    label: "CSV — Update existing alumni",
+    description:
+      "Update profiles that already exist, matched by Net ID. Every change is shown for review before anything is applied.",
   },
   {
     value: "friends",
@@ -46,9 +61,10 @@ const ALL_OPTIONS: Option[] = [
  * CSV import behavior — it's simply reached by picking "CSV — Alumni".
  *
  * The option list is filtered by role so a user never picks an import the
- * backend would 403: CSV/Friends/Photos need full_access+; Pay It Forward
- * (donations) needs super_admin, matching the donations import gate. The backend
- * re-enforces every one of these on each request.
+ * backend would 403: CSV Alumni / CSV Update / Friends / Photos need
+ * full_access+; Pay It Forward (donations) needs super_admin, matching the
+ * donations import gate. The backend re-enforces every one of these on each
+ * request.
  */
 export function ImportHub({
   canFullAccess,
@@ -92,6 +108,7 @@ export function ImportHub({
       </div>
 
       {selected === "alumni" && <ImportWizard kind="alumni" />}
+      {selected === "alumni-update" && <UpdateImportWizard />}
       {selected === "friends" && <ImportWizard kind="friend" />}
       {selected === "photos" && <PhotoImportWizard />}
       {selected === "pay-it-forward" && <DonationsImportWizard />}
