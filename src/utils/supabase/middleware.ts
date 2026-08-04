@@ -5,8 +5,12 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 // Routes reachable without a session. Everything else requires auth.
-// `/` is the public landing/marketing page; `/login` is the sign-in screen.
-const PUBLIC_PATHS = ["/", "/login"];
+// `/` is the public landing/marketing page; `/login` is the sign-in screen;
+// `/maintenance` is the site-down page — it MUST be public, since maintenance
+// mode signs everyone out and the whole point is that a logged-out visitor can
+// see why. `/login` staying public is equally load-bearing: engineers are exempt
+// from the maintenance pause and sign in through it to turn maintenance off.
+const PUBLIC_PATHS = ["/", "/login", "/maintenance"];
 
 // Where authenticated users land (and where `/login` redirects them).
 const APP_HOME = "/dashboard";

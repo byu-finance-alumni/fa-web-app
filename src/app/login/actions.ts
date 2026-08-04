@@ -19,6 +19,13 @@ function safeNext(next: string | null | undefined): string {
 const LOCKOUT_MESSAGE =
   "Too many failed attempts. Please wait a few minutes and try again, or contact an administrator if you remain locked out.";
 
+// Fallback copy if the backend refuses a sign-in for maintenance without a
+// usable message. Like LOCKOUT_MESSAGE it is a single fixed string shown to
+// every account identically, so it is not an enumeration signal — and it is only
+// ever reached AFTER the password has already been verified.
+const MAINTENANCE_MESSAGE =
+  "The site is temporarily unavailable for maintenance. Please try again later.";
+
 /**
  * Ask the backend whether this email is currently allowed to attempt a login.
  * Returns `true` when the attempt may proceed, `false` when it's in cooldown or
@@ -135,8 +142,22 @@ async function recordLoginAttempt(
  * any error is logged and swallowed. Authenticated with the freshly-issued
  * access token (passed in, since the session cookie isn't committed to the
  * cookie store yet at this point in the request).
+ *
+ * THE ONE EXCEPTION to fail-open is maintenance mode. The backend answers this
+ * call with 503 / `maintenance_mode` when the site-wide pause is on and the
+ * caller is not an engineer, and refuses BEFORE claiming their session — so
+ * swallowing it would leave the user holding Supabase cookies for an account the
+ * API will reject on every request. Returning the refusal lets `signIn` undo the
+ * sign-in cleanly. This is also why the check lives here rather than in the
+ * unauthenticated precheck: only an authenticated call knows the caller's role,
+ * and engineers must still be able to sign in.
+ *
+ * Returns the public maintenance message when the sign-in was refused for
+ * maintenance, and `null` in every other case (success OR any error).
  */
-async function recordLoginSuccess(accessToken: string): Promise<void> {
+async function recordLoginSuccess(
+  accessToken: string,
+): Promise<{ maintenanceMessage: string } | null> {
   try {
     // Same client IP + location as the failure path, read from this request's
     // edge headers (see readLoginContext).
@@ -151,10 +172,21 @@ async function recordLoginSuccess(accessToken: string): Promise<void> {
       body: JSON.stringify(context),
       cache: "no-store",
     });
+    if (res.status === 503) {
+      const body = (await res.json().catch(() => null)) as {
+        error?: { code?: string; message?: string };
+      } | null;
+      if (body?.error?.code === "maintenance_mode") {
+        return {
+          maintenanceMessage: body.error.message?.trim() || MAINTENANCE_MESSAGE,
+        };
+      }
+    }
     if (!res.ok) console.error("[login] record-success non-OK:", res.status);
   } catch (e) {
     console.error("[login] record-success error (ignored):", e);
   }
+  return null;
 }
 
 /**
@@ -214,7 +246,16 @@ export async function signIn(
     data: { session },
   } = await supabase.auth.getSession();
   if (session?.access_token) {
-    await recordLoginSuccess(session.access_token);
+    const refused = await recordLoginSuccess(session.access_token);
+    // Maintenance mode is on and this account is not exempt. Undo the sign-in
+    // rather than let them through: `signOut` clears the auth cookies the
+    // server client just wrote onto this response, so they leave with no
+    // half-valid session, and the API would reject every request anyway.
+    // Engineers never reach this branch — the backend exempts them.
+    if (refused) {
+      await supabase.auth.signOut();
+      return { error: refused.maintenanceMessage };
+    }
   }
 
   // Invalidate the router/data cache for everything under the root layout so
