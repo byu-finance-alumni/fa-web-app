@@ -481,7 +481,10 @@ export default async function DashboardPage() {
             ) : null}
             {canCreate ? (
               <Button asChild variant="secondary">
-                <Link href="/events/import">Add event</Link>
+                {/* The plain create form — an event needs no attendee list to
+                  exist (#611). Bulk CSV import lives on the Events page as its
+                  own clearly-labelled secondary action. */}
+              <Link href="/events/new">Add event</Link>
               </Button>
             ) : null}
             {canCreate ? (

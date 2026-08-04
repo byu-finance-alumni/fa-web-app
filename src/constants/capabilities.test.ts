@@ -82,9 +82,13 @@ describe("event screens gate on capabilities, not roles (#378)", () => {
     expect(src).toContain("hasFullAccess(ctx.roles)");
   });
 
-  it("the toolbar takes an href and holds no permission logic of its own", () => {
+  it("the toolbar takes booleans and holds no permission logic of its own", () => {
+    // Two independent flags rather than one href: #611 split the toolbar into a
+    // primary "Add event" (the create form) and a secondary CSV import, and
+    // each is gated on its own capability, so one destination can't express it.
     const src = read("src/components/events/EventsToolbar.tsx");
-    expect(src).toContain("addEventHref");
+    expect(src).toContain("canCreate");
+    expect(src).toContain("canImport");
     expect(src).not.toContain("hasFullAccess");
     expect(src).not.toContain("canManageEvents");
   });
