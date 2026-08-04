@@ -67,9 +67,14 @@ export default async function EditEventPage({
       />
       <main className="flex-1 overflow-auto p-6">
         <div className="w-full space-y-6">
+          {/* Landing hint after a create (#611). The event exists with nobody on
+              it — which is fine and expected — so the banner names BOTH ways to
+              fill the roster and makes clear neither is due now. */}
           {created ? (
             <p className="rounded-lg border border-brand-blue-300 bg-brand-blue-50 px-4 py-3 text-sm text-navy-800">
-              Event created. Add attendees below.
+              Event created with no attendees. Add them below whenever you like —
+              one at a time, or by uploading a list. Nothing else is needed to
+              keep this event.
             </p>
           ) : null}
           {/* Full-width two-column layout: event details on the left, the

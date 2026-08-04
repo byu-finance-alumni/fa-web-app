@@ -61,9 +61,19 @@ describe("capability predicates", () => {
 describe("event screens gate on capabilities, not roles (#378)", () => {
   it("the add-event form reads events.create", () => {
     const src = read("src/app/(app)/events/new/page.tsx");
-    expect(src).toContain("canCreateEvents");
-    expect(src).toContain("ctx.capabilities");
-    expect(src).not.toContain("hasFullAccess(");
+    expect(src).toContain("canCreateEvents(ctx.capabilities)");
+    // The gate that decides whether the form renders at all must be the
+    // capability. A role check here is the regression: it bounces someone an
+    // engineer has granted events.create.
+    expect(src).not.toMatch(/canCreate\s*=\s*hasFullAccess/);
+    expect(src).not.toContain("hasFullAccess(ctx.roles) && ");
+    // The page may still ask about the alumni.full tier for a DIFFERENT
+    // question — whether to offer "take me to the attendee upload next", which
+    // the backend guards with require_full_access (#611). That never gates
+    // creating the event.
+    if (src.includes("hasFullAccess(")) {
+      expect(src).toContain("canUploadAttendees = hasFullAccess(ctx.roles)");
+    }
   });
 
   it("the bulk-upload wizard page reads events.import", () => {
@@ -73,7 +83,7 @@ describe("event screens gate on capabilities, not roles (#378)", () => {
     expect(src).not.toContain("hasFullAccess(");
   });
 
-  it("the events list resolves the Add-event target from both capabilities", () => {
+  it("the events list gates each Add-event action on its own capability", () => {
     const src = read("src/app/(app)/events/page.tsx");
     expect(src).toContain("canCreateEvents(ctx.capabilities)");
     expect(src).toContain("canImportEvents(ctx.capabilities)");
@@ -82,9 +92,12 @@ describe("event screens gate on capabilities, not roles (#378)", () => {
     expect(src).toContain("hasFullAccess(ctx.roles)");
   });
 
-  it("the toolbar takes an href and holds no permission logic of its own", () => {
+  it("the toolbar takes hrefs and holds no permission logic of its own", () => {
     const src = read("src/components/events/EventsToolbar.tsx");
-    expect(src).toContain("addEventHref");
+    // Two separate destinations (#611): one prop let the CSV importer win the
+    // "Add event" label whenever the viewer happened to hold events.import.
+    expect(src).toContain("createHref");
+    expect(src).toContain("importHref");
     expect(src).not.toContain("hasFullAccess");
     expect(src).not.toContain("canManageEvents");
   });

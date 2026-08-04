@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Fab } from "@/components/shared/Fab";
 import { QuickLogButton } from "@/components/dashboard/QuickLogButton";
 import { hasFullAccess, canAddInteraction } from "@/constants/roles";
+import { canCreateEvents, canImportEvents } from "@/constants/capabilities";
 import { DATA_VIZ_PALETTE, CHART_MUTED_COLOR } from "@/constants/chart";
 import type { UserContext } from "@/types/alumni";
 import type { FilterOptions } from "@/types/filters";
@@ -303,6 +304,11 @@ export default async function DashboardPage() {
   const dashRoles = ctx?.roles ?? null;
   const canCreate = hasFullAccess(dashRoles);
   const canLogInteraction = canAddInteraction(dashRoles);
+  // Event actions read the editable CAPABILITIES, not the role (fa-web-api
+  // #378) — an engineer can grant either one to a narrower role, and a role
+  // check here would hide a button the backend would happily honor.
+  const canCreateEvent = canCreateEvents(ctx?.capabilities);
+  const canImportEvent = canImportEvents(ctx?.capabilities);
 
   // Industry breakdown (#351/#352/#353, listed per #375): the backend returns
   // EVERY canonical finance industry (incl. zero-count) plus separate "Other"
@@ -471,7 +477,8 @@ export default async function DashboardPage() {
 
         {/* Home quick-add FAB (mobile). Log interaction / Add note open an
             alumnus search first, then land on that profile's form. */}
-        {!notProvisioned && (canCreate || canLogInteraction) ? (
+        {!notProvisioned &&
+        (canCreate || canLogInteraction || canCreateEvent || canImportEvent) ? (
           <Fab label="Quick add">
             {canLogInteraction ? (
               <QuickLogButton kind="interaction" label="Log interaction" />
@@ -479,9 +486,17 @@ export default async function DashboardPage() {
             {canCreate ? (
               <QuickLogButton kind="note" label="Add note" />
             ) : null}
-            {canCreate ? (
+            {/* The plain create form — an event needs no attendee list to exist
+                (#611). Bulk CSV import is its own entry below, never the thing
+                labelled "Add event". */}
+            {canCreateEvent ? (
               <Button asChild variant="secondary">
-                <Link href="/events/import">Add event</Link>
+                <Link href="/events/new">Add event</Link>
+              </Button>
+            ) : null}
+            {canImportEvent ? (
+              <Button asChild variant="secondary">
+                <Link href="/events/import">Import events from CSV</Link>
               </Button>
             ) : null}
             {canCreate ? (
