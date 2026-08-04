@@ -26,6 +26,7 @@
  * call from it and `@/lib/exportFilters` derives the export body from it, so the
  * list and its CSV export cannot resolve to different populations.
  */
+import { EMPLOYMENT_STATUS_OPTIONS } from "@/constants/dropdowns";
 import type { FilterOptions } from "@/types/filters";
 
 /** Everything the backend GET /alumni supports, mirrored in the URL. */
@@ -167,6 +168,47 @@ export const FACETS: {
   { key: "leadership", label: "Leadership role", param: "leadership_role", optKey: "leadership_roles" },
   { key: "surveyStatus", label: "Survey status", param: "survey_status", optKey: "survey_statuses" },
 ];
+
+/**
+ * Facets whose dropdown is a FIXED vocabulary rather than the data-derived list
+ * `GET /alumni/filter-options` returns.
+ *
+ * Employment status (Jake, 2026-08-03): `/alumni/filter-options` builds
+ * `employment_statuses` from the values alumni actually hold, so Military /
+ * Part-time / Unemployed simply weren't offered until someone answered a survey
+ * that way — the filter read as broken. It now shows the same seven options the
+ * survey and the profile edit form show, from the one constant they all share
+ * (`EMPLOYMENT_STATUS_OPTIONS`). Accepted tradeoff: an option nobody holds yet
+ * returns zero rows. That is the whole point — hand-retyping the list here would
+ * recreate the second source of truth #568 removed.
+ *
+ * A value already ON FILE but off this list (the intake sheet's "Employed",
+ * "Unknown", …) is NOT lost: `MultiSelect` prepends any selected-but-unlisted
+ * value, so a deep link filtering on one still renders it checked.
+ *
+ * Keyed by `FilterOptions` key so `facetOptions` can resolve either facet table
+ * (this module's, for the list slide-over; DashboardSearch's, for the dashboard
+ * Advanced search) — the two must never diverge on what a facet offers.
+ */
+export const FIXED_FACET_OPTIONS: Partial<
+  Record<keyof FilterOptions, readonly string[]>
+> = {
+  employment_statuses: EMPLOYMENT_STATUS_OPTIONS,
+};
+
+/**
+ * The options a facet's multi-select should show: the fixed vocabulary when the
+ * facet has one, otherwise the data-derived list from `/alumni/filter-options`.
+ * Every facet dropdown in the app goes through here.
+ */
+export function facetOptions(
+  optKey: keyof FilterOptions,
+  options: FilterOptions | undefined | null,
+): string[] {
+  const fixed = FIXED_FACET_OPTIONS[optKey];
+  if (fixed) return [...fixed];
+  return (options?.[optKey] as string[] | undefined) ?? [];
+}
 
 /**
  * Boolean flags: state key → URL param → API param. Serialized into the URL as

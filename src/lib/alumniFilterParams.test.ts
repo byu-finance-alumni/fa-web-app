@@ -7,9 +7,11 @@ import {
   EMPTY_FILTERS,
   EMPTY_PASS_THROUGH,
   FACETS,
+  FIXED_FACET_OPTIONS,
   PASS_THROUGH_PARAMS,
   countActiveFilters,
   hasPassThroughFilters,
+  facetOptions,
   parseAlumniFilters,
   parsePassThroughFilters,
   toAlumniFilterQs,
@@ -24,6 +26,8 @@ import {
   toExportFilters,
 } from "./exportFilters";
 import type { AlumniExportFilters } from "@/types/export";
+import { EMPLOYMENT_STATUS_OPTIONS } from "@/constants/dropdowns";
+import type { FilterOptions } from "@/types/filters";
 
 /**
  * The alumni list's filter round trip — and, since #592, the population it
@@ -352,6 +356,108 @@ describe("the panel can re-apply what it now preserves", () => {
     expect(engagement.slice(0, engagement.indexOf("</div>"))).not.toMatch(
       /lucide|<[A-Z]\w+ className="h-\d/,
     );
+  });
+});
+
+/* ------------------------------------ employment status = a FIXED list (#593) -- */
+
+describe("the Employment status facet offers a fixed list, not the data", () => {
+  /**
+   * Jake, 2026-08-03. `/alumni/filter-options` derives `employment_statuses`
+   * from the values alumni already hold, so Military / Part-time / Unemployed
+   * were absent from the dropdown until somebody answered a survey that way and
+   * the filter looked broken. It now shows the same seven the survey and the
+   * profile edit form show — the SHARED constant, so there is exactly one list.
+   */
+
+  /** A `/alumni/filter-options` payload with a deliberately thin, data-derived
+   *  employment list — what prod actually returned. */
+  const SERVED: FilterOptions = {
+    employers: ["Goldman Sachs"],
+    past_employers: [],
+    titles: [],
+    seniority_levels: [],
+    industries: ["Investment Banking"],
+    secondary_industries: [],
+    employment_statuses: ["Full-time", "Employed"],
+    cities: ["Provo"],
+    states: ["Utah"],
+    tags: ["Mentor"],
+    status_labels: ["Retired"],
+    leadership_roles: [],
+    survey_statuses: ["Sent"],
+    graduation_years: [2015],
+    graduation_classes: [2015],
+  };
+
+  it("shows all seven canonical options even when the data holds two", () => {
+    expect(facetOptions("employment_statuses", SERVED)).toEqual([
+      ...EMPLOYMENT_STATUS_OPTIONS,
+    ]);
+  });
+
+  it("reuses the shared constant rather than a second hand-typed copy", () => {
+    // Identity against the constant the survey + edit forms read. A retyped
+    // literal here is the drift this change exists to prevent, so assert on the
+    // source too: the module must IMPORT the list.
+    expect(FIXED_FACET_OPTIONS.employment_statuses).toBe(
+      EMPLOYMENT_STATUS_OPTIONS,
+    );
+    expect(read("src/lib/alumniFilterParams.ts")).toContain(
+      'from "@/constants/dropdowns"',
+    );
+  });
+
+  it("leaves every other facet data-derived — Status Label especially", () => {
+    // Status Label is a survey-suppression flag (fa-web-api#354), deliberately
+    // separate from employment status; nothing about it changed here.
+    for (const facet of FACETS) {
+      if (facet.optKey === "employment_statuses") continue;
+      expect(
+        facetOptions(facet.optKey, SERVED),
+        `${facet.param} should still come from /alumni/filter-options`,
+      ).toEqual(SERVED[facet.optKey]);
+    }
+    expect(Object.keys(FIXED_FACET_OPTIONS)).toEqual(["employment_statuses"]);
+  });
+
+  it("falls back to an empty list when options are missing entirely", () => {
+    expect(facetOptions("titles", null)).toEqual([]);
+    // …but the fixed facet is fixed regardless of whether the fetch resolved.
+    expect(facetOptions("employment_statuses", null)).toEqual([
+      ...EMPLOYMENT_STATUS_OPTIONS,
+    ]);
+  });
+
+  it("hands the panel a copy, so a facet can't mutate the constant", () => {
+    const a = facetOptions("employment_statuses", SERVED);
+    a.push("Tampered");
+    expect(EMPLOYMENT_STATUS_OPTIONS).not.toContain("Tampered");
+  });
+
+  it("routes BOTH panels' dropdowns through the same resolver", () => {
+    // The dashboard's Advanced search and the list's slide-over render the same
+    // facet; reading `options[optKey]` directly in either would let them diverge.
+    for (const p of [
+      "src/components/alumni/AlumniFilters.tsx",
+      "src/components/dashboard/DashboardSearch.tsx",
+    ]) {
+      const src = read(p);
+      expect(src, `${p} should use facetOptions`).toContain(
+        "facetOptions(facet.optKey, options)",
+      );
+      expect(src, `${p} still reads the raw option list`).not.toMatch(
+        /options\[facet\.optKey\]/,
+      );
+    }
+  });
+
+  it("does not change what the filter emits, so list and export still agree", () => {
+    // Only the OPTIONS changed. The param, its serialization and the export
+    // mapping are untouched — export/list parity depends on that.
+    const f = { ...EMPTY_FILTERS, employmentStatus: ["Military"] };
+    expect(toAlumniFilterQs(f)).toBe("employment_status=Military");
+    expect(toExportFilters(f).employment_status).toEqual(["Military"]);
   });
 });
 

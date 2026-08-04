@@ -14,6 +14,7 @@ import {
   FACETS,
   countActiveFilters,
   hasPassThroughFilters,
+  facetOptions,
   toAlumniFilterQs as toQs,
   type AlumniFilterState,
   type PassThroughFilters,
@@ -527,11 +528,16 @@ export function AlumniFilters({
             </div>
 
             <div className="flex-1 space-y-4 overflow-auto px-5 py-4">
+              {/* `facetOptions` resolves each facet's list: the data-derived
+                  one from /alumni/filter-options, EXCEPT where the facet has a
+                  fixed vocabulary (Employment status — see FIXED_FACET_OPTIONS).
+                  Shared with the dashboard's Advanced search so the two panels
+                  can't offer different options for the same facet. */}
               {FACETS.map((facet) => (
                 <MultiSelect
                   key={facet.key as string}
                   label={facet.label}
-                  options={options[facet.optKey] as string[]}
+                  options={facetOptions(facet.optKey, options)}
                   selected={f[facet.key] as string[]}
                   onChange={(next) => set(facet.key, next as never)}
                 />
