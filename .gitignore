@@ -60,3 +60,9 @@ next-env.d.ts
 /.board-seed*
 *.scratch
 *DO_NOT_MERGE*
+
+# Agent git worktrees — never committed (fa-web-api ignores these too).
+# Without this, a `git add -A` from inside the repo picks up another agent's
+# worktree as an embedded repo.
+.worktrees/
+.claude/worktrees/
