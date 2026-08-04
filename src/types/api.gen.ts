@@ -2276,58 +2276,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/events/{event_id}/attendees/import/preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Preview Event Attendee Import
-         * @description Dry-run an attendee CSV against an EXISTING event (full_access, NO writes).
-         *
-         *     Same file shape as ``POST /events/import`` (one template serves both), but
-         *     the event already exists — so nothing about the event's identity is read
-         *     from the request and the event is never touched. Reports each row as
-         *     matched-new, already-attending (skipped), or unmatched (skipped). 404 if the
-         *     event is unknown; a bad header set surfaces as ``columns_ok: false``.
-         */
-        post: operations["preview_event_attendee_import_events__event_id__attendees_import_preview_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/events/{event_id}/attendees/import": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Import Event Attendees
-         * @description Add an attendee CSV's roster to an EXISTING event (full_access).
-         *
-         *     ADDS to the event — it never creates, replaces, or edits the event itself.
-         *     Attendees already on the roster are skipped rather than 409ing, so re-running
-         *     the same file is safe; unmatched Net IDs are reported and skipped. Each added
-         *     attendee is audited as ``event``/``add_attendee``, identical to the manual
-         *     single-attendee route. 404 if the event is unknown.
-         */
-        post: operations["import_event_attendees_events__event_id__attendees_import_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/events/{event_id}/attendees/{alumni_id}": {
         parameters: {
             query?: never;
@@ -5054,11 +5002,6 @@ export interface components {
             /** File */
             file: string;
         };
-        /** Body_import_event_attendees_events__event_id__attendees_import_post */
-        Body_import_event_attendees_events__event_id__attendees_import_post: {
-            /** File */
-            file: string;
-        };
         /** Body_import_events_commit_events_import_post */
         Body_import_events_commit_events_import_post: {
             /** File */
@@ -5076,11 +5019,6 @@ export interface components {
         };
         /** Body_preview_attendee_match_events__event_id__attendees_match_preview_post */
         Body_preview_attendee_match_events__event_id__attendees_match_preview_post: {
-            /** File */
-            file: string;
-        };
-        /** Body_preview_event_attendee_import_events__event_id__attendees_import_preview_post */
-        Body_preview_event_attendee_import_events__event_id__attendees_import_preview_post: {
             /** File */
             file: string;
         };
@@ -5953,90 +5891,6 @@ export interface components {
             event_location: string | null;
             /** Attendance Status */
             attendance_status: string | null;
-        };
-        /**
-         * EventAttendeeImportEvent
-         * @description Which event the roster is being added to (echoed back for confirmation).
-         */
-        EventAttendeeImportEvent: {
-            /** Event Id */
-            event_id: number;
-            /** Event Name */
-            event_name: string | null;
-            /** Event Date */
-            event_date: string | null;
-        };
-        /**
-         * EventAttendeeImportPreview
-         * @description ``POST /events/{event_id}/attendees/import/preview`` dry-run report.
-         */
-        EventAttendeeImportPreview: {
-            /** Columns Ok */
-            columns_ok: boolean;
-            /** Header Errors */
-            header_errors: string[];
-            event: components["schemas"]["EventAttendeeImportEvent"];
-            /** Importable */
-            importable: boolean;
-            summary: components["schemas"]["EventAttendeeImportSummary"];
-            /** Attendees */
-            attendees: components["schemas"]["EventAttendeeImportRow"][];
-            /** Warnings */
-            warnings: {
-                [key: string]: unknown;
-            }[];
-        };
-        /**
-         * EventAttendeeImportResult
-         * @description ``POST /events/{event_id}/attendees/import`` commit result. The event is
-         *     never created or modified — only attendance rows are added.
-         */
-        EventAttendeeImportResult: {
-            /** Imported */
-            imported: boolean;
-            /** Event Id */
-            event_id: number;
-            /** Added */
-            added: number;
-            /** Skipped Existing */
-            skipped_existing: number;
-            /** Unmatched */
-            unmatched: components["schemas"]["EventImportUnmatched"][];
-            /** Error */
-            error: string | null;
-        };
-        /** EventAttendeeImportRow */
-        EventAttendeeImportRow: {
-            /** Row */
-            row: number;
-            /** Net Id */
-            net_id: string | null;
-            /** Name */
-            name: string | null;
-            /** Notes */
-            notes: string | null;
-            /** Matched */
-            matched: boolean;
-            /** Alumni Id */
-            alumni_id: number | null;
-            /**
-             * Already Attending
-             * @default false
-             */
-            already_attending: boolean;
-        };
-        /** EventAttendeeImportSummary */
-        EventAttendeeImportSummary: {
-            /** Total Rows */
-            total_rows: number;
-            /** Attendees Matched */
-            attendees_matched: number;
-            /** Attendees Unmatched */
-            attendees_unmatched: number;
-            /** Attendees Existing */
-            attendees_existing: number;
-            /** Attendees New */
-            attendees_new: number;
         };
         /**
          * EventCreate
@@ -11037,76 +10891,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    preview_event_attendee_import_events__event_id__attendees_import_preview_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                event_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["Body_preview_event_attendee_import_events__event_id__attendees_import_preview_post"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EventAttendeeImportPreview"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    import_event_attendees_events__event_id__attendees_import_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                event_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["Body_import_event_attendees_events__event_id__attendees_import_post"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EventAttendeeImportResult"];
                 };
             };
             /** @description Validation Error */
