@@ -225,7 +225,7 @@ export function PhotoImportWizard() {
             if (!target?.upload_url) {
               done += 1;
               setProgress({ done, total: files.length });
-              return { filename: file.name, uploaded: false };
+              return { filename: file.name, uploaded: false, message: null };
             }
             let outcome: BulkHeadshotConfirmFile;
             try {
@@ -240,7 +240,7 @@ export function PhotoImportWizard() {
                 body: file,
               });
               outcome = put.ok
-                ? { filename: file.name, uploaded: true }
+                ? { filename: file.name, uploaded: true, message: null }
                 : {
                     filename: file.name,
                     uploaded: false,

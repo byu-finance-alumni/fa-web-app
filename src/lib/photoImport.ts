@@ -17,27 +17,14 @@ export type HeadshotBulkItem = components["schemas"]["HeadshotBulkItem"];
 
 /**
  * One file's mint outcome from `POST /alumni/headshots/bulk/upload-urls`.
- *
- * Hand-written because `src/types/api.gen.ts` is generated from the deployed
- * backend's OpenAPI schema and these routes aren't on dev yet — replace with
- * `components["schemas"]["HeadshotBulkUploadTarget"]` after the next regen.
  * `status` is `ready` (upload_url present) | `no_match` | `invalid` | `error`.
  */
-export type BulkHeadshotUploadTarget = {
-  filename: string;
-  net_id: string | null;
-  status: string;
-  message: string;
-  upload_url: string | null;
-};
+export type BulkHeadshotUploadTarget =
+  components["schemas"]["HeadshotBulkUploadTarget"];
 
-/** One file's upload outcome sent to `POST /alumni/headshots/bulk/confirm`.
- *  Mirrors the backend `HeadshotBulkConfirmFile` (see note above). */
-export type BulkHeadshotConfirmFile = {
-  filename: string;
-  uploaded: boolean;
-  message?: string | null;
-};
+/** One file's upload outcome sent to `POST /alumni/headshots/bulk/confirm`. */
+export type BulkHeadshotConfirmFile =
+  components["schemas"]["HeadshotBulkConfirmFile"];
 
 /** Image types the headshots bucket accepts. Content is sniffed server-side. */
 export const IMAGE_EXTS = [".jpg", ".jpeg", ".png", ".webp"];
