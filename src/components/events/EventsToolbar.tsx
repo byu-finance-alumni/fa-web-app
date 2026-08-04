@@ -51,14 +51,22 @@ function toQs(f: EventsFilterState): string {
 export function EventsToolbar({
   initial,
   types,
-  canManageEvents = false,
+  addEventHref = null,
 }: {
   initial: EventsFilterState;
   /** Distinct event-type options for the menu (from GET /events/options). */
   types: string[];
-  /** full_access tier — gates the "Add event" entry point. view_only
-   *  ("Professor") never sees it; the backend re-enforces every write. */
-  canManageEvents?: boolean;
+  /**
+   * Destination for the "Add event" button, or `null` to hide it entirely.
+   *
+   * The caller resolves this from the viewer's CAPABILITIES (fa-web-api #378):
+   * `/events/import` for the bulk-upload wizard (`events.import`),
+   * `/events/new` for the single-event form (`events.create`), `null` for
+   * neither. Passing the href rather than a boolean keeps this component out of
+   * the permission model — it has no opinion on who may add an event, and the
+   * backend re-enforces the gate on submit either way.
+   */
+  addEventHref?: string | null;
 }) {
   const router = useRouter();
   const [f, setF] = useState<EventsFilterState>(initial);
@@ -125,10 +133,10 @@ export function EventsToolbar({
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white p-3 shadow-card">
-      {/* Add event — desktop toolbar only (mobile: in the menu). */}
-      {canManageEvents ? (
+      {/* Add event — desktop toolbar only (mobile: the FAB). */}
+      {addEventHref ? (
         <Button asChild className="hidden shrink-0 md:inline-flex">
-          <Link href="/events/import">Add event</Link>
+          <Link href={addEventHref}>Add event</Link>
         </Button>
       ) : null}
 
