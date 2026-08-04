@@ -106,14 +106,22 @@ export const SECONDARY_INDUSTRY_OPTIONS: readonly string[] = INDUSTRY_OPTIONS;
  *
  * Tanya, 2026-08-01 (#568): this was free text everywhere it was entered, so the
  * column collected one-off spellings ("Employed", "employed full time"). These
- * seven, in this order, are the answers the survey offers and the staff forms
- * pick from.
+ * eight, in this order, are the answers the staff forms and the filter pick from.
+ *
+ * `Unknown` is the eighth (#377) and is pinned last, out of Tanya's order, the
+ * same way it is in `INDUSTRY_OPTIONS`. Jake's 2026-08-04 prod cleanup
+ * consolidated the misspelled `unkown` / `UNKOWN` rows onto the literal
+ * `Unknown`, so ~65 live alumni hold it — it has to be a real, selectable option
+ * or those records fail validation the next time anyone edits them. It is NOT
+ * offered in the survey: see `SURVEY_EMPLOYMENT_STATUS_OPTIONS`.
  *
  * NOT a `vocabulary_terms` category — the column is plain `varchar(50)` and the
  * backend still accepts any string, so a record that already stores something
  * off-list keeps it: every dropdown re-adds the stored value via `withValue()`
  * (staff forms) or `SelectControl`'s preserve-unknown branch (survey). Editing
  * an unrelated field must never silently rewrite what's on file.
+ *
+ * Mirrors `EMPLOYMENT_STATUSES` in fa-web-api/app/core/dropdowns.py.
  */
 export const EMPLOYMENT_STATUS_OPTIONS = [
   "Full-time",
@@ -123,25 +131,44 @@ export const EMPLOYMENT_STATUS_OPTIONS = [
   "Military",
   "Not in the Labor Force",
   "Unemployed",
+  "Unknown",
 ] as const;
 
 export type EmploymentStatus = (typeof EMPLOYMENT_STATUS_OPTIONS)[number];
 
 /**
- * Stored statuses that are a NON-ANSWER rather than a real one (#572).
+ * Statuses that are a recorded NON-ANSWER rather than a real one (#572/#377).
  *
- * Prod holds 41 alumni whose status is `Unknown` / `UNKNOWN` — imported to mean
- * "we asked and we don't know". Jake's call: keep it in the database (it is real
- * information about the record) but never hand it back to an alum as something
- * they can pick, since offering it re-collects the non-answer we're trying to
- * clear. The survey therefore renders it as blank; the STAFF forms still show it
- * via `withValue()`, because staff need to see the record's true state.
+ * `Unknown` / `UNKNOWN` means "we asked and we don't know". Jake's call: keep it
+ * in the database (it is real information about the record) but never hand it
+ * back to an alum as something they can pick, since offering it re-collects the
+ * non-answer we're trying to clear. The survey therefore renders a stored one as
+ * blank; the STAFF forms and the list filter show it like any other option,
+ * because staff need to see and target the record's true state.
  */
 export const EMPLOYMENT_STATUS_PLACEHOLDERS = ["Unknown"] as const;
 
 const EMPLOYMENT_STATUS_PLACEHOLDERS_LOWER = new Set<string>(
   EMPLOYMENT_STATUS_PLACEHOLDERS.map((v) => v.toLowerCase()),
 );
+
+/**
+ * What the SURVEY offers an alum for their OWN employment status: the canonical
+ * list minus the placeholders.
+ *
+ * "Unknown" is meaningless as a self-description — nobody describes themselves
+ * as unknown, and offering it just re-collects the non-answer the survey exists
+ * to clear. So it stays storable, editable, filterable, importable and
+ * exportable everywhere else, and is dropped here and only here (#377).
+ *
+ * DERIVED, never hand-typed: a ninth status must reach the survey without anyone
+ * remembering to update a second list. Mirrors `SURVEY_EMPLOYMENT_STATUSES` in
+ * fa-web-api/app/core/dropdowns.py.
+ */
+export const SURVEY_EMPLOYMENT_STATUS_OPTIONS: readonly string[] =
+  EMPLOYMENT_STATUS_OPTIONS.filter(
+    (v) => !EMPLOYMENT_STATUS_PLACEHOLDERS_LOWER.has(v.toLowerCase()),
+  );
 
 /**
  * True when a stored status is a placeholder, not a real answer. Matched

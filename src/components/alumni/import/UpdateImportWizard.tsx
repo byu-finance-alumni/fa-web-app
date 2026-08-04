@@ -21,6 +21,15 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import {
+  CSV_ACCEPT_ATTR,
+  fieldLabel,
+  formatCell as fmt,
+  ignoredColumns,
+  isCsvFile as isCsv,
+  partitionPreviewRows,
+  previewGate,
+} from "@/lib/updateImport";
 
 type Step = "upload" | "review" | "result";
 
@@ -44,29 +53,22 @@ function downloadCsv(filename: string, text: string) {
   URL.revokeObjectURL(url);
 }
 
-const isCsv = (file: File) =>
-  file.name.toLowerCase().endsWith(".csv") ||
-  file.type === "text/csv" ||
-  file.type === "application/vnd.ms-excel";
-
-/** Pretty-print a before/after cell value for a change diff. */
-function fmt(v: unknown): string {
-  if (v === null || v === undefined || v === "") return "—";
-  if (typeof v === "boolean") return v ? "Yes" : "No";
-  return String(v);
-}
-
-/** snake_case field name → a readable label (e.g. "current_employer" → "Current employer"). */
-function fieldLabel(field: string): string {
-  const spaced = field.replace(/_/g, " ").trim();
-  return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : field;
-}
-
 /**
- * "Update existing (CSV)" wizard (round-trip cohort update). Mirrors
- * {@link ImportWizard}'s upload → preview → confirm → result flow, but calls the
- * mass-UPDATE endpoints: matched by BYU/Net ID, blank cells left unchanged,
- * unmatched rows reported (never created). Text-only controls, no icons.
+ * "Update existing alumni (CSV)" wizard. Mirrors {@link ImportWizard}'s
+ * upload → preview → confirm → result flow, but calls the mass-UPDATE
+ * endpoints: matched by BYU/Net ID, blank cells left unchanged, unmatched rows
+ * reported (never created). Text-only controls, no icons.
+ *
+ * #610 put the arbitrary CSV first. The cohort round-trip (export → edit →
+ * re-upload) is still here and still the easiest path, but it is now the
+ * fallback offered UNDER the drop zone rather than a mandatory first step: the
+ * backend accepts any CSV carrying a Net ID column plus whichever columns the
+ * operator happens to have, ignores the ones it doesn't recognize (listed in
+ * the review step), and leaves absent columns untouched.
+ *
+ * The confirm step is not optional and never has been — `previewGate` is the
+ * single place that decides whether Apply is reachable, and this component owns
+ * no other path to `commitUpdateImport`.
  */
 export function UpdateImportWizard() {
   const [step, setStep] = useState<Step>("upload");
@@ -184,6 +186,16 @@ export function UpdateImportWizard() {
 
       {step === "upload" && (
         <div className="space-y-4">
+          <UploadStep
+            file={file}
+            fileError={fileError}
+            dragOver={dragOver}
+            previewError={previewError}
+            inputRef={inputRef}
+            setDragOver={setDragOver}
+            onPick={pickFile}
+            onCheck={onCheck}
+          />
           <ExportStep
             mode={mode}
             onSelectMode={(m) => {
@@ -201,17 +213,20 @@ export function UpdateImportWizard() {
             }}
             onExport={onExport}
           />
-          <UploadStep
-            file={file}
-            fileError={fileError}
-            dragOver={dragOver}
-            checking={checking}
-            previewError={previewError}
-            inputRef={inputRef}
-            setDragOver={setDragOver}
-            onPick={pickFile}
-            onCheck={onCheck}
-          />
+          {/* The only route out of step 1 is the dry run — there is no path from
+              here to `commitUpdateImport`. */}
+          <div className="flex items-center justify-end gap-3">
+            <Button asChild variant="secondary">
+              <Link href="/alumni">Cancel</Link>
+            </Button>
+            <Button
+              variant="primary"
+              onClick={onCheck}
+              disabled={!file || checking}
+            >
+              {checking ? "Checking…" : "Preview changes"}
+            </Button>
+          </div>
         </div>
       )}
 
@@ -245,8 +260,8 @@ export function UpdateImportWizard() {
 
 function StepHeader({ step }: { step: Step }) {
   const steps: { id: Step; label: string }[] = [
-    { id: "upload", label: "Export & upload" },
-    { id: "review", label: "Review" },
+    { id: "upload", label: "Choose a CSV" },
+    { id: "review", label: "Review changes" },
     { id: "result", label: "Done" },
   ];
   const activeIndex = steps.findIndex((s) => s.id === step);
@@ -338,11 +353,13 @@ function ExportStep({
     <Card className="p-6">
       <div className="mb-4">
         <h2 className="text-lg font-semibold text-gray-900">
-          Step 1 — Export a cohort
+          Don&apos;t have a file? Export a cohort to start from
         </h2>
         <p className="mt-1 text-sm text-gray-500">
-          Pick a cohort by graduation year or class year, export it, edit the
-          cells you need, then upload it back below to apply the changes.
+          Pick a cohort by graduation year or class year and export it. The
+          export already carries every column and each alumnus&apos;s current
+          values, so you only edit the cells you want changed — then upload it
+          above.
         </p>
       </div>
 
@@ -425,13 +442,12 @@ function ExportStep({
   );
 }
 
-/* ------------------------------------------------ step 1b: upload edited csv --- */
+/* ------------------------------------------------------ step 1a: import csv --- */
 
 function UploadStep({
   file,
   fileError,
   dragOver,
-  checking,
   previewError,
   inputRef,
   setDragOver,
@@ -441,7 +457,6 @@ function UploadStep({
   file: File | null;
   fileError: string | null;
   dragOver: boolean;
-  checking: boolean;
   previewError: string | null;
   inputRef: React.RefObject<HTMLInputElement | null>;
   setDragOver: (v: boolean) => void;
@@ -449,16 +464,20 @@ function UploadStep({
   onCheck: () => void;
 }) {
   return (
-    <div className="space-y-4">
+    <>
       <Card className="p-6">
         <div className="mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Step 2 — Upload the edited CSV
-          </h2>
+          <h2 className="text-lg font-semibold text-gray-900">Import CSV</h2>
           <p className="mt-1 text-sm text-gray-500">
-            After editing the exported file, upload it here. Blank cells are left
-            unchanged; only existing profiles (matched by BYU ID, then Net ID)
-            are updated — unmatched rows are reported, never created.
+            Drop in any CSV that has a <strong>Net ID</strong> column (or BYU
+            ID). Column headings are matched against the fields we store —
+            headings we don&apos;t recognize are ignored and listed for you,
+            and columns your file leaves out are left alone.
+          </p>
+          <p className="mt-2 text-sm text-gray-500">
+            Nothing is written yet. The next screen shows every row that would
+            change, old value to new value, plus any Net ID that matched no
+            profile — you confirm from there.
           </p>
         </div>
 
@@ -484,7 +503,7 @@ function UploadStep({
           <input
             ref={inputRef}
             type="file"
-            accept=".csv,text/csv"
+            accept={CSV_ACCEPT_ATTR}
             className="sr-only"
             onChange={(e) => onPick(e.target.files?.[0] ?? null)}
           />
@@ -533,16 +552,7 @@ function UploadStep({
           </div>
         )}
       </Card>
-
-      <div className="flex items-center justify-end gap-3">
-        <Button asChild variant="secondary">
-          <Link href="/alumni">Cancel</Link>
-        </Button>
-        <Button variant="primary" onClick={onCheck} disabled={!file || checking}>
-          {checking ? "Checking…" : "Check file"}
-        </Button>
-      </div>
-    </div>
+    </>
   );
 }
 
@@ -561,15 +571,11 @@ function ReviewStep({
   onBack: () => void;
   onApply: () => void;
 }) {
-  const { summary, columns_ok, header_errors, rows } = preview;
+  const { summary, header_errors, rows } = preview;
 
-  const changed = rows.filter((r) => r.status === "update");
-  const unmatched = rows.filter(
-    (r) => r.status === "unmatched" || r.status === "unmatched_archived",
-  );
-  const errored = rows.filter((r) => r.status === "error");
-  const nothingToDo = columns_ok && summary.with_changes === 0;
-  const canApply = columns_ok && summary.with_changes > 0;
+  const { changed, unmatched, errored } = partitionPreviewRows(rows);
+  const { headersOk: columns_ok, nothingToDo, canApply } = previewGate(preview);
+  const ignored = ignoredColumns(preview);
 
   return (
     <div className="space-y-4">
@@ -608,7 +614,7 @@ function ReviewStep({
       {!columns_ok && (
         <div className="rounded-lg border border-danger-600/40 bg-danger-50 p-4">
           <p className="text-sm font-semibold text-danger-600">
-            The file&apos;s columns don&apos;t match the export
+            This file can&apos;t be used to update anyone
           </p>
           <ul className="mt-2 list-inside list-disc space-y-1 pl-1 text-sm text-danger-600">
             {header_errors.map((h, i) => (
@@ -616,9 +622,31 @@ function ReviewStep({
             ))}
           </ul>
           <p className="mt-2 text-sm text-gray-700">
-            Re-export the cohort, edit that file, and upload it again — no
-            profiles can be updated until the columns match.
+            Fix the heading row and upload it again — no profiles can be updated
+            until then. Exporting a cohort below gives you a file with the right
+            headings already in place.
           </p>
+        </div>
+      )}
+
+      {/* Unrecognized headings are skipped rather than fatal (#610), which
+          means a MISTYPED heading would otherwise vanish without a word. Name
+          every one of them here, before the operator confirms. */}
+      {columns_ok && ignored.length > 0 && (
+        <div className="rounded-lg border border-warning-600/30 bg-warning-50 p-4">
+          <p className="text-sm font-semibold text-warning-600">
+            {ignored.length} column{ignored.length === 1 ? "" : "s"} ignored
+          </p>
+          <p className="mt-1 text-sm text-gray-700">
+            These headings don&apos;t match a field we store, so they were
+            skipped — the rest of each row still applies. If one of them is a
+            typo, fix the heading and upload again.
+          </p>
+          <ul className="mt-3 max-h-40 list-inside list-disc space-y-1 overflow-auto pl-1 text-sm text-gray-700">
+            {ignored.map((c, i) => (
+              <li key={`${c}-${i}`}>{c}</li>
+            ))}
+          </ul>
         </div>
       )}
 

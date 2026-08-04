@@ -333,11 +333,32 @@ describe("the panel can re-apply what it now preserves", () => {
     expect(panel).toContain("FACETS.map((facet)");
   });
 
-  it("offers a CFP tickbox alongside CFA and CPA", () => {
+  it("offers a CFP tickbox alongside CFA", () => {
     const panel = read("src/components/alumni/AlumniFilters.tsx");
     expect(panel).toContain('checkboxRow("cfa", "CFA designation")');
     expect(panel).toContain('checkboxRow("cfp", "CFP designation")');
-    expect(panel).toContain('checkboxRow("cpa", "CPA designation")');
+  });
+
+  it("no longer offers a CPA tickbox or a CPA designation option (#605)", () => {
+    // Nobody holds a CPA, so both CPA controls could only ever return zero
+    // rows. SEARCH-ONLY: the `cpa` param stays modelled (below) so a saved
+    // ?cpa=1 link still narrows, and CPA is untouched on profiles, in the
+    // forms and in import/export.
+    const panel = read("src/components/alumni/AlumniFilters.tsx");
+    expect(panel).not.toContain('checkboxRow("cpa"');
+    expect(panel).toContain('const DESIGNATION_OPTIONS = ["CFP", "CFA"]');
+  });
+
+  it("keeps honouring an existing ?cpa=1 deep link", () => {
+    // The removal is of the CONTROL, not the predicate — dropping the param
+    // from the model would silently widen a saved link's results.
+    expect(parseAlumniFilters({ cpa: "1" }).cpa).toBe(true);
+    expect(
+      toAlumniPopulationParams({ ...EMPTY_FILTERS, cpa: true }).get("cpa"),
+    ).toBe("true");
+    // …and the panel still renders a chip so it can be cleared.
+    const panel = read("src/components/alumni/AlumniFilters.tsx");
+    expect(panel).toContain('label: "CPA", remove: () => set("cpa", false)');
   });
 
   it("uses the employment_statuses option list that was previously unused", () => {
@@ -366,8 +387,12 @@ describe("the Employment status facet offers a fixed list, not the data", () => 
    * Jake, 2026-08-03. `/alumni/filter-options` derives `employment_statuses`
    * from the values alumni already hold, so Military / Part-time / Unemployed
    * were absent from the dropdown until somebody answered a survey that way and
-   * the filter looked broken. It now shows the same seven the survey and the
-   * profile edit form show — the SHARED constant, so there is exactly one list.
+   * the filter looked broken. It now shows the same list the profile edit form
+   * shows — the SHARED constant, so there is exactly one list.
+   *
+   * That list includes `Unknown` (#377): ~65 prod alumni hold it after the
+   * 2026-08-04 cleanup, so it must be selectable here. The survey is the ONE
+   * place that narrows the list.
    */
 
   /** A `/alumni/filter-options` payload with a deliberately thin, data-derived
@@ -390,10 +415,16 @@ describe("the Employment status facet offers a fixed list, not the data", () => 
     graduation_classes: [2015],
   };
 
-  it("shows all seven canonical options even when the data holds two", () => {
+  it("shows every canonical option even when the data holds two", () => {
     expect(facetOptions("employment_statuses", SERVED)).toEqual([
       ...EMPLOYMENT_STATUS_OPTIONS,
     ]);
+  });
+
+  it("offers Unknown, so the ~65 alumni holding it are findable (#377)", () => {
+    // The gap #377 closes: prod holds `Unknown`, and an off-dropdown value is
+    // an alumnus nobody can filter to.
+    expect(facetOptions("employment_statuses", SERVED)).toContain("Unknown");
   });
 
   it("reuses the shared constant rather than a second hand-typed copy", () => {

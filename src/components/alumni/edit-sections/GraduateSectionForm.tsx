@@ -47,9 +47,10 @@ export function GraduateSectionForm({
       cancelHref={`/alumni/${id}`}
       pickerHref={`/alumni/${id}/edit`}
     >
-      {/* Same seven-option list as the Employment section and the survey
-          (#568) — this writes the same `alumni.employment_status` column, so a
-          legacy value off the list is preserved rather than blanked. */}
+      {/* Same eight-option list as the Employment section (#568/#377) — this
+          writes the same `alumni.employment_status` column, so a legacy value
+          off the list is preserved rather than blanked. The survey shows one
+          fewer, withholding "Unknown". */}
       <SelectField
         label="Employment status (shared with Employment)"
         name="employment_status"

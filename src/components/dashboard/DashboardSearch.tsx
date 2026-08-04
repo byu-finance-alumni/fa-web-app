@@ -87,17 +87,18 @@ const FACETS: {
 }[] = [
   // Employment Status leads the block and spans the full width: it's the
   // broadest employment cut (Full-time / Part-time / Self-Employed / Graduate
-  // Student / Military / Not in the Labor Force / Unemployed), and everything
-  // below narrows *within* it. Full width also keeps it from sitting
+  // Student / Military / Not in the Labor Force / Unemployed / Unknown), and
+  // everything below narrows *within* it. Full width also keeps it from sitting
   // shoulder-to-shoulder with Status Label, which is a different thing entirely
   // — a survey-suppression flag (Inactive / Deceased / Lost Contact / Retired /
   // Do Not Contact, fa-web-api#354). Jake's call: two rows, never merged.
   //
   // Its `optKey` is retained for the shape, but `facetOptions` short-circuits it
-  // to the FIXED seven (FIXED_FACET_OPTIONS → EMPLOYMENT_STATUS_OPTIONS): the
+  // to the FIXED list (FIXED_FACET_OPTIONS → EMPLOYMENT_STATUS_OPTIONS): the
   // data-derived `employment_statuses` only listed values alumni already held,
   // so Military / Part-time / Unemployed were missing from the dropdown until a
-  // survey answer created them.
+  // survey answer created them. That fixed list includes `Unknown` (#377) — the
+  // survey withholds it, the filter must not.
   {
     key: "employmentStatus",
     label: "Employment Status",
@@ -123,11 +124,15 @@ const ENGAGEMENT: { key: string; label: string; param: string }[] = [
   { key: "donor", label: "PIFF donor", param: "donor" },
   { key: "mentor", label: "Willing to mentor", param: "mentor" },
   { key: "speaker", label: "Willing to guest speak", param: "speaker" },
-  // All three finance designations the survey collects (#529) are searchable —
-  // CFP joined CFA/CPA once the backend grew a `cfp` param (fa-web-api#363).
+  // The finance designations worth searching on. CFP joined CFA once the
+  // backend grew a `cfp` param (fa-web-api#363).
+  //
+  // CPA is NOT offered (#605): no alumni hold one, so the tickbox could only
+  // ever return zero rows. Search-only — CPA is still collected by the survey
+  // (#529), still stored, still shown on a profile, and the backend still
+  // accepts the `cpa` param, so an existing deep link keeps working.
   { key: "cfa", label: "CFA designation", param: "cfa" },
   { key: "cfp", label: "CFP designation", param: "cfp" },
-  { key: "cpa", label: "CPA designation", param: "cpa" },
 ];
 
 function IdentityGrid({

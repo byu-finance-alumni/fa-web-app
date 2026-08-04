@@ -46,8 +46,14 @@ export { EMPTY_FILTERS };
 
 /** Fixed professional-designation vocabulary for the #404 filter. Static (not
  *  drawn from FilterOptions) — the backend validates values against exactly
- *  CFP|CFA|CPA (case-insensitive) and 422s anything else. */
-const DESIGNATION_OPTIONS = ["CFP", "CFA", "CPA"];
+ *  CFP|CFA|CPA (case-insensitive) and 422s anything else.
+ *
+ *  CPA is deliberately NOT offered (#605): no alumni hold one, so the option
+ *  could only ever return zero rows. This is a SEARCH-ONLY removal — CPA is
+ *  still a valid designation everywhere else (profile display, the create/edit
+ *  forms, import/export, the backend vocabulary), and `designations=CPA` is
+ *  still honoured if it arrives on a deep link. */
+const DESIGNATION_OPTIONS = ["CFP", "CFA"];
 
 /** Sort options, shared by the desktop <Select> and the mobile consolidated
  *  menu so both stay in sync. */
@@ -272,6 +278,8 @@ export function AlumniFilters({
   if (f.speaker) chips.push({ label: "Willing to guest speak", remove: () => set("speaker", false) });
   if (f.cfa) chips.push({ label: "CFA", remove: () => set("cfa", false) });
   if (f.cfp) chips.push({ label: "CFP", remove: () => set("cfp", false) });
+  // No CPA tickbox any more (#605), but the chip stays: a saved ?cpa=1 link
+  // still narrows the list, so the user has to be able to see it and clear it.
   if (f.cpa) chips.push({ label: "CPA", remove: () => set("cpa", false) });
   if (f.graduateDegree)
     chips.push({
@@ -289,7 +297,7 @@ export function AlumniFilters({
     });
 
   const checkboxRow = (
-    key: "attended" | "donor" | "mentor" | "speaker" | "cfa" | "cfp" | "cpa" | "graduateDegree" | "archived" | "neverContacted" | "missingEmail" | "missingEmployer" | "duplicate",
+    key: "attended" | "donor" | "mentor" | "speaker" | "cfa" | "cfp" | "graduateDegree" | "archived" | "neverContacted" | "missingEmail" | "missingEmployer" | "duplicate",
     label: string,
   ) => (
     <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -652,15 +660,21 @@ export function AlumniFilters({
                   {checkboxRow("donor", "PIFF donor")}
                   {checkboxRow("mentor", "Willing to mentor")}
                   {checkboxRow("speaker", "Willing to guest speak")}
-                  {/* All three finance designations the survey collects (#529).
-                      These are the BOOLEAN cfa/cfp/cpa params — each AND-narrows
-                      to holders of that one designation — which is a different
-                      question from the "Designations" multi-select above (OR
-                      across the picked ones). Both mechanisms are intentional;
-                      don't merge them. */}
+                  {/* The finance designations the survey collects (#529) that
+                      are worth searching on. These are the BOOLEAN cfa/cfp
+                      params — each AND-narrows to holders of that one
+                      designation — which is a different question from the
+                      "Designations" multi-select above (OR across the picked
+                      ones). Both mechanisms are intentional; don't merge them.
+
+                      CPA has no tickbox (#605): nobody holds one, so it could
+                      only ever return zero rows. The `cpa` param itself is
+                      still modelled and still narrows — see the chip above and
+                      BOOLEAN_FLAGS — so an existing ?cpa=1 link keeps working
+                      and stays visible/removable. Search-only: CPA remains a
+                      valid designation on profiles, forms, import and export. */}
                   {checkboxRow("cfa", "CFA designation")}
                   {checkboxRow("cfp", "CFP designation")}
-                  {checkboxRow("cpa", "CPA designation")}
                   {checkboxRow("graduateDegree", "Graduate degree")}
                 </div>
               </div>

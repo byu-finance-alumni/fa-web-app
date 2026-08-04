@@ -73,6 +73,13 @@ export interface AlumniFilterState {
   /** CFP holders (#584). A BOOLEAN that AND-narrows, distinct from picking "CFP"
    *  in the `designations` facet above — keep the two mechanisms separate. */
   cfp: boolean;
+  /** CPA holders. NO LONGER OFFERED AS A CONTROL (#605) — no alumni hold a CPA,
+   *  so the tickbox could only ever return zero rows, and it was removed from
+   *  the list's Filters panel and the dashboard's Advanced search. The param
+   *  stays MODELLED on purpose: an existing `?cpa=1` link must still narrow the
+   *  list (and its export) rather than being silently dropped, and the panel
+   *  still renders a removable chip for it. Search-only — CPA remains a valid
+   *  designation on profiles, in the forms, and in import/export. */
   cpa: boolean;
   graduateDegree: boolean;
   archived: boolean;
@@ -176,15 +183,20 @@ export const FACETS: {
  * Employment status (Jake, 2026-08-03): `/alumni/filter-options` builds
  * `employment_statuses` from the values alumni actually hold, so Military /
  * Part-time / Unemployed simply weren't offered until someone answered a survey
- * that way — the filter read as broken. It now shows the same seven options the
- * survey and the profile edit form show, from the one constant they all share
+ * that way — the filter read as broken. It now shows the same options the
+ * profile edit form shows, from the one constant they all share
  * (`EMPLOYMENT_STATUS_OPTIONS`). Accepted tradeoff: an option nobody holds yet
  * returns zero rows. That is the whole point — hand-retyping the list here would
  * recreate the second source of truth #568 removed.
  *
+ * That includes `Unknown` (#377): ~65 prod alumni hold it after the 2026-08-04
+ * cleanup, so it must be selectable HERE even though the survey deliberately
+ * doesn't offer it. This is the full list, not the survey's narrowed one.
+ *
  * A value already ON FILE but off this list (the intake sheet's "Employed",
- * "Unknown", …) is NOT lost: `MultiSelect` prepends any selected-but-unlisted
- * value, so a deep link filtering on one still renders it checked.
+ * "Stay at home parent", …) is NOT lost: `MultiSelect` prepends any
+ * selected-but-unlisted value, so a deep link filtering on one still renders it
+ * checked.
  *
  * Keyed by `FilterOptions` key so `facetOptions` can resolve either facet table
  * (this module's, for the list slide-over; DashboardSearch's, for the dashboard
