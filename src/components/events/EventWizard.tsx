@@ -262,6 +262,11 @@ export function EventWizard({
           create it.
         </p>
 
+        {/* Same list treatment as the attendee roster on the event itself
+            (AttendeeManager) and as the `Card` primitive's own edge, so this
+            reads as another surface rather than a one-off. The `dt` style is
+            the shared `Label` component's, so each row is labelled exactly as
+            its field was on step 1. */}
         {summary ? (
           <dl className="divide-y divide-gray-100 rounded-lg border border-gray-200">
             {summary.map((r) => (

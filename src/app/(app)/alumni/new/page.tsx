@@ -39,7 +39,10 @@ export default async function NewAlumniPage({
           { label: isFriend ? "Add friend" : "Add alumni" },
         ]}
       />
-      <main className="flex-1 overflow-auto p-6">
+      {/* Identical chrome to /events/new (#611) — the two "Add" screens are
+          meant to be indistinguishable. `p-4` on a phone, the standard `p-6`
+          from `md` up. */}
+      <main className="flex-1 overflow-auto p-4 md:p-6">
         <AlumniForm
           action={isFriend ? createFriend : createAlumni}
           previewAction={previewAlumni}
