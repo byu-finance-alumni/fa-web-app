@@ -2,6 +2,11 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import {
+  EMPTY_FILTERS,
+  toAlumniPopulationParams,
+} from "@/lib/alumniFilterParams";
+
 /**
  * The dashboard search-panel restructure (#584).
  *
@@ -173,14 +178,31 @@ describe("the alumni list forwards the new params (#584)", () => {
   // querystring from its model, so one click deleted all three. They now go
   // through the shared filter model instead — see `alumniFilterParams.test.ts`
   // for the round trip that pins it.
+  //
+  // Since #592 the roster no longer hand-writes the API querystring either: it
+  // asks `toAlumniPopulationParams` (shared with the CSV export) for it. So
+  // these assert on the params that builder emits, not on the roster's source.
   const roster = read("src/components/alumni/AlumniRoster.tsx");
 
+  it("builds the API call from the shared population definition", () => {
+    expect(roster).toContain(
+      "toAlumniPopulationParams(filters, kind, passThrough)",
+    );
+  });
+
   it("passes secondary_industry and employment_status through", () => {
-    expect(roster).toContain('appendAll("employment_status", filters.employmentStatus)');
-    expect(roster).toContain('appendAll("secondary_industry", filters.secondaryIndustry)');
+    const p = toAlumniPopulationParams({
+      ...EMPTY_FILTERS,
+      employmentStatus: ["Full-time"],
+      secondaryIndustry: ["Private Equity"],
+    });
+    expect(p.getAll("employment_status")).toEqual(["Full-time"]);
+    expect(p.getAll("secondary_industry")).toEqual(["Private Equity"]);
   });
 
   it("passes the cfp flag through", () => {
-    expect(roster).toContain('if (filters.cfp) params.set("cfp", "true")');
+    expect(
+      toAlumniPopulationParams({ ...EMPTY_FILTERS, cfp: true }).get("cfp"),
+    ).toBe("true");
   });
 });

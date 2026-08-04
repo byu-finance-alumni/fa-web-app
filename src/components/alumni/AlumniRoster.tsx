@@ -11,6 +11,8 @@ import {
   arr,
   one,
   parseAlumniFilters,
+  parsePassThroughFilters,
+  toAlumniPopulationParams,
   type AlumniFilterState,
 } from "@/lib/alumniFilterParams";
 import { AlumniTable } from "@/components/alumni/AlumniTable";
@@ -80,85 +82,22 @@ export async function AlumniRoster({
   // params it hadn't learned about.
   const filters: AlumniFilterState = parseAlumniFilters(sp);
 
-  const params = new URLSearchParams({
-    limit: String(LIMIT),
-    offset: String(offset),
-  });
-  // The route fixes the roster scope. `alumni` is the backend default, so only
-  // the friends route sends the param.
-  if (isFriend) params.set("kind", "friend");
-  if (filters.q) params.set("q", filters.q);
-  if (filters.ymin) params.set("grad_year_min", filters.ymin);
-  if (filters.ymax) params.set("grad_year_max", filters.ymax);
-  const appendAll = (name: string, values: string[]) => {
-    for (const v of values) params.append(name, v);
-  };
-  // Pass-through: the dashboard Advanced search deep-links `employer` but the
-  // list's own filter panel has no control for it (dropped in #153), so it's
-  // read straight off the URL rather than through `filters`. Known consequence:
-  // touching a control in the Filters slide-over re-serializes its own state and
-  // drops it. Keep `PASS_THROUGH_PARAMS` in `@/lib/alumniFilterParams` in step
-  // with anything added here — the test enforces it.
-  appendAll("employer", arr(sp.employer));
-  for (const field of [
-    "net_id",
-    "first_name",
-    "last_name",
-    "preferred_name",
-    "email",
-  ] as const) {
-    const v = one(sp[field]).trim();
-    if (v) params.set(field, v);
-  }
-  appendAll("employment_status", filters.employmentStatus);
-  appendAll("past_employer", filters.pastEmployer);
-  appendAll("industry", filters.industry);
-  // #584: secondary industry is its own axis — the backend narrowed `industry`
-  // to the PRIMARY column (fa-web-api#363), so alumni matched on their secondary
-  // industry are only reachable through this facet.
-  appendAll("secondary_industry", filters.secondaryIndustry);
-  appendAll("title", filters.title);
-  appendAll("seniority", filters.seniority);
-  appendAll("city", filters.city);
-  appendAll("state", filters.state);
-  appendAll("tag", filters.tag);
-  appendAll("status_label", filters.statusLabel);
-  appendAll("leadership_role", filters.leadership);
-  appendAll("survey_status", filters.surveyStatus);
-  // Designations (#404): repeated param; backend applies OR semantics and 422s
-  // any value outside CFP|CFA|CPA. The UI only emits those three, so uppercase
-  // values flow straight through.
-  appendAll("designations", filters.designations);
-  if (filters.gender) params.set("gender", filters.gender);
-  if (filters.industryGroup) params.set("industry_group", filters.industryGroup);
-  // Plain-English location search (#358): the backend geocodes `near` and does
-  // the radius filter; `radius` (miles) is optional and only sent when parsed.
-  const near = one(sp.near).trim();
-  if (near) params.set("near", near);
-  const radius = one(sp.radius).trim();
-  if (/^\d{1,4}$/.test(radius)) params.set("radius", radius);
-  if (filters.contactedAfter) params.set("contacted_after", filters.contactedAfter);
-  if (filters.contactedBefore) params.set("contacted_before", filters.contactedBefore);
-  if (filters.neverContacted) params.set("never_contacted", "true");
-  if (filters.attended) params.set("attended_event", "true");
-  if (filters.donor) params.set("donor", "true");
-  if (filters.mentor) params.set("mentor_willing", "true");
-  if (filters.speaker) params.set("guest_speaker_willing", "true");
-  if (filters.cfa) params.set("cfa", "true");
-  if (filters.cfp) params.set("cfp", "true");
-  if (filters.cpa) params.set("cpa", "true");
-  if (filters.graduateDegree) params.set("graduate_degree", "true");
-  const isoDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
-  const spokeAfter = one(sp.spoke_after);
-  const spokeBefore = one(sp.spoke_before);
-  if (isoDate(spokeAfter)) params.set("spoke_after", spokeAfter);
-  if (isoDate(spokeBefore)) params.set("spoke_before", spokeBefore);
-  if (filters.archived) params.set("include_archived", "true");
-  if (filters.deceased === "only") params.set("deceased", "true");
-  if (filters.deceased === "exclude") params.set("deceased", "false");
-  if (filters.missingEmail) params.set("missing_email", "true");
-  if (filters.missingEmployer) params.set("missing_employer", "true");
-  if (filters.duplicate) params.set("duplicate", "true");
+  // Pass-through narrowing params (#592): `employer`, the identity fields, the
+  // plain-English location search and the guest-speaker dates live only in the
+  // URL — the Filters slide-over has no control for them, so touching any
+  // control re-serializes its own state and drops them (see
+  // `PASS_THROUGH_PARAMS`). Parsed here through the SHARED parser so the export
+  // dialog sees exactly the same values this request is built from.
+  const passThrough = parsePassThroughFilters(sp);
+
+  // WHO is in this view — one definition, shared with the CSV export
+  // (`toExportFilters` derives its body from these very params). The list and
+  // its export used to build their populations independently and drifted twice;
+  // deriving both from `toAlumniPopulationParams` is what stops a third time.
+  const params = toAlumniPopulationParams(filters, kind, passThrough);
+  // …and HOW this page presents them, which is the roster's own business.
+  params.set("limit", String(LIMIT));
+  params.set("offset", String(offset));
   if (filters.sort !== "name") params.set("sort", filters.sort);
 
   let data: AlumniPage | null = null;
@@ -229,7 +168,7 @@ export async function AlumniRoster({
   const locationRadius =
     typeof locationCtx?.radius_miles === "number" ? locationCtx.radius_miles : null;
   const locationUnresolved =
-    !!near && !locationLabel && locationCtx?.resolved === false;
+    !!passThrough.near && !locationLabel && locationCtx?.resolved === false;
 
   const from = data && data.total > 0 ? offset + 1 : 0;
   const to = data ? Math.min(offset + LIMIT, data.total) : 0;
@@ -260,6 +199,11 @@ export async function AlumniRoster({
           total={data?.total ?? 0}
           basePath={basePath}
           isFriend={isFriend}
+          // The export builds its population from the same two inputs this
+          // request did — the filter state AND the URL-only narrowing params
+          // (#592). Without the second, exporting a dashboard deep link
+          // (?employer=…, ?near=…) returned people the list was excluding.
+          passThrough={passThrough}
         />
 
         {locationLabel ? (
@@ -272,7 +216,7 @@ export async function AlumniRoster({
           <div className="mb-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-600">
             Couldn&apos;t pinpoint a location for{" "}
             <span className="font-semibold text-gray-900">
-              &ldquo;{near}&rdquo;
+              &ldquo;{passThrough.near}&rdquo;
             </span>
             . Showing keyword matches instead.
           </div>

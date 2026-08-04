@@ -1,74 +1,255 @@
 /**
- * Map the alumni list's client filter state to the backend export filter shape.
+ * The alumni list's filter state → the `POST /alumni/export` body.
  *
- * This MUST mirror the URL→backend mapping the list page does (see
- * `app/(app)/alumni/page.tsx`) so an export covers exactly the population the
- * user is looking at. `sort` is intentionally omitted — it doesn't change which
- * alumni match, only their order, and the export has its own stable order.
+ * An export must cover EXACTLY the population the user is looking at, so this
+ * module does not restate the filters — it **derives** them. `toExportFilters`
+ * asks `toAlumniPopulationParams` (the one definition of who is in a view, also
+ * used by the roster to build its `GET /alumni` call) for the membership params
+ * and mechanically translates each one into its export-body field. There is no
+ * second hand-maintained list to drift, which is the whole point: export/list
+ * parity has now broken twice, in two different ways.
+ *
+ *  - #590 — the panel's newest facets were missing from the export mapping, so
+ *    an export ignored them and covered a wider set than the rows on screen.
+ *  - #592 — the export sent `is_alumni: null` expecting the backend to apply its
+ *    `is_alumni=true` default. But `model_dump(exclude_unset=True)` counts an
+ *    explicit null as SET, so the predicate vanished and friends of the program
+ *    were exported from the alumni list: 29 records under the words "Exports the
+ *    26 alumni matching your current filters".
+ *
+ * `sort` is intentionally not a membership param — it changes the order of the
+ * matching people, never who they are, and the export has its own stable order.
  */
-import type { AlumniFilterState } from "@/components/alumni/AlumniFilters";
+import {
+  EMPTY_PASS_THROUGH,
+  toAlumniPopulationParams,
+  type AlumniFilterState,
+  type PassThroughFilters,
+  type RosterScope,
+} from "@/lib/alumniFilterParams";
 import type { AlumniExportFilters } from "@/types/export";
 
-export function toExportFilters(f: AlumniFilterState): AlumniExportFilters {
-  const orNull = (xs: string[]): string[] | null => (xs.length ? xs : null);
-  return {
-    q: f.q.trim() || null,
-    // Name/identifier facets exist on the backend export schema for parity with
-    // GET /alumni, but the alumni-list UI only exposes the unified `q` search box,
-    // so they stay null here (nothing to mirror). Wire them up if/when the list
-    // gains dedicated name/net_id/email facets.
-    net_id: null,
-    first_name: null,
-    last_name: null,
-    preferred_name: null,
-    email: null,
-    graduation_year: null,
-    grad_year_min: f.ymin.trim() ? Number(f.ymin) : null,
-    grad_year_max: f.ymax.trim() ? Number(f.ymax) : null,
-    deceased: f.deceased === "only" ? true : f.deceased === "exclude" ? false : null,
-    // The alumni-filter UI has no friends/alumni toggle, so an export mirrors the
-    // list's default scope (alumni only): null lets the backend builder apply its
-    // is_alumni=true default. (#218)
-    is_alumni: null,
-    // The alumni page no longer exposes a current-employer facet (#153), so the
-    // export — which mirrors the visible list — never filters by employer.
-    employer: null,
-    past_employer: orNull(f.pastEmployer),
-    industry: orNull(f.industry),
-    // Secondary industry / employment status (#584). The list panel holds both
-    // in state now, so an export mirrors them — leaving them null exported a
-    // WIDER population than the rows the user was looking at.
-    secondary_industry: orNull(f.secondaryIndustry),
-    employment_status: orNull(f.employmentStatus),
-    // Gender + industry-group facets mirror the list's URL params so an export
-    // matches the filtered view (#360 / #351-#352).
-    gender: f.gender || null,
-    industry_group: f.industryGroup || null,
-    title: orNull(f.title),
-    seniority: orNull(f.seniority),
-    city: orNull(f.city),
-    state: orNull(f.state),
-    tag: orNull(f.tag),
-    status_label: orNull(f.statusLabel),
-    leadership_role: orNull(f.leadership),
-    survey_status: orNull(f.surveyStatus),
-    contacted_after: f.contactedAfter || null,
-    contacted_before: f.contactedBefore || null,
-    never_contacted: f.neverContacted,
-    attended_event: f.attended,
-    donor: f.donor,
-    mentor_willing: f.mentor,
-    guest_speaker_willing: f.speaker,
-    missing_email: f.missingEmail,
-    missing_employer: f.missingEmployer,
-    duplicate: f.duplicate,
-    include_archived: f.archived,
-    cfa: f.cfa,
-    cfp: f.cfp,
-    cpa: f.cpa,
-    // needs_survey is forced on by the /needs-surveying view so an export there
-    // covers exactly the biennial-due set.
-    needs_survey: f.needsSurvey,
-    sort: "name",
-  };
+/* --------------------------------------------------- param → body field ---- */
+
+/** Export-body fields whose type is exactly `T` — so a mapping row can't file a
+ *  multi-value facet under a boolean field and typecheck anyway. */
+type FieldsOfType<T> = {
+  [K in keyof AlumniExportFilters]-?: [AlumniExportFilters[K]] extends [T]
+    ? [T] extends [AlumniExportFilters[K]]
+      ? K
+      : never
+    : never;
+}[keyof AlumniExportFilters];
+
+type MultiField = FieldsOfType<string[] | null>;
+type TextField = FieldsOfType<string | null>;
+type IntField = FieldsOfType<number | null>;
+type FlagField = FieldsOfType<boolean>;
+type TriStateField = FieldsOfType<boolean | null>;
+
+type ParamExport =
+  /** Repeatable facet → `string[] | null`. */
+  | { as: "multi"; field: MultiField }
+  /** Single string → `string | null`. */
+  | { as: "text"; field: TextField }
+  /** Numeric → `number | null`. */
+  | { as: "int"; field: IntField }
+  /** Present-means-true flag → `boolean`. */
+  | { as: "flag"; field: FlagField }
+  /** Present-means-a-real-`true`-or-`false` predicate → `boolean | null`, where
+   *  the null the field defaults to is the ABSENCE of the predicate. */
+  | { as: "tristate"; field: TriStateField }
+  /** Roster scope: `kind=alumni|friend` → `is_alumni=true|false`. */
+  | { as: "scope" }
+  /** `POST /alumni/export` has no field for this one, so an export cannot honour
+   *  it. The label is what the user is told (see `exportParityGaps`) — the
+   *  export is BLOCKED rather than quietly widened. */
+  | { as: "unsupported"; label: string };
+
+/**
+ * Every param `toAlumniPopulationParams` can emit, and where it lands in the
+ * export body. A param missing from this table is treated as unsupported at
+ * runtime (fail closed, never widen) and fails the parity test at build time —
+ * so a filter added to the model can't silently stop applying to exports.
+ */
+const EXPORT_MAPPING: Record<string, ParamExport> = {
+  kind: { as: "scope" },
+  q: { as: "text", field: "q" },
+  grad_year_min: { as: "int", field: "grad_year_min" },
+  grad_year_max: { as: "int", field: "grad_year_max" },
+  // Multi-select facets.
+  employment_status: { as: "multi", field: "employment_status" },
+  past_employer: { as: "multi", field: "past_employer" },
+  industry: { as: "multi", field: "industry" },
+  secondary_industry: { as: "multi", field: "secondary_industry" },
+  title: { as: "multi", field: "title" },
+  seniority: { as: "multi", field: "seniority" },
+  city: { as: "multi", field: "city" },
+  state: { as: "multi", field: "state" },
+  tag: { as: "multi", field: "tag" },
+  status_label: { as: "multi", field: "status_label" },
+  leadership_role: { as: "multi", field: "leadership_role" },
+  survey_status: { as: "multi", field: "survey_status" },
+  employer: { as: "multi", field: "employer" },
+  // Identity facets (dashboard deep links).
+  net_id: { as: "text", field: "net_id" },
+  first_name: { as: "text", field: "first_name" },
+  last_name: { as: "text", field: "last_name" },
+  preferred_name: { as: "text", field: "preferred_name" },
+  email: { as: "text", field: "email" },
+  gender: { as: "text", field: "gender" },
+  industry_group: { as: "text", field: "industry_group" },
+  contacted_after: { as: "text", field: "contacted_after" },
+  contacted_before: { as: "text", field: "contacted_before" },
+  // Flags.
+  never_contacted: { as: "flag", field: "never_contacted" },
+  attended_event: { as: "flag", field: "attended_event" },
+  donor: { as: "flag", field: "donor" },
+  mentor_willing: { as: "flag", field: "mentor_willing" },
+  guest_speaker_willing: { as: "flag", field: "guest_speaker_willing" },
+  cfa: { as: "flag", field: "cfa" },
+  cfp: { as: "flag", field: "cfp" },
+  cpa: { as: "flag", field: "cpa" },
+  missing_email: { as: "flag", field: "missing_email" },
+  missing_employer: { as: "flag", field: "missing_employer" },
+  duplicate: { as: "flag", field: "duplicate" },
+  include_archived: { as: "flag", field: "include_archived" },
+  needs_survey: { as: "flag", field: "needs_survey" },
+  deceased: { as: "tristate", field: "deceased" },
+  // ---- Filters `GET /alumni` supports but `AlumniExportFilters` does not ----
+  // Each one narrows the LIST, so exporting while it is active would hand the
+  // user records the screen is excluding. Until the backend schema gains these
+  // fields (fa-web-api), the export dialog refuses rather than over-discloses.
+  designations: { as: "unsupported", label: "Designations" },
+  graduate_degree: { as: "unsupported", label: "Graduate degree" },
+  near: { as: "unsupported", label: "Location search" },
+  radius: { as: "unsupported", label: "Location search" },
+  spoke_after: { as: "unsupported", label: "Guest-speaker dates" },
+  spoke_before: { as: "unsupported", label: "Guest-speaker dates" },
+};
+
+/**
+ * The body with NO predicate applied anywhere — every optional filter at the
+ * value the backend reads as "don't narrow on this".
+ *
+ * `is_alumni` is the exception, and deliberately so: it starts `true`, not
+ * `null`. `null` there means "alumni AND friends", i.e. the widest possible
+ * population, so a bug that failed to set it would leak non-alumni again. This
+ * fails CLOSED — the worst a future omission can do is export too few.
+ */
+const NO_PREDICATE: AlumniExportFilters = {
+  q: null,
+  net_id: null,
+  first_name: null,
+  last_name: null,
+  preferred_name: null,
+  email: null,
+  graduation_year: null,
+  grad_year_min: null,
+  grad_year_max: null,
+  deceased: null,
+  gender: null,
+  industry_group: null,
+  employer: null,
+  past_employer: null,
+  industry: null,
+  secondary_industry: null,
+  title: null,
+  seniority: null,
+  employment_status: null,
+  city: null,
+  state: null,
+  tag: null,
+  status_label: null,
+  leadership_role: null,
+  survey_status: null,
+  needs_survey: false,
+  contacted_after: null,
+  contacted_before: null,
+  never_contacted: false,
+  attended_event: false,
+  donor: false,
+  mentor_willing: false,
+  guest_speaker_willing: false,
+  cfp: false,
+  cfa: false,
+  cpa: false,
+  missing_email: false,
+  missing_employer: false,
+  duplicate: false,
+  is_alumni: true,
+  include_archived: false,
+  sort: "name",
+};
+
+/* ------------------------------------------------------------ the mapper --- */
+
+/**
+ * Filter state (+ the route's scope + the URL-only pass-through filters) → the
+ * export body, derived from the very params the list is fetched with.
+ */
+export function toExportFilters(
+  f: AlumniFilterState,
+  scope: RosterScope = "alumni",
+  pt: PassThroughFilters = EMPTY_PASS_THROUGH,
+): AlumniExportFilters {
+  const out: AlumniExportFilters = { ...NO_PREDICATE };
+  const params = toAlumniPopulationParams(f, scope, pt);
+  for (const param of new Set(params.keys())) {
+    const mapping = EXPORT_MAPPING[param];
+    // Unmapped or unsupported: leave the field at "no predicate" and let
+    // `exportParityGaps` stop the export, rather than widen it silently.
+    if (!mapping) continue;
+    const values = params.getAll(param);
+    switch (mapping.as) {
+      case "multi":
+        out[mapping.field] = values;
+        break;
+      case "text":
+        out[mapping.field] = values[0];
+        break;
+      case "int": {
+        const n = Number(values[0]);
+        out[mapping.field] = Number.isFinite(n) ? n : null;
+        break;
+      }
+      case "flag":
+        out[mapping.field] = values[0] === "true";
+        break;
+      case "tristate":
+        // Only emitted when a real predicate applies, so the value IS the
+        // predicate ("false" = exclude, not "no filter").
+        out[mapping.field] = values[0] === "true";
+        break;
+      case "scope":
+        out.is_alumni = values[0] !== "friend";
+        break;
+    }
+  }
+  return out;
 }
+
+/**
+ * Active filters the export API cannot express, as user-facing labels (#592).
+ *
+ * Non-empty means an export would return a DIFFERENT population than the list —
+ * wider, and made of real people's records — so the dialog blocks the download
+ * and says which filter is in the way. Empty is the normal case and the
+ * invariant the parity test pins: list and export cover the same people.
+ */
+export function exportParityGaps(
+  f: AlumniFilterState,
+  scope: RosterScope = "alumni",
+  pt: PassThroughFilters = EMPTY_PASS_THROUGH,
+): string[] {
+  const labels: string[] = [];
+  for (const param of new Set(toAlumniPopulationParams(f, scope, pt).keys())) {
+    const mapping = EXPORT_MAPPING[param];
+    if (!mapping) labels.push(param);
+    else if (mapping.as === "unsupported") labels.push(mapping.label);
+  }
+  return [...new Set(labels)];
+}
+
+/** Exposed for the parity test — the mapping is the contract. */
+export const EXPORT_MAPPING_FOR_TEST = EXPORT_MAPPING;
