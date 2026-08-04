@@ -765,8 +765,9 @@ export function AlumniForm({
         />
         {/* Top-level alumni field (not nested under `career`), so it's named
             plainly and flows through the core payload — grouped here with the
-            current-role fields for context. Same seven options as the survey
-            (#568); `withValue` keeps a legacy free-text status selectable. */}
+            current-role fields for context. The full eight-option staff list
+            (#568/#377) — one MORE than the survey, which withholds "Unknown";
+            `withValue` keeps a legacy free-text status selectable. */}
         <SelectField
           label="Employment status"
           name="employment_status"

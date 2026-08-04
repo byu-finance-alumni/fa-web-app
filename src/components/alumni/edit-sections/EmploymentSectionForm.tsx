@@ -123,9 +123,10 @@ export function EmploymentSectionForm({
       cancelHref={`/alumni/${id}`}
       pickerHref={`/alumni/${id}/edit`}
     >
-      {/* The same seven options the survey offers (#568). A record holding a
-          legacy free-text status ("Employed") keeps it as a selectable option
-          via `withValue`, so editing the company can't rewrite the status. */}
+      {/* The full eight-option staff list (#568/#377) — the survey shows one
+          fewer, withholding "Unknown". A record holding a legacy free-text
+          status ("Employed") keeps it as a selectable option via `withValue`,
+          so editing the company can't rewrite the status. */}
       <SelectField
         label="Employment Status"
         name="employment_status"
