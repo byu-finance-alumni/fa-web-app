@@ -111,11 +111,16 @@ export default async function EventsPage({
     canImport = false;
   }
 
-  // "Add event" is the plain create form: an event needs no attendee list to
-  // exist (#611), and creating one event is the common case. The bulk CSV
-  // wizard sits beside it as the clearly-labelled secondary action, never the
-  // default. Each is gated on its own capability (#378), so a user may see
-  // one, both, or neither.
+  // Where "Add event" goes. The bulk-upload wizard creates the event AND its
+  // roster in one pass, so it is the richer entry point and wins when the user
+  // holds `events.import`; a user who only holds `events.create` gets the
+  // single-event form instead. Holding neither means no button at all.
+  const addEventHref = canImport
+    ? "/events/import"
+    : canCreate
+      ? "/events/new"
+      : null;
+
   return (
     <>
       <Topbar title="Events" />
@@ -123,8 +128,7 @@ export default async function EventsPage({
         <EventsToolbar
           initial={filters}
           types={types}
-          canCreate={canCreate}
-          canImport={canImport}
+          addEventHref={addEventHref}
         />
 
         {error ? (
@@ -149,23 +153,13 @@ export default async function EventsPage({
           />
         )}
 
-        {/* Mobile FAB — Add event (the plain create form; an event needs no
-            attendee list to exist, #611) with the bulk CSV import beneath it as
-            the clearly separate, secondary action. Desktop keeps the equivalent
-            pair of inline toolbar buttons. Each entry is gated on its own
-            capability (#378). */}
-        {canCreate || canImport ? (
+        {/* Mobile FAB — Add event. Desktop keeps its inline toolbar button.
+            Same capability gate and same destination as the toolbar. */}
+        {addEventHref ? (
           <Fab label="Add event">
-            {canCreate ? (
-              <Button asChild>
-                <Link href="/events/new">Add event</Link>
-              </Button>
-            ) : null}
-            {canImport ? (
-              <Button asChild variant="secondary">
-                <Link href="/events/import">Import events from CSV</Link>
-              </Button>
-            ) : null}
+            <Button asChild>
+              <Link href={addEventHref}>Add event</Link>
+            </Button>
           </Fab>
         ) : null}
       </main>

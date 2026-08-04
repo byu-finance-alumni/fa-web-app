@@ -2,7 +2,6 @@ import { notFound, redirect } from "next/navigation";
 import { Topbar } from "@/components/shell/Topbar";
 import { EventForm } from "@/components/events/EventForm";
 import { AttendeeManager } from "@/components/events/AttendeeManager";
-import { AttendeeCsvImport } from "@/components/events/AttendeeCsvImport";
 import { DeleteEventButton } from "@/components/events/DeleteEventButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiGet, ApiError } from "@/lib/api";
@@ -70,8 +69,7 @@ export default async function EditEventPage({
         <div className="w-full space-y-6">
           {created ? (
             <p className="rounded-lg border border-brand-blue-300 bg-brand-blue-50 px-4 py-3 text-sm text-navy-800">
-              Event created. Add attendees below — one at a time, or by
-              uploading a CSV list. You can also come back and do it later.
+              Event created. Add attendees below.
             </p>
           ) : null}
           {/* Full-width two-column layout: event details on the left, the
@@ -95,11 +93,6 @@ export default async function EditEventPage({
             />
             <AttendeeManager eventId={event.event_id} className="h-full w-full" />
           </div>
-
-          {/* Bulk roster upload for an event that already exists (#611) — the
-              "create the event now, bring the attendee list later" half. Adds
-              to THIS event; it never creates another one. */}
-          <AttendeeCsvImport eventId={event.event_id} />
 
           <Card>
             <CardHeader>
