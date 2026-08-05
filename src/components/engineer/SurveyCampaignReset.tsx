@@ -16,9 +16,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { Alumni, AlumniPage } from "@/types/alumni";
 
-/** Typed verbatim to arm the reset — a deliberate keystroke, not a mis-click. */
-const CONFIRM_WORD = "RESET";
-
 /** Utah time, matching every other timestamp on this console. */
 function formatDateTime(d: string | null | undefined): string {
   if (!d) return "—";
@@ -47,15 +44,21 @@ function alumniName(a: Alumni): string {
   return [first, a.last_name].filter(Boolean).join(" ").trim() || `#${a.alumni_id}`;
 }
 
-/** What a response's status means to the person reading it, not the DB word. */
+/**
+ * What a response's status means to the person reading it, not the DB word.
+ *
+ * Each note now describes what the row IS, not what a reset would do to it —
+ * because a reset does nothing to it. The old copy ("deleting it throws the
+ * submission away unreviewed") described behaviour that no longer exists.
+ */
 const RESPONSE_STATUS: Record<string, { label: string; note: string }> = {
   pending: {
     label: "Awaiting review",
-    note: "not yet applied to their profile — deleting it throws the submission away unreviewed",
+    note: "still in the review queue — a reset leaves it there, and it can still be applied to their profile",
   },
   applied: {
     label: "Applied",
-    note: "already written to their profile; deleting it removes the record of the submission, not the profile data",
+    note: "already written to their profile",
   },
   rejected: {
     label: "Rejected",
@@ -68,25 +71,24 @@ function plural(n: number, one: string, many: string): string {
 }
 
 /**
- * Engineer tool: find one alumnus and reset their survey campaign state (#395).
+ * Engineer tool: find one alumnus and make them surveyable again (#395).
  *
  * Replaces hand-run SQL. Re-surveying one person needs BOTH `survey_send_log`
  * (which blocks a repeat send inside a cycle) and `survey_responses` (the
- * 365-day window) cleared — clearing one leaves them just as blocked, which is
- * what sent people back to psql a second time. The backend does both in one
- * call; this screen's job is to make sure the reset is the right thing to do
- * before it fires.
+ * 365-day window) to stop counting — lifting one leaves them just as blocked,
+ * which is what sent people back to psql a second time. The backend does both by
+ * recording a reset, and DELETES NOTHING (Jake, 2026-08-05).
  *
- * Hence the shape: search → READ THE STATE → confirm → reset. The state panel is
- * not decoration. A person very often looks "blocked" simply because they
- * legitimately answered three months ago, and the right move is then to leave
- * them alone rather than delete a real reply — so when nothing is actually
- * blocking them the panel says so and the button warns that a reset would only
- * destroy history.
+ * That inverts what this screen is for. It used to be a last-chance warning
+ * before destruction: the confirm named the person and itemized what was about
+ * to be lost. Nothing is lost now, so the confirm's job is the opposite one —
+ * say plainly that the answers survive (people will assume otherwise, and this
+ * very button used to delete them), and put the real consequence, another email
+ * going out, where the warning used to be.
  *
- * The confirm names the person and itemizes what is lost. The backend
- * re-enforces RequireEngineer; this component only drives the request and
- * reports the counts it actually deleted.
+ * Hence: search → read the state → one confirm → reset. The type-RESET step went
+ * with the destruction it guarded; the state panel stays, because "they answered
+ * three months ago" is still usually a reason to leave someone alone.
  */
 export function SurveyCampaignReset() {
   const { toast } = useToast();
@@ -101,11 +103,7 @@ export function SurveyCampaignReset() {
   const [state, setState] = useState<SurveyAlumniState | null>(null);
   const [loadingState, setLoadingState] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // null = closed; "confirm" = the itemized warning; "type" = type-RESET.
-  const [step, setStep] = useState<null | "confirm" | "type">(null);
-  const [typed, setTyped] = useState("");
-  const matches = typed.trim().toUpperCase() === CONFIRM_WORD;
+  const [confirming, setConfirming] = useState(false);
 
   // Keep the latest search in charge: a slow early request must not overwrite a
   // later one's results.
@@ -169,12 +167,11 @@ export function SurveyCampaignReset() {
   function clear() {
     setState(null);
     setError(null);
-    setStep(null);
-    setTyped("");
+    setConfirming(false);
   }
 
   function run() {
-    if (!state || !matches) return;
+    if (!state) return;
     const target = state;
     startTransition(async () => {
       const res = await resetSurveyCampaign(target.alumni_id);
@@ -182,16 +179,23 @@ export function SurveyCampaignReset() {
         toast.error(res.error);
         return;
       }
-      const { name, sends_deleted, responses_deleted } = res.result;
+      const { name, responses_preserved, pending_preserved } = res.result;
       toast.success(
-        `Reset ${name} — removed ${plural(responses_deleted, "submitted response", "submitted responses")} and ` +
-          `${plural(sends_deleted, "send record", "send records")}. They can be surveyed again.`,
+        `${name} can be surveyed again. ` +
+          (responses_preserved > 0
+            ? `${plural(
+                responses_preserved,
+                "earlier response is",
+                "earlier responses are",
+              )} still on their record` +
+              (pending_preserved > 0
+                ? `, including ${pending_preserved} awaiting review.`
+                : ".")
+            : "Nothing was removed."),
       );
-      setStep(null);
-      setTyped("");
-      // Re-read the state so the panel shows the CLEARED record rather than the
-      // stale pre-reset one — otherwise the screen still shows the answers that
-      // were just deleted, inviting a second reset.
+      setConfirming(false);
+      // Re-read so the panel shows the post-reset state — everything still
+      // listed, nothing blocking — rather than the stale pre-reset one.
       load(target.alumni_id);
       router.refresh();
     });
@@ -207,12 +211,8 @@ export function SurveyCampaignReset() {
         Reset one alum’s survey campaign
       </h2>
       <p className="mt-1 max-w-3xl text-sm text-gray-500">
-        Makes a single alumnus surveyable again — the thing that used to need SQL
-        by hand. It clears both of the things that hold someone out of a
-        campaign: the record of the survey emails they were sent, and their
-        submitted responses (which silence them for 365 days). Their survey link
-        is not stored anywhere, so a fresh send simply issues a new one. Search
-        for the person, read what their state actually is, then decide.
+        Makes a single alumnus eligible for their cohort’s next survey send
+        again, keeping their earlier answers and send history.
       </p>
 
       <div className="mt-4 max-w-md">
@@ -286,6 +286,15 @@ export function SurveyCampaignReset() {
             </p>
           ) : null}
 
+          {/* Someone reset before has superseded rows below; without this they
+              read as unexplained history. */}
+          {state.reset_count > 0 ? (
+            <p className="mt-3 text-sm text-gray-500">
+              Already reset {plural(state.reset_count, "time", "times")}, most
+              recently {formatDateTime(state.last_reset_at)}.
+            </p>
+          ) : null}
+
           {/* The decision this screen exists to inform. */}
           <div className="mt-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -299,8 +308,8 @@ export function SurveyCampaignReset() {
               </ul>
             ) : (
               <p className="mt-1 text-sm text-gray-700">
-                Yes — nothing is holding them back. A reset would unblock nothing
-                and would only delete the history below.
+                Yes — nothing is holding them back, so a reset would change
+                nothing.
               </p>
             )}
           </div>
@@ -332,19 +341,30 @@ export function SurveyCampaignReset() {
                 <ul className="mt-2 space-y-1 text-sm text-gray-700">
                   {state.sends.map((s) => (
                     <li
-                      key={`${s.graduation_year}-${s.cycle_seq}-${s.stage}`}
+                      key={`${s.graduation_year}-${s.cycle_seq}-${s.stage}-${s.sent_at}`}
                       className="flex flex-wrap items-baseline gap-2"
                     >
                       <span>{s.stage_label}</span>
                       <span className="text-xs text-gray-500">
                         {formatDateTime(s.sent_at)}
                       </span>
-                      {/* Only the current campaign's sends can block anything —
-                          without this every long-standing alum reads as stuck. */}
-                      <Badge variant={s.current_cycle ? "warning" : "muted"}>
+                      {/* Only the current campaign's un-superseded sends block
+                          anything — without this every long-standing alum reads
+                          as stuck. */}
+                      <Badge
+                        variant={
+                          s.current_cycle
+                            ? "warning"
+                            : s.superseded
+                              ? "neutral"
+                              : "muted"
+                        }
+                      >
                         {s.current_cycle
                           ? "current campaign"
-                          : `campaign #${s.cycle_seq}`}
+                          : s.superseded
+                            ? "before a reset"
+                            : `campaign #${s.cycle_seq}`}
                       </Badge>
                     </li>
                   ))}
@@ -358,7 +378,7 @@ export function SurveyCampaignReset() {
               </p>
               {responses.length === 0 ? (
                 <p className="mt-2 text-sm text-gray-700">
-                  They have never replied. A reset destroys no answers.
+                  They have never replied.
                 </p>
               ) : (
                 <ul className="mt-2 space-y-2 text-sm text-gray-700">
@@ -390,6 +410,9 @@ export function SurveyCampaignReset() {
                           {r.blocks_resend ? (
                             <Badge variant="danger">blocking</Badge>
                           ) : null}
+                          {r.superseded ? (
+                            <Badge variant="neutral">previous cycle</Badge>
+                          ) : null}
                         </span>
                         {meaning.note ? (
                           <span className="mt-0.5 block text-xs text-gray-500">
@@ -407,26 +430,22 @@ export function SurveyCampaignReset() {
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <Button
               type="button"
-              variant="destructive"
-              onClick={() => setStep("confirm")}
+              variant="navy"
+              onClick={() => setConfirming(true)}
               disabled={pending}
             >
               Reset survey campaign
             </Button>
             <p className="max-w-lg text-xs text-gray-500">
-              {responses.length === 0
-                ? "Nothing of theirs would be deleted except the record of the emails sent."
-                : `Permanently deletes ${plural(responses.length, "submitted response", "submitted responses")}${
-                    unreviewed > 0
-                      ? `, ${unreviewed} of which ${unreviewed === 1 ? "has" : "have"} not been reviewed yet`
-                      : ""
-                  }. There is no undo.`}
+              {blocked
+                ? "They are included in the next send for their cohort; nothing of theirs is deleted."
+                : "Nothing is blocking them, so this would only record a reset."}
             </p>
           </div>
         </div>
       ) : null}
 
-      {step !== null && state ? (
+      {confirming && state ? (
         <div
           role="alertdialog"
           aria-modal="true"
@@ -439,153 +458,85 @@ export function SurveyCampaignReset() {
               id="survey-reset-title"
               className="mb-3 text-lg font-semibold text-gray-900"
             >
-              {step === "confirm"
-                ? `Delete ${state.name}’s survey answers?`
-                : `Confirm resetting ${state.name}`}
+              Survey {state.name} again?
             </h2>
 
-            {step === "confirm" ? (
-              <>
-                {/* Names the person and itemizes the loss — a generic "are you
-                    sure?" would not tell the operator that unreviewed answers
-                    are about to be thrown away. */}
-                <div id="survey-reset-desc" className="space-y-3 text-sm text-gray-600">
-                  <p>
-                    This permanently deletes{" "}
+            {/* Names the person, says what survives, and puts the one real
+                consequence — another email — where the warning used to be. This
+                button DID delete their answers until today, so "nothing is
+                deleted" has to be stated, not implied. */}
+            <div id="survey-reset-desc" className="space-y-3 text-sm text-gray-600">
+              <p>
+                <span className="font-medium text-gray-900">{state.name}</span>{" "}
+                becomes eligible for their cohort’s next survey send, so they
+                will receive another survey email.
+              </p>
+              <p className="font-medium text-gray-900">Nothing is deleted.</p>
+              <ul className="space-y-1">
+                <li>
+                  —{" "}
+                  {responses.length === 0
+                    ? "They have never replied, so there are no answers to keep."
+                    : `Their ${plural(
+                        responses.length,
+                        "submitted response stays",
+                        "submitted responses stay",
+                      )} in the database and on their Surveys tab, marked as a previous cycle.`}
+                </li>
+                {unreviewed > 0 ? (
+                  <li>
+                    —{" "}
                     <span className="font-medium text-gray-900">
-                      {state.name}
-                    </span>
-                    ’s survey record:
-                  </p>
-                  <ul className="space-y-1">
-                    <li>
-                      —{" "}
-                      <span className="font-medium text-gray-900">
-                        {plural(
-                          responses.length,
-                          "submitted response",
-                          "submitted responses",
-                        )}
-                      </span>
-                      {responses.length > 0 ? (
-                        <>
-                          {" "}
-                          ({responses
-                            .map(
-                              (r) =>
-                                `${plural(r.field_count, "field", "fields")}${
-                                  r.has_photo ? " + photo" : ""
-                                } on ${new Date(
-                                  r.submitted_at,
-                                ).toLocaleDateString("en-US", {
-                                  month: "short",
-                                  day: "numeric",
-                                  year: "numeric",
-                                  timeZone: "America/Denver",
-                                })}`,
-                            )
-                            .join("; ")}
-                          ).{" "}
-                          {unreviewed > 0 ? (
-                            <span className="font-medium text-danger-600">
-                              {unreviewed === 1
-                                ? "One of these is still awaiting review and has not been applied to their profile — those answers are gone, not saved."
-                                : `${unreviewed} of these are still awaiting review and have not been applied to their profile — those answers are gone, not saved.`}
-                            </span>
-                          ) : null}
-                        </>
-                      ) : (
-                        " — they have never replied, so no answers are lost."
-                      )}
-                    </li>
-                    <li>
-                      —{" "}
-                      <span className="font-medium text-gray-900">
-                        {plural(
-                          state.sends.length,
-                          "record of a survey email sent to them",
-                          "records of survey emails sent to them",
-                        )}
-                      </span>
-                      .
-                    </li>
-                  </ul>
-                  <p>
-                    Their Surveys tab will show no history afterwards. Nothing
-                    else on their record changes, no other alum is affected, and
-                    their cohort’s campaign keeps running. This cannot be undone.
-                  </p>
-                  {!blocked ? (
-                    <p className="font-medium text-danger-600">
-                      Nothing is currently blocking this alum from being
-                      surveyed, so this reset would delete the above and unblock
-                      nothing.
-                    </p>
-                  ) : null}
-                </div>
-                <div className="mt-5 flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => setStep(null)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    autoFocus
-                    onClick={() => setStep("type")}
-                  >
-                    Yes, continue
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <>
-                <p id="survey-reset-desc" className="text-sm text-gray-600">
-                  Type{" "}
-                  <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-xs text-gray-900">
-                    {CONFIRM_WORD}
-                  </code>{" "}
-                  to delete {state.name}’s survey answers and send history.
+                      {unreviewed === 1
+                        ? "One of those is still awaiting review"
+                        : `${unreviewed} of those are still awaiting review`}
+                    </span>{" "}
+                    and stays in the review queue — you can still apply{" "}
+                    {unreviewed === 1 ? "it" : "them"} to their profile
+                    afterwards, submitted photo included.
+                  </li>
+                ) : null}
+                <li>
+                  —{" "}
+                  {state.sends.length === 0
+                    ? "No survey email has ever been sent to them."
+                    : `The ${plural(
+                        state.sends.length,
+                        "record of the survey email sent to them stays",
+                        "records of the survey emails sent to them stay",
+                      )}; they simply stop counting against the next send.`}
+                </li>
+              </ul>
+              <p>
+                Nothing else on their record changes, no other alum is affected,
+                and their cohort’s campaign keeps running.
+              </p>
+              {!blocked ? (
+                <p className="font-medium text-warning-600">
+                  Nothing is currently blocking this alum, so this reset would
+                  change nothing.
                 </p>
-                <Input
-                  value={typed}
-                  onChange={(e) => setTyped(e.target.value)}
-                  autoFocus
-                  autoComplete="off"
-                  spellCheck={false}
-                  aria-label={`Type ${CONFIRM_WORD} to confirm`}
-                  placeholder={CONFIRM_WORD}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && matches && !pending) run();
-                  }}
-                  className="mt-3 focus-visible:border-danger-600 focus-visible:ring-danger-600"
-                />
-                <div className="mt-5 flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => {
-                      setStep(null);
-                      setTyped("");
-                    }}
-                    disabled={pending}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    onClick={run}
-                    disabled={!matches || pending}
-                  >
-                    {pending ? "Resetting…" : "Reset survey campaign"}
-                  </Button>
-                </div>
-              </>
-            )}
+              ) : null}
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setConfirming(false)}
+                disabled={pending}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="navy"
+                autoFocus
+                onClick={run}
+                disabled={pending}
+              >
+                {pending ? "Resetting…" : "Reset survey campaign"}
+              </Button>
+            </div>
           </div>
         </div>
       ) : null}
