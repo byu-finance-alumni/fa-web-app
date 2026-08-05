@@ -1,4 +1,5 @@
 import { ROLE } from "@/constants/roles";
+import { CAPABILITY, hasCapability } from "@/constants/capabilities";
 
 /**
  * Shared navigation model for the app shell — consumed by both the desktop
@@ -6,16 +7,22 @@ import { ROLE } from "@/constants/roles";
  * (see `getVisibleNav`):
  *   (no flag)      → every role
  *   hideViewOnly   → student and up (hidden from view_only / "Professor")
- *   fullAccessOnly → full_access, super_admin, engineer
+ *   capability     → holders of that capability code (see @/constants/capabilities)
  *   superAdminOnly → super_admin, engineer
  *   vocabOnly      → holders of the vocab_admin capability (engineer + granted)
  *   engineerOnly   → engineer only
+ *
+ * There is deliberately NO `fullAccessOnly` flag any more: fa-web-api #379
+ * dissolved the blanket `alumni.full` capability into per-section codes, and a
+ * role check would hide a screen from a role the engineer has deliberately
+ * granted, making the permission toggle look broken. Gate on `capability`.
  */
 export type NavLeaf = {
   href: string;
   label: string;
+  /** Capability code required to see this item (fa-web-api #379). */
+  capability?: string;
   superAdminOnly?: boolean;
-  fullAccessOnly?: boolean;
   engineerOnly?: boolean;
   vocabOnly?: boolean;
   hideViewOnly?: boolean;
@@ -32,23 +39,45 @@ export const NAV: NavItem[] = [
   { href: "/events", label: "Events" },
   { href: "/map", label: "Map" },
   { href: "/statistics", label: "Statistics" },
-  { href: "/activity", label: "Activity", fullAccessOnly: true },
+  {
+    href: "/activity",
+    label: "Activity",
+    capability: CAPABILITY.REPORTS_ADVANCED,
+  },
 
   {
+    // No gate on the group itself — `getVisibleNav` drops it when none of its
+    // children survive, so the section appears for exactly the roles that hold
+    // at least one of the capabilities below.
     href: "/manage",
     label: "Manage",
-    fullAccessOnly: true,
     children: [
-      { href: "/tasks", label: "Tasks", fullAccessOnly: true },
+      { href: "/tasks", label: "Tasks", capability: CAPABILITY.REPORTS_ADVANCED },
       {
         href: "/needs-surveying",
         label: "Needs Surveying",
-        fullAccessOnly: true,
+        capability: CAPABILITY.SURVEYS_MANAGE,
       },
-      { href: "/pay-it-forward", label: "Pay It Forward", fullAccessOnly: true },
-      { href: "/data-quality", label: "Data quality", fullAccessOnly: true },
-      { href: "/admin/import", label: "Import", fullAccessOnly: true },
-      { href: "/admin/import/update", label: "Update", fullAccessOnly: true },
+      {
+        href: "/pay-it-forward",
+        label: "Pay It Forward",
+        capability: CAPABILITY.DONATIONS_VIEW,
+      },
+      {
+        href: "/data-quality",
+        label: "Data quality",
+        capability: CAPABILITY.REPORTS_ADVANCED,
+      },
+      {
+        href: "/admin/import",
+        label: "Import",
+        capability: CAPABILITY.ALUMNI_IMPORT,
+      },
+      {
+        href: "/admin/import/update",
+        label: "Update",
+        capability: CAPABILITY.ALUMNI_IMPORT,
+      },
     ],
   },
 
@@ -101,22 +130,28 @@ export const resolveActiveHref = (pathname: string): string | null =>
   }, null);
 
 /**
- * Role-filtered nav. A group keeps only the children the user may see and is
- * dropped entirely if none remain. `canVocab` drives the capability-gated
- * Vocabulary item independently of the role string.
+ * Role- and capability-filtered nav. A group keeps only the children the user
+ * may see and is dropped entirely if none remain. `canVocab` drives the
+ * Vocabulary item independently of the role string; `capabilities` is the
+ * effective capability list from `GET /auth/context` and drives every item
+ * carrying a `capability` code (fa-web-api #379).
+ *
+ * `capabilities` defaults to empty, which HIDES capability-gated items. That is
+ * the safe default and matches engineer preview-as-role, where we hold the
+ * engineer's own capabilities and cannot know the previewed role's.
  */
-export function getVisibleNav(role: string, canVocab: boolean): NavItem[] {
+export function getVisibleNav(
+  role: string,
+  canVocab: boolean,
+  capabilities: readonly string[] = [],
+): NavItem[] {
   const isSuperAdmin = role === ROLE.ENGINEER || role === ROLE.SUPER_ADMIN;
   const isEngineer = role === ROLE.ENGINEER;
-  const hasFullAccess =
-    role === ROLE.ENGINEER ||
-    role === ROLE.SUPER_ADMIN ||
-    role === ROLE.FULL_ACCESS;
   const isViewOnly = role === ROLE.VIEW_ONLY;
 
   const canSee = (n: NavLeaf) =>
     (!n.superAdminOnly || isSuperAdmin) &&
-    (!n.fullAccessOnly || hasFullAccess) &&
+    (!n.capability || hasCapability(capabilities, n.capability)) &&
     (!n.engineerOnly || isEngineer) &&
     (!n.vocabOnly || canVocab) &&
     (!n.hideViewOnly || !isViewOnly);

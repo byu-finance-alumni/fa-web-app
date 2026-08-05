@@ -9,7 +9,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Fab } from "@/components/shared/Fab";
 import { QuickLogButton } from "@/components/dashboard/QuickLogButton";
-import { hasFullAccess, canAddInteraction } from "@/constants/roles";
+import {
+  canAddInteraction,
+  canCreateAlumni,
+  canImportEvents,
+  canWriteNotes,
+} from "@/constants/capabilities";
 import { DATA_VIZ_PALETTE, CHART_MUTED_COLOR } from "@/constants/chart";
 import type { UserContext } from "@/types/alumni";
 import type { FilterOptions } from "@/types/filters";
@@ -298,11 +303,17 @@ export default async function DashboardPage() {
   const firstName = resolveFirstName(ctx);
   const greeting = firstName ? `Welcome, ${firstName}` : "Welcome";
 
-  // Quick-add FAB (mobile) gating: full_access can create records; interaction
-  // logging is open to the wider canAddInteraction tier (professors included).
-  const dashRoles = ctx?.roles ?? null;
-  const canCreate = hasFullAccess(dashRoles);
-  const canLogInteraction = canAddInteraction(dashRoles);
+  // Quick-add FAB (mobile) gating. Each shortcut asks for the capability its
+  // destination actually needs (fa-web-api #379 replaced the one blanket
+  // `alumni.full` check that used to stand in for all of them), read from the
+  // effective capability list so an engineer's grant shows up here.
+  const dashCaps = ctx?.capabilities ?? null;
+  const canLogInteraction = canAddInteraction(dashCaps);
+  const canAddNote = canWriteNotes(dashCaps);
+  const canAddEvent = canImportEvents(dashCaps);
+  const canCreate = canCreateAlumni(dashCaps);
+  const showFab =
+    canLogInteraction || canAddNote || canAddEvent || canCreate;
 
   // Industry breakdown (#351/#352/#353, listed per #375): the backend returns
   // EVERY canonical finance industry (incl. zero-count) plus separate "Other"
@@ -471,15 +482,15 @@ export default async function DashboardPage() {
 
         {/* Home quick-add FAB (mobile). Log interaction / Add note open an
             alumnus search first, then land on that profile's form. */}
-        {!notProvisioned && (canCreate || canLogInteraction) ? (
+        {!notProvisioned && showFab ? (
           <Fab label="Quick add">
             {canLogInteraction ? (
               <QuickLogButton kind="interaction" label="Log interaction" />
             ) : null}
-            {canCreate ? (
+            {canAddNote ? (
               <QuickLogButton kind="note" label="Add note" />
             ) : null}
-            {canCreate ? (
+            {canAddEvent ? (
               <Button asChild variant="secondary">
                 <Link href="/events/import">Add event</Link>
               </Button>

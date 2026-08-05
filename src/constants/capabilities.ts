@@ -17,10 +17,42 @@
  */
 
 export const CAPABILITY = {
+  /** Read alumni records, the dashboard, the map, events. */
+  VIEW: "view",
+  /** Edit an EXISTING alumnus and their nested records. */
+  ALUMNI_EDIT: "alumni.edit",
+  /** Log / amend an interaction on an alumnus's timeline. Held by every role. */
+  INTERACTIONS_CREATE: "interactions.create",
+  /** Create new alumni + friend records. */
+  ALUMNI_CREATE: "alumni.create",
+  /** Archive and restore alumni. */
+  ALUMNI_ARCHIVE: "alumni.archive",
+  /** The new-record and bulk-update CSV importers. */
+  ALUMNI_IMPORT: "alumni.import",
+  /** Any download of alumni data — list, profile, cohort, event roster. */
+  ALUMNI_EXPORT: "alumni.export",
+  /** Headshot upload / replace / remove, including the bulk photo import. */
+  ALUMNI_PHOTOS: "alumni.photos",
   /** Create a single event by hand (POST /events). */
   EVENTS_CREATE: "events.create",
   /** Bulk-upload an event + attendee roster from a CSV (/events/import*). */
   EVENTS_IMPORT: "events.import",
+  /** Edit/delete an event and manage its attendee roster. */
+  EVENTS_MANAGE: "events.manage",
+  /** Write, edit, and delete notes. Reading them only needs `view`. */
+  NOTES_MANAGE: "notes.manage",
+  /** The survey console: responses review + campaign scheduling/sending. */
+  SURVEYS_MANAGE: "surveys.manage",
+  /** See Pay It Forward donor records and dollar amounts. */
+  DONATIONS_VIEW: "donations.view",
+  /** Write to the Pay It Forward donation ledger. */
+  DONATIONS_MANAGE: "donations.manage",
+  /** Activity feed, data quality, queues, task list, map drill-downs. */
+  REPORTS_ADVANCED: "reports.advanced",
+  /** The controlled-vocabulary editor. */
+  VOCAB_ADMIN: "vocab_admin",
+  /** The per-alumnus profile-completeness tab. */
+  PROFILE_COMPLETENESS: "profile.completeness",
 } as const;
 
 export type CapabilityCode = (typeof CAPABILITY)[keyof typeof CAPABILITY];
@@ -47,3 +79,71 @@ export const canCreateEvents = (
 export const canImportEvents = (
   capabilities: readonly string[] | null | undefined,
 ) => hasCapability(capabilities, CAPABILITY.EVENTS_IMPORT);
+
+/**
+ * The #379 split: `alumni.full` ("Manage alumni & data") used to be one switch
+ * over creating, archiving, importing, exporting, headshots, event management,
+ * notes, surveys, donation reads, and the advanced reports. Each of those is now
+ * its own capability, so the UI must ask for the specific one — a `hasFullAccess`
+ * role check here would ignore the engineer's edits and show the wrong controls.
+ */
+
+/** May log an interaction. Seeded to EVERY role — a professor can record one. */
+export const canAddInteraction = (
+  capabilities: readonly string[] | null | undefined,
+) => hasCapability(capabilities, CAPABILITY.INTERACTIONS_CREATE);
+
+/** May create new alumni / friend records. */
+export const canCreateAlumni = (
+  capabilities: readonly string[] | null | undefined,
+) => hasCapability(capabilities, CAPABILITY.ALUMNI_CREATE);
+
+/** May archive or restore an alumnus. */
+export const canArchiveAlumni = (
+  capabilities: readonly string[] | null | undefined,
+) => hasCapability(capabilities, CAPABILITY.ALUMNI_ARCHIVE);
+
+/** May run either CSV importer (new records or bulk update). */
+export const canImportAlumni = (
+  capabilities: readonly string[] | null | undefined,
+) => hasCapability(capabilities, CAPABILITY.ALUMNI_IMPORT);
+
+/**
+ * May download alumni data — the list export, a single profile, an event's
+ * attendee roster, or the cohort file used to prepare a bulk update. One
+ * capability across every export screen, because the thing being gated is
+ * personal data leaving the system, not which page the button sits on.
+ */
+export const canExportAlumni = (
+  capabilities: readonly string[] | null | undefined,
+) => hasCapability(capabilities, CAPABILITY.ALUMNI_EXPORT);
+
+/** May upload / replace / remove headshots, including the bulk import. */
+export const canManageHeadshots = (
+  capabilities: readonly string[] | null | undefined,
+) => hasCapability(capabilities, CAPABILITY.ALUMNI_PHOTOS);
+
+/** May edit/delete an event and manage its attendee roster. */
+export const canManageEvents = (
+  capabilities: readonly string[] | null | undefined,
+) => hasCapability(capabilities, CAPABILITY.EVENTS_MANAGE);
+
+/** May write, edit, or delete notes. Reading them needs only `view`. */
+export const canWriteNotes = (
+  capabilities: readonly string[] | null | undefined,
+) => hasCapability(capabilities, CAPABILITY.NOTES_MANAGE);
+
+/** May use the survey console. */
+export const canManageSurveys = (
+  capabilities: readonly string[] | null | undefined,
+) => hasCapability(capabilities, CAPABILITY.SURVEYS_MANAGE);
+
+/** May see Pay It Forward donor records and dollar amounts. */
+export const canViewDonations = (
+  capabilities: readonly string[] | null | undefined,
+) => hasCapability(capabilities, CAPABILITY.DONATIONS_VIEW);
+
+/** May reach the advanced read-only reporting surfaces. */
+export const canViewAdvancedReports = (
+  capabilities: readonly string[] | null | undefined,
+) => hasCapability(capabilities, CAPABILITY.REPORTS_ADVANCED);

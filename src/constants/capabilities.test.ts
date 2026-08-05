@@ -4,8 +4,17 @@ import { describe, expect, it } from "vitest";
 
 import {
   CAPABILITY,
+  canAddInteraction,
+  canArchiveAlumni,
+  canCreateAlumni,
   canCreateEvents,
+  canExportAlumni,
+  canImportAlumni,
   canImportEvents,
+  canManageEvents,
+  canManageHeadshots,
+  canViewDonations,
+  canWriteNotes,
   hasCapability,
 } from "./capabilities";
 
@@ -77,9 +86,11 @@ describe("event screens gate on capabilities, not roles (#378)", () => {
     const src = read("src/app/(app)/events/page.tsx");
     expect(src).toContain("canCreateEvents(ctx.capabilities)");
     expect(src).toContain("canImportEvents(ctx.capabilities)");
-    // Editing / deleting / roster writes stay on the alumni.full tier — the
-    // split must not have widened them.
-    expect(src).toContain("hasFullAccess(ctx.roles)");
+    // Editing / deleting / roster writes and note-writing moved off the role
+    // check onto their own capabilities in #379 — they must not read the role.
+    expect(src).toContain("canManageEventsCap(ctx.capabilities)");
+    expect(src).toContain("canWriteNotesCap(ctx.capabilities)");
+    expect(src).not.toContain("hasFullAccess");
   });
 
   it("the toolbar takes an href and holds no permission logic of its own", () => {
@@ -104,5 +115,118 @@ describe("the permission editor stays data-driven (#378)", () => {
     const src = read("src/components/admin/RoleCapabilitiesTable.tsx");
     expect(src).toContain("matrix.capabilities.filter");
     expect(src).not.toMatch(/["']alumni\.full["']/);
+  });
+});
+
+
+/**
+ * The #379 split of `alumni.full` into per-section capabilities.
+ *
+ * Same two halves as above: the predicates, then source-invariant guards over
+ * every screen that used to stand in for the blanket capability with a
+ * `hasFullAccess(ctx.roles)` role check. Those checks are the regression that
+ * makes a permission toggle look broken — the engineer grants `alumni.import`
+ * to a role, the backend lets it through, and the page still redirects.
+ */
+describe("the #379 per-section capabilities", () => {
+  it("codes match the backend registry", () => {
+    expect(CAPABILITY.INTERACTIONS_CREATE).toBe("interactions.create");
+    expect(CAPABILITY.ALUMNI_CREATE).toBe("alumni.create");
+    expect(CAPABILITY.ALUMNI_ARCHIVE).toBe("alumni.archive");
+    expect(CAPABILITY.ALUMNI_IMPORT).toBe("alumni.import");
+    expect(CAPABILITY.ALUMNI_EXPORT).toBe("alumni.export");
+    expect(CAPABILITY.ALUMNI_PHOTOS).toBe("alumni.photos");
+    expect(CAPABILITY.EVENTS_MANAGE).toBe("events.manage");
+    expect(CAPABILITY.NOTES_MANAGE).toBe("notes.manage");
+    expect(CAPABILITY.SURVEYS_MANAGE).toBe("surveys.manage");
+    expect(CAPABILITY.DONATIONS_VIEW).toBe("donations.view");
+    expect(CAPABILITY.REPORTS_ADVANCED).toBe("reports.advanced");
+  });
+
+  it("each predicate reads only its own code", () => {
+    const predicates = [
+      [canAddInteraction, CAPABILITY.INTERACTIONS_CREATE],
+      [canCreateAlumni, CAPABILITY.ALUMNI_CREATE],
+      [canArchiveAlumni, CAPABILITY.ALUMNI_ARCHIVE],
+      [canImportAlumni, CAPABILITY.ALUMNI_IMPORT],
+      [canExportAlumni, CAPABILITY.ALUMNI_EXPORT],
+      [canManageHeadshots, CAPABILITY.ALUMNI_PHOTOS],
+      [canManageEvents, CAPABILITY.EVENTS_MANAGE],
+      [canWriteNotes, CAPABILITY.NOTES_MANAGE],
+      [canViewDonations, CAPABILITY.DONATIONS_VIEW],
+    ] as const;
+    for (const [predicate, code] of predicates) {
+      expect(predicate(["view", code])).toBe(true);
+      // The retired blanket capability must not imply any of them, or the
+      // split bought nothing.
+      expect(predicate(["view", "alumni.edit", "alumni.full"])).toBe(false);
+    }
+  });
+
+  it("importing and exporting are independent", () => {
+    // The two bulk doors, in opposite directions — granting one must never
+    // grant the other.
+    expect(canExportAlumni(["view", "alumni.import"])).toBe(false);
+    expect(canImportAlumni(["view", "alumni.export"])).toBe(false);
+  });
+
+  it("logging an interaction does not imply editing an alumnus", () => {
+    expect(canAddInteraction(["view", "interactions.create"])).toBe(true);
+    expect(canCreateAlumni(["view", "interactions.create"])).toBe(false);
+    expect(canArchiveAlumni(["view", "interactions.create"])).toBe(false);
+  });
+});
+
+describe("screens gate on the #379 capabilities, not roles", () => {
+  const CASES: [string, string][] = [
+    ["src/app/(app)/admin/import/page.tsx", "canImportAlumni"],
+    ["src/app/(app)/admin/import/update/page.tsx", "canImportAlumni"],
+    ["src/app/(app)/friends/import/page.tsx", "canImportAlumni"],
+    ["src/app/(app)/alumni/new/page.tsx", "canCreateAlumni"],
+    ["src/app/(app)/pay-it-forward/page.tsx", "canViewDonations"],
+    ["src/app/(app)/events/[id]/edit/page.tsx", "canManageEventsCap"],
+    ["src/app/(app)/events/[id]/attendees/import/page.tsx", "canManageEventsCap"],
+  ];
+
+  it.each(CASES)("%s reads %s from the capability list", (path, predicate) => {
+    const src = read(path);
+    expect(src).toContain(`${predicate}(ctx.capabilities)`);
+    expect(src).not.toContain("hasFullAccess");
+  });
+
+  it("the alumni profile splits archive / photos / export / notes apart", () => {
+    const src = read("src/app/(app)/alumni/[id]/page.tsx");
+    expect(src).toContain("canArchiveAlumni(ctx.capabilities)");
+    expect(src).toContain("canManageHeadshots(ctx.capabilities)");
+    expect(src).toContain("canExportAlumni(ctx.capabilities)");
+    expect(src).toContain("canWriteNotesCap(ctx.capabilities)");
+    expect(src).toContain("canAddInteraction(ctx.capabilities)");
+    expect(src).not.toContain("hasFullAccess(");
+  });
+
+  it("the roster reads create + interaction from capabilities", () => {
+    const src = read("src/components/alumni/AlumniRoster.tsx");
+    expect(src).toContain("canCreateAlumni(caps)");
+    expect(src).toContain("canAddInteraction(caps)");
+    expect(src).not.toContain("hasFullAccess");
+  });
+
+  it("the sidebar nav is capability-gated, with no full-access role flag", () => {
+    const src = read("src/components/shell/nav.ts");
+    // The blanket role flag is gone; every Manage/Activity item names a code.
+    expect(src).not.toContain("fullAccessOnly?:");
+    expect(src).toContain("CAPABILITY.ALUMNI_IMPORT");
+    expect(src).toContain("CAPABILITY.REPORTS_ADVANCED");
+    expect(src).toContain("CAPABILITY.SURVEYS_MANAGE");
+    expect(src).toContain("CAPABILITY.DONATIONS_VIEW");
+  });
+
+  it("the app shell passes the effective capabilities to the sidebar", () => {
+    // Without this the nav would silently fall back to hiding everything.
+    const src = read("src/app/(app)/layout.tsx");
+    expect(src).toContain("capabilities={capabilities}");
+    // ...and must NOT leak the engineer's own capabilities while previewing a
+    // lower role, exactly as canVocab already does.
+    expect(src).toContain("previewRole ? [] : realCapabilities");
   });
 });
