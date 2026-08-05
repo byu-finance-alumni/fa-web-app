@@ -5371,7 +5371,9 @@ export interface components {
          *     ``unknown`` (active alumni with NO industry on file) are SEPARATE buckets,
          *     distinct from each other. ``graduate_student`` (#294) is likewise its own
          *     bucket — alumni whose current industry is "Graduate Student" — split out of
-         *     ``other`` so the dashboard can show it as its own bar.
+         *     ``other`` so the dashboard can show it as its own bar. "Military" (#608) gets
+         *     NO such bucket — Jake kept the chart about finance sectors, so it folds into
+         *     ``other`` like any other non-wheel value.
          */
         DashboardIndustryBreakdown: {
             /** Industries */
@@ -8120,7 +8122,7 @@ export interface operations {
     list_alumni_alumni_get: {
         parameters: {
             query?: {
-                /** @description Search names and external ids (case-insensitive). */
+                /** @description Free-text search over names, external ids, designations, current employer / title / city / state / country / industry and past employers. Tolerant of case, accents, punctuation, spacing ('newyork' finds New York) and misspellings ('goldman schs' finds Goldman Sachs). Filler words are ignored; 'at <x>' narrows to employers and 'in <x>' to places/industries. */
                 q?: string | null;
                 /** @description Net ID — case-insensitive partial match. */
                 net_id?: string | null;
@@ -8212,8 +8214,8 @@ export interface operations {
                 near?: string | null;
                 /** @description Optional radius override (miles) for the 'near' location search. When provided it overrides the radius inferred from the phrase. */
                 radius?: number | null;
-                /** @description Sort order: name | grad_desc | grad_asc | industry | city | state | employer | gender | updated. */
-                sort?: "name" | "grad_desc" | "grad_asc" | "industry" | "city" | "state" | "employer" | "gender" | "updated";
+                /** @description Sort order: relevance | name | grad_desc | grad_asc | industry | city | state | employer | gender | updated. Omitted means relevance when a free-text 'q' is given (best match first) and name otherwise. */
+                sort?: ("relevance" | "name" | "grad_desc" | "grad_asc" | "industry" | "city" | "state" | "employer" | "gender" | "updated") | null;
                 limit?: number;
                 offset?: number;
             };
