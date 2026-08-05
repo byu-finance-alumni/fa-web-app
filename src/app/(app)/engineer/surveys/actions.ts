@@ -219,11 +219,12 @@ export async function resetSurveyCampaign(
  * Remove one graduation year's campaign — the schedule row, and nothing else
  * (#398). The emails already sent and the answers alumni submitted are kept.
  *
- * The backend refuses with a 409 for any year that has ever sent an email
- * (cancel is the honest verb there, and the message says so), so callers should
- * offer this only when `emails_sent_all_time` is 0 and surface the error
- * verbatim if they get it wrong. Engineer-only; the backend re-enforces
- * RequireEngineer on DELETE /survey/schedules/{year}.
+ * Works on ANY campaign now, whatever its status. It used to 409 for any year
+ * that had ever sent an email, because deleting the row took the year's cycle
+ * number with it and the next campaign would then skip everybody; the backend
+ * retires that cycle instead, so a new campaign for the year starts above the
+ * old sends and reaches those alumni again. Engineer-only; the backend
+ * re-enforces RequireEngineer on DELETE /survey/schedules/{year}.
  */
 export async function deleteSurveyCampaign(
   graduationYear: number,
@@ -246,9 +247,12 @@ export async function deleteSurveyCampaign(
 }
 
 /**
- * Stop one graduation year's campaign for good — what a campaign that has
- * already emailed people gets instead of a delete (#398). The row stays, with
- * its history, and never resumes.
+ * Stop one graduation year's campaign for good (#398). The row stays, listed
+ * with its counts, and never resumes.
+ *
+ * Its own action, not a fallback for a delete that would be refused: "stop this
+ * cohort's emails but keep the campaign on the console" is a different intent
+ * from "get this campaign off my screen", and both are offered.
  */
 export async function cancelSurveyCampaign(
   graduationYear: number,

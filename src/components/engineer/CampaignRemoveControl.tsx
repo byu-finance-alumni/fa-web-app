@@ -8,33 +8,34 @@ import {
 } from "@/app/(app)/engineer/surveys/actions";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/button";
-import { campaignRemoveMode } from "./campaign-remove-mode";
+import { campaignRemoveActions } from "./campaign-remove-mode";
 
 /**
- * Remove one graduation year's campaign, next to Pause/Resume (#398).
+ * Remove or stop one graduation year's campaign, next to Pause/Resume (#398).
  *
- * Jake: "make it so in the surveys you can delete the survey campaigns next to
- * the resume button." A campaign scheduled against the wrong year was stuck
- * there forever — pausing hid the symptom, the row stayed.
+ * TWO SEPARATE ACTIONS, not one control picking a verb for you:
  *
- * ONE control, TWO honest verbs, chosen by whether the campaign has ever emailed
- * anyone (`emailsSentAllTime`):
+ *   Delete — always available, whatever the status. The campaign goes; the
+ *            emails it sent and the answers alumni submitted stay.
+ *   Cancel — only while there is something to stop (scheduled / active /
+ *            paused). It ends the sending and KEEPS the campaign listed with its
+ *            counts, which is a different thing to want.
  *
- *   Delete — nothing was ever sent. The schedule row is all that exists, so it
- *            goes.
- *   Cancel — emails went out. The row stays, terminally stopped, beside the
- *            history it explains. Not politeness: `survey_schedule` is the only
- *            holder of the year's cycle number, so deleting it would make the
- *            next campaign for this year think everyone had already been emailed
- *            and send to nobody. The backend refuses the delete outright; this
- *            just never offers it.
+ * Delete used to be offered only for a campaign that had never emailed anyone,
+ * with `cancel` in its place otherwise and NOTHING at all for an already
+ * cancelled one — so nobody could actually delete a real campaign (Jake: "it
+ * still won't let me delete a campaign in the engineer dashboard"). The
+ * restriction had a real cause: `survey_schedule` is the only holder of the
+ * year's cycle number, so removing it used to leave the send-log rows reading as
+ * the current cycle's and the next campaign for that year would find everyone
+ * already emailed and send to nobody. The backend now RETIRES that cycle on
+ * delete, so the next campaign starts above the old sends and reaches those
+ * alumni again — see `campaign-remove-mode.ts`.
  *
- * Either way the emails already sent and the answers alumni submitted are kept,
- * and the confirm says so — "delete campaign" reads like it takes those with it,
- * and it does not.
- *
- * Nothing is offered for an already-cancelled campaign: it is stopped, and the
- * backend would only refuse a delete for the same cycle-number reason.
+ * The confirm has to be literal about that, because "delete campaign" reads like
+ * the emails and the answers go with it and they do not. It says what is
+ * removed, what is kept, and what creating a new campaign for the year will do.
+ * It must never say "permanently deletes" — that would simply be false.
  */
 export function CampaignRemoveControl({
   graduationYear,
@@ -48,29 +49,32 @@ export function CampaignRemoveControl({
   const { toast } = useToast();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [confirming, setConfirming] = useState(false);
+  const [confirming, setConfirming] = useState<"delete" | "cancel" | null>(null);
 
-  // The verb, and whether there is one at all — see `campaignRemoveMode`.
-  const mode = campaignRemoveMode(status, emailsSentAllTime);
-  const hasSent = mode === "cancel";
+  const { canDelete, canCancel } = campaignRemoveActions(status);
+  const hasSent = emailsSentAllTime > 0;
+  const emailCount = `${emailsSentAllTime} email${
+    emailsSentAllTime === 1 ? "" : "s"
+  }`;
 
-  function run() {
+  function run(action: "delete" | "cancel") {
     startTransition(async () => {
-      const res = hasSent
-        ? await cancelSurveyCampaign(graduationYear)
-        : await deleteSurveyCampaign(graduationYear);
+      const res =
+        action === "cancel"
+          ? await cancelSurveyCampaign(graduationYear)
+          : await deleteSurveyCampaign(graduationYear);
       if ("error" in res) {
         toast.error(res.error);
         return;
       }
       toast.success(
-        hasSent
-          ? `Class of ${graduationYear} cancelled. It will not send again; the ${emailsSentAllTime} email${
-              emailsSentAllTime === 1 ? "" : "s"
-            } already sent and every submitted answer are kept.`
-          : `Class of ${graduationYear} campaign deleted. It never sent anything, and no survey answers were touched.`,
+        action === "cancel"
+          ? `Class of ${graduationYear} cancelled. It will not send again, and it stays listed with its counts.`
+          : hasSent
+            ? `Class of ${graduationYear} campaign deleted. The ${emailCount} it sent and every submitted answer are kept, and you can schedule this year again.`
+            : `Class of ${graduationYear} campaign deleted. It never sent anything, and no survey answers were touched.`,
       );
-      setConfirming(false);
+      setConfirming(null);
       // The action revalidates the route, but a bare `startTransition` doesn't
       // re-render the current server component (see PR #138) — force it so the
       // row disappears (or flips to cancelled) immediately.
@@ -78,26 +82,33 @@ export function CampaignRemoveControl({
     });
   }
 
-  if (mode === "none") return null;
-
-  const verb = hasSent ? "Cancel" : "Delete";
-
   return (
     <>
-      <Button
-        type="button"
-        variant="secondary"
-        size="sm"
-        onClick={() => setConfirming(true)}
-        disabled={pending}
-        title={
-          hasSent
-            ? `Cancel the ${graduationYear} campaign — it has already emailed ${emailsSentAllTime}`
-            : `Delete the ${graduationYear} campaign — it has never sent anything`
-        }
-      >
-        {verb}
-      </Button>
+      {canCancel ? (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={() => setConfirming("cancel")}
+          disabled={pending}
+          title={`Cancel the ${graduationYear} campaign — it stops sending but stays listed`}
+        >
+          Cancel
+        </Button>
+      ) : null}
+
+      {canDelete ? (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={() => setConfirming("delete")}
+          disabled={pending}
+          title={`Delete the ${graduationYear} campaign — the emails already sent are kept`}
+        >
+          Delete
+        </Button>
+      ) : null}
 
       {confirming ? (
         <div
@@ -112,7 +123,7 @@ export function CampaignRemoveControl({
               id={`remove-title-${graduationYear}`}
               className="mb-3 text-lg font-semibold text-gray-900"
             >
-              {hasSent
+              {confirming === "cancel"
                 ? `Cancel the Class of ${graduationYear} campaign?`
                 : `Delete the Class of ${graduationYear} campaign?`}
             </h2>
@@ -120,35 +131,48 @@ export function CampaignRemoveControl({
               id={`remove-desc-${graduationYear}`}
               className="space-y-3 text-sm text-gray-600"
             >
-              {hasSent ? (
+              {confirming === "cancel" ? (
                 <>
                   <p>
-                    This campaign has already emailed{" "}
-                    <span className="font-medium text-gray-900">
-                      {emailsSentAllTime}{" "}
-                      {emailsSentAllTime === 1 ? "alum" : "alumni"}
-                    </span>
-                    , so it is cancelled rather than deleted: it stops sending
-                    immediately and stays listed as history. A cancelled campaign
-                    never resumes — re-running this cohort means scheduling a new
-                    one.
+                    Sending stops immediately and the campaign stays listed here
+                    with its counts. A cancelled campaign never resumes — running
+                    this cohort again means starting a new campaign for it.
                   </p>
                   <p className="font-medium text-gray-900">
                     The emails already sent and every answer alumni submitted are
                     kept.
                   </p>
+                  <p>
+                    To take the campaign off this list entirely, delete it
+                    instead.
+                  </p>
                 </>
               ) : (
                 <>
                   <p>
-                    This campaign has never sent an email, so the schedule is
-                    removed outright and this graduation year disappears from the
-                    list. No survey email will go out for it.
+                    The campaign is removed from this list and will not send
+                    again.
                   </p>
                   <p className="font-medium text-gray-900">
-                    Nothing else is deleted — any survey answers on record for
-                    this graduation year stay in the database and on the alumni’s
-                    profiles.
+                    {hasSent ? (
+                      <>
+                        The record of the {emailCount} it sent is kept, and so is
+                        every answer alumni submitted — including any still
+                        waiting to be reviewed.
+                      </>
+                    ) : (
+                      <>
+                        This campaign never sent an email. Every answer alumni
+                        submitted for this graduation year is kept, on their
+                        profiles and in the review queue.
+                      </>
+                    )}
+                  </p>
+                  <p>
+                    You can create a new campaign for the Class of{" "}
+                    {graduationYear} afterwards. It starts a fresh cycle, so the
+                    alumni this one emailed can be emailed again — apart from
+                    anyone who has answered in the last year.
                   </p>
                 </>
               )}
@@ -157,7 +181,7 @@ export function CampaignRemoveControl({
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => setConfirming(false)}
+                onClick={() => setConfirming(null)}
                 disabled={pending}
               >
                 Keep it
@@ -166,14 +190,14 @@ export function CampaignRemoveControl({
                 type="button"
                 variant="destructive"
                 autoFocus
-                onClick={run}
+                onClick={() => run(confirming)}
                 disabled={pending}
               >
                 {pending
-                  ? hasSent
+                  ? confirming === "cancel"
                     ? "Cancelling…"
                     : "Deleting…"
-                  : hasSent
+                  : confirming === "cancel"
                     ? "Cancel campaign"
                     : "Delete campaign"}
               </Button>
