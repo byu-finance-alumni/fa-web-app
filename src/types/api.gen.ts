@@ -3690,6 +3690,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/survey/alumni/{alumni_id}/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Survey Alumnus State
+         * @description One alumnus's survey state: what was emailed, what came back, and what is
+         *     holding them out of the next send (#395).
+         *
+         *     Read-only, and the REQUIRED first half of the reset below — the engineer has
+         *     to be able to see that someone looks "blocked" only because they legitimately
+         *     replied three months ago, in which case deleting that reply is the wrong
+         *     move. `blocked_reasons` says so in plain words; empty means a reset would
+         *     unblock nothing and only destroy history.
+         *
+         *     Engineer-gated (`RequireEngineer` = the non-assignable `engineer`
+         *     capability), matching its destructive twin: the read exists to inform that
+         *     one decision, so widening it would only invite the reset to be run blind.
+         */
+        get: operations["survey_alumnus_state_survey_alumni__alumni_id__state_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/alumni/{alumni_id}/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Survey Reset Alumnus
+         * @description Clear ONE alumnus's survey campaign state so they can be surveyed again
+         *     (#395) — the UI replacement for hand-running DELETE statements.
+         *
+         *     IRREVERSIBLE AND DESTRUCTIVE. It permanently deletes that person's submitted
+         *     survey answers, including a `pending` one nobody has reviewed yet, along with
+         *     the record of the emails they were sent. Nothing is applied to their profile
+         *     on the way out and there is no undo. Callers must show
+         *     `GET /survey/alumni/{alumni_id}/state` first.
+         *
+         *     Gated on `RequireEngineer` — the `engineer` capability, which is the one
+         *     capability the permission editor cannot grant to another role. Deliberately
+         *     NOT `surveys.manage`: that capability IS assignable, so gating on it would
+         *     let an engineer hand permanent destruction of alumni submissions to any role
+         *     that merely needs to review responses. Same reasoning as the pause-all /
+         *     cancel-all switches, which are engineer-gated for being maintenance actions.
+         *
+         *     Scoped to exactly one alumnus. There is no bulk or cohort variant; the annual
+         *     cohort re-run is `POST /schedules/{grad_year}/new-cycle`, which deletes
+         *     nothing.
+         */
+        post: operations["survey_reset_alumnus_survey_alumni__alumni_id__reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/survey/cron/run": {
         parameters: {
             query?: never;
@@ -7237,6 +7306,86 @@ export interface components {
             sort_order?: number | null;
         };
         /**
+         * SurveyAlumniResponse
+         * @description One submission this alumnus made (`survey_responses`), any status.
+         */
+        SurveyAlumniResponse: {
+            /** Survey Response Id */
+            survey_response_id: number;
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            /** Status */
+            status: string;
+            /** Field Count */
+            field_count: number;
+            /** Has Photo */
+            has_photo: boolean;
+            /** Blocks Resend */
+            blocks_resend: boolean;
+        };
+        /**
+         * SurveyAlumniSend
+         * @description One survey email this alumnus was actually sent (`survey_send_log`).
+         */
+        SurveyAlumniSend: {
+            /** Graduation Year */
+            graduation_year: number;
+            /** Cycle Seq */
+            cycle_seq: number;
+            /** Stage */
+            stage: number;
+            /** Stage Label */
+            stage_label: string;
+            /**
+             * Sent At
+             * Format: date-time
+             */
+            sent_at: string;
+            /** Current Cycle */
+            current_cycle: boolean;
+        };
+        /**
+         * SurveyAlumniState
+         * @description An alumnus's complete survey state, for the engineer to read BEFORE
+         *     deciding whether a reset is warranted (#395).
+         *
+         *     The point of this shape is that a reset is USUALLY THE WRONG MOVE: someone
+         *     can look blocked simply because they legitimately answered three months ago,
+         *     and deleting that answer to re-ask them destroys a real reply. So the state
+         *     is reported as facts (what went out, what came back, when, with what status)
+         *     plus `blocked_reasons` in plain words, rather than a single yes/no.
+         */
+        SurveyAlumniState: {
+            /** Alumni Id */
+            alumni_id: number;
+            /** Name */
+            name: string;
+            /** Graduation Year */
+            graduation_year: number | null;
+            /** Email */
+            email: string | null;
+            /**
+             * Archived
+             * @default false
+             */
+            archived: boolean;
+            /** Schedule Status */
+            schedule_status: string | null;
+            /** Schedule Start Date */
+            schedule_start_date: string | null;
+            /** Schedule Cycle Seq */
+            schedule_cycle_seq: number | null;
+            /** Sends */
+            sends: components["schemas"]["SurveyAlumniSend"][];
+            /** Responses */
+            responses: components["schemas"]["SurveyAlumniResponse"][];
+            /** Blocked Reasons */
+            blocked_reasons: string[];
+        };
+        /**
          * SurveyChange
          * @description One field an alum's response would change: what's on file vs submitted.
          */
@@ -7373,6 +7522,26 @@ export interface components {
             recipients: number;
             /** Work Email Fallback */
             work_email_fallback: number;
+        };
+        /**
+         * SurveyResetResult
+         * @description What a per-alumnus reset actually deleted (#395).
+         *
+         *     Counts, not booleans, because the audit trail records these and "we removed
+         *     3 emails and 1 reply" is the only useful answer to "what did that button
+         *     do?". A reset that found nothing succeeds and reports zeros.
+         */
+        SurveyResetResult: {
+            /** Alumni Id */
+            alumni_id: number;
+            /** Name */
+            name: string;
+            /** Sends Deleted */
+            sends_deleted: number;
+            /** Responses Deleted */
+            responses_deleted: number;
+            /** Staged Photos Deleted */
+            staged_photos_deleted: number;
         };
         /**
          * SurveyRespondInfo
@@ -13171,6 +13340,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SurveyScheduleCancelAllResult"];
+                };
+            };
+        };
+    };
+    survey_alumnus_state_survey_alumni__alumni_id__state_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alumni_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyAlumniState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    survey_reset_alumnus_survey_alumni__alumni_id__reset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alumni_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyResetResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
