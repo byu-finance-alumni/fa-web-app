@@ -102,14 +102,39 @@ type SurveyUnreachableAlum = {
 };
 
 /**
- * The send result plus the fields #392 added. Spelled out here rather than
- * regenerating `api.gen.ts` by hand; both are optional so this stays correct
+ * The send result plus the fields #392 and #405 added. Spelled out here rather
+ * than regenerating `api.gen.ts` by hand; all optional so this stays correct
  * against an API that has not yet deployed the change.
  */
 type SendResult = SurveySendResult & {
   stage_complete?: boolean;
   breakdown?: SurveyRecipientBreakdown | null;
+  /**
+   * The send had to start this year's campaign because there wasn't one (#405).
+   *
+   * A manual send used to write only send-log rows, and the campaign is what
+   * drives the day 0 / +7 / +14 reminders — so the initial went out, both
+   * reminders silently never did, and the console listed no campaign for the
+   * year. The backend now leaves one behind; this is what lets the toast say so
+   * rather than leaving the operator to notice a new row appear.
+   */
+  campaign_created?: boolean;
 };
+
+/**
+ * The sentence appended to the send toast when the send started the campaign.
+ *
+ * Worth saying out loud on both outcomes. On a successful send it names a
+ * consequence the operator did not explicitly ask for (two reminders are now
+ * scheduled). On a ZERO send it is the entire point of what just happened —
+ * every recipient was already emailed by an earlier send that left no campaign,
+ * and this call is what repaired it — so an unqualified "no emails sent" would
+ * report that as a failure.
+ */
+export function campaignCreatedNote(result: SendResult, year: number): string {
+  if (!result.campaign_created) return "";
+  return ` A campaign for ${year} was started so the reminders go out; it is now listed under Schedule & send.`;
+}
 
 /**
  * Send re-surveys BY GRADUATION YEAR — the campaign console on the Needs
@@ -451,7 +476,16 @@ export function SurveyCampaignConsole() {
           } for graduation year ${selectedYear}` +
             (result.remaining > 0
               ? ` — ${result.remaining.toLocaleString()} over today's cap; run Send again to continue.`
-              : "."),
+              : ".") +
+            campaignCreatedNote(result, selectedYear),
+        );
+      } else if (result.campaign_created) {
+        // Nothing new went out because this year had already been emailed by a
+        // send that left no campaign behind — and that is exactly what this call
+        // just fixed. Reporting it as a plain failure would hide the repair.
+        toast.success(
+          `No new emails were needed for ${selectedYear}: ${zeroSendReason(result)}` +
+            campaignCreatedNote(result, selectedYear),
         );
       } else {
         toast.error(`No emails sent for ${selectedYear}: ${zeroSendReason(result)}`);

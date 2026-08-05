@@ -12,7 +12,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { zeroSendReason } from "./SurveyCampaignConsole";
+import { campaignCreatedNote, zeroSendReason } from "./SurveyCampaignConsole";
 
 type Breakdown = {
   graduation_year: number;
@@ -56,6 +56,7 @@ function result(over: Record<string, unknown> = {}) {
     // Present since api.gen.ts was regenerated against the deployed backend —
     // the send result now always carries these, so the stub has to as well.
     stage_complete: false,
+    campaign_created: false,
     breakdown: null,
     ...over,
   } as Parameters<typeof zeroSendReason>[0];
@@ -139,5 +140,30 @@ describe("zeroSendReason", () => {
     const msg = zeroSendReason(result({ total_recipients: 7 }));
     expect(msg).toContain("7 recipients");
     expect(msg).not.toContain("personal email");
+  });
+});
+
+/**
+ * The note appended when the send had to start the year's campaign (#405).
+ *
+ * Jake cleared every campaign, sent to a graduation year, and the console showed
+ * no campaign for it — because the send wrote only send-log rows. The reminders
+ * are driven by the campaign, so both of them silently never fired. The backend
+ * now leaves one behind; these pin that the operator is TOLD, including on the
+ * repair case where nothing new goes out and the message would otherwise read
+ * as a failure.
+ */
+describe("campaignCreatedNote", () => {
+  it("says nothing when the year already had a campaign", () => {
+    expect(campaignCreatedNote(result({ campaign_created: false }), 2019)).toBe("");
+    // ...and degrades safely against an API that predates the field.
+    expect(campaignCreatedNote(result(), 2019)).toBe("");
+  });
+
+  it("names the year and where to find the campaign", () => {
+    const note = campaignCreatedNote(result({ campaign_created: true }), 2019);
+    expect(note).toContain("2019");
+    expect(note).toContain("reminders");
+    expect(note).toContain("Schedule & send");
   });
 });
