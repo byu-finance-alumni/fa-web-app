@@ -224,9 +224,33 @@ function detectLocation(text: string): { near: string; radius?: string } | null 
   return null;
 }
 
+/**
+ * An "<something> at <something>" employer clause.
+ *
+ * Jake, 2026-08-04: typing "alumni in lehi at adobe" filtered **adobe as the
+ * city**. `cleanCity` treated `at` as a location lead-in, so its greedy `.*`
+ * ran past "lehi" and handed back "Adobe"; "lehi" was dropped entirely and the
+ * employer was never applied.
+ *
+ * The fix is not to teach this parser about companies — it has no data and
+ * cannot know whether a word is a company or a city. The backend does: since
+ * #620 `?q=` understands the same prepositions and resolves each side against
+ * the REAL employer / city columns ("at adobe" -> employer, "in lehi" -> city),
+ * with typo and spacing tolerance on top. So when the phrase carries an
+ * employer clause, this parser deliberately stops guessing and hands the WHOLE
+ * sentence to `q`.
+ *
+ * `@Adobe` counts as the same clause. A trailing bare "at" does not.
+ */
+const EMPLOYER_CLAUSE_RE = /(?:\bat\s+|@)[a-z0-9]/i;
+
 export function parseAlumniQuery(raw: string): string {
   const original = raw.trim();
   if (!original) return "/alumni";
+
+  if (EMPLOYER_CLAUSE_RE.test(original)) {
+    return `/alumni?${new URLSearchParams({ q: original }).toString()}`;
+  }
 
   // Pad with spaces so \b-style word checks at the ends behave.
   let text = ` ${original.toLowerCase()} `;
