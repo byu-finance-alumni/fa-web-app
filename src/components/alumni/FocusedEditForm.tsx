@@ -23,6 +23,7 @@ export function FocusedEditForm({
   cancelHref,
   pickerHref,
   submitLabel = "Save",
+  onSubmit,
   children,
 }: {
   title: string;
@@ -36,10 +37,26 @@ export function FocusedEditForm({
   /** Where the back link goes — the section picker. */
   pickerHref: string;
   submitLabel?: string;
+  /**
+   * Optional pre-submit client validation (#626). Calling `preventDefault()`
+   * inside it stops React from running `formAction`, so a section that has
+   * inline rules can block the round-trip — the same `action` + `onSubmit`
+   * arrangement `AlumniForm` uses. Sections without client rules simply omit it
+   * and behave exactly as before.
+   *
+   * Deliberately NOT paired with `noValidate`: these forms have `type="email"`
+   * inputs whose native check is existing behaviour, and the name rules below
+   * don't rely on suppressing it (no name input carries an HTML constraint).
+   */
+  onSubmit?: (e: React.FormEvent<HTMLFormElement>) => void;
   children: React.ReactNode;
 }) {
   return (
-    <form action={formAction} className="mx-auto w-full max-w-2xl space-y-4">
+    <form
+      action={formAction}
+      onSubmit={onSubmit}
+      className="mx-auto w-full max-w-2xl space-y-4"
+    >
       <div>
         <Link
           href={pickerHref}
