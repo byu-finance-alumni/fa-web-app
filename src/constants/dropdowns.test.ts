@@ -14,7 +14,10 @@ import {
   filterPrimaryIndustries,
   isMilitaryStatus,
   suggestMilitaryIndustry,
+  ENGAGEMENT_FLAG_TAGS,
+  TAG_OPTIONS,
 } from "./dropdowns";
+import { ENGAGEMENT_SECTION } from "@/components/survey/survey-screens";
 
 /**
  * These lists are FALLBACKS — the live options come from /vocabulary/industry.
@@ -446,5 +449,60 @@ describe("employerApplies", () => {
     for (const status of EMPLOYER_NOT_APPLICABLE_STATUSES) {
       expect(EMPLOYMENT_STATUS_OPTIONS).toContain(status);
     }
+  });
+});
+
+/**
+ * #629 — every "way to get involved" the survey asks about must be a tag.
+ *
+ * Jake answered "willing to mentor students", applied it, and found nothing on
+ * his profile: the survey asked nine questions and the profile rendered five, so
+ * four answers were storable and invisible. These tests pin the two lists
+ * together so a tenth question can't be added without a tag to carry it.
+ */
+describe("ENGAGEMENT_FLAG_TAGS", () => {
+  it("covers every engagement question the survey asks", () => {
+    const asked = ENGAGEMENT_SECTION.fields
+      .map((f) => f.key)
+      .filter((k) => k.startsWith("program."))
+      .map((k) => k.slice("program.".length));
+    expect(asked).toHaveLength(9);
+    for (const flag of asked) {
+      expect(
+        ENGAGEMENT_FLAG_TAGS[flag],
+        `survey asks about "${flag}" but no tag carries it`,
+      ).toBeTruthy();
+    }
+  });
+
+  it("maps every flag onto a real, offerable tag", () => {
+    for (const tag of Object.values(ENGAGEMENT_FLAG_TAGS)) {
+      expect(TAG_OPTIONS).toContain(tag);
+    }
+  });
+
+  it("gives each flag its own distinct tag", () => {
+    const tags = Object.values(ENGAGEMENT_FLAG_TAGS);
+    expect(new Set(tags).size).toBe(tags.length);
+  });
+
+  it("reuses the Mentor and Speaker tags that already existed", () => {
+    // These two were hand-applied tags already in use. New names would have
+    // left two lists of mentors — the fork #629 exists to close.
+    expect(ENGAGEMENT_FLAG_TAGS.mentor_willing).toBe("Mentor");
+    expect(ENGAGEMENT_FLAG_TAGS.guest_speaker_willing).toBe("Speaker");
+  });
+
+  it("keeps the generic Donor tag separate from the PIFF fund", () => {
+    // piff_donor is specifically Pay It Forward; "Donor" stays an independent
+    // hand-applied label so a survey answer can't overwrite its broader meaning.
+    expect(ENGAGEMENT_FLAG_TAGS.piff_donor).toBe("PIFF Donor");
+    expect(Object.values(ENGAGEMENT_FLAG_TAGS)).not.toContain("Donor");
+  });
+});
+
+describe("TAG_OPTIONS", () => {
+  it("has no duplicates", () => {
+    expect(new Set(TAG_OPTIONS).size).toBe(TAG_OPTIONS.length);
   });
 });
