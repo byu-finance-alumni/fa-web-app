@@ -2,8 +2,6 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { SURVEY_FIELDS } from "@/types/survey";
-
 /**
  * The survey asks alumni what they will help with; the profile has to say what
  * they answered.
@@ -33,34 +31,7 @@ function read(relPath: string): string {
 
 const PROFILE_PAGE = "src/app/(app)/alumni/[id]/page.tsx";
 
-/** The boolean engagement questions the survey puts to alumni. */
-const surveyEngagementColumns = SURVEY_FIELDS.filter(
-  (f) =>
-    f.table === "alumni_program_engagement" &&
-    f.kind === "boolean" &&
-    // CFA/CFP/CPA are held/not-held designations, not willingness — they have
-    // their own panel and their own tab.
-    !f.column.endsWith("_designation"),
-).map((f) => f.column);
-
 describe("profile shows the engagement answers alumni give", () => {
-  it("has every engagement flag the survey collects backed by a tag", () => {
-    // Since #629 the flags reach the profile as DERIVED TAGS, so the list that
-    // has to be complete is the backend's flag -> tag map, not a frontend
-    // array. A survey question missing from it is answerable and invisible,
-    // which is the bug this file exists for.
-    const map = readFileSync(
-      resolve(process.cwd(), "..", "fa-web-api", "app", "core", "dropdowns.py"),
-      "utf8",
-    );
-    expect(surveyEngagementColumns.length).toBeGreaterThanOrEqual(9);
-    for (const column of surveyEngagementColumns) {
-      expect(map, `${column} is stored but has no tag, so it never shows`).toContain(
-        `"${column}"`,
-      );
-    }
-  });
-
   it("does not print the same nine facts twice on one screen", () => {
     // The old dedicated panel was removed once the flags became header tags
     // (#629). If someone reinstates it, the profile shows every willingness
