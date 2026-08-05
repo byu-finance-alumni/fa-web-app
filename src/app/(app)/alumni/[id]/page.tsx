@@ -4,13 +4,16 @@ import { CircleAlert, Check } from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
 import { fetchHeadshotUrl } from "@/lib/headshots";
 import type { Contact, Profile } from "@/types/profile";
+import { employerApplies, employerDisplay } from "@/constants/dropdowns";
 import type { UserContext } from "@/types/alumni";
+import { canEditAlumni, isUserAdmin } from "@/constants/roles";
 import {
   canAddInteraction,
-  canEditAlumni,
-  hasFullAccess,
-  isUserAdmin,
-} from "@/constants/roles";
+  canArchiveAlumni,
+  canExportAlumni,
+  canManageHeadshots,
+  canWriteNotes as canWriteNotesCap,
+} from "@/constants/capabilities";
 import { Topbar } from "@/components/shell/Topbar";
 import { TopbarSearch } from "@/components/shared/TopbarSearch";
 import {
@@ -381,19 +384,26 @@ export async function AlumniProfileView({
   const headshotUrl = await fetchHeadshotUrl(Number(id));
 
   // `canEdit` covers editing the EXISTING record + nested data — students get
-  // this (mirrors backend require_alumni_edit). `canArchive` is the narrower
-  // create/archive tier (full_access and up) used only for the Archive control,
-  // which the backend keeps on require_full_access (students are 403'd there).
-  // `canAdd` additionally lets professors (view_only) log interactions — the
-  // backend (fa-web-api#129) permits view_only to POST interactions. It gates
-  // ONLY the add-interaction control; it must never unlock any other edit
-  // affordance (alumni record, employment, education, tasks, etc.).
+  // this (mirrors backend require_alumni_edit).
+  //
+  // The four flags below used to be ONE `canArchive` role check standing in
+  // for the blanket `alumni.full` capability. fa-web-api #379
+  // split that into per-section capabilities, so each control now asks for the
+  // one it actually needs — and asks the CAPABILITY list, not the role, so a
+  // grant made in the permission editor is reflected here.
+  //
+  // `canAdd` (interactions.create) is held by every role by default, including
+  // professors (view_only) — see fa-web-api #129/#379. It gates ONLY the
+  // add-interaction control; it must never unlock any other edit affordance
+  // (alumni record, employment, education, tasks, etc.).
   let canEdit = false;
-  let canArchive = false;
   let canAdd = false;
-  // Deleting a donation is now the donations.manage tier (super_admin+), matching
-  // the tightened backend gate — separate from canArchive (full_access) which
-  // still governs archive/notes.
+  let canArchive = false;
+  let canManagePhotos = false;
+  let canExport = false;
+  let canWriteNotes = false;
+  // Deleting a donation is the donations.manage tier (super_admin+), matching
+  // the tightened backend gate.
   let canDeleteDonation = false;
   // Profile-completeness tab is gated by the editable `profile.completeness`
   // capability (default: super_admin + engineer), toggleable per role in the
@@ -407,9 +417,12 @@ export async function AlumniProfileView({
   try {
     const ctx = await apiGet<UserContext>("/auth/context");
     canEdit = canEditAlumni(ctx.roles);
-    canArchive = hasFullAccess(ctx.roles);
+    canAdd = canAddInteraction(ctx.capabilities);
+    canArchive = canArchiveAlumni(ctx.capabilities);
+    canManagePhotos = canManageHeadshots(ctx.capabilities);
+    canExport = canExportAlumni(ctx.capabilities);
+    canWriteNotes = canWriteNotesCap(ctx.capabilities);
     canDeleteDonation = isUserAdmin(ctx.roles);
-    canAdd = canAddInteraction(ctx.roles);
     canViewCompleteness = (ctx.capabilities ?? []).includes(
       "profile.completeness",
     );
@@ -510,10 +523,18 @@ export async function AlumniProfileView({
   // most-recent previous roles from employment history.
   const currentEmp =
     profile.employment_history.find((e) => e.is_current) ?? null;
+  // #608: for a serving alumnus the employer field holds the BRANCH, which reads
+  // as an ordinary company on its own ("Air Force"). `employerDisplay` renders it
+  // as "Military/Air Force" — and as plain "Military" when no branch is recorded,
+  // never a dangling "Military/". Non-Military records are untouched.
+  const employerLabel = employerDisplay(
+    a.employment_status,
+    career?.current_employer,
+  );
   const currentJob = career
     ? {
         title: career.current_title,
-        company: career.current_employer,
+        company: employerLabel,
         location: headerPlace,
       }
     : currentEmp
@@ -559,8 +580,17 @@ export async function AlumniProfileView({
   const checks: { label: string; ok: boolean }[] = [
     { label: "Profile photo", ok: Boolean(headshotUrl) },
     {
+      // #608: for Military / Unemployed / Not in the Labor Force / Graduate
+      // Student there is no employer to record — Jake on Military: "the branch
+      // does not matter" — so those count as complete here whether or not an
+      // employer is on file. Same rule as the backend's missing-employer
+      // exemption; without it this score would contradict the Data-quality page
+      // for the very same record.
       label: "At least one job",
-      ok: Boolean(career?.current_employer) || profile.employment_history.length > 0,
+      ok:
+        Boolean(career?.current_employer) ||
+        profile.employment_history.length > 0 ||
+        !employerApplies(a.employment_status),
     },
     { label: "Email", ok: Boolean(c?.personal_email || c?.work_email) },
     { label: "Cell phone", ok: Boolean(c?.phone) },
@@ -623,7 +653,7 @@ export async function AlumniProfileView({
                 initials={initials}
                 size="h-24 w-24 text-2xl"
                 colorClass={avatarColor(initials)}
-                canManage={canArchive}
+                canManage={canManagePhotos}
                 align="start"
                 compactControls
               />
@@ -638,9 +668,9 @@ export async function AlumniProfileView({
                   ) : null}
                 </div>
                 {/* Headline: current title · employer */}
-                {career?.current_title || career?.current_employer ? (
+                {career?.current_title || employerLabel ? (
                   <p className="mt-0.5 text-sm font-medium text-gray-700">
-                    {[career?.current_title, career?.current_employer]
+                    {[career?.current_title, employerLabel]
                       .filter(Boolean)
                       .join(" · ")}
                   </p>
@@ -690,7 +720,7 @@ export async function AlumniProfileView({
                   initials={initials}
                   size="h-48 w-48 text-5xl"
                   colorClass={avatarColor(initials)}
-                  canManage={canArchive}
+                  canManage={canManagePhotos}
                 />
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -713,9 +743,7 @@ export async function AlumniProfileView({
                         {career.current_title}
                       </p>
                     ) : null}
-                    {career?.current_employer ? (
-                      <p>{career.current_employer}</p>
-                    ) : null}
+                    {employerLabel ? <p>{employerLabel}</p> : null}
                     {headerPlace ? (
                       <p className="text-sm text-gray-500">{headerPlace}</p>
                     ) : null}
@@ -750,10 +778,10 @@ export async function AlumniProfileView({
                   {canEdit ? (
                     <>
                       <AddTaskButton alumniId={aid} label="Create task" />
-                      {/* Export is a full_access action (audited server
-                          endpoint), so it's gated to canArchive (hasFullAccess)
-                          — students and professors never see it. */}
-                      {canArchive ? (
+                      {/* Export is an audited server endpoint gated on the
+                          `alumni.export` capability — the single switch over
+                          alumni data leaving the system (#379). */}
+                      {canExport ? (
                         <ExportProfileButton
                           alumniId={aid}
                           fileBaseName={`${name.replace(/\s+/g, "-").toLowerCase()}-${aid}`}
@@ -1235,18 +1263,18 @@ export async function AlumniProfileView({
                 items={profile.interactions}
                 canAdd={canAdd}
                 canEdit={canEdit}
-                canWriteNotes={canArchive}
+                canWriteNotes={canWriteNotes}
               />
             }
             notes={
               /* Unified notes (#39) in their own tab. Visible to every role;
-                 writing is full_access (canArchive), re-enforced + audit-logged
-                 server-side. ProfileNotes renders its own empty state. */
+                 writing needs the `notes.manage` capability, re-enforced +
+                 audit-logged server-side. ProfileNotes renders its own empty state. */
               <Panel title="Notes">
                 <ProfileNotes
                   alumniId={aid}
                   notes={notes}
-                  canWrite={canArchive}
+                  canWrite={canWriteNotes}
                 />
               </Panel>
             }
@@ -1511,7 +1539,7 @@ export async function AlumniProfileView({
                           <div className="min-w-0 flex-1">
                             <div className="flex items-start justify-between gap-2">
                               <p className="text-sm font-semibold text-gray-900">
-                                {career.current_employer ?? "—"}
+                                {employerLabel ?? "—"}
                                 <Badge variant="success" className="ml-2">
                                   Current
                                 </Badge>
@@ -1995,14 +2023,14 @@ export async function AlumniProfileView({
         {canAdd ? (
           <ProfileFab>
             <AddInteractionButton alumniId={aid} label="Add interaction" />
-            {canArchive ? <AddNoteButton /> : null}
+            {canWriteNotes ? <AddNoteButton /> : null}
             {canEdit ? (
               <>
                 <AddTaskButton alumniId={aid} label="Create task" />
                 <Button asChild>
                   <Link href={`/alumni/${aid}/edit`}>Edit</Link>
                 </Button>
-                {canArchive ? (
+                {canExport ? (
                   <ExportProfileButton
                     alumniId={aid}
                     fileBaseName={`${name.replace(/\s+/g, "-").toLowerCase()}-${aid}`}
@@ -2024,7 +2052,7 @@ export async function AlumniProfileView({
         <ProfileLogLauncher
           alumniId={aid}
           canAdd={canAdd}
-          canWriteNotes={canArchive}
+          canWriteNotes={canWriteNotes}
         />
       </main>
     </>

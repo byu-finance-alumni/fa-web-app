@@ -51,22 +51,24 @@ function toQs(f: EventsFilterState): string {
 export function EventsToolbar({
   initial,
   types,
-  addEventHref = null,
+  createHref = null,
+  importHref = null,
 }: {
   initial: EventsFilterState;
   /** Distinct event-type options for the menu (from GET /events/options). */
   types: string[];
   /**
-   * Destination for the "Add event" button, or `null` to hide it entirely.
-   *
-   * The caller resolves this from the viewer's CAPABILITIES (fa-web-api #378):
-   * `/events/import` for the bulk-upload wizard (`events.import`),
-   * `/events/new` for the single-event form (`events.create`), `null` for
-   * neither. Passing the href rather than a boolean keeps this component out of
-   * the permission model — it has no opinion on who may add an event, and the
-   * backend re-enforces the gate on submit either way.
+   * Destination for the primary "Add event" button, or `null` to hide it.
+   * Always the plain create form — an event needs no attendee list to exist
+   * (#611), and pointing this at the CSV importer is what made the create form
+   * unreachable in the first place.
    */
-  addEventHref?: string | null;
+  createHref?: string | null;
+  /**
+   * Destination for the secondary "Import events from CSV" button, or `null` to
+   * hide it. Bulk import stays fully reachable; it is just never the default.
+   */
+  importHref?: string | null;
 }) {
   const router = useRouter();
   const [f, setF] = useState<EventsFilterState>(initial);
@@ -133,10 +135,24 @@ export function EventsToolbar({
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white p-3 shadow-card">
-      {/* Add event — desktop toolbar only (mobile: the FAB). */}
-      {addEventHref ? (
+      {/* Add event — desktop toolbar only (mobile: the FAB). The primary action
+          is the plain create form: creating ONE event is the common case and it
+          needs no attendee list (#611). Bulk CSV import sits beside it as the
+          clearly-labelled secondary action, never the default. Each button is
+          gated on its own capability, so a user may see either, both, or
+          neither. */}
+      {createHref ? (
         <Button asChild className="hidden shrink-0 md:inline-flex">
-          <Link href={addEventHref}>Add event</Link>
+          <Link href={createHref}>Add event</Link>
+        </Button>
+      ) : null}
+      {importHref ? (
+        <Button
+          asChild
+          variant="secondary"
+          className="hidden shrink-0 md:inline-flex"
+        >
+          <Link href={importHref}>Import events from CSV</Link>
         </Button>
       ) : null}
 

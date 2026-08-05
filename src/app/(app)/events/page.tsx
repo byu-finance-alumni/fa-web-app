@@ -6,8 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Fab } from "@/components/shared/Fab";
 import { EventsExplorer, type EventRow } from "@/components/events/EventsExplorer";
 import { EventsToolbar } from "@/components/events/EventsToolbar";
-import { hasFullAccess } from "@/constants/roles";
-import { canCreateEvents, canImportEvents } from "@/constants/capabilities";
+import {
+  canCreateEvents,
+  canImportEvents,
+  canManageEvents as canManageEventsCap,
+  canWriteNotes as canWriteNotesCap,
+} from "@/constants/capabilities";
 import type { UserContext } from "@/types/alumni";
 
 type SP = {
@@ -82,16 +86,18 @@ export default async function EventsPage({
   // Three DIFFERENT gates, deliberately not one flag (fa-web-api #378):
   //
   //   * canManageEvents / canWriteNotes — editing and deleting an event, its
-  //     attendee roster, and discussion notes (#39). Still the `alumni.full`
-  //     tier, so still a role check.
-  //   * canCreate — POST /events, now the editable `events.create` CAPABILITY.
-  //   * canImport — the bulk-upload wizard, now the editable `events.import`
+  //     attendee roster — now the editable `events.manage` CAPABILITY (#379).
+  //   * canWriteNotes — discussion notes (#39), now the editable `notes.manage`
+  //     CAPABILITY (#379). Split from event management because "may annotate"
+  //     and "may delete the event" are different levels of trust.
+  //   * canCreate — POST /events, the editable `events.create` CAPABILITY.
+  //   * canImport — the bulk-upload wizard, the editable `events.import`
   //     CAPABILITY.
   //
-  // The last two must be read from `ctx.capabilities`, NOT from the role: an
-  // engineer can grant either one to a role that isn't full_access, and a role
-  // check would keep the button hidden from someone the backend would happily
-  // let through (and vice versa). Fetch the caller's context once; default to
+  // All four are read from `ctx.capabilities`, NOT from the role: an engineer
+  // can grant any of them to a role that isn't full_access, and a role check
+  // would keep the button hidden from someone the backend would happily let
+  // through (and vice versa). Fetch the caller's context once; default to
   // read-only if the account isn't provisioned. The backend re-enforces every
   // write regardless.
   let canManageEvents = false;
@@ -100,8 +106,8 @@ export default async function EventsPage({
   let canImport = false;
   try {
     const ctx = await apiGet<UserContext>("/auth/context");
-    canManageEvents = hasFullAccess(ctx.roles);
-    canWriteNotes = hasFullAccess(ctx.roles);
+    canManageEvents = canManageEventsCap(ctx.capabilities);
+    canWriteNotes = canWriteNotesCap(ctx.capabilities);
     canCreate = canCreateEvents(ctx.capabilities);
     canImport = canImportEvents(ctx.capabilities);
   } catch {
@@ -111,15 +117,15 @@ export default async function EventsPage({
     canImport = false;
   }
 
-  // Where "Add event" goes. The bulk-upload wizard creates the event AND its
-  // roster in one pass, so it is the richer entry point and wins when the user
-  // holds `events.import`; a user who only holds `events.create` gets the
-  // single-event form instead. Holding neither means no button at all.
-  const addEventHref = canImport
-    ? "/events/import"
-    : canCreate
-      ? "/events/new"
-      : null;
+  // "Add event" ALWAYS means the plain create form (#611). It used to prefer the
+  // bulk-upload wizard whenever the user held `events.import`, which is how a
+  // staff member with no attendee list ended up unable to create an event at
+  // all: that screen refuses to proceed without a file. Creating one event is
+  // the common case; importing a batch is the occasional one, so it gets its own
+  // clearly-labelled secondary button instead of the primary label. The two are
+  // independent capabilities, so a user may see either, both, or neither.
+  const createHref = canCreate ? "/events/new" : null;
+  const importHref = canImport ? "/events/import" : null;
 
   return (
     <>
@@ -128,7 +134,8 @@ export default async function EventsPage({
         <EventsToolbar
           initial={filters}
           types={types}
-          addEventHref={addEventHref}
+          createHref={createHref}
+          importHref={importHref}
         />
 
         {error ? (
@@ -153,13 +160,21 @@ export default async function EventsPage({
           />
         )}
 
-        {/* Mobile FAB — Add event. Desktop keeps its inline toolbar button.
-            Same capability gate and same destination as the toolbar. */}
-        {addEventHref ? (
+        {/* Mobile FAB — the same pair of actions as the desktop toolbar, under
+            the same capability gates: the plain create form first, bulk CSV
+            import as the separate secondary action beneath it (#611). */}
+        {createHref || importHref ? (
           <Fab label="Add event">
-            <Button asChild>
-              <Link href={addEventHref}>Add event</Link>
-            </Button>
+            {createHref ? (
+              <Button asChild>
+                <Link href={createHref}>Add event</Link>
+              </Button>
+            ) : null}
+            {importHref ? (
+              <Button asChild variant="secondary">
+                <Link href={importHref}>Import events from CSV</Link>
+              </Button>
+            ) : null}
           </Fab>
         ) : null}
       </main>

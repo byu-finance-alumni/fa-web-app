@@ -7,8 +7,13 @@ import {
   PRIMARY_EXCLUDED_INDUSTRIES,
   PRIMARY_INDUSTRY_OPTIONS,
   SECONDARY_INDUSTRY_OPTIONS,
+  EMPLOYER_NOT_APPLICABLE_STATUSES,
   SURVEY_EMPLOYMENT_STATUS_OPTIONS,
+  employerApplies,
+  employerDisplay,
   filterPrimaryIndustries,
+  isMilitaryStatus,
+  suggestMilitaryIndustry,
 } from "./dropdowns";
 
 /**
@@ -51,6 +56,22 @@ describe("INDUSTRY_OPTIONS", () => {
   it("has no duplicates", () => {
     expect(new Set(INDUSTRY_OPTIONS).size).toBe(INDUSTRY_OPTIONS.length);
   });
+
+  it("offers Military, in the alphabetical body rather than the pinned tail", () => {
+    // #608: a service member had no industry that fit and had to be recorded as
+    // Other/Unknown, which dropped them out of the dashboard breakdown. Unlike
+    // "Graduate Student" this is an ordinary answer, so people look for it under M.
+    const i = INDUSTRY_OPTIONS.indexOf("Military");
+    expect(i).toBeGreaterThan(-1);
+    expect(INDUSTRY_OPTIONS[i - 1]).toBe("Law");
+    expect(INDUSTRY_OPTIONS[i + 1]).toBe("Private Banking");
+    expect(i).toBeLessThan(INDUSTRY_OPTIONS.length - PINNED_TAIL.length);
+  });
+
+  it("offers Military as a PRIMARY industry, not secondary-only", () => {
+    // The whole point of #608 is that it is pickable as someone's CURRENT industry.
+    expect(PRIMARY_INDUSTRY_OPTIONS).toContain("Military");
+  });
 });
 
 describe("PRIMARY_INDUSTRY_OPTIONS", () => {
@@ -73,6 +94,7 @@ describe("PRIMARY_INDUSTRY_OPTIONS", () => {
       "Financial Services",
       "FP&A",
       "Investment Banking",
+      "Military",
       "Private Banking",
       "Private Credit",
       "Private Equity",
@@ -106,7 +128,7 @@ describe("SECONDARY_INDUSTRY_OPTIONS", () => {
   });
 
   it("is the full industry list (finance + Unknown/Graduate Student/Other)", () => {
-    expect(SECONDARY_INDUSTRY_OPTIONS).toHaveLength(23);
+    expect(SECONDARY_INDUSTRY_OPTIONS).toHaveLength(24);
   });
 });
 
@@ -264,5 +286,165 @@ describe("filterPrimaryIndustries", () => {
   it("leaves an unrelated vocabulary untouched", () => {
     const other = ["Mentor", "Speaker"];
     expect(filterPrimaryIndustries(other)).toEqual(other);
+  });
+});
+
+/* ------------------------------------------------------------ military (#608) -- */
+
+describe("employerDisplay", () => {
+  it("prefixes the branch for a serving alumnus", () => {
+    // Jake: the branch is stored the ordinary way (the employer field) but must
+    // read as service, not as an ordinary company called "Air Force".
+    expect(employerDisplay("Military", "Air Force")).toBe("Military/Air Force");
+  });
+
+  it("reads as plain Military when no branch is recorded", () => {
+    // The branch is OPTIONAL and never chased, so this is the common case — and
+    // it must never render a dangling "Military/".
+    expect(employerDisplay("Military", null)).toBe("Military");
+    expect(employerDisplay("Military", "")).toBe("Military");
+    expect(employerDisplay("Military", "   ")).toBe("Military");
+  });
+
+  it("does not double up when the employer is already 'Military'", () => {
+    expect(employerDisplay("Military", "Military")).toBe("Military");
+    expect(employerDisplay("Military", "military")).toBe("Military");
+  });
+
+  it("trims the branch", () => {
+    expect(employerDisplay("Military", "  Navy ")).toBe("Military/Navy");
+  });
+
+  it("tolerates status casing drift from the free-text intake sheet", () => {
+    expect(employerDisplay("  military ", "Army")).toBe("Military/Army");
+  });
+
+  it("leaves every other status untouched", () => {
+    expect(employerDisplay("Full-time", "Goldman Sachs")).toBe("Goldman Sachs");
+    expect(employerDisplay(null, "Goldman Sachs")).toBe("Goldman Sachs");
+  });
+
+  it("returns null when there is nothing to show", () => {
+    // Callers keep their existing "render nothing" branch.
+    expect(employerDisplay("Full-time", null)).toBeNull();
+    expect(employerDisplay(undefined, "")).toBeNull();
+  });
+});
+
+describe("isMilitaryStatus", () => {
+  it("is trimmed and case-insensitive", () => {
+    expect(isMilitaryStatus("Military")).toBe(true);
+    expect(isMilitaryStatus("  military ")).toBe(true);
+    expect(isMilitaryStatus("Full-time")).toBe(false);
+    expect(isMilitaryStatus(null)).toBe(false);
+    expect(isMilitaryStatus(undefined)).toBe(false);
+  });
+});
+
+describe("suggestMilitaryIndustry", () => {
+  it("suggests the PRIMARY slot when no industry is recorded", () => {
+    // The gap it closes: Military by status, no industry, therefore invisible to
+    // an industry search for Military.
+    expect(suggestMilitaryIndustry("Military", "", "")).toBe("current_industry");
+    expect(suggestMilitaryIndustry("Military", null, null)).toBe(
+      "current_industry",
+    );
+  });
+
+  it("never overwrites an existing primary — it goes to SECONDARY", () => {
+    // Jake's reservist case exactly: primary Investment Banking + secondary
+    // Military. An Investment Banker must not be relabelled.
+    expect(
+      suggestMilitaryIndustry("Military", "Investment Banking", ""),
+    ).toBe("current_industry_secondary");
+  });
+
+  it("suggests nothing when both slots are already filled", () => {
+    expect(
+      suggestMilitaryIndustry("Military", "Investment Banking", "Real Estate"),
+    ).toBeNull();
+  });
+
+  it("suggests nothing when Military is already recorded in either slot", () => {
+    // Re-suggesting over a value the user already has is how a "suggestion"
+    // turns into a fight with the form.
+    expect(suggestMilitaryIndustry("Military", "Military", "")).toBeNull();
+    expect(
+      suggestMilitaryIndustry("Military", "Investment Banking", "Military"),
+    ).toBeNull();
+    expect(suggestMilitaryIndustry("Military", "military", "")).toBeNull();
+  });
+
+  it("is ONE-WAY: a non-Military status suggests nothing", () => {
+    // Switching the status away must not strip a Military industry the user
+    // chose, so there is deliberately no "remove" branch at all.
+    expect(suggestMilitaryIndustry("Full-time", "", "")).toBeNull();
+    expect(suggestMilitaryIndustry("Full-time", "Military", "")).toBeNull();
+    expect(suggestMilitaryIndustry(null, "", "")).toBeNull();
+    expect(suggestMilitaryIndustry("", "", "")).toBeNull();
+  });
+
+  it("treats whitespace-only industries as empty", () => {
+    expect(suggestMilitaryIndustry("Military", "   ", "  ")).toBe(
+      "current_industry",
+    );
+  });
+
+  it("tolerates status casing drift", () => {
+    expect(suggestMilitaryIndustry(" MILITARY ", "", "")).toBe(
+      "current_industry",
+    );
+  });
+
+  it("only ever names a slot — applying it is the caller's job", () => {
+    // "Suggest, never force" is enforced by WHERE this is called (on a user
+    // change of the status field only), which is only possible because the
+    // helper itself is pure and stateless.
+    const slot = suggestMilitaryIndustry("Military", "", "");
+    expect(["current_industry", "current_industry_secondary", null]).toContain(
+      slot,
+    );
+  });
+});
+
+describe("employerApplies", () => {
+  it("exempts exactly the four statuses with no employer to record", () => {
+    // Mirrors EMPLOYER_NOT_APPLICABLE_STATUSES in the backend, which drives the
+    // missing-employer flag and the Data-quality counts. Drift here means the
+    // profile Completeness score contradicts that page for the same record.
+    expect([...EMPLOYER_NOT_APPLICABLE_STATUSES]).toEqual([
+      "Military",
+      "Unemployed",
+      "Not in the Labor Force",
+      "Graduate Student",
+    ]);
+    for (const status of EMPLOYER_NOT_APPLICABLE_STATUSES) {
+      expect(employerApplies(status)).toBe(false);
+    }
+  });
+
+  it("keeps flagging the statuses that DO have an employer", () => {
+    // Self-Employed: their own company is the employer and we want its name.
+    // Unknown: we don't know the status, so the blank employer IS the gap.
+    for (const status of ["Full-time", "Part-time", "Self-Employed", "Unknown"]) {
+      expect(employerApplies(status)).toBe(true);
+    }
+  });
+
+  it("does not exempt a blank status", () => {
+    expect(employerApplies(null)).toBe(true);
+    expect(employerApplies("")).toBe(true);
+    expect(employerApplies("   ")).toBe(true);
+  });
+
+  it("is case-insensitive and trimmed", () => {
+    expect(employerApplies("  MILITARY ")).toBe(false);
+    expect(employerApplies("unemployed")).toBe(false);
+  });
+
+  it("only names statuses that are real options", () => {
+    for (const status of EMPLOYER_NOT_APPLICABLE_STATUSES) {
+      expect(EMPLOYMENT_STATUS_OPTIONS).toContain(status);
+    }
   });
 });

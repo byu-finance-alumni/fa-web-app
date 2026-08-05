@@ -896,7 +896,8 @@ export interface paths {
          *
          *     The ``pay_it_forward`` roll-up (#403) always includes the donation count and
          *     last-gift date, but its dollar amounts are gated to amount-viewers
-         *     (``alumni.full`` — full_access+), mirroring the donations endpoints.
+         *     (``donations.view``, #379 — seeded to exactly the roles that previously held
+         *     ``alumni.full``), mirroring the donations endpoints.
          */
         get: operations["get_alumni_profile_alumni__alumni_id__profile_get"];
         put?: never;
@@ -946,10 +947,12 @@ export interface paths {
          * Add Interaction
          * @description Log an interaction on an alumni's timeline.
          *
-         *     Open to every authenticated role, including view_only ("Professor"): adding
-         *     an interaction is the one timeline write a professor may perform (#129). The
-         *     row is stamped with the actor's user id so ownership can later gate edit /
-         *     delete for view_only users.
+         *     Gated on the ``interactions.create`` capability (#379), which is seeded to
+         *     EVERY role — including view_only ("Professor"): adding an interaction is the
+         *     one timeline write a professor may perform (#129), and it is now its own
+         *     grantable capability rather than a special case buried in the view guard.
+         *     The row is stamped with the actor's user id so ownership gates edit / delete
+         *     for users without ``alumni.edit``.
          */
         post: operations["add_interaction_alumni__alumni_id__interactions_post"];
         delete?: never;
@@ -973,10 +976,8 @@ export interface paths {
          * @description Delete an interaction from an alumni's timeline. 404 if the row is missing
          *     or belongs to another alumnus.
          *
-         *     Edit-tier roles (engineer / super_admin / full_access / student) may delete
-         *     ANY interaction. A view_only ("Professor") user may delete only the
-         *     interactions they logged themselves; deleting another user's interaction is
-         *     403 (#129).
+         *     Same gate as the edit route: ``interactions.create`` to reach it at all, plus
+         *     ``alumni.edit`` to remove an interaction somebody else logged (#129/#379).
          */
         delete: operations["delete_interaction_alumni__alumni_id__interactions__interaction_id__delete"];
         options?: never;
@@ -986,9 +987,14 @@ export interface paths {
          * @description Edit an interaction on an alumni's timeline. 404 if the row is missing or
          *     belongs to another alumnus.
          *
-         *     Edit-tier roles (engineer / super_admin / full_access / student) may edit ANY
-         *     interaction. A view_only ("Professor") user may edit only the interactions
-         *     they logged themselves; editing another user's interaction is 403 (#129).
+         *     Requires ``interactions.create`` (#379, held by every role by default).
+         *     Holders who ALSO hold ``alumni.edit`` may amend ANY interaction; a holder
+         *     without it — a professor, by default — may amend only the interactions they
+         *     logged themselves, and gets 403 on someone else's (#129).
+         *
+         *     ``can_edit_others`` is resolved from the LIVE permission config rather than
+         *     from a hardcoded role list, so an engineer who grants ``alumni.edit`` to a
+         *     role in the permission editor actually widens this too.
          */
         patch: operations["update_interaction_alumni__alumni_id__interactions__interaction_id__patch"];
         trace?: never;
@@ -2236,8 +2242,8 @@ export interface paths {
          *     write (entity_type "event", action "add_attendee", entity_id event_id,
          *     new_value the alumni id/name).
          *
-         *     Note: this is the event-roster management surface and stays ``full_access``
-         *     on purpose. Recording attendance from an alumnus's PROFILE
+         *     Note: this is the event-roster management surface and stays on
+         *     ``events.manage`` on purpose. Recording attendance from an alumnus's PROFILE
          *     (``POST /alumni/{id}/events``) is profile data-entry and is intentionally
          *     open to ``student`` via ``RequireAlumniEdit`` — a deliberate split, not an
          *     oversight. Students manage attendance per-alumnus, not from the event roster.
@@ -2879,7 +2885,7 @@ export interface paths {
         put?: never;
         /**
          * Create Note
-         * @description Create a note on an alumni / interaction / event (full_access). 404 if the
+         * @description Create a note on an alumni / interaction / event (notes.manage). 404 if the
          *     target entity doesn't exist.
          */
         post: operations["create_note_notes_post"];
@@ -5365,7 +5371,9 @@ export interface components {
          *     ``unknown`` (active alumni with NO industry on file) are SEPARATE buckets,
          *     distinct from each other. ``graduate_student`` (#294) is likewise its own
          *     bucket — alumni whose current industry is "Graduate Student" — split out of
-         *     ``other`` so the dashboard can show it as its own bar.
+         *     ``other`` so the dashboard can show it as its own bar. "Military" (#608) gets
+         *     NO such bucket — Jake kept the chart about finance sectors, so it folds into
+         *     ``other`` like any other non-wheel value.
          */
         DashboardIndustryBreakdown: {
             /** Industries */
@@ -8114,7 +8122,7 @@ export interface operations {
     list_alumni_alumni_get: {
         parameters: {
             query?: {
-                /** @description Search names and external ids (case-insensitive). */
+                /** @description Free-text search over names, external ids, designations, current employer / title / city / state / country / industry and past employers. Tolerant of case, accents, punctuation, spacing ('newyork' finds New York) and misspellings ('goldman schs' finds Goldman Sachs). Filler words are ignored; 'at <x>' narrows to employers and 'in <x>' to places/industries. */
                 q?: string | null;
                 /** @description Net ID — case-insensitive partial match. */
                 net_id?: string | null;
@@ -8206,8 +8214,8 @@ export interface operations {
                 near?: string | null;
                 /** @description Optional radius override (miles) for the 'near' location search. When provided it overrides the radius inferred from the phrase. */
                 radius?: number | null;
-                /** @description Sort order: name | grad_desc | grad_asc | industry | city | state | employer | gender | updated. */
-                sort?: "name" | "grad_desc" | "grad_asc" | "industry" | "city" | "state" | "employer" | "gender" | "updated";
+                /** @description Sort order: relevance | name | grad_desc | grad_asc | industry | city | state | employer | gender | updated. Omitted means relevance when a free-text 'q' is given (best match first) and name otherwise. */
+                sort?: ("relevance" | "name" | "grad_desc" | "grad_asc" | "industry" | "city" | "state" | "employer" | "gender" | "updated") | null;
                 limit?: number;
                 offset?: number;
             };

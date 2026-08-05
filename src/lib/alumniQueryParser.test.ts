@@ -191,6 +191,39 @@ describe("filler words never leak into the city", () => {
   });
 });
 
+describe("hands an employer clause to the backend instead of guessing", () => {
+  /**
+   * #620. "alumni in lehi at adobe" used to come back as `?city=Adobe` — the
+   * company became the city and the real city was dropped. This parser has no
+   * data and cannot tell a company from a place, so as soon as the phrase
+   * carries an "at <x>" clause it stops guessing and sends the whole sentence
+   * to `q`, which resolves each side against the real employer/city columns.
+   */
+  table([
+    ["alumni in lehi at adobe", { q: "alumni in lehi at adobe" }],
+    [
+      "im looking for all alumni at goldman schs in new york",
+      { q: "im looking for all alumni at goldman schs in new york" },
+    ],
+    ["who works at Fidelity", { q: "who works at Fidelity" }],
+    ["@Adobe", { q: "@Adobe" }],
+  ]);
+
+  it("never emits a city for a company named after one", () => {
+    for (const q of ["alumni in lehi at adobe", "alumni at Boston Consulting"]) {
+      expect(facets(q).city).toBeUndefined();
+      expect(facets(q).near).toBeUndefined();
+    }
+  });
+
+  it("leaves phrases without an employer clause alone", () => {
+    expect(facets("alumni in Gilbert, Arizona")).toEqual({
+      city: "Gilbert",
+      state: "Arizona",
+    });
+  });
+});
+
 describe("falls back to a plain search", () => {
   table([
     // A bare name is the other thing people type — it must not be mistaken for
