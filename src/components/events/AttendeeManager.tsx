@@ -13,6 +13,7 @@ import {
   addAttendee,
   removeAttendee,
   exportEventAttendees,
+  downloadAttendeeMatchTemplate,
 } from "@/app/(app)/events/actions";
 import type { Alumni, AlumniPage } from "@/types/alumni";
 
@@ -168,24 +169,52 @@ export function AttendeeManager({
   // Download the roster as CSV (Name, Email, Net ID). The server action returns
   // the CSV text (full_access on the backend); we turn it into a Blob download.
   const [exporting, setExporting] = useState(false);
+  function saveCsv(csv: string, filename: string) {
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  /**
+   * One download button, two jobs.
+   *
+   * With a roster, it exports who is attending. With an EMPTY roster there is
+   * nothing to export, so it hands back the blank starting sheet instead —
+   * the same column set the upload accepts, header row only with the sample
+   * rows stripped, so it can be filled in and uploaded straight back. An
+   * empty event used to disable this button, which left "what columns does it
+   * want?" unanswerable without first attempting an upload.
+   */
   async function handleExport() {
     if (exporting) return;
     setExporting(true);
+
+    if (attendees.length === 0) {
+      const result = await downloadAttendeeMatchTemplate();
+      setExporting(false);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      const header = result.csv.split(/\r?\n/)[0] ?? "";
+      saveCsv(`${header}\n`, "attendee_list_template.csv");
+      toast.success("Blank attendee sheet downloaded. Fill it in and upload it.");
+      return;
+    }
+
     const result = await exportEventAttendees(eventId);
     setExporting(false);
     if (!result.ok) {
       toast.error(result.error);
       return;
     }
-    const blob = new Blob([result.csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = result.filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    saveCsv(result.csv, result.filename);
   }
 
   async function handleRemove(att: Attendee) {
@@ -207,7 +236,10 @@ export function AttendeeManager({
 
   return (
     <Card className={cn(className)}>
-      <CardContent className="pt-5">
+      {/* min-h-0 so the roster below can shrink and scroll inside the card
+          instead of pushing the page taller when the caller stretches us to
+          full height (the event edit screen does). */}
+      <CardContent className="flex min-h-0 flex-1 flex-col pt-5">
         <div className="mb-4 flex items-center gap-2">
           <h3 className="text-sm font-semibold text-gray-900">Attendees</h3>
           <Badge variant="neutral" className="tabular-nums">
@@ -225,9 +257,13 @@ export function AttendeeManager({
             variant="secondary"
             size="sm"
             onClick={handleExport}
-            disabled={exporting || attendees.length === 0}
+            disabled={exporting}
           >
-            {exporting ? "Downloading…" : "Download attendees (CSV)"}
+            {exporting
+              ? "Downloading…"
+              : attendees.length === 0
+                ? "Download blank sheet (CSV)"
+                : "Download attendees (CSV)"}
           </Button>
         </div>
 
@@ -312,10 +348,14 @@ export function AttendeeManager({
           </p>
         ) : attendees.length === 0 ? (
           <p className="py-3 text-sm text-gray-400">
-            No attendees yet. Search above to add the first one.
+            No attendees yet. Search above to add the first one, upload a list,
+            or download the blank sheet to fill in.
           </p>
         ) : (
-          <ul className="max-h-[26rem] divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-200">
+          /* flex-1 + min-h-0 lets the roster take whatever height the card was
+             given and scroll within it; the old fixed 26rem cap left dead space
+             on a tall screen. */
+          <ul className="min-h-0 flex-1 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-200">
             {attendees.map((a) => (
               <li
                 key={a.alumni_id}

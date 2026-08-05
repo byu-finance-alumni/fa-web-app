@@ -14,6 +14,7 @@ export function Sidebar({
   name = "",
   role,
   canVocab = false,
+  capabilities = [],
 }: {
   email: string;
   /** Display name for the footer; falls back to the email when empty. */
@@ -22,6 +23,10 @@ export function Sidebar({
   /** Holds the `vocab_admin` capability (engineer, or any granted role). Drives
    *  the capability-gated Vocabulary item independently of the role string. */
   canVocab?: boolean;
+  /** The user's effective capability codes from `GET /auth/context`. Drives the
+   *  per-section nav items #379 split out of the old "full access" role check —
+   *  empty (the default) hides them, which is also the preview-as-role case. */
+  capabilities?: readonly string[];
 }) {
   const pathname = usePathname();
   // Single most-specific active link (see resolveActiveHref) — avoids a
@@ -32,8 +37,8 @@ export function Sidebar({
   // defaults to open.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
-  // Role-filtered nav (shared with the mobile "More" menu — see nav.ts).
-  const visibleNav = getVisibleNav(role, canVocab);
+  // Role- and capability-filtered nav (see nav.ts).
+  const visibleNav = getVisibleNav(role, canVocab, capabilities);
 
   const linkCls = (active: boolean, indent = false) =>
     `flex items-center rounded-lg px-3 py-2.5 text-sm transition-colors ${

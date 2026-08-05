@@ -31,6 +31,11 @@ export default async function PersonalEditPage({
         <PersonalSectionForm
           id={a.alumni_id}
           defaults={{
+            first_name: s(a.first_name),
+            middle_name: s(a.middle_name),
+            last_name: s(a.last_name),
+            preferred_first_name: s(a.preferred_first_name),
+            birth_name: s(a.birth_name),
             personal_email: s(c?.personal_email),
             work_email: s(c?.work_email),
             phone: s(c?.phone),

@@ -4,7 +4,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { apiGet, ApiError } from "@/lib/api";
-import { hasFullAccess, isUserAdmin } from "@/constants/roles";
+import { isUserAdmin } from "@/constants/roles";
+import { canViewDonations } from "@/constants/capabilities";
 import type { UserContext } from "@/types/alumni";
 import type { Donor, DonorsResponse, DonationsSummary } from "@/types/donations";
 import { DonorTable } from "@/components/donations/DonorTable";
@@ -27,19 +28,21 @@ function amountValue(text: string, showAmounts: boolean) {
 }
 
 /**
- * Pay It Forward Fund tab (#161). The donor ledger requires the full_access tier
- * to read (#278) — the backend 403s student / view_only ("Professor"), and the
- * sidebar hides the nav for them. Dollar AMOUNTS are additionally gated to
- * full_access+ (the backend nulls them otherwise, so `null` renders as "—").
- * Add-donation and CSV import are admin-tier (super_admin+) via `canManage`. The
- * backend re-enforces every gate.
+ * Pay It Forward Fund tab (#161). Reading the donor ledger — and seeing its
+ * dollar AMOUNTS — requires the `donations.view` capability (fa-web-api #379,
+ * seeded to exactly the roles that previously held `alumni.full`): the backend
+ * 403s callers without it and nulls the amounts, so `null` renders as "—", and
+ * the sidebar hides the nav item. Add-donation and CSV import stay on the
+ * separate admin-tier `donations.manage` gate via `canManage`, so a role can be
+ * shown the ledger without being able to write to it. The backend re-enforces
+ * every gate.
  */
 export default async function PayItForwardPage() {
   let showAmounts = false;
   let canManage = false;
   try {
     const ctx = await apiGet<UserContext>("/auth/context");
-    showAmounts = hasFullAccess(ctx.roles);
+    showAmounts = canViewDonations(ctx.capabilities);
     canManage = isUserAdmin(ctx.roles);
   } catch {
     showAmounts = false;

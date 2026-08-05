@@ -896,7 +896,8 @@ export interface paths {
          *
          *     The ``pay_it_forward`` roll-up (#403) always includes the donation count and
          *     last-gift date, but its dollar amounts are gated to amount-viewers
-         *     (``alumni.full`` — full_access+), mirroring the donations endpoints.
+         *     (``donations.view``, #379 — seeded to exactly the roles that previously held
+         *     ``alumni.full``), mirroring the donations endpoints.
          */
         get: operations["get_alumni_profile_alumni__alumni_id__profile_get"];
         put?: never;
@@ -946,10 +947,12 @@ export interface paths {
          * Add Interaction
          * @description Log an interaction on an alumni's timeline.
          *
-         *     Open to every authenticated role, including view_only ("Professor"): adding
-         *     an interaction is the one timeline write a professor may perform (#129). The
-         *     row is stamped with the actor's user id so ownership can later gate edit /
-         *     delete for view_only users.
+         *     Gated on the ``interactions.create`` capability (#379), which is seeded to
+         *     EVERY role — including view_only ("Professor"): adding an interaction is the
+         *     one timeline write a professor may perform (#129), and it is now its own
+         *     grantable capability rather than a special case buried in the view guard.
+         *     The row is stamped with the actor's user id so ownership gates edit / delete
+         *     for users without ``alumni.edit``.
          */
         post: operations["add_interaction_alumni__alumni_id__interactions_post"];
         delete?: never;
@@ -973,10 +976,8 @@ export interface paths {
          * @description Delete an interaction from an alumni's timeline. 404 if the row is missing
          *     or belongs to another alumnus.
          *
-         *     Edit-tier roles (engineer / super_admin / full_access / student) may delete
-         *     ANY interaction. A view_only ("Professor") user may delete only the
-         *     interactions they logged themselves; deleting another user's interaction is
-         *     403 (#129).
+         *     Same gate as the edit route: ``interactions.create`` to reach it at all, plus
+         *     ``alumni.edit`` to remove an interaction somebody else logged (#129/#379).
          */
         delete: operations["delete_interaction_alumni__alumni_id__interactions__interaction_id__delete"];
         options?: never;
@@ -986,9 +987,14 @@ export interface paths {
          * @description Edit an interaction on an alumni's timeline. 404 if the row is missing or
          *     belongs to another alumnus.
          *
-         *     Edit-tier roles (engineer / super_admin / full_access / student) may edit ANY
-         *     interaction. A view_only ("Professor") user may edit only the interactions
-         *     they logged themselves; editing another user's interaction is 403 (#129).
+         *     Requires ``interactions.create`` (#379, held by every role by default).
+         *     Holders who ALSO hold ``alumni.edit`` may amend ANY interaction; a holder
+         *     without it — a professor, by default — may amend only the interactions they
+         *     logged themselves, and gets 403 on someone else's (#129).
+         *
+         *     ``can_edit_others`` is resolved from the LIVE permission config rather than
+         *     from a hardcoded role list, so an engineer who grants ``alumni.edit`` to a
+         *     role in the permission editor actually widens this too.
          */
         patch: operations["update_interaction_alumni__alumni_id__interactions__interaction_id__patch"];
         trace?: never;
@@ -2236,8 +2242,8 @@ export interface paths {
          *     write (entity_type "event", action "add_attendee", entity_id event_id,
          *     new_value the alumni id/name).
          *
-         *     Note: this is the event-roster management surface and stays ``full_access``
-         *     on purpose. Recording attendance from an alumnus's PROFILE
+         *     Note: this is the event-roster management surface and stays on
+         *     ``events.manage`` on purpose. Recording attendance from an alumnus's PROFILE
          *     (``POST /alumni/{id}/events``) is profile data-entry and is intentionally
          *     open to ``student`` via ``RequireAlumniEdit`` — a deliberate split, not an
          *     oversight. Students manage attendance per-alumnus, not from the event roster.
@@ -2879,7 +2885,7 @@ export interface paths {
         put?: never;
         /**
          * Create Note
-         * @description Create a note on an alumni / interaction / event (full_access). 404 if the
+         * @description Create a note on an alumni / interaction / event (notes.manage). 404 if the
          *     target entity doesn't exist.
          */
         post: operations["create_note_notes_post"];
@@ -3347,6 +3353,75 @@ export interface paths {
         put?: never;
         /** Send Survey Campaign */
         post: operations["send_survey_campaign_survey_campaigns__grad_year__send_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/campaigns/{grad_year}/recipients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Survey Recipient Breakdown
+         * @description Who this year's survey would reach, and who it would not (#392).
+         *
+         *     The console's send confirmation reads THIS rather than doing its own
+         *     arithmetic on the year picker's totals. That arithmetic
+         *     (``total_alumni - responded``) ignored suppression, unreachable alumni and
+         *     the shared-address dedupe, so the button promised a number the send could not
+         *     deliver — the parity bug this codebase keeps re-growing.
+         *
+         *     The same function backs `SurveySendResult.breakdown`, so the figure shown
+         *     before a send and the figure explaining it afterwards cannot disagree.
+         *
+         *     Read-only, sends nothing, takes no send lock — safe to poll while the daily
+         *     cron is mid-run. Gated like the rest of the console.
+         */
+        get: operations["survey_recipient_breakdown_survey_campaigns__grad_year__recipients_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/campaigns/{grad_year}/unreachable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Survey Unreachable
+         * @description The alumni this year's survey CANNOT email, by name (#392).
+         *
+         *     ``SurveyRecipientBreakdown.unreachable`` is this set as a count; this is the
+         *     worklist behind it, so "we can't reach 20 of them" becomes something staff
+         *     can act on. Each row says WHY and shows whatever is in the two email columns,
+         *     because a typo'd work address is fixable on sight while a wholly missing one
+         *     has to be chased.
+         *
+         *     Campaign-scoped, NOT schedule-scoped: a year with no schedule still has a
+         *     contact-data gap worth seeing, so this never 404s — an empty list means
+         *     everyone is reachable.
+         *
+         *     Contains no suppressed alumni. Deceased / Do Not Contact are excluded from
+         *     the campaign by decision, not by a gap, and must never be presented as people
+         *     to chase for an address.
+         *
+         *     Read-only and gated like the rest of the console (it returns alumni contact
+         *     details).
+         */
+        get: operations["list_survey_unreachable_survey_campaigns__grad_year__unreachable_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5365,7 +5440,9 @@ export interface components {
          *     ``unknown`` (active alumni with NO industry on file) are SEPARATE buckets,
          *     distinct from each other. ``graduate_student`` (#294) is likewise its own
          *     bucket — alumni whose current industry is "Graduate Student" — split out of
-         *     ``other`` so the dashboard can show it as its own bar.
+         *     ``other`` so the dashboard can show it as its own bar. "Military" (#608) gets
+         *     NO such bucket — Jake kept the chart about finance sectors, so it folds into
+         *     ``other`` like any other non-wheel value.
          */
         DashboardIndustryBreakdown: {
             /** Industries */
@@ -6210,6 +6287,11 @@ export interface components {
              * @default 0
              */
             responded: number;
+            /**
+             * Unreachable
+             * @default 0
+             */
+            unreachable: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -7252,6 +7334,47 @@ export interface components {
             survey_notes: string | null;
         };
         /**
+         * SurveyRecipientBreakdown
+         * @description Who a year's survey reaches, and who it does not — the console's one
+         *     account of a cohort (#392).
+         *
+         *     The buckets PARTITION the year's alumni (is_alumni, not archived)::
+         *
+         *         cohort_total = suppressed + already_responded + unreachable + eligible
+         *         recipients   = eligible - duplicate_emails
+         *
+         *     Every consumer reads these same numbers — the year picker, the send
+         *     confirmation, and the send result — because they are produced by the same
+         *     queries the send itself runs. Deriving a count separately from the send is
+         *     the standing bug in this area: the console reports a figure, a different
+         *     number goes out, and nobody can tell which was wrong.
+         *
+         *     `suppressed` and `unreachable` are SEPARATE and must stay that way in the UI.
+         *     Deceased / Do Not Contact is a decision to honour; no usable address is a gap
+         *     to close. Summing them into one "not emailed" total would either hide real
+         *     gaps or put Do Not Contact alumni on a chase list.
+         */
+        SurveyRecipientBreakdown: {
+            /** Graduation Year */
+            graduation_year: number;
+            /** Cohort Total */
+            cohort_total: number;
+            /** Suppressed */
+            suppressed: number;
+            /** Already Responded */
+            already_responded: number;
+            /** Unreachable */
+            unreachable: number;
+            /** Eligible */
+            eligible: number;
+            /** Duplicate Emails */
+            duplicate_emails: number;
+            /** Recipients */
+            recipients: number;
+            /** Work Email Fallback */
+            work_email_fallback: number;
+        };
+        /**
          * SurveyRespondInfo
          * @description The alum's current on-file info for the public confirm page, resolved from
          *     a survey token. `fields` is keyed by the frontend's SURVEY_FIELDS keys
@@ -7476,6 +7599,12 @@ export interface components {
             retry_after_seconds: number | null;
             /** Sample */
             sample: components["schemas"]["SurveySendSample"][];
+            /**
+             * Stage Complete
+             * @default false
+             */
+            stage_complete: boolean;
+            breakdown: components["schemas"]["SurveyRecipientBreakdown"] | null;
         };
         /**
          * SurveySendSample
@@ -7486,6 +7615,11 @@ export interface components {
             email: string;
             /** Link */
             link: string;
+            /**
+             * Email Source
+             * @default personal
+             */
+            email_source: string;
         };
         /**
          * SurveySubmitRequest
@@ -7518,6 +7652,31 @@ export interface components {
             change_count: number;
             /** Survey Response Id */
             survey_response_id: number | null;
+        };
+        /**
+         * SurveyUnreachableAlum
+         * @description One alumnus this campaign cannot email (#392).
+         *
+         *     The count made actionable, mirroring `SurveyNonResponder`: staff need names
+         *     and the offending values, not a number. The reason separates "we have never
+         *     had an address" from "the address we hold is unusable" — the second is often
+         *     a typo fixable straight from this list.
+         *
+         *     Never contains a suppressed (Deceased / Do Not Contact) alumnus.
+         */
+        SurveyUnreachableAlum: {
+            /** Alumni Id */
+            alumni_id: number;
+            /** Name */
+            name: string;
+            /** Reason */
+            reason: string;
+            /** Reason Label */
+            reason_label: string;
+            /** Personal Email */
+            personal_email: string | null;
+            /** Work Email */
+            work_email: string | null;
         };
         /**
          * SurveyUsage
@@ -8114,7 +8273,7 @@ export interface operations {
     list_alumni_alumni_get: {
         parameters: {
             query?: {
-                /** @description Search names and external ids (case-insensitive). */
+                /** @description Free-text search over names, external ids, designations, current employer / title / city / state / country / industry and past employers. Tolerant of case, accents, punctuation, spacing ('newyork' finds New York) and misspellings ('goldman schs' finds Goldman Sachs). Filler words are ignored; 'at <x>' narrows to employers and 'in <x>' to places/industries. */
                 q?: string | null;
                 /** @description Net ID — case-insensitive partial match. */
                 net_id?: string | null;
@@ -8206,8 +8365,8 @@ export interface operations {
                 near?: string | null;
                 /** @description Optional radius override (miles) for the 'near' location search. When provided it overrides the radius inferred from the phrase. */
                 radius?: number | null;
-                /** @description Sort order: name | grad_desc | grad_asc | industry | city | state | employer | gender | updated. */
-                sort?: "name" | "grad_desc" | "grad_asc" | "industry" | "city" | "state" | "employer" | "gender" | "updated";
+                /** @description Sort order: relevance | name | grad_desc | grad_asc | industry | city | state | employer | gender | updated. Omitted means relevance when a free-text 'q' is given (best match first) and name otherwise. */
+                sort?: ("relevance" | "name" | "grad_desc" | "grad_asc" | "industry" | "city" | "state" | "employer" | "gender" | "updated") | null;
                 limit?: number;
                 offset?: number;
             };
@@ -12625,6 +12784,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SurveySendResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    survey_recipient_breakdown_survey_campaigns__grad_year__recipients_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grad_year: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyRecipientBreakdown"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_survey_unreachable_survey_campaigns__grad_year__unreachable_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grad_year: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyUnreachableAlum"][];
                 };
             };
             /** @description Validation Error */

@@ -71,6 +71,25 @@ function getStr(formData: FormData, k: string): string | undefined {
   return typeof v === "string" && v.trim() !== "" ? v.trim() : undefined;
 }
 
+/**
+ * Getter for an OPTIONAL field the user is allowed to CLEAR (#626).
+ *
+ * `getStr` returns `undefined` for a blank input and `compact` then drops it,
+ * which on a PATCH silently leaves the stored value in place — fine for fields
+ * that are only ever filled in, wrong for one a user deliberately empties (a
+ * preferred name entered on the wrong record, a middle name that was never
+ * theirs). Returns an explicit `null` for a blank input so the backend clears
+ * the column, and `undefined` only when the field is absent from the form
+ * entirely (so a section that doesn't render it can never wipe it).
+ */
+function getClearableStr(
+  formData: FormData,
+  k: string,
+): string | null | undefined {
+  if (!formData.has(k)) return undefined;
+  return getStr(formData, k) ?? null;
+}
+
 /** Drop `undefined` entries so optional fields aren't sent as null/empty. */
 function compact(obj: Record<string, unknown>): Record<string, unknown> {
   for (const k of Object.keys(obj)) {
@@ -395,6 +414,20 @@ export async function updatePersonalSection(
   // value untouched — never send explicit nulls here or the import's data would
   // be wiped on every personal-section save.
   const payload: Record<string, unknown> = compact({
+    // Names (#626). first/last are sent only when non-blank: they can't be
+    // cleared from the UI (the form blocks erasing one that exists), and a
+    // record that legitimately has none must not be able to PATCH a null over
+    // whatever the import might land there later. The three optional names ARE
+    // clearable — a preferred name typed on the wrong record has to be
+    // removable, and blanking one is an explicit user action on a prefilled
+    // input, not an omission. The backend title-cases all of them on write and
+    // audits each changed field individually, so a rename is attributed like
+    // any other edit.
+    first_name: getStr(formData, "first_name"),
+    last_name: getStr(formData, "last_name"),
+    middle_name: getClearableStr(formData, "middle_name"),
+    preferred_first_name: getClearableStr(formData, "preferred_first_name"),
+    birth_name: getClearableStr(formData, "birth_name"),
     net_id: getStr(formData, "net_id"),
     citizenship: getStr(formData, "citizenship"),
     home_country: getStr(formData, "home_country"),

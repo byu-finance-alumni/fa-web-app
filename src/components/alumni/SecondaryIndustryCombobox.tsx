@@ -35,11 +35,20 @@ export function SecondaryIndustryCombobox({
   name,
   defaultValue = "",
   error,
+  value,
+  onChange,
+  hint,
 }: {
   label: string;
   name: string;
   defaultValue?: string;
   error?: string;
+  /** Optional controlled value + change handler — used by the Military industry
+   *  suggestion (#608), which writes into this slot when the primary is taken. */
+  value?: string;
+  onChange?: (value: string) => void;
+  /** Overrides the default helper line, e.g. to say a value was suggested. */
+  hint?: string;
 }) {
   // Default scope — the FULL vocabulary, including Law / Corporate Banking /
   // Sales and Trading / Credit Risk.
@@ -55,9 +64,11 @@ export function SecondaryIndustryCombobox({
       label={label}
       name={name}
       defaultValue={defaultValue}
+      value={value}
+      onChange={onChange}
       suggest={suggest}
       error={error}
-      hint="Pick from the list or type your own."
+      hint={hint ?? "Pick from the list or type your own."}
     />
   );
 }

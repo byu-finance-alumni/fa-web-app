@@ -3,6 +3,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import {
+  apiGet,
   apiPost,
   apiPatch,
   apiDelete,
@@ -10,6 +11,14 @@ import {
   apiGetText,
   ApiError,
 } from "@/lib/api";
+import {
+  ATTENDEE_PLAN_FIELD,
+  buildEventWarnings,
+  postCreateHref,
+  readEventValues,
+  type EventWarning,
+  type ExistingEvent,
+} from "@/lib/eventWizard";
 import type {
   EventImportPreview,
   EventImportResult,
@@ -107,9 +116,60 @@ export async function createEvent(
   }
   revalidatePath("/events");
   revalidateTag("events"); // event-type options list
-  // Land on the edit page so the user can immediately add attendees (an event
-  // must exist before attendance can attach). `created=1` flags the hint text.
-  redirect(`/events/${created.event_id}/edit?created=1`);
+  // An attendee list is NEVER a precondition for creating an event (#611) — the
+  // roster is attached afterwards, and the wizard's Attendees step only decides
+  // where the user lands to do it: the event itself (default, `created=1` flags
+  // the hint text) or straight into the attendee upload for someone who already
+  // has the list. An event must exist before attendance can attach either way.
+  const plan = formData.get(ATTENDEE_PLAN_FIELD);
+  redirect(postCreateHref(created.event_id, typeof plan === "string" ? plan : null));
+}
+
+/**
+ * Result of the Add-event Review check. Mirrors the alumni wizard's hygiene
+ * preview: advisory only — `warnings` never block the save, they just make sure
+ * a duplicate/past date/blank type isn't an accident.
+ */
+export type EventPreviewState =
+  | { ok: true; preview: { warnings: EventWarning[] } }
+  | { ok: false; error: string };
+
+/**
+ * Run the Review-step check for the event currently in the form.
+ *
+ * The only thing that needs the server is the duplicate lookup (the CSV
+ * importer REJECTS a repeated name+date, so a hand-made twin is a real hazard);
+ * the rest is computed from the same values by {@link buildEventWarnings}.
+ * `today` comes from the browser so the past-date advisory uses the user's local
+ * date rather than the server's UTC one.
+ */
+export async function previewEvent(
+  formData: FormData,
+  today: string,
+): Promise<EventPreviewState> {
+  const values = readEventValues(formData);
+  if (!values.event_name) {
+    return { ok: false, error: "Add an event name before reviewing." };
+  }
+  let existing: ExistingEvent[] = [];
+  try {
+    // No cache options → `no-store`: a duplicate created a minute ago must show.
+    existing = await apiGet<ExistingEvent[]>(
+      `/events?q=${encodeURIComponent(values.event_name)}`,
+    );
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof ApiError
+          ? e.message
+          : "Couldn't check this event against the ones already on file.",
+    };
+  }
+  return {
+    ok: true,
+    preview: { warnings: buildEventWarnings(values, existing, today) },
+  };
 }
 
 export async function updateEvent(

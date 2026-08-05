@@ -3,7 +3,12 @@ import { apiGet, apiGetWithRetry, ApiError } from "@/lib/api";
 import { getAuthContext } from "@/lib/auth-context";
 import type { Alumni, AlumniPage } from "@/types/alumni";
 import type { FilterOptions } from "@/types/filters";
-import { hasFullAccess, canEditAlumni, canAddInteraction } from "@/constants/roles";
+import { canEditAlumni } from "@/constants/roles";
+import {
+  canAddInteraction,
+  canCreateAlumni,
+  canExportAlumni,
+} from "@/constants/capabilities";
 import { Topbar } from "@/components/shell/Topbar";
 import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
 import { AlumniFilters } from "@/components/alumni/AlumniFilters";
@@ -134,11 +139,19 @@ export async function AlumniRoster({
   ) {
     options = { ...options, industries: industryVocabResult.value.values };
   }
-  const roles =
-    ctxResult.status === "fulfilled" ? ctxResult.value.roles : null;
-  const canCreate = hasFullAccess(roles);
+  const ctx = ctxResult.status === "fulfilled" ? ctxResult.value : null;
+  const roles = ctx?.roles ?? null;
+  // Creating a record and logging an interaction are separate, editable
+  // capabilities (fa-web-api #379), so both read the capability list rather than
+  // the role — a grant made in the permission editor takes effect here.
+  const caps = ctx?.capabilities ?? null;
+  const canCreate = canCreateAlumni(caps);
+  // Export is its own capability (#379) — it used to ride along on the same
+  // "full access" check as Add, but downloading the roster and adding a record
+  // are different risks and are granted separately.
+  const canExport = canExportAlumni(caps);
   const canEditRows = canEditAlumni(roles);
-  const canAddInteractionRows = canAddInteraction(roles);
+  const canAddInteractionRows = canAddInteraction(caps);
 
   // Row headshots (#398). The headshot bucket is private, so each photo needs a
   // short-lived signed URL minted server-side. This used to fan out one
@@ -189,7 +202,7 @@ export async function AlumniRoster({
           initial={filters}
           options={options ?? undefined}
           canCreate={canCreate}
-          canExport={canCreate}
+          canExport={canExport}
           total={data?.total ?? 0}
           basePath={basePath}
           isFriend={isFriend}

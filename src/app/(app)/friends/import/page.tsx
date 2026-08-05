@@ -1,22 +1,22 @@
 import { redirect } from "next/navigation";
 import { Topbar } from "@/components/shell/Topbar";
 import { getAuthContext } from "@/lib/auth-context";
-import { hasFullAccess } from "@/constants/roles";
+import { canImportAlumni } from "@/constants/capabilities";
 import { ImportWizard } from "@/components/alumni/import/ImportWizard";
 
 /**
  * Friends CSV bulk-import screen (#294). Same wizard as the alumni import, scoped
  * with kind="friend" so the backend uses the friend template (no grad/education
- * columns) and stamps imported rows is_alumni=false. Full access and up — the
- * same gate the alumni import page uses, and the backend re-enforces it on every
- * request. Lower roles are redirected back to the roster rather than shown a
- * dead-end page.
+ * columns) and stamps imported rows is_alumni=false. Gated on the
+ * `alumni.import` capability (fa-web-api #379) — the same gate the alumni import
+ * page uses, and the backend re-enforces it on every request. Roles without it
+ * are redirected back to the roster rather than shown a dead-end page.
  */
 export default async function ImportFriendsPage() {
   let canImport = false;
   try {
     const ctx = await getAuthContext();
-    canImport = hasFullAccess(ctx.roles);
+    canImport = canImportAlumni(ctx.capabilities);
   } catch {
     canImport = false;
   }
