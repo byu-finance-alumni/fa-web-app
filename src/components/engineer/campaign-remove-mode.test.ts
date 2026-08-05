@@ -1,25 +1,45 @@
 import { describe, expect, it } from "vitest";
-import { campaignRemoveMode } from "./campaign-remove-mode";
+import { campaignRemoveActions } from "./campaign-remove-mode";
 
-describe("campaignRemoveMode", () => {
-  it("offers delete only for a campaign that has never emailed anyone", () => {
-    expect(campaignRemoveMode("scheduled", 0)).toBe("delete");
-    expect(campaignRemoveMode("active", 0)).toBe("delete");
-    expect(campaignRemoveMode("paused", 0)).toBe("delete");
-    expect(campaignRemoveMode("completed", 0)).toBe("delete");
+const EVERY_STATUS = [
+  "scheduled",
+  "active",
+  "paused",
+  "completed",
+  "cancelled",
+];
+
+describe("campaignRemoveActions", () => {
+  it("offers delete for every status, including cancelled", () => {
+    // The complaint itself: Jake's campaigns had all either sent or been
+    // cancelled, so the console offered him Cancel or nothing at all. `deleting`
+    // is no longer conditional on either — the backend retires the campaign's
+    // cycle instead of refusing, so a new campaign for the year still reaches
+    // the alumni the deleted one emailed.
+    for (const status of EVERY_STATUS) {
+      expect(campaignRemoveActions(status).canDelete).toBe(true);
+    }
   });
 
-  it("offers cancel once a single email has gone out", () => {
-    // ONE is enough. Deleting the schedule would take the year's cycle number
-    // with it, and the next campaign for that year would skip everybody — so
-    // the threshold is "any", not "many".
-    expect(campaignRemoveMode("active", 1)).toBe("cancel");
-    expect(campaignRemoveMode("paused", 250)).toBe("cancel");
-    expect(campaignRemoveMode("completed", 250)).toBe("cancel");
+  it("offers cancel only while there is something left to stop", () => {
+    expect(campaignRemoveActions("scheduled").canCancel).toBe(true);
+    expect(campaignRemoveActions("active").canCancel).toBe(true);
+    expect(campaignRemoveActions("paused").canCancel).toBe(true);
   });
 
-  it("offers nothing for an already-cancelled campaign", () => {
-    expect(campaignRemoveMode("cancelled", 0)).toBe("none");
-    expect(campaignRemoveMode("cancelled", 40)).toBe("none");
+  it("does not offer cancel for a campaign that already sends nothing", () => {
+    // Cancelling these changes no behaviour — they are inert history — and a
+    // button that does nothing reads as one that failed.
+    expect(campaignRemoveActions("completed").canCancel).toBe(false);
+    expect(campaignRemoveActions("cancelled").canCancel).toBe(false);
+  });
+
+  it("always leaves at least one control on the row", () => {
+    // The regression that started this: `cancelled` rendered no control at all,
+    // so a campaign in that state could never be got rid of.
+    for (const status of [...EVERY_STATUS, "something-new"]) {
+      const actions = campaignRemoveActions(status);
+      expect(actions.canDelete || actions.canCancel).toBe(true);
+    }
   });
 });
