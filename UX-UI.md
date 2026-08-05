@@ -143,8 +143,11 @@ JSX**.
   import/export/merge/upload controls are hidden (not just disabled). Authorization is always
   enforced server-side; the UI only reflects it.
 - **Required states for every data screen:** loading (skeleton), empty, error, and view-only.
-- **Badges/chips:** tags = `blue-50`/`navy-800` text; status labels = neutral; missing-data =
-  `warning`; duplicate = `danger`; archived/deceased = muted gray.
+- **Badges/chips:** the whole tag family — tags, status labels and the "ways to get involved"
+  chips — is `blue-50`/`navy-800` text. Never green. **`Do Not Contact` is the only red chip in
+  the app**, so a staff member cannot miss it; archived/deceased = muted gray (never red — red is
+  reserved). Elsewhere: missing-data = `warning`; duplicate = `danger`.
+  Derive the tone with `chipTone()` (`src/components/alumni/tag-tone.ts`), never by hand.
 
 ---
 
