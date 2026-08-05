@@ -56,6 +56,7 @@ function result(over: Record<string, unknown> = {}) {
     // Present since api.gen.ts was regenerated against the deployed backend —
     // the send result now always carries these, so the stub has to as well.
     stage_complete: false,
+    campaign_created: false,
     breakdown: null,
     ...over,
   } as Parameters<typeof zeroSendReason>[0];
