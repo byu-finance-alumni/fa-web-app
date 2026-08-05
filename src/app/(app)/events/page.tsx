@@ -6,8 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Fab } from "@/components/shared/Fab";
 import { EventsExplorer, type EventRow } from "@/components/events/EventsExplorer";
 import { EventsToolbar } from "@/components/events/EventsToolbar";
-import { hasFullAccess } from "@/constants/roles";
-import { canCreateEvents, canImportEvents } from "@/constants/capabilities";
+import {
+  canCreateEvents,
+  canImportEvents,
+  canManageEvents as canManageEventsCap,
+  canWriteNotes as canWriteNotesCap,
+} from "@/constants/capabilities";
 import type { UserContext } from "@/types/alumni";
 
 type SP = {
@@ -82,16 +86,18 @@ export default async function EventsPage({
   // Three DIFFERENT gates, deliberately not one flag (fa-web-api #378):
   //
   //   * canManageEvents / canWriteNotes — editing and deleting an event, its
-  //     attendee roster, and discussion notes (#39). Still the `alumni.full`
-  //     tier, so still a role check.
-  //   * canCreate — POST /events, now the editable `events.create` CAPABILITY.
-  //   * canImport — the bulk-upload wizard, now the editable `events.import`
+  //     attendee roster — now the editable `events.manage` CAPABILITY (#379).
+  //   * canWriteNotes — discussion notes (#39), now the editable `notes.manage`
+  //     CAPABILITY (#379). Split from event management because "may annotate"
+  //     and "may delete the event" are different levels of trust.
+  //   * canCreate — POST /events, the editable `events.create` CAPABILITY.
+  //   * canImport — the bulk-upload wizard, the editable `events.import`
   //     CAPABILITY.
   //
-  // The last two must be read from `ctx.capabilities`, NOT from the role: an
-  // engineer can grant either one to a role that isn't full_access, and a role
-  // check would keep the button hidden from someone the backend would happily
-  // let through (and vice versa). Fetch the caller's context once; default to
+  // All four are read from `ctx.capabilities`, NOT from the role: an engineer
+  // can grant any of them to a role that isn't full_access, and a role check
+  // would keep the button hidden from someone the backend would happily let
+  // through (and vice versa). Fetch the caller's context once; default to
   // read-only if the account isn't provisioned. The backend re-enforces every
   // write regardless.
   let canManageEvents = false;
@@ -100,8 +106,8 @@ export default async function EventsPage({
   let canImport = false;
   try {
     const ctx = await apiGet<UserContext>("/auth/context");
-    canManageEvents = hasFullAccess(ctx.roles);
-    canWriteNotes = hasFullAccess(ctx.roles);
+    canManageEvents = canManageEventsCap(ctx.capabilities);
+    canWriteNotes = canWriteNotesCap(ctx.capabilities);
     canCreate = canCreateEvents(ctx.capabilities);
     canImport = canImportEvents(ctx.capabilities);
   } catch {

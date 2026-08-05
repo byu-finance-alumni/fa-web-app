@@ -42,6 +42,7 @@ export default async function AppLayout({
   let mustChangePassword = false;
   let userIsEngineer = false;
   let canVocabReal = false;
+  let realCapabilities: readonly string[] = [];
   let userName = "";
   try {
     const ctx = await getAuthContext();
@@ -54,6 +55,10 @@ export default async function AppLayout({
     // and for any role granted `vocab_admin` in the permission editor. Read from
     // the effective capabilities the backend resolves on /auth/context.
     canVocabReal = (ctx.capabilities ?? []).includes("vocab_admin");
+    // The full effective capability list drives the per-section nav items that
+    // fa-web-api #379 split out of the blanket `alumni.full` capability (Import,
+    // Update, Tasks, Data quality, Needs Surveying, Pay It Forward, Activity).
+    realCapabilities = ctx.capabilities ?? [];
     // Display name for the sidebar footer (falls back to email if unset).
     userName = [ctx.first_name, ctx.last_name].filter(Boolean).join(" ");
   } catch {
@@ -92,6 +97,10 @@ export default async function AppLayout({
   // Vocabulary item during preview rather than leak it. A real sign-in by a
   // granted role still resolves its own capabilities and shows the item.
   const canVocab = previewRole ? false : canVocabReal;
+  // Same reasoning for every other capability-gated nav item: while previewing
+  // we hold the ENGINEER's capabilities, not the previewed role's, so showing
+  // them would misrepresent what that role sees. Empty = hidden.
+  const capabilities = previewRole ? [] : realCapabilities;
 
   // Force a temp-password user to set a new password before they can use any
   // app screen. `/set-password` lives OUTSIDE this `(app)` route group, so it
@@ -121,6 +130,7 @@ export default async function AppLayout({
           name={userName}
           role={effectiveRole}
           canVocab={canVocab}
+          capabilities={capabilities}
         />
         {/* min-h-0 lets the inner <main className="flex-1 overflow-auto"> on each
             page actually cap its height and scroll. A flex child defaults to

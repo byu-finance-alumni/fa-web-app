@@ -9,8 +9,8 @@
  * click; when null — or the signed URL fails to load / has expired — it falls
  * back to the same colored initials circle used elsewhere.
  *
- * full_access+ users (gated by `canManage`, mirroring the profile page's
- * `hasFullAccess`) additionally get text-only Upload / Replace / Remove controls
+ * Holders of the `alumni.photos` capability (gated by `canManage`, mirroring the
+ * profile page's check) additionally get text-only Upload / Replace / Remove controls
  * that PUT/DELETE `/alumni/{id}/headshot`. After a successful upload we re-fetch
  * a fresh signed URL so the new photo shows without a full page reload. The
  * backend re-enforces the permission and the accepted image types; this just

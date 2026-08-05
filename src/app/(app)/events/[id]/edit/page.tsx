@@ -5,7 +5,7 @@ import { AttendeeManager } from "@/components/events/AttendeeManager";
 import { DeleteEventButton } from "@/components/events/DeleteEventButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiGet, ApiError } from "@/lib/api";
-import { hasFullAccess } from "@/constants/roles";
+import { canManageEvents as canManageEventsCap } from "@/constants/capabilities";
 import type { UserContext } from "@/types/alumni";
 import { getEventTypeOptions } from "../../vocab";
 import { updateEvent } from "../../actions";
@@ -39,7 +39,7 @@ export default async function EditEventPage({
   let canManageEvents = false;
   try {
     const ctx = await apiGet<UserContext>("/auth/context");
-    canManageEvents = hasFullAccess(ctx.roles);
+    canManageEvents = canManageEventsCap(ctx.capabilities);
   } catch {
     /* not provisioned / context error → treat as no manage access */
   }

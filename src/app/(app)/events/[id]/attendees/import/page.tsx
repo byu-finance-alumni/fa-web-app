@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { Topbar } from "@/components/shell/Topbar";
 import { AttendeeMatchWizard } from "@/components/events/import/AttendeeMatchWizard";
 import { apiGet, ApiError } from "@/lib/api";
-import { hasFullAccess } from "@/constants/roles";
+import { canManageEvents as canManageEventsCap } from "@/constants/capabilities";
 import type { UserContext } from "@/types/alumni";
 
 interface EventDetail {
@@ -34,7 +34,7 @@ export default async function ImportEventAttendeesPage({
   let canManageEvents = false;
   try {
     const ctx = await apiGet<UserContext>("/auth/context");
-    canManageEvents = hasFullAccess(ctx.roles);
+    canManageEvents = canManageEventsCap(ctx.capabilities);
   } catch {
     /* not provisioned / context error -> treat as no manage access */
   }
