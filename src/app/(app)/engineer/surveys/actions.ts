@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { apiGet, apiPost, ApiError } from "@/lib/api";
+import { apiDelete, apiGet, apiPost, ApiError } from "@/lib/api";
 import type { components, operations } from "@/types/api.gen";
 
 /**
@@ -142,16 +142,23 @@ export async function resumeSurvey(
  */
 export type SurveyAlumniState = components["schemas"]["SurveyAlumniState"];
 
-/** What a reset actually deleted — counts, so the toast can report the truth. */
+/**
+ * What a reset actually did — counts of what stopped counting and, just as
+ * importantly, what is still there. It deletes nothing (#395).
+ */
 export type SurveyResetResult = components["schemas"]["SurveyResetResult"];
+
+/** What deleting a campaign removed, and what it kept (#398). */
+export type SurveyScheduleDeleteResult =
+  components["schemas"]["SurveyScheduleDeleteResult"];
 
 /**
  * Read an alumnus's survey state BEFORE offering the reset (#395).
  *
- * The whole point of this call is that a reset is usually the WRONG move: a
- * person looks blocked because they legitimately replied a few months ago, and
- * deleting that reply to re-ask them destroys a real answer. So the UI must show
- * this first and never reset from search results alone.
+ * A reset destroys nothing, but it is still usually unnecessary: a person looks
+ * blocked because they legitimately replied a few months ago, and re-asking them
+ * is then a judgement call rather than a repair. So the UI must show this first
+ * and never reset from search results alone.
  *
  * Engineer-only; the backend re-enforces RequireEngineer.
  */
@@ -173,17 +180,19 @@ export async function getSurveyAlumnusState(
 }
 
 /**
- * Clear ONE alumnus's survey campaign state so they can be surveyed again — the
- * UI replacement for hand-running DELETE statements (#395).
+ * Make ONE alumnus surveyable again — the UI replacement for hand-running
+ * DELETE statements (#395), which itself now deletes nothing.
  *
- * DESTRUCTIVE AND IRREVERSIBLE: it permanently deletes that person's submitted
- * survey answers, including any still awaiting review, along with the record of
- * the emails they were sent. Callers must have shown `getSurveyAlumnusState` and
- * a confirmation naming the person and what is lost.
+ * Their submitted answers, the record of the emails sent to them and any staged
+ * survey photo all stay in the database and on their profile; a reply awaiting
+ * review stays in the review queue and can still be applied. The only effect is
+ * that eligibility queries stop counting what predates the reset. Callers must
+ * still have shown `getSurveyAlumnusState`: a reset that unblocks nothing is
+ * noise, and re-surveying someone means a real email.
  *
  * Engineer-only; the backend re-enforces RequireEngineer on
- * POST /survey/alumni/{id}/reset. The real deletion counts come back so the UI
- * reports what happened instead of assuming success.
+ * POST /survey/alumni/{id}/reset. The real counts come back — superseded AND
+ * preserved — so the UI reports what happened instead of assuming success.
  */
 export async function resetSurveyCampaign(
   alumniId: number,
@@ -200,6 +209,62 @@ export async function resetSurveyCampaign(
         e instanceof ApiError
           ? e.message
           : "Failed to reset this alum’s survey campaign.",
+    };
+  }
+  revalidatePath("/engineer/surveys");
+  return { result };
+}
+
+/**
+ * Remove one graduation year's campaign — the schedule row, and nothing else
+ * (#398). The emails already sent and the answers alumni submitted are kept.
+ *
+ * The backend refuses with a 409 for any year that has ever sent an email
+ * (cancel is the honest verb there, and the message says so), so callers should
+ * offer this only when `emails_sent_all_time` is 0 and surface the error
+ * verbatim if they get it wrong. Engineer-only; the backend re-enforces
+ * RequireEngineer on DELETE /survey/schedules/{year}.
+ */
+export async function deleteSurveyCampaign(
+  graduationYear: number,
+): Promise<{ result: SurveyScheduleDeleteResult } | { error: string }> {
+  let result: SurveyScheduleDeleteResult;
+  try {
+    result = await apiDelete<SurveyScheduleDeleteResult>(
+      `/survey/schedules/${graduationYear}`,
+    );
+  } catch (e) {
+    return {
+      error:
+        e instanceof ApiError
+          ? e.message
+          : `Failed to delete the ${graduationYear} campaign.`,
+    };
+  }
+  revalidatePath("/engineer/surveys");
+  return { result };
+}
+
+/**
+ * Stop one graduation year's campaign for good — what a campaign that has
+ * already emailed people gets instead of a delete (#398). The row stays, with
+ * its history, and never resumes.
+ */
+export async function cancelSurveyCampaign(
+  graduationYear: number,
+): Promise<{ result: SurveyScheduleItem } | { error: string }> {
+  let result: SurveyScheduleItem;
+  try {
+    result = await apiPost<SurveyScheduleItem>(
+      `/survey/schedules/${graduationYear}/cancel`,
+      undefined,
+    );
+  } catch (e) {
+    return {
+      error:
+        e instanceof ApiError
+          ? e.message
+          : `Failed to cancel the ${graduationYear} campaign.`,
     };
   }
   revalidatePath("/engineer/surveys");
