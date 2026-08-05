@@ -1275,7 +1275,12 @@ export async function AlumniProfileView({
                       tags={profile.tags}
                       statusLabels={profile.status_labels}
                     />
-                    {profile.program_engagement ? (
+                    {/* The nine "ways to get involved" are tags now (#629) and
+                        are managed above; this row is the leftover program
+                        facts. Guarded on length so an alumnus with none of them
+                        doesn't get a bare "Program" label with nothing after
+                        it. */}
+                    {programChips(profile.program_engagement).length ? (
                       <ChipRow label="Program">
                         {programChips(profile.program_engagement).map((label) => (
                           <EngagementChip key={label} tone="success">
@@ -2256,9 +2261,27 @@ function engagementLabels(p: Profile["program_engagement"]): string[] {
   return ENGAGEMENT_FLAGS.filter(([key]) => p[key]).map(([, label]) => label);
 }
 
+/** The program facts that are NOT tags.
+ *
+ * This used to render five of the nine "ways to get involved" — the other four
+ * (help at an event, host a case competition, sponsor a company event, mentor
+ * for Women in Finance) could be answered on the survey and then appeared
+ * nowhere, which is the bug #629 was filed for. All nine are now tags backed by
+ * their engagement flag, so they arrive in `profile.tags` and render in the
+ * header Tags row, which EVERY role sees — the chips below live in an
+ * editor-only tab, so view-only users could never see them at all.
+ *
+ * Listing the nine here as well would print them twice in the same panel, right
+ * next to the tag manager that now owns them. What is left is the program facts
+ * with no tag of their own: the two "we hired one of your students" flags (also
+ * previously invisible) and the free-text designations. */
 function programChips(p: Profile["program_engagement"]): string[] {
   if (!p) return [];
-  const chips = engagementLabels(p);
+  const flags: [boolean, string][] = [
+    [p.hired_finance_intern, "Hired a finance intern"],
+    [p.hired_finance_full_time, "Hired a finance student full-time"],
+  ];
+  const chips = flags.filter(([on]) => on).map(([, label]) => label);
   // Free-text designations render their stored value (e.g. "CFA all 3 levels").
   for (const designation of [
     p.cfa_designation,

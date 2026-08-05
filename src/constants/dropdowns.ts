@@ -215,7 +215,14 @@ export const REGION_OPTIONS = [
 export type Region = (typeof REGION_OPTIONS)[number];
 
 /** Engagement tags — the fixed, canonical set an alumnus can be labelled with.
- * Mirrors `TAGS` in fa-web-api/app/core/dropdowns.py. No free-text. */
+ * Mirrors `TAGS` in fa-web-api/app/core/dropdowns.py. No free-text.
+ *
+ * The last seven, plus "Mentor" and "Speaker", are the nine "ways to get
+ * involved" (#629). Those nine are DERIVED tags: the backend stores them as
+ * booleans on `alumni_program_engagement` and applying or removing one here
+ * writes that flag, rather than an `alumni_tags` row. That is deliberate —
+ * it means a survey answer and a hand-applied tag land in the same place, so
+ * "find me mentors" returns one list instead of two half-populated ones. */
 export const TAG_OPTIONS = [
   "Mentor",
   "Highly Engaged",
@@ -227,9 +234,34 @@ export const TAG_OPTIONS = [
   "Club/Recruiting",
   "Finance Orgs",
   "Advisory Boards",
+  "Women in Finance Mentor",
+  "Event Helper",
+  "NetTrek Host",
+  "Finance Conference",
+  "Company Event Sponsor",
+  "Case Competition Host",
+  "PIFF Donor",
 ] as const;
 
 export type Tag = (typeof TAG_OPTIONS)[number];
+
+/** The nine "ways to get involved" the survey asks about, as engagement flag →
+ * the tag that now carries it on the profile (#629).
+ *
+ * Mirrors `ENGAGEMENT_FLAG_TAGS` in fa-web-api/app/core/dropdowns.py (inverted:
+ * keyed by flag, because the profile reads flags). Every one of these renders
+ * as a tag chip, so none of the nine can be answerable-but-invisible again. */
+export const ENGAGEMENT_FLAG_TAGS: Record<string, Tag> = {
+  mentor_willing: "Mentor",
+  women_in_finance_mentor_willing: "Women in Finance Mentor",
+  guest_speaker_willing: "Speaker",
+  help_at_event_willing: "Event Helper",
+  nettrek_host_willing: "NetTrek Host",
+  finance_conference_willing: "Finance Conference",
+  company_event_sponsor_willing: "Company Event Sponsor",
+  case_competition_host_willing: "Case Competition Host",
+  piff_donor: "PIFF Donor",
+};
 
 /** Status labels — the fixed, canonical record-status flags.
  * Mirrors `STATUS_LABELS` in fa-web-api/app/core/dropdowns.py. No free-text. */
