@@ -3678,22 +3678,31 @@ export interface paths {
         post?: never;
         /**
          * Delete Survey Schedule
-         * @description Remove a survey campaign — the schedule row, and nothing else (#398).
+         * @description Remove a survey campaign — ANY campaign, whatever its status (#398).
          *
          *     For the campaign scheduled against the wrong year, or created by mistake:
          *     pausing hid it, but the row stayed forever. This removes it, and with it any
-         *     future send (the cron only ever selects rows that exist).
+         *     future send (the cron only ever selects rows that exist). No status is
+         *     exempt — `scheduled`, `active`, `paused`, `completed` and `cancelled` all
+         *     delete. The first cut refused any campaign that had ever emailed anyone,
+         *     which in practice meant every real one.
          *
          *     DELETES NO HISTORY. `survey_send_log` and `survey_responses` are not touched
          *     here or anywhere in this path — a "delete campaign" that took the alumni's
          *     submitted answers with it is precisely what Jake ruled out on #395 the same
-         *     day.
+         *     day. The response says how many of each were kept.
          *
-         *     409 when the campaign has EVER sent an email. That is not squeamishness:
-         *     `survey_schedule` is the only holder of the year's `cycle_seq`, so deleting
-         *     it would leave the send-log rows looking like the current cycle's, and the
-         *     next campaign for that year would find everyone already emailed and send to
-         *     nobody (#357). Cancel is the honest verb for those, and the error says so.
+         *     What it does instead of refusing: RETIRES the campaign's cycle. The deleted
+         *     row's `cycle_seq` is recorded in `survey_campaign_retirement`, and the next
+         *     campaign for that year starts above it — so the alumni this one emailed are
+         *     eligible again, and the send log's unique key cannot refuse their new rows.
+         *     Without that, deleting the row would leave the send-log rows looking like the
+         *     current cycle's and the next campaign would find everyone already emailed and
+         *     send to nobody (#357). Alumni who ANSWERED stay held out by the 365-day
+         *     annual window, exactly as after a new cycle.
+         *
+         *     `POST /schedules/{year}/cancel` is still here and still distinct: it stops a
+         *     live campaign and KEEPS it listed with its counts.
          *
          *     Engineer-gated like the other maintenance controls (pause-all / cancel-all /
          *     per-alumnus reset) rather than `surveys.manage`, which is assignable.
@@ -7685,18 +7694,25 @@ export interface components {
          * SurveyScheduleDeleteResult
          * @description Outcome of removing a campaign (``DELETE /survey/schedules/{year}``, #398).
          *
-         *     Only the ``survey_schedule`` row goes. The delete is refused with a 409 for
-         *     any year that has ever sent an email, so ``emails_sent`` is 0 by
-         *     construction and is not repeated here; what IS worth reporting back is
-         *     ``responses_kept``, because the reasonable assumption about a button labelled
-         *     "delete campaign" is that the alumni's submitted answers went with it. They
-         *     did not, and the console says the number out loud.
+         *     Only the ``survey_schedule`` row goes, whatever the campaign's status. Every
+         *     number here is a KEPT count, because the reasonable assumption about a button
+         *     labelled "delete campaign" is that the emails and the alumni's submitted
+         *     answers went with it. They did not — they were RETIRED, which is a statement
+         *     about what the next campaign for this year can see, not about what is in the
+         *     database — and the console says the numbers out loud rather than leaving the
+         *     assumption standing.
          */
         SurveyScheduleDeleteResult: {
             /** Graduation Year */
             graduation_year: number;
             /** Previous Status */
             previous_status: string;
+            /** Retired Cycle */
+            retired_cycle: number;
+            /** Next Cycle */
+            next_cycle: number;
+            /** Emails Retired */
+            emails_retired: number;
             /** Responses Kept */
             responses_kept: number;
         };
