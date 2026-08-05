@@ -135,3 +135,73 @@ export async function resumeSurvey(
   revalidatePath("/engineer/surveys");
   return { result };
 }
+
+/**
+ * One alumnus's survey campaign state — what was emailed, what came back, and
+ * what is holding them out of the next send. Straight off the generated OpenAPI.
+ */
+export type SurveyAlumniState = components["schemas"]["SurveyAlumniState"];
+
+/** What a reset actually deleted — counts, so the toast can report the truth. */
+export type SurveyResetResult = components["schemas"]["SurveyResetResult"];
+
+/**
+ * Read an alumnus's survey state BEFORE offering the reset (#395).
+ *
+ * The whole point of this call is that a reset is usually the WRONG move: a
+ * person looks blocked because they legitimately replied a few months ago, and
+ * deleting that reply to re-ask them destroys a real answer. So the UI must show
+ * this first and never reset from search results alone.
+ *
+ * Engineer-only; the backend re-enforces RequireEngineer.
+ */
+export async function getSurveyAlumnusState(
+  alumniId: number,
+): Promise<{ state: SurveyAlumniState } | { error: string }> {
+  try {
+    return {
+      state: await apiGet<SurveyAlumniState>(`/survey/alumni/${alumniId}/state`),
+    };
+  } catch (e) {
+    return {
+      error:
+        e instanceof ApiError
+          ? e.message
+          : "Failed to load this alum’s survey state.",
+    };
+  }
+}
+
+/**
+ * Clear ONE alumnus's survey campaign state so they can be surveyed again — the
+ * UI replacement for hand-running DELETE statements (#395).
+ *
+ * DESTRUCTIVE AND IRREVERSIBLE: it permanently deletes that person's submitted
+ * survey answers, including any still awaiting review, along with the record of
+ * the emails they were sent. Callers must have shown `getSurveyAlumnusState` and
+ * a confirmation naming the person and what is lost.
+ *
+ * Engineer-only; the backend re-enforces RequireEngineer on
+ * POST /survey/alumni/{id}/reset. The real deletion counts come back so the UI
+ * reports what happened instead of assuming success.
+ */
+export async function resetSurveyCampaign(
+  alumniId: number,
+): Promise<{ result: SurveyResetResult } | { error: string }> {
+  let result: SurveyResetResult;
+  try {
+    result = await apiPost<SurveyResetResult>(
+      `/survey/alumni/${alumniId}/reset`,
+      undefined,
+    );
+  } catch (e) {
+    return {
+      error:
+        e instanceof ApiError
+          ? e.message
+          : "Failed to reset this alum’s survey campaign.",
+    };
+  }
+  revalidatePath("/engineer/surveys");
+  return { result };
+}

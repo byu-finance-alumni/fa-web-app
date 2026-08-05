@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { StopAllSurveys } from "@/components/engineer/StopAllSurveys";
 import { PauseAllSurveys } from "@/components/engineer/PauseAllSurveys";
 import { CampaignPauseControl } from "@/components/engineer/CampaignPauseControl";
+import { SurveyCampaignReset } from "@/components/engineer/SurveyCampaignReset";
 import { getSurveySchedules, type SurveyScheduleItem } from "./actions";
 
 /**
@@ -197,6 +198,13 @@ export default async function EngineerSurveysPage() {
                 </div>
               </div>
             </Card>
+
+            {/* The per-person tool, between the blanket switches and the
+                per-cohort table: it is neither, and it is the one control here
+                that destroys data rather than stopping a send (#395). */}
+            <div className="mt-4">
+              <SurveyCampaignReset />
+            </div>
 
             <p className="mb-4 mt-4 max-w-3xl text-sm text-gray-500">
               Every survey campaign the scheduler knows about, newest cohort
