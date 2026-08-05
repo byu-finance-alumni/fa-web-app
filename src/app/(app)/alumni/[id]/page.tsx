@@ -569,6 +569,9 @@ export async function AlumniProfileView({
       heldDesignations.length ||
       a.other_designations,
   );
+  // Everything the alum said they'd help with — the "Ways to get involved"
+  // panel below. See `ENGAGEMENT_FLAGS`.
+  const willingLabels = engagementLabels(pe);
 
   // Pay It Forward summary (#403) — always present on the profile payload.
   // `last_donation_amount` / `total_lifetime_amount` are DOLLAR amounts gated
@@ -1172,6 +1175,36 @@ export async function AlumniProfileView({
                 </div>
               </Panel>
 
+              {/* Row 3, full width — Ways to get involved. The survey's whole
+                  point is asking alumni what they'll help with, and until now
+                  the answers surfaced ONLY as chips inside the editor-only tab
+                  labelled "Tags" — so an alum could answer "yes, I'll mentor",
+                  have it approved, and the profile would still appear to say
+                  nothing about mentoring. Shown to every role: it is outreach
+                  information, not contact PII, and the backend already keeps
+                  these flags in the view-only payload (only the free-text
+                  engagement notes are stripped). */}
+              <Panel
+                title="Ways to get involved"
+                action={canEdit ? <EditLink id={aid} /> : undefined}
+                className="lg:col-span-3"
+              >
+                {willingLabels.length ? (
+                  <ChipRow label="Willing to">
+                    {willingLabels.map((label) => (
+                      <EngagementChip key={label} tone="success">
+                        {label}
+                      </EngagementChip>
+                    ))}
+                  </ChipRow>
+                ) : (
+                  <p className="py-6 text-center text-sm text-gray-500">
+                    Nothing on file yet — this fills in when the alum answers the
+                    survey&apos;s &ldquo;Ways to get involved&rdquo; questions.
+                  </p>
+                )}
+              </Panel>
+
               </div>
             }
             profileCompleteness={
@@ -1242,7 +1275,12 @@ export async function AlumniProfileView({
                       tags={profile.tags}
                       statusLabels={profile.status_labels}
                     />
-                    {profile.program_engagement ? (
+                    {/* The nine "ways to get involved" are tags now (#629) and
+                        are managed above; this row is the leftover program
+                        facts. Guarded on length so an alumnus with none of them
+                        doesn't get a bare "Program" label with nothing after
+                        it. */}
+                    {programChips(profile.program_engagement).length ? (
                       <ChipRow label="Program">
                         {programChips(profile.program_engagement).map((label) => (
                           <EngagementChip key={label} tone="success">
@@ -2189,14 +2227,59 @@ function ChipRow({
   );
 }
 
+type Engagement = NonNullable<Profile["program_engagement"]>;
+
+/** Every yes/no engagement flag on the record, in the order the survey's "Ways
+ *  to get involved" screen asks them, plus the two "have they hired" facts staff
+ *  set by hand.
+ *
+ *  This list is the whole set on purpose. It used to name FIVE of them, so an
+ *  alum who answered YES to "Willing to mentor for Women in Finance", "Help at
+ *  an event", "Sponsor a company event" or "Host a case competition" had that
+ *  answer stored, approved out of the review queue — and then displayed nowhere
+ *  in the app. The record said one thing and every screen said nothing. */
+const ENGAGEMENT_FLAGS: [keyof Engagement, string][] = [
+  ["mentor_willing", "Mentor"],
+  ["women_in_finance_mentor_willing", "Women in Finance mentor"],
+  ["guest_speaker_willing", "Guest speaker"],
+  ["help_at_event_willing", "Help at an event"],
+  ["nettrek_host_willing", "NetTrek host"],
+  ["finance_conference_willing", "Finance conference"],
+  ["company_event_sponsor_willing", "Company event sponsor"],
+  ["case_competition_host_willing", "Case competition host"],
+  ["piff_donor", "PIFF donor"],
+  ["hired_finance_intern", "Hired a finance intern"],
+  ["hired_finance_full_time", "Hired a finance grad"],
+];
+
+/** The flags that are ON, as display labels. Only "yes" is shown: the columns
+ *  are NOT NULL and default to false, so a stored `false` cannot be told apart
+ *  from "never asked" — claiming "Not willing to mentor" would be inventing an
+ *  answer the alum may never have given. */
+function engagementLabels(p: Profile["program_engagement"]): string[] {
+  if (!p) return [];
+  return ENGAGEMENT_FLAGS.filter(([key]) => p[key]).map(([, label]) => label);
+}
+
+/** The program facts that are NOT tags.
+ *
+ * This used to render five of the nine "ways to get involved" — the other four
+ * (help at an event, host a case competition, sponsor a company event, mentor
+ * for Women in Finance) could be answered on the survey and then appeared
+ * nowhere, which is the bug #629 was filed for. All nine are now tags backed by
+ * their engagement flag, so they arrive in `profile.tags` and render in the
+ * header Tags row, which EVERY role sees — the chips below live in an
+ * editor-only tab, so view-only users could never see them at all.
+ *
+ * Listing the nine here as well would print them twice in the same panel, right
+ * next to the tag manager that now owns them. What is left is the program facts
+ * with no tag of their own: the two "we hired one of your students" flags (also
+ * previously invisible) and the free-text designations. */
 function programChips(p: Profile["program_engagement"]): string[] {
   if (!p) return [];
   const flags: [boolean, string][] = [
-    [p.mentor_willing, "Mentor"],
-    [p.guest_speaker_willing, "Guest speaker"],
-    [p.nettrek_host_willing, "NetTrek host"],
-    [p.finance_conference_willing, "Finance conference"],
-    [p.piff_donor, "PIFF donor"],
+    [p.hired_finance_intern, "Hired a finance intern"],
+    [p.hired_finance_full_time, "Hired a finance student full-time"],
   ];
   const chips = flags.filter(([on]) => on).map(([, label]) => label);
   // Free-text designations render their stored value (e.g. "CFA all 3 levels").
