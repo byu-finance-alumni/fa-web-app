@@ -45,6 +45,8 @@ export function Combobox({
   onSettle,
   onType,
   hint,
+  value: controlledValue,
+  onChange,
 }: {
   label: string;
   /** Form field name — this is what lands in FormData. */
@@ -82,8 +84,21 @@ export function Combobox({
   onType?: (raw: string) => void;
   /** Optional muted helper line shown under the field (non-error). */
   hint?: string;
+  /**
+   * Optional CONTROLLED value (#608). Omit it and the field owns its own state
+   * from `defaultValue`, which is what every existing caller does. Supply it
+   * (with `onChange`) when a sibling field needs to write into this one — e.g.
+   * the Military industry suggestion landing in the secondary slot.
+   */
+  value?: string;
+  onChange?: (value: string) => void;
 }) {
-  const [value, setValue] = useState(defaultValue);
+  const [uncontrolled, setUncontrolled] = useState(defaultValue);
+  const value = controlledValue ?? uncontrolled;
+  const setValue = (next: string) => {
+    if (controlledValue === undefined) setUncontrolled(next);
+    onChange?.(next);
+  };
   const [open, setOpen] = useState(false);
   // -1 = nothing highlighted: Enter then submits/accepts the typed text rather
   // than silently swapping in a suggestion the user never moved onto.

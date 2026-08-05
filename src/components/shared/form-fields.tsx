@@ -115,6 +115,8 @@ export function SelectField({
   options,
   error,
   defaultValue = "",
+  value,
+  onChange,
   hint,
 }: {
   label: string;
@@ -122,18 +124,29 @@ export function SelectField({
   options: readonly string[];
   error?: string;
   defaultValue?: string;
+  /**
+   * Optional CONTROLLED value. Omit it and the field stays uncontrolled on
+   * `defaultValue`, which is what every existing caller does. Supply it (with
+   * `onChange`) when a sibling field needs to write into this one — e.g. the
+   * Military industry suggestion (#608).
+   */
+  value?: string;
+  onChange?: (value: string) => void;
   /** Optional muted helper line shown under the field (non-error). */
   hint?: string;
 }) {
   const errorId = error ? `${name}-error` : undefined;
   const hintId = hint ? `${name}-hint` : undefined;
+  const controlled = value !== undefined;
   return (
     <div>
       <FieldLabel htmlFor={name}>{label}</FieldLabel>
       <Select
         id={name}
         name={name}
-        defaultValue={defaultValue}
+        {...(controlled
+          ? { value, onChange: (e) => onChange?.(e.target.value) }
+          : { defaultValue, onChange: (e) => onChange?.(e.target.value) })}
         aria-invalid={error ? true : undefined}
         aria-describedby={errorId ?? hintId}
         style={{ colorScheme: "light" }}

@@ -6,7 +6,9 @@ import type { FormState, PreviewState } from "@/app/(app)/alumni/actions";
 import type { Alumni, HygienePreview } from "@/types/alumni";
 import {
   EMPLOYMENT_STATUS_OPTIONS,
+  MILITARY_INDUSTRY,
   PRIMARY_INDUSTRY_OPTIONS,
+  suggestMilitaryIndustry,
 } from "@/constants/dropdowns";
 import {
   useStateRegions,
@@ -418,6 +420,41 @@ export function AlumniForm({
     }
   };
 
+  // --- Military status suggests the Military industry (#608) ---------------
+  // Status and industry are independent columns, so an alumnus can be Military
+  // by status with no industry recorded and then never appear in an industry
+  // search for Military. SUGGEST it, say so with a hint, and let the user
+  // override — mirrors `EmploymentSectionForm`, and both share the rules in
+  // `suggestMilitaryIndustry`.
+  //
+  // Fires ONLY on a user change of the status select — never on load, never on
+  // save — so nothing is written behind the user's back and a value they have
+  // since edited is not re-suggested over the top. An already-filled primary
+  // sends the suggestion to the empty SECONDARY slot (the reservist case); both
+  // filled suggests nothing; a non-Military status suggests nothing at all, so
+  // switching away never strips a Military industry the user chose.
+  const [employmentStatus, setEmploymentStatus] = useState(
+    defaults?.employment_status ?? "",
+  );
+  const [industry, setIndustry] = useState(career("current_industry"));
+  const [secondaryIndustry, setSecondaryIndustry] = useState(
+    career("current_industry_secondary"),
+  );
+  const [industrySuggested, setIndustrySuggested] = useState(false);
+  const [secondarySuggested, setSecondarySuggested] = useState(false);
+
+  const handleEmploymentStatusChange = (next: string) => {
+    setEmploymentStatus(next);
+    const slot = suggestMilitaryIndustry(next, industry, secondaryIndustry);
+    if (slot === "current_industry") {
+      setIndustry(MILITARY_INDUSTRY);
+      setIndustrySuggested(true);
+    } else if (slot === "current_industry_secondary") {
+      setSecondaryIndustry(MILITARY_INDUSTRY);
+      setSecondarySuggested(true);
+    }
+  };
+
   /* --- Core section (shared by add + edit) ------------------------------- */
   const coreSection = (
     <Section title="Core">
@@ -713,7 +750,18 @@ export function AlumniForm({
               primaryIndustryOptions,
               career("current_industry"),
             )}
-            defaultValue={career("current_industry")}
+            value={industry}
+            onChange={(v) => {
+              setIndustry(v);
+              // A manual pick is an override — retract the note so the hint
+              // never describes a value the user chose themselves.
+              setIndustrySuggested(false);
+            }}
+            hint={
+              industrySuggested
+                ? "Suggested from Employment status — change or clear it if that's not right."
+                : undefined
+            }
             error={errors["career.current_industry"]}
           />
           {/* Pick-or-type: this column is free text on the backend, so the full
@@ -721,7 +769,16 @@ export function AlumniForm({
           <SecondaryIndustryCombobox
             label="Secondary industry"
             name="career.current_industry_secondary"
-            defaultValue={career("current_industry_secondary")}
+            value={secondaryIndustry}
+            onChange={(v) => {
+              setSecondaryIndustry(v);
+              setSecondarySuggested(false);
+            }}
+            hint={
+              secondarySuggested
+                ? "Suggested from Employment status — change or clear it if that's not right."
+                : undefined
+            }
             error={errors["career.current_industry_secondary"]}
           />
         </div>
@@ -775,7 +832,8 @@ export function AlumniForm({
             EMPLOYMENT_STATUS_OPTIONS,
             defaults?.employment_status ?? "",
           )}
-          defaultValue={defaults?.employment_status ?? ""}
+          value={employmentStatus}
+          onChange={handleEmploymentStatusChange}
           error={errors.employment_status}
         />
       </div>
