@@ -66,6 +66,52 @@ type SurveySendConfig = {
 };
 
 /**
+ * Who a year's survey reaches, and who it does not (#392). From
+ * GET `/survey/campaigns/{year}/recipients`. Not in the OpenAPI yet (the
+ * backend change lands in parallel), so typed locally like `SurveySendConfig`
+ * above — regenerate `api.gen.ts` once the API is on dev and delete this.
+ *
+ * The buckets partition the cohort:
+ *   cohort_total = suppressed + already_responded + unreachable + eligible
+ *   recipients   = eligible - duplicate_emails
+ *
+ * `suppressed` (Deceased / Do Not Contact) and `unreachable` (no usable
+ * address) are deliberately separate and must NOT be summed in the UI. One is a
+ * decision to honour, the other a gap to close.
+ */
+type SurveyRecipientBreakdown = {
+  graduation_year: number;
+  cohort_total: number;
+  suppressed: number;
+  already_responded: number;
+  unreachable: number;
+  eligible: number;
+  duplicate_emails: number;
+  recipients: number;
+  work_email_fallback: number;
+};
+
+/** One alumnus the campaign cannot email, from `/campaigns/{year}/unreachable`. */
+type SurveyUnreachableAlum = {
+  alumni_id: number;
+  name: string;
+  reason: string;
+  reason_label: string;
+  personal_email: string | null;
+  work_email: string | null;
+};
+
+/**
+ * The send result plus the fields #392 added. Spelled out here rather than
+ * regenerating `api.gen.ts` by hand; both are optional so this stays correct
+ * against an API that has not yet deployed the change.
+ */
+type SendResult = SurveySendResult & {
+  stage_complete?: boolean;
+  breakdown?: SurveyRecipientBreakdown | null;
+};
+
+/**
  * Send re-surveys BY GRADUATION YEAR — the campaign console on the Needs
  * Surveying tab. Driven entirely by real backend data (no mock/prototype state):
  *
@@ -124,6 +170,59 @@ function formatWhen(iso: string | null): string {
       });
 }
 
+/**
+ * Why a send emailed nobody (#392).
+ *
+ * The old message blamed a missing personal email for EVERY zero-send,
+ * whatever the cause. That is the bug Jake reported: his cohort had personal
+ * emails on file and had simply all replied inside the 365-day re-survey
+ * window, but the console told him they had no addresses. A wrong diagnosis
+ * sends staff chasing data that is already correct.
+ *
+ * Ordered most-specific first, so the reason given is the one that actually
+ * stopped the send rather than the first bucket that happens to be non-zero.
+ */
+export function zeroSendReason(result: SendResult): string {
+  const b = result.breakdown;
+  if (result.stage_complete) {
+    return "everyone eligible has already received every email in this campaign.";
+  }
+  if (!b) {
+    return `${result.total_recipients.toLocaleString()} recipient${
+      result.total_recipients === 1 ? "" : "s"
+    } were found, but none were due this send.`;
+  }
+  if (b.cohort_total === 0) return "there are no alumni in this graduation year.";
+  if (b.recipients > 0) {
+    // People were available; something downstream stopped the send (the daily
+    // cap, or a stage everyone has already had).
+    return `${b.recipients.toLocaleString()} can be emailed, but none were due — check today's send cap.`;
+  }
+  const parts: string[] = [];
+  if (b.already_responded > 0) {
+    parts.push(
+      `${b.already_responded.toLocaleString()} already replied within the last year`,
+    );
+  }
+  if (b.unreachable > 0) {
+    parts.push(
+      `${b.unreachable.toLocaleString()} have no usable email address`,
+    );
+  }
+  if (b.suppressed > 0) {
+    parts.push(
+      `${b.suppressed.toLocaleString()} are marked Deceased or Do Not Contact`,
+    );
+  }
+  if (b.duplicate_emails > 0) {
+    parts.push(
+      `${b.duplicate_emails.toLocaleString()} share an address with another recipient`,
+    );
+  }
+  if (parts.length === 0) return "nobody in this year is due for the survey.";
+  return `${parts.join("; ")}.`;
+}
+
 export function SurveyCampaignConsole() {
   const { toast } = useToast();
 
@@ -148,6 +247,18 @@ export function SurveyCampaignConsole() {
 
   const [sendOpen, setSendOpen] = useState(false);
   const [sending, setSending] = useState(false);
+
+  // Who the selected year's survey reaches and who it cannot (#392). Null while
+  // loading or if the fetch fails — never substituted with a local estimate.
+  const [breakdown, setBreakdown] = useState<SurveyRecipientBreakdown | null>(
+    null,
+  );
+  // The unreachable drill-down: the count is actionable only with names behind
+  // it. Fetched lazily, on expand.
+  const [unreachableOpen, setUnreachableOpen] = useState(false);
+  const [unreachable, setUnreachable] = useState<
+    SurveyUnreachableAlum[] | null
+  >(null);
 
   // "Edit caps" dialog — draft values, prefilled from sendConfig on open.
   const [capsOpen, setCapsOpen] = useState(false);
@@ -267,12 +378,51 @@ export function SurveyCampaignConsole() {
   const dailyLeft = Math.max(0, dailyLimit - sentToday);
   const monthlyLeft = Math.max(0, monthlyLimit - sentThisMonth);
 
-  // Estimated recipients for a manual send: alumni who haven't replied this
-  // cycle (the backend also skips recent responders and anyone without a
-  // personal email, so the actual figure may be lower).
-  const notYetReplied = selected
-    ? Math.max(0, selected.total_alumni - selected.responded)
-    : 0;
+  // How many a send would ACTUALLY email, from the backend (#392).
+  //
+  // This used to be `total_alumni - responded`, computed here. That arithmetic
+  // knew nothing about suppression, alumni with no usable address, or the
+  // shared-address dedupe, so the button promised a number the send could not
+  // deliver — on dev it read 228 where the sender would send 2. The backend now
+  // owns the figure and the send reports the same one back, so the two cannot
+  // disagree. `null` until it loads; fall back to nothing rather than to a
+  // guess, because a wrong number here is exactly the bug.
+  const recipientCount = breakdown?.recipients ?? null;
+  const canSend = recipientCount !== null && recipientCount > 0;
+
+  // The real recipient breakdown for the selected year. Refetched on year
+  // change and after every send, so the console never shows a figure that
+  // predates what just went out.
+  const loadBreakdown = useCallback((year: number | null) => {
+    if (year === null) {
+      setBreakdown(null);
+      return;
+    }
+    clientGet<SurveyRecipientBreakdown>(`/survey/campaigns/${year}/recipients`)
+      .then((b) => setBreakdown(b ?? null))
+      .catch(() => setBreakdown(null));
+  }, []);
+
+  useEffect(() => {
+    // Clear first so a stale year's numbers can never be read as this year's.
+    setBreakdown(null);
+    setUnreachable(null);
+    setUnreachableOpen(false);
+    loadBreakdown(selectedYear);
+  }, [selectedYear, loadBreakdown]);
+
+  // The unreachable names, fetched lazily when staff expand the list.
+  const toggleUnreachable = () => {
+    const opening = !unreachableOpen;
+    setUnreachableOpen(opening);
+    if (opening && unreachable === null && selectedYear !== null) {
+      clientGet<SurveyUnreachableAlum[]>(
+        `/survey/campaigns/${selectedYear}/unreachable`,
+      )
+        .then((list) => setUnreachable(list ?? []))
+        .catch(() => setUnreachable([]));
+    }
+  };
 
   const changeSelectedYear = (year: number) => {
     // The auto-fill effect prefills the date input from this year's schedule.
@@ -283,12 +433,15 @@ export function SurveyCampaignConsole() {
     if (selectedYear === null || sending) return;
     setSending(true);
     try {
-      const result = await clientPost<SurveySendResult>(
+      const result = await clientPost<SendResult>(
         `/survey/campaigns/${selectedYear}/send?dry_run=false`,
       );
-      // Refetch the real usage + schedules now that a batch went out.
+      // Refetch the real usage + schedules now that a batch went out, and the
+      // breakdown so the on-screen count matches what just happened.
       loadUsage();
       loadSchedules();
+      loadBreakdown(selectedYear);
+      if (result.breakdown) setBreakdown(result.breakdown);
       setSendOpen(false);
 
       if (result.sent > 0) {
@@ -301,11 +454,7 @@ export function SurveyCampaignConsole() {
               : "."),
         );
       } else {
-        toast.error(
-          `No emails sent: ${result.total_recipients.toLocaleString()} recipient${
-            result.total_recipients === 1 ? "" : "s"
-          } found for ${selectedYear} (they need a personal email on file).`,
-        );
+        toast.error(`No emails sent for ${selectedYear}: ${zeroSendReason(result)}`);
       }
     } catch (err) {
       const msg =
@@ -574,8 +723,8 @@ export function SurveyCampaignConsole() {
                           : "—"
                       }
                       sub={
-                        selected
-                          ? `${notYetReplied.toLocaleString()} not yet`
+                        recipientCount !== null
+                          ? `${recipientCount.toLocaleString()} can be emailed`
                           : undefined
                       }
                     />
@@ -666,6 +815,92 @@ export function SurveyCampaignConsole() {
                 </div>
               </div>
 
+              {/* ── Cannot be reached (#392) ──────────────────────────────
+                  Alumni this campaign wants to email and can't, because there
+                  is no usable address on either column. Before this they were
+                  simply absent: a campaign reaching 180 of 200 looked identical
+                  to one reaching all 180 it had.
+
+                  Deliberately NOT merged with suppression. Deceased / Do Not
+                  Contact alumni are excluded from this list by the backend —
+                  they are a decision to honour, not a gap to close, and listing
+                  them here would read as an instruction to go find their
+                  address. The suppressed figure is shown separately below.
+
+                  Text-only: no icons in new UI. */}
+              {breakdown && breakdown.unreachable > 0 ? (
+                <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-navy-800">
+                      Cannot be reached —{" "}
+                      <span className="tabular-nums">
+                        {breakdown.unreachable.toLocaleString()}
+                      </span>{" "}
+                      {breakdown.unreachable === 1 ? "alumnus" : "alumni"} with
+                      no usable email address
+                    </p>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={toggleUnreachable}
+                    >
+                      {unreachableOpen ? "Hide list" : "Show list"}
+                    </Button>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    They are not counted as recipients and no email is attempted.
+                    Add an address to bring them into the next send.
+                  </p>
+                  {unreachableOpen ? (
+                    unreachable === null ? (
+                      <p className="mt-3 text-xs text-gray-500">Loading…</p>
+                    ) : unreachable.length === 0 ? (
+                      <p className="mt-3 text-xs text-gray-500">
+                        Nobody to show.
+                      </p>
+                    ) : (
+                      <ul className="mt-3 divide-y divide-amber-200 border-t border-amber-200">
+                        {unreachable.map((a) => (
+                          <li
+                            key={a.alumni_id}
+                            className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2"
+                          >
+                            <a
+                              href={`/alumni/${a.alumni_id}`}
+                              className="text-sm font-medium text-navy-800 underline underline-offset-2"
+                            >
+                              {a.name}
+                            </a>
+                            <span className="text-xs text-gray-600">
+                              {a.reason_label}
+                              {/* Show the offending value so a typo can be
+                                  fixed on sight rather than chased. */}
+                              {a.personal_email || a.work_email ? (
+                                <span className="ml-1 text-gray-400">
+                                  ({a.personal_email || a.work_email})
+                                </span>
+                              ) : null}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )
+                  ) : null}
+                </div>
+              ) : null}
+
+              {/* Suppressed is its own line, never folded into the count above:
+                  never-email-them and can't-email-them are different states. */}
+              {breakdown && breakdown.suppressed > 0 ? (
+                <p className="mt-2 text-xs text-gray-500">
+                  {breakdown.suppressed.toLocaleString()} more{" "}
+                  {breakdown.suppressed === 1 ? "alumnus is" : "alumni are"}{" "}
+                  marked Deceased or Do Not Contact and are never emailed. This
+                  is separate from the alumni above — no action needed.
+                </p>
+              ) : null}
+
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs text-gray-400">
                   Each recipient gets an email with their personal survey link.
@@ -674,10 +909,12 @@ export function SurveyCampaignConsole() {
                   type="button"
                   size="sm"
                   onClick={() => setSendOpen(true)}
-                  disabled={notYetReplied === 0}
+                  disabled={!canSend}
                 >
                   <Send aria-hidden="true" />
-                  Send now ({notYetReplied.toLocaleString()})
+                  {recipientCount === null
+                    ? "Send now"
+                    : `Send now (${recipientCount.toLocaleString()})`}
                 </Button>
               </div>
             </Card>
@@ -703,10 +940,17 @@ export function SurveyCampaignConsole() {
               <span>
                 Goes to the{" "}
                 <span className="font-semibold tabular-nums">
-                  {notYetReplied.toLocaleString()}
+                  {(recipientCount ?? 0).toLocaleString()}
                 </span>{" "}
                 alumni in graduation year {selectedYear} who haven&apos;t replied
-                this cycle and have a personal email on file.{" "}
+                this cycle and have an email we can send to — their personal
+                address, or their work address when there is no personal one.{" "}
+                {breakdown && breakdown.work_email_fallback > 0
+                  ? `${breakdown.work_email_fallback.toLocaleString()} will be reached at a work address. `
+                  : ""}
+                {breakdown && breakdown.unreachable > 0
+                  ? `${breakdown.unreachable.toLocaleString()} cannot be reached at all and are listed under "Cannot be reached". `
+                  : ""}
                 {capEnabled
                   ? `Sends are capped at ${dailyLimit.toLocaleString()}/day — rerun to continue if there's a remainder; everything goes out in a single same-day batch when it fits.`
                   : "No send cap — everything goes out in a single same-day batch, limited only by Resend."}
