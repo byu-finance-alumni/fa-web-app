@@ -30,6 +30,7 @@ import {
   TagStatusManager,
   TaskCheckbox,
 } from "@/components/alumni/ProfileDialogs";
+import { chipTone } from "@/components/alumni/tag-tone";
 import { InteractionTimeline } from "@/components/alumni/InteractionTimeline";
 import { AlumniProfileTabs } from "@/components/alumni/AlumniProfileTabs";
 import { AlumniPayItForwardPanel } from "@/components/donations/AlumniPayItForwardPanel";
@@ -297,12 +298,16 @@ function EditLink({ id, label = "Edit" }: { id: number; label?: string }) {
   );
 }
 
+/** A profile chip. `tone` defaults to `tag` (blue) — the house colour for every
+ *  tag, status label and "ways to get involved" chip. Pass a tone only for
+ *  chips that are NOT part of that family (e.g. event attendance status), or
+ *  use `chipTone(label)` so the Do Not Contact / Deceased rule is applied. */
 function EngagementChip({
   children,
   tone = "tag",
 }: {
   children: React.ReactNode;
-  tone?: "tag" | "neutral" | "success" | "warning" | "solid";
+  tone?: "tag" | "neutral" | "muted" | "danger" | "success" | "warning" | "solid";
 }) {
   // "solid" keeps the navy treatment used on the profile; the rest map to the
   // Badge variants directly.
@@ -696,12 +701,12 @@ export async function AlumniProfileView({
                       Tags
                     </span>
                     {profile.tags.map((t) => (
-                      <EngagementChip key={t} tone="tag">
+                      <EngagementChip key={t} tone={chipTone(t)}>
                         {t}
                       </EngagementChip>
                     ))}
                     {profile.status_labels.map((s) => (
-                      <EngagementChip key={s} tone="neutral">
+                      <EngagementChip key={s} tone={chipTone(s)}>
                         {s}
                       </EngagementChip>
                     ))}
@@ -812,15 +817,12 @@ export async function AlumniProfileView({
                   Tags
                 </span>
                 {profile.tags.map((t) => (
-                  <EngagementChip
-                    key={t}
-                    tone="tag"
-                  >
+                  <EngagementChip key={t} tone={chipTone(t)}>
                     {t}
                   </EngagementChip>
                 ))}
                 {profile.status_labels.map((s) => (
-                  <EngagementChip key={s} tone="neutral">
+                  <EngagementChip key={s} tone={chipTone(s)}>
                     {s}
                   </EngagementChip>
                 ))}
@@ -1095,7 +1097,7 @@ export async function AlumniProfileView({
                     {heldDesignations.length ? (
                       <ChipRow label="Designations">
                         {heldDesignations.map((d) => (
-                          <EngagementChip key={d} tone="success">
+                          <EngagementChip key={d}>
                             <DesignationAbbr token={d} />
                           </EngagementChip>
                         ))}
@@ -1192,9 +1194,7 @@ export async function AlumniProfileView({
                 {willingLabels.length ? (
                   <ChipRow label="Willing to">
                     {willingLabels.map((label) => (
-                      <EngagementChip key={label} tone="success">
-                        {label}
-                      </EngagementChip>
+                      <EngagementChip key={label}>{label}</EngagementChip>
                     ))}
                   </ChipRow>
                 ) : (
@@ -1283,9 +1283,7 @@ export async function AlumniProfileView({
                     {programChips(profile.program_engagement).length ? (
                       <ChipRow label="Program">
                         {programChips(profile.program_engagement).map((label) => (
-                          <EngagementChip key={label} tone="success">
-                            {label}
-                          </EngagementChip>
+                          <EngagementChip key={label}>{label}</EngagementChip>
                         ))}
                       </ChipRow>
                     ) : null}
@@ -1970,9 +1968,7 @@ export async function AlumniProfileView({
                       {certs.length ? (
                         <ChipRow label="Certifications">
                           {certs.map((cert) => (
-                            <EngagementChip key={cert} tone="success">
-                              {cert}
-                            </EngagementChip>
+                            <EngagementChip key={cert}>{cert}</EngagementChip>
                           ))}
                         </ChipRow>
                       ) : null}
