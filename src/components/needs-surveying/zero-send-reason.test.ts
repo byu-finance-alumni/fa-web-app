@@ -53,6 +53,10 @@ function result(over: Record<string, unknown> = {}) {
     dry_run: false,
     retry_after_seconds: null,
     sample: [],
+    // Present since api.gen.ts was regenerated against the deployed backend —
+    // the send result now always carries these, so the stub has to as well.
+    stage_complete: false,
+    breakdown: null,
     ...over,
   } as Parameters<typeof zeroSendReason>[0];
 }
