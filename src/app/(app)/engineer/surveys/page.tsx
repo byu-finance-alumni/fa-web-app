@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { StopAllSurveys } from "@/components/engineer/StopAllSurveys";
 import { PauseAllSurveys } from "@/components/engineer/PauseAllSurveys";
 import { CampaignPauseControl } from "@/components/engineer/CampaignPauseControl";
+import { CampaignRemoveControl } from "@/components/engineer/CampaignRemoveControl";
 import { SurveyCampaignReset } from "@/components/engineer/SurveyCampaignReset";
 import { getSurveySchedules, type SurveyScheduleItem } from "./actions";
 
@@ -149,6 +150,8 @@ export default async function EngineerSurveysPage() {
                   >
                     {activeYears.length}
                   </p>
+                  {/* One sentence (Jake, 2026-08-05), but it keeps the fact
+                      that these WILL send again — that is the whole warning. */}
                   <p className="mt-1 max-w-xl text-sm text-gray-500">
                     {activeYears.length > 0 ? (
                       <>
@@ -157,11 +160,10 @@ export default async function EngineerSurveysPage() {
                         <span className="font-medium text-gray-700">
                           {activeYears.join(", ")}
                         </span>{" "}
-                        will send again on the next daily run — initial or
-                        reminder, whichever is due.
+                        will email again on the next daily run.
                       </>
                     ) : (
-                      "Nothing is scheduled or mid-campaign. No survey emails will send."
+                      "No survey emails will send."
                     )}
                   </p>
                   {pausedYears.length > 0 ? (
@@ -174,52 +176,48 @@ export default async function EngineerSurveysPage() {
                       <span className="font-medium text-gray-700">
                         {pausedYears.join(", ")}
                       </span>{" "}
-                      {pausedYears.length === 1 ? "is" : "are"} held and sending
-                      nothing. Resume {pausedYears.length === 1 ? "it" : "them"}{" "}
-                      below when ready.
+                      {pausedYears.length === 1 ? "is" : "are"} sending nothing
+                      until resumed below.
                     </p>
                   ) : null}
                 </div>
                 {/* Reversible first, terminal second — and the line beneath
-                    spells out the difference, since the two sit together. */}
+                    keeps that difference, compressed: it is the only thing
+                    saying one of these two cannot be undone. */}
                 <div className="flex flex-col items-stretch gap-2 sm:items-end">
                   <div className="flex flex-wrap gap-2">
                     <PauseAllSurveys activeYears={activeYears} />
                     <StopAllSurveys activeYears={activeYears} />
                   </div>
                   <p className="max-w-xs text-xs text-gray-500 sm:text-right">
-                    <span className="font-medium text-gray-700">Pause</span> is
-                    reversible — resuming picks each campaign up where it left
-                    off.{" "}
-                    <span className="font-medium text-gray-700">Stop</span> is
-                    permanent: a cancelled campaign has to be re-scheduled by
-                    hand.
+                    Pause is reversible; Stop is permanent and needs each
+                    campaign re-scheduled by hand.
                   </p>
                 </div>
               </div>
             </Card>
 
             {/* The per-person tool, between the blanket switches and the
-                per-cohort table: it is neither, and it is the one control here
-                that destroys data rather than stopping a send (#395). */}
+                per-cohort table: it is neither. It no longer destroys anything
+                (#395) — see the component. */}
             <div className="mt-4">
               <SurveyCampaignReset />
             </div>
 
+            {/* One sentence (Jake, 2026-08-05). What survived the cut: only
+                scheduled/active send (the rest of the table is inert), and the
+                times are Utah — both change how a row is read. The pause-cadence
+                and cancel-is-terminal explanations moved into the confirms,
+                which is where someone is actually deciding. */}
             <p className="mb-4 mt-4 max-w-3xl text-sm text-gray-500">
-              Every survey campaign the scheduler knows about, newest cohort
-              first. Only{" "}
-              <span className="font-medium text-gray-700">scheduled</span> and{" "}
-              <span className="font-medium text-gray-700">active</span> ones
-              send. <span className="font-medium text-gray-700">Pausing</span>{" "}
-              stops a campaign without ending it — the time it spends paused
-              doesn’t count against its reminder schedule, so resuming continues
-              the cadence instead of skipping ahead. Cancelling also stops it,
-              but a cancelled campaign does not resume. Times are shown in{" "}
+              Every campaign the scheduler knows about, newest cohort first —
+              only <span className="font-medium text-gray-700">scheduled</span>{" "}
+              and <span className="font-medium text-gray-700">active</span> ones
+              send, and times are{" "}
               <span className="font-medium text-gray-700">
                 Utah time (Mountain)
               </span>
-              . To cancel a single year, use Manage → Needs Surveying.
+              .
             </p>
 
             {schedules && schedules.length === 0 ? (
@@ -257,10 +255,15 @@ export default async function EngineerSurveysPage() {
                         Sent {s.sent_initial} initial · {s.sent_reminder_1} 1-week
                         · {s.sent_reminder_2} 2-week
                       </p>
-                      <div className="mt-2">
+                      <div className="mt-2 flex flex-wrap gap-2">
                         <CampaignPauseControl
                           graduationYear={s.graduation_year}
                           status={s.status}
+                        />
+                        <CampaignRemoveControl
+                          graduationYear={s.graduation_year}
+                          status={s.status}
+                          emailsSentAllTime={s.emails_sent_all_time}
                         />
                       </div>
                     </Card>
@@ -281,8 +284,10 @@ export default async function EngineerSurveysPage() {
                         <th className="w-40 px-4 py-3 text-right">
                           Sent — init / 1wk / 2wk
                         </th>
-                        <th className="w-28 px-4 py-3 text-right">
-                          <span className="sr-only">Pause or resume</span>
+                        <th className="w-44 px-4 py-3 text-right">
+                          <span className="sr-only">
+                            Pause, resume, or remove
+                          </span>
                         </th>
                       </tr>
                     </thead>
@@ -326,11 +331,19 @@ export default async function EngineerSurveysPage() {
                             {s.sent_initial} / {s.sent_reminder_1} /{" "}
                             {s.sent_reminder_2}
                           </td>
-                          <td className="px-4 py-3 text-right">
-                            <CampaignPauseControl
-                              graduationYear={s.graduation_year}
-                              status={s.status}
-                            />
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap justify-end gap-2">
+                              <CampaignPauseControl
+                                graduationYear={s.graduation_year}
+                                status={s.status}
+                              />
+                              {/* Next to Resume, as asked (#398). */}
+                              <CampaignRemoveControl
+                                graduationYear={s.graduation_year}
+                                status={s.status}
+                                emailsSentAllTime={s.emails_sent_all_time}
+                              />
+                            </div>
                           </td>
                         </tr>
                       ))}

@@ -3654,9 +3654,51 @@ export interface paths {
         /**
          * Cancel Survey Schedule
          * @description Cancel a graduation year's schedule — no further sends.
+         *
+         *     Terminal, and non-destructive: the row stays with its `cycle_seq`, next to
+         *     the send log it explains. This is what a campaign that has already emailed
+         *     people gets instead of `DELETE` below (#398). Audited.
          */
         post: operations["cancel_survey_schedule_survey_schedules__grad_year__cancel_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/schedules/{grad_year}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Survey Schedule
+         * @description Remove a survey campaign — the schedule row, and nothing else (#398).
+         *
+         *     For the campaign scheduled against the wrong year, or created by mistake:
+         *     pausing hid it, but the row stayed forever. This removes it, and with it any
+         *     future send (the cron only ever selects rows that exist).
+         *
+         *     DELETES NO HISTORY. `survey_send_log` and `survey_responses` are not touched
+         *     here or anywhere in this path — a "delete campaign" that took the alumni's
+         *     submitted answers with it is precisely what Jake ruled out on #395 the same
+         *     day.
+         *
+         *     409 when the campaign has EVER sent an email. That is not squeamishness:
+         *     `survey_schedule` is the only holder of the year's `cycle_seq`, so deleting
+         *     it would leave the send-log rows looking like the current cycle's, and the
+         *     next campaign for that year would find everyone already emailed and send to
+         *     nobody (#357). Cancel is the honest verb for those, and the error says so.
+         *
+         *     Engineer-gated like the other maintenance controls (pause-all / cancel-all /
+         *     per-alumnus reset) rather than `surveys.manage`, which is assignable.
+         */
+        delete: operations["delete_survey_schedule_survey_schedules__grad_year__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3704,13 +3746,13 @@ export interface paths {
          *
          *     Read-only, and the REQUIRED first half of the reset below — the engineer has
          *     to be able to see that someone looks "blocked" only because they legitimately
-         *     replied three months ago, in which case deleting that reply is the wrong
-         *     move. `blocked_reasons` says so in plain words; empty means a reset would
-         *     unblock nothing and only destroy history.
+         *     replied three months ago, in which case re-asking them may not be wanted.
+         *     `blocked_reasons` says so in plain words; empty means a reset would change
+         *     nothing at all.
          *
          *     Engineer-gated (`RequireEngineer` = the non-assignable `engineer`
-         *     capability), matching its destructive twin: the read exists to inform that
-         *     one decision, so widening it would only invite the reset to be run blind.
+         *     capability), matching its twin below: the read exists to inform that one
+         *     decision, so widening it would only invite the reset to be run blind.
          */
         get: operations["survey_alumnus_state_survey_alumni__alumni_id__state_get"];
         put?: never;
@@ -3732,25 +3774,25 @@ export interface paths {
         put?: never;
         /**
          * Survey Reset Alumnus
-         * @description Clear ONE alumnus's survey campaign state so they can be surveyed again
-         *     (#395) — the UI replacement for hand-running DELETE statements.
+         * @description Make ONE alumnus surveyable again (#395) — the UI replacement for
+         *     hand-running DELETE statements, which now deletes nothing itself.
          *
-         *     IRREVERSIBLE AND DESTRUCTIVE. It permanently deletes that person's submitted
-         *     survey answers, including a `pending` one nobody has reviewed yet, along with
-         *     the record of the emails they were sent. Nothing is applied to their profile
-         *     on the way out and there is no undo. Callers must show
-         *     `GET /survey/alumni/{alumni_id}/state` first.
+         *     DESTROYS NOTHING (Jake, 2026-08-05). It records a reset in
+         *     `survey_reset_log`; their submitted answers, the record of the emails sent to
+         *     them, and any staged survey photo all stay in the database and on their
+         *     profile. A `pending` answer stays pending and stays in the review queue.
+         *     Eligibility queries stop counting what predates the reset — that is the
+         *     entire effect. Callers must show `GET /survey/alumni/{alumni_id}/state`
+         *     first, because a reset that unblocks nothing is simply noise.
          *
          *     Gated on `RequireEngineer` — the `engineer` capability, which is the one
          *     capability the permission editor cannot grant to another role. Deliberately
-         *     NOT `surveys.manage`: that capability IS assignable, so gating on it would
-         *     let an engineer hand permanent destruction of alumni submissions to any role
-         *     that merely needs to review responses. Same reasoning as the pause-all /
-         *     cancel-all switches, which are engineer-gated for being maintenance actions.
+         *     NOT `surveys.manage`: that capability IS assignable, and this button decides
+         *     who receives a real email, so it stays with the maintenance controls
+         *     (pause-all / cancel-all) rather than with response review.
          *
          *     Scoped to exactly one alumnus. There is no bulk or cohort variant; the annual
-         *     cohort re-run is `POST /schedules/{grad_year}/new-cycle`, which deletes
-         *     nothing.
+         *     cohort re-run is `POST /schedules/{grad_year}/new-cycle`.
          */
         post: operations["survey_reset_alumnus_survey_alumni__alumni_id__reset_post"];
         delete?: never;
@@ -7323,6 +7365,11 @@ export interface components {
             field_count: number;
             /** Has Photo */
             has_photo: boolean;
+            /**
+             * Superseded
+             * @default false
+             */
+            superseded: boolean;
             /** Blocks Resend */
             blocks_resend: boolean;
         };
@@ -7344,6 +7391,11 @@ export interface components {
              * Format: date-time
              */
             sent_at: string;
+            /**
+             * Superseded
+             * @default false
+             */
+            superseded: boolean;
             /** Current Cycle */
             current_cycle: boolean;
         };
@@ -7352,11 +7404,12 @@ export interface components {
          * @description An alumnus's complete survey state, for the engineer to read BEFORE
          *     deciding whether a reset is warranted (#395).
          *
-         *     The point of this shape is that a reset is USUALLY THE WRONG MOVE: someone
-         *     can look blocked simply because they legitimately answered three months ago,
-         *     and deleting that answer to re-ask them destroys a real reply. So the state
-         *     is reported as facts (what went out, what came back, when, with what status)
-         *     plus `blocked_reasons` in plain words, rather than a single yes/no.
+         *     A reset destroys nothing, but it is still usually unnecessary: someone can
+         *     look blocked simply because they legitimately answered three months ago, and
+         *     re-asking them then is a judgement call, not a repair. So the state is
+         *     reported as facts (what went out, what came back, when, with what status,
+         *     what a previous reset already superseded) plus `blocked_reasons` in plain
+         *     words, rather than a single yes/no.
          */
         SurveyAlumniState: {
             /** Alumni Id */
@@ -7382,6 +7435,13 @@ export interface components {
             sends: components["schemas"]["SurveyAlumniSend"][];
             /** Responses */
             responses: components["schemas"]["SurveyAlumniResponse"][];
+            /**
+             * Reset Count
+             * @default 0
+             */
+            reset_count: number;
+            /** Last Reset At */
+            last_reset_at: string | null;
             /** Blocked Reasons */
             blocked_reasons: string[];
         };
@@ -7525,23 +7585,28 @@ export interface components {
         };
         /**
          * SurveyResetResult
-         * @description What a per-alumnus reset actually deleted (#395).
+         * @description What a per-alumnus reset did (#395, revised 2026-08-05).
          *
-         *     Counts, not booleans, because the audit trail records these and "we removed
-         *     3 emails and 1 reply" is the only useful answer to "what did that button
-         *     do?". A reset that found nothing succeeds and reports zeros.
+         *     NOTHING IS DELETED. The counts say what stopped counting toward eligibility
+         *     and — just as importantly — what is still there, because the operator has to
+         *     be able to see that their answers survived. A reset that found nothing
+         *     succeeds and reports zeros.
          */
         SurveyResetResult: {
             /** Alumni Id */
             alumni_id: number;
             /** Name */
             name: string;
-            /** Sends Deleted */
-            sends_deleted: number;
-            /** Responses Deleted */
-            responses_deleted: number;
-            /** Staged Photos Deleted */
-            staged_photos_deleted: number;
+            /** Reset Seq */
+            reset_seq: number;
+            /** Sends Superseded */
+            sends_superseded: number;
+            /** Responses Superseded */
+            responses_superseded: number;
+            /** Responses Preserved */
+            responses_preserved: number;
+            /** Pending Preserved */
+            pending_preserved: number;
         };
         /**
          * SurveyRespondInfo
@@ -7617,6 +7682,25 @@ export interface components {
             start_date: string;
         };
         /**
+         * SurveyScheduleDeleteResult
+         * @description Outcome of removing a campaign (``DELETE /survey/schedules/{year}``, #398).
+         *
+         *     Only the ``survey_schedule`` row goes. The delete is refused with a 409 for
+         *     any year that has ever sent an email, so ``emails_sent`` is 0 by
+         *     construction and is not repeated here; what IS worth reporting back is
+         *     ``responses_kept``, because the reasonable assumption about a button labelled
+         *     "delete campaign" is that the alumni's submitted answers went with it. They
+         *     did not, and the console says the number out loud.
+         */
+        SurveyScheduleDeleteResult: {
+            /** Graduation Year */
+            graduation_year: number;
+            /** Previous Status */
+            previous_status: string;
+            /** Responses Kept */
+            responses_kept: number;
+        };
+        /**
          * SurveyScheduleItem
          * @description One survey schedule + how many emails each stage has sent so far.
          */
@@ -7665,6 +7749,11 @@ export interface components {
              * @default 0
              */
             non_responders: number;
+            /**
+             * Emails Sent All Time
+             * @default 0
+             */
+            emails_sent_all_time: number;
         };
         /**
          * SurveySchedulePauseAllResult
@@ -13311,6 +13400,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SurveyScheduleItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_survey_schedule_survey_schedules__grad_year__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grad_year: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyScheduleDeleteResult"];
                 };
             };
             /** @description Validation Error */
