@@ -65,8 +65,8 @@ export default async function EditEventPage({
           { label: "Edit" },
         ]}
       />
-      <main className="flex-1 overflow-auto p-6">
-        <div className="w-full space-y-6">
+      <main className="flex min-h-0 flex-1 flex-col overflow-auto p-6">
+        <div className="flex min-h-0 w-full flex-1 flex-col gap-6">
           {/* Landing hint after a create (#611). The event exists with nobody on
               it — which is fine and expected — so the banner names BOTH ways to
               fill the roster and makes clear neither is due now. */}
@@ -77,44 +77,53 @@ export default async function EditEventPage({
               keep this event.
             </p>
           ) : null}
-          {/* Full-width two-column layout: event details on the left, the
-              attendee manager on the right, as equal-height boxes (items-stretch
-              + h-full). The attendee list scrolls inside its box. Danger zone
-              spans full width below. Stacks on smaller screens. */}
-          <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
-            <EventForm
-              action={action}
-              submitLabel="Save changes"
-              cancelHref="/events"
-              eventTypeOptions={eventTypeOptions}
-              cardClassName="h-full w-full"
-              initialValues={{
-                event_name: event.event_name,
-                event_type: event.event_type,
-                event_date: event.event_date,
-                event_location: event.event_location,
-                event_notes: event.event_notes,
-              }}
-            />
-            <AttendeeManager eventId={event.event_id} className="h-full w-full" />
-          </div>
+          {/* Two columns, each running the full height of the page.
+              LEFT: the event's own details, with Danger zone tucked underneath
+              it — delete is a detail-of-this-event action, so it belongs in that
+              column at half width rather than spanning the page. RIGHT: the
+              attendee manager, stretched to the bottom, because the roster is
+              the long-lived list you actually work in and it earns the space.
+              Stacks on smaller screens, where heights go natural. */}
+          <div className="grid min-h-0 flex-1 grid-cols-1 items-start gap-6 lg:grid-cols-2">
+            <div className="flex h-full min-h-0 flex-col gap-6">
+              <EventForm
+                action={action}
+                submitLabel="Save changes"
+                cancelHref="/events"
+                eventTypeOptions={eventTypeOptions}
+                cardClassName="w-full"
+                initialValues={{
+                  event_name: event.event_name,
+                  event_type: event.event_type,
+                  event_date: event.event_date,
+                  event_location: event.event_location,
+                  event_notes: event.event_notes,
+                }}
+              />
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-danger-600">Danger zone</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-gray-500">
-                Deleting this event also removes its attendance records.
-              </p>
-              <div className="mt-3">
-                <DeleteEventButton
-                  eventId={event.event_id}
-                  eventName={event.event_name}
-                />
-              </div>
-            </CardContent>
-          </Card>
+              <Card className="w-full">
+                <CardHeader>
+                  <CardTitle className="text-danger-600">Danger zone</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-500">
+                    Deleting this event also removes its attendance records.
+                  </p>
+                  <div className="mt-3">
+                    <DeleteEventButton
+                      eventId={event.event_id}
+                      eventName={event.event_name}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <AttendeeManager
+              eventId={event.event_id}
+              className="flex h-full min-h-0 w-full flex-col lg:min-h-[calc(100vh-11rem)]"
+            />
+          </div>
         </div>
       </main>
     </>
