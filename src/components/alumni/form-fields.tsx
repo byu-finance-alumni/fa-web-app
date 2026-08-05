@@ -105,23 +105,41 @@ export function SelectField({
   options,
   error,
   defaultValue = "",
+  value,
+  onChange,
+  hint,
 }: {
   label: string;
   name: string;
   options: readonly string[];
   error?: string;
   defaultValue?: string;
+  /**
+   * Optional CONTROLLED value. Omit it and the field stays uncontrolled on
+   * `defaultValue`, which is what every existing caller does. Supply it (with
+   * `onChange`) when a sibling field needs to write into this one — e.g. the
+   * Military industry suggestion (#608).
+   */
+  value?: string;
+  onChange?: (value: string) => void;
+  /** Muted helper line under the field. Used to SAY that a value was suggested,
+   *  rather than letting it appear out of nowhere. */
+  hint?: string;
 }) {
   const errorId = error ? `${name}-error` : undefined;
+  const hintId = hint ? `${name}-hint` : undefined;
+  const controlled = value !== undefined;
   return (
     <div>
       <FieldLabel htmlFor={name}>{label}</FieldLabel>
       <Select
         id={name}
         name={name}
-        defaultValue={defaultValue}
+        {...(controlled
+          ? { value, onChange: (e) => onChange?.(e.target.value) }
+          : { defaultValue, onChange: (e) => onChange?.(e.target.value) })}
         aria-invalid={error ? true : undefined}
-        aria-describedby={errorId}
+        aria-describedby={errorId ?? hintId}
         className={cn(
           error && "border-danger-600 focus-visible:ring-danger-600",
         )}
@@ -136,6 +154,10 @@ export function SelectField({
       {error ? (
         <p id={errorId} className="mt-1 text-xs text-danger-600">
           {error}
+        </p>
+      ) : hint ? (
+        <p id={hintId} className="mt-1 text-xs text-gray-500">
+          {hint}
         </p>
       ) : null}
     </div>

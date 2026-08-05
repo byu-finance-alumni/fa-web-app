@@ -4,6 +4,7 @@ import { CircleAlert, Check } from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
 import { fetchHeadshotUrl } from "@/lib/headshots";
 import type { Contact, Profile } from "@/types/profile";
+import { employerApplies, employerDisplay } from "@/constants/dropdowns";
 import type { UserContext } from "@/types/alumni";
 import {
   canAddInteraction,
@@ -510,10 +511,18 @@ export async function AlumniProfileView({
   // most-recent previous roles from employment history.
   const currentEmp =
     profile.employment_history.find((e) => e.is_current) ?? null;
+  // #608: for a serving alumnus the employer field holds the BRANCH, which reads
+  // as an ordinary company on its own ("Air Force"). `employerDisplay` renders it
+  // as "Military/Air Force" — and as plain "Military" when no branch is recorded,
+  // never a dangling "Military/". Non-Military records are untouched.
+  const employerLabel = employerDisplay(
+    a.employment_status,
+    career?.current_employer,
+  );
   const currentJob = career
     ? {
         title: career.current_title,
-        company: career.current_employer,
+        company: employerLabel,
         location: headerPlace,
       }
     : currentEmp
@@ -559,8 +568,17 @@ export async function AlumniProfileView({
   const checks: { label: string; ok: boolean }[] = [
     { label: "Profile photo", ok: Boolean(headshotUrl) },
     {
+      // #608: for Military / Unemployed / Not in the Labor Force / Graduate
+      // Student there is no employer to record — Jake on Military: "the branch
+      // does not matter" — so those count as complete here whether or not an
+      // employer is on file. Same rule as the backend's missing-employer
+      // exemption; without it this score would contradict the Data-quality page
+      // for the very same record.
       label: "At least one job",
-      ok: Boolean(career?.current_employer) || profile.employment_history.length > 0,
+      ok:
+        Boolean(career?.current_employer) ||
+        profile.employment_history.length > 0 ||
+        !employerApplies(a.employment_status),
     },
     { label: "Email", ok: Boolean(c?.personal_email || c?.work_email) },
     { label: "Cell phone", ok: Boolean(c?.phone) },
@@ -638,9 +656,9 @@ export async function AlumniProfileView({
                   ) : null}
                 </div>
                 {/* Headline: current title · employer */}
-                {career?.current_title || career?.current_employer ? (
+                {career?.current_title || employerLabel ? (
                   <p className="mt-0.5 text-sm font-medium text-gray-700">
-                    {[career?.current_title, career?.current_employer]
+                    {[career?.current_title, employerLabel]
                       .filter(Boolean)
                       .join(" · ")}
                   </p>
@@ -713,9 +731,7 @@ export async function AlumniProfileView({
                         {career.current_title}
                       </p>
                     ) : null}
-                    {career?.current_employer ? (
-                      <p>{career.current_employer}</p>
-                    ) : null}
+                    {employerLabel ? <p>{employerLabel}</p> : null}
                     {headerPlace ? (
                       <p className="text-sm text-gray-500">{headerPlace}</p>
                     ) : null}
@@ -1511,7 +1527,7 @@ export async function AlumniProfileView({
                           <div className="min-w-0 flex-1">
                             <div className="flex items-start justify-between gap-2">
                               <p className="text-sm font-semibold text-gray-900">
-                                {career.current_employer ?? "—"}
+                                {employerLabel ?? "—"}
                                 <Badge variant="success" className="ml-2">
                                   Current
                                 </Badge>

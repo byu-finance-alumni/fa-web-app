@@ -23,6 +23,12 @@
  * "Graduate Student" and the "Other" catch-all pinned last, in that order
  * (#295/#294/#282) — which in turn mirrors `sort_order` on the vocabulary rows,
  * so the fallback and the fetched list agree on order.
+ *
+ * "Military" (#608) sits in the alphabetical BODY between "Law" and "Private
+ * Banking", not the pinned tail: unlike "Graduate Student" it is a real answer
+ * to "what do you do", and people scan for it under M. It was added because a
+ * service member had no industry that fit and had to be recorded as Other or
+ * Unknown, which dropped them out of the dashboard industry breakdown.
  */
 export const INDUSTRY_OPTIONS = [
   "Asset Management",
@@ -36,6 +42,7 @@ export const INDUSTRY_OPTIONS = [
   "FP&A",
   "Investment Banking",
   "Law",
+  "Military",
   "Private Banking",
   "Private Credit",
   "Private Equity",
@@ -245,3 +252,135 @@ export const ATTENDANCE_STATUS_OPTIONS = [
 ] as const;
 
 export type AttendanceStatus = (typeof ATTENDANCE_STATUS_OPTIONS)[number];
+
+/* ----------------------------------------------------------- military (#608) -- */
+
+/**
+ * The employment status and the industry that both mean "serving".
+ *
+ * They are SEPARATE columns and neither is derived from the other — the staff
+ * forms only *suggest* the industry when the status is set (see
+ * `suggestMilitaryIndustry`). Mirrors `MILITARY_STATUS` in
+ * fa-web-api/app/core/dropdowns.py.
+ */
+export const MILITARY_STATUS = "Military";
+export const MILITARY_INDUSTRY = "Military";
+
+/**
+ * True when a stored employment status records military service.
+ *
+ * Trimmed + case-insensitive: `employment_status` is a plain `varchar` with no
+ * write validation, so production holds casing drift from the free-text intake
+ * sheet ("military", "MILITARY").
+ */
+export function isMilitaryStatus(value: string | null | undefined): boolean {
+  return value?.trim().toLowerCase() === MILITARY_STATUS.toLowerCase();
+}
+
+/**
+ * How a serving alumnus's employer reads on the profile: `Military/<branch>`.
+ *
+ * Jake, 2026-08-04 (#608): the branch is stored the ordinary way (the employer
+ * field) and is OPTIONAL — we want it when we know it but never chase it, which
+ * is also why it is exempt from the missing-employer flag. Displaying the bare
+ * branch on its own ("Air Force") loses the fact that it is service, so the
+ * profile prefixes it.
+ *
+ * Returns `null` when there is nothing to show at all, so callers keep their
+ * existing "render nothing" branch.
+ *
+ * Cases:
+ *   Military + "Air Force"  -> "Military/Air Force"
+ *   Military + no branch    -> "Military"      (never a dangling "Military/")
+ *   Military + "military"   -> "Military"      (no "Military/Military")
+ *   any other status        -> the employer, untouched
+ */
+export function employerDisplay(
+  employmentStatus: string | null | undefined,
+  employer: string | null | undefined,
+): string | null {
+  const branch = employer?.trim() || null;
+  if (!isMilitaryStatus(employmentStatus)) return branch;
+  if (!branch || branch.toLowerCase() === MILITARY_STATUS.toLowerCase()) {
+    return MILITARY_STATUS;
+  }
+  return `${MILITARY_STATUS}/${branch}`;
+}
+
+/**
+ * Employment statuses for which a BLANK EMPLOYER is complete data (#608).
+ *
+ * Mirrors `EMPLOYER_NOT_APPLICABLE_STATUSES` in fa-web-api/app/core/dropdowns.py,
+ * which drives the backend's missing-employer flag, the Data-quality counts and
+ * the `?missing_employer=1` drill-down. This copy exists so the per-profile
+ * Completeness checklist agrees with those numbers for the same record.
+ *
+ * `Military` is on the list on Jake's call, 2026-08-04: "the branch does not
+ * matter." We still want the branch when we know it — see `employerDisplay` —
+ * but it is optional and never chased.
+ *
+ * NOT exempt: `Self-Employed` (their own company is the employer and we want its
+ * name), `Full-time` / `Part-time`, and `Unknown` (we don't know what they're
+ * doing, so we can't claim the blank employer was intentional).
+ */
+export const EMPLOYER_NOT_APPLICABLE_STATUSES = [
+  "Military",
+  "Unemployed",
+  "Not in the Labor Force",
+  "Graduate Student",
+] as const;
+
+const EMPLOYER_NOT_APPLICABLE_LOWER = new Set<string>(
+  EMPLOYER_NOT_APPLICABLE_STATUSES.map((v) => v.toLowerCase()),
+);
+
+/**
+ * False when the status means there is no employer to record — so a blank
+ * employer is complete data, not a gap. An absent/blank status returns `true`
+ * (we can't assume the blank was intentional), matching `employer_applies` in
+ * the backend.
+ */
+export function employerApplies(value: string | null | undefined): boolean {
+  const v = value?.trim().toLowerCase();
+  return v ? !EMPLOYER_NOT_APPLICABLE_LOWER.has(v) : true;
+}
+
+/**
+ * Which industry slot (if any) should be SUGGESTED when the status is set to
+ * Military (#608).
+ *
+ * Status and industry are independent columns, so someone can be Military by
+ * status with no industry recorded and then never turn up in an industry search
+ * for Military. This closes that gap without forcing anything:
+ *
+ *   - empty primary                       -> suggest it as the PRIMARY industry
+ *   - primary taken, secondary empty       -> suggest it as the SECONDARY one.
+ *     This is Jake's reservist case exactly: primary Investment Banking +
+ *     secondary Military. Never overwrite a primary the user chose.
+ *   - both slots filled, or either already Military -> suggest NOTHING
+ *   - status isn't Military                -> suggest NOTHING (one-way only:
+ *     switching away must not strip a Military industry the user picked)
+ *
+ * Pure and stateless — the CALLER decides when to apply it, which is how
+ * "suggest, never force" is enforced: it fires on a user CHANGE of the status
+ * field only, never on load and never on save, so a value the user has since
+ * edited is not re-suggested over the top.
+ *
+ * Deliberately NOT wired into the CSV import or the survey: a bulk file and an
+ * alum's own self-report are taken at face value, not silently amended.
+ */
+export function suggestMilitaryIndustry(
+  employmentStatus: string | null | undefined,
+  currentIndustry: string | null | undefined,
+  secondaryIndustry: string | null | undefined,
+): "current_industry" | "current_industry_secondary" | null {
+  if (!isMilitaryStatus(employmentStatus)) return null;
+  const primary = currentIndustry?.trim() || "";
+  const secondary = secondaryIndustry?.trim() || "";
+  const isMil = (v: string) =>
+    v.toLowerCase() === MILITARY_INDUSTRY.toLowerCase();
+  if (isMil(primary) || isMil(secondary)) return null;
+  if (!primary) return "current_industry";
+  if (!secondary) return "current_industry_secondary";
+  return null;
+}

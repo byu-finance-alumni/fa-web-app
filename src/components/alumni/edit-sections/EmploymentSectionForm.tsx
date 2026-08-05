@@ -12,7 +12,9 @@ import { SecondaryIndustryCombobox } from "@/components/alumni/SecondaryIndustry
 import { StateCombobox } from "@/components/alumni/StateCombobox";
 import {
   EMPLOYMENT_STATUS_OPTIONS,
+  MILITARY_INDUSTRY,
   PRIMARY_INDUSTRY_OPTIONS,
+  suggestMilitaryIndustry,
 } from "@/constants/dropdowns";
 import {
   useStateRegions,
@@ -114,6 +116,39 @@ export function EmploymentSectionForm({
     setRegionAutoFilled(true);
   }
 
+  // --- Military status suggests the Military industry (#608) ---------------
+  // Status and industry are independent columns, so someone can be Military by
+  // status with no industry recorded and then never appear in an industry search
+  // for Military. This closes that gap the same way the Region auto-fill above
+  // does: SUGGEST, announce it with a hint, and let the user override.
+  //
+  // It fires ONLY on a user change of the status select — never on load, never
+  // on save — so a value the user has since edited is not re-suggested over the
+  // top, and nothing is written behind their back. `suggestMilitaryIndustry`
+  // owns the rules: empty primary gets it, an already-filled primary sends it to
+  // the empty SECONDARY slot (the reservist case), both filled suggests nothing,
+  // and a non-Military status suggests nothing at all — so switching away never
+  // strips a Military industry the user chose.
+  const [status, setStatus] = useState(defaults.employment_status);
+  const [industry, setIndustry] = useState(defaults.current_industry);
+  const [secondaryIndustry, setSecondaryIndustry] = useState(
+    defaults.current_industry_secondary,
+  );
+  const [industrySuggested, setIndustrySuggested] = useState(false);
+  const [secondarySuggested, setSecondarySuggested] = useState(false);
+
+  function onStatusChange(next: string) {
+    setStatus(next);
+    const slot = suggestMilitaryIndustry(next, industry, secondaryIndustry);
+    if (slot === "current_industry") {
+      setIndustry(MILITARY_INDUSTRY);
+      setIndustrySuggested(true);
+    } else if (slot === "current_industry_secondary") {
+      setSecondaryIndustry(MILITARY_INDUSTRY);
+      setSecondarySuggested(true);
+    }
+  }
+
   return (
     <FocusedEditForm
       title="Update Employment Information"
@@ -134,7 +169,8 @@ export function EmploymentSectionForm({
           EMPLOYMENT_STATUS_OPTIONS,
           defaults.employment_status,
         )}
-        defaultValue={defaults.employment_status}
+        value={status}
+        onChange={onStatusChange}
         error={errors.employment_status}
       />
       <div className="grid grid-cols-2 gap-4">
@@ -159,7 +195,18 @@ export function EmploymentSectionForm({
           // this list (the rows the #282 data migration deliberately skips) keeps
           // it as a selectable option — editing employment must not blank it.
           options={withValue(primaryIndustryOptions, defaults.current_industry)}
-          defaultValue={defaults.current_industry}
+          value={industry}
+          onChange={(v) => {
+            setIndustry(v);
+            // A manual pick is an override — retract the note so the hint never
+            // describes a value the user chose themselves.
+            setIndustrySuggested(false);
+          }}
+          hint={
+            industrySuggested
+              ? "Suggested from Employment Status — change or clear it if that's not right."
+              : undefined
+          }
           error={errors["career.current_industry"]}
         />
         {/* Pick-or-type: this column is free text on the backend, so the full
@@ -167,7 +214,16 @@ export function EmploymentSectionForm({
         <SecondaryIndustryCombobox
           label="Secondary Industry"
           name="career.current_industry_secondary"
-          defaultValue={defaults.current_industry_secondary}
+          value={secondaryIndustry}
+          onChange={(v) => {
+            setSecondaryIndustry(v);
+            setSecondarySuggested(false);
+          }}
+          hint={
+            secondarySuggested
+              ? "Suggested from Employment Status — change or clear it if that's not right."
+              : undefined
+          }
           error={errors["career.current_industry_secondary"]}
         />
       </div>
