@@ -39,6 +39,7 @@ import {
   STATUS_OPTIONS,
   TAG_OPTIONS,
 } from "@/constants/dropdowns";
+import { chipTone } from "@/components/alumni/tag-tone";
 import { clientGet } from "@/lib/api-client";
 import { useVocabOptions, withValue } from "@/hooks/useVocabOptions";
 import { useToast } from "@/components/ui/Toast";
@@ -1644,7 +1645,6 @@ function ChipManager({
   options,
   addAction,
   removeAction,
-  toneVariant,
 }: {
   alumniId: number;
   heading: string;
@@ -1655,7 +1655,6 @@ function ChipManager({
     alumniId: number,
     value: string,
   ) => Promise<{ error?: string } | null>;
-  toneVariant: "tag" | "neutral";
 }) {
   const { toast } = useToast();
   const router = useRouter();
@@ -1691,7 +1690,10 @@ function ChipManager({
           current.map((v) => (
             <Badge
               key={v}
-              variant={toneVariant}
+              // Tone is derived per value, not per list: tags and status labels
+              // are all blue except "Do Not Contact" (red) and "Deceased"
+              // (muted). See `chipTone`.
+              variant={chipTone(v)}
               className="min-h-[32px] gap-1 py-1 pl-3 pr-1.5"
             >
               {v}
@@ -1751,7 +1753,6 @@ export function TagStatusManager({
         options={TAG_OPTIONS}
         addAction={addTag}
         removeAction={removeTag}
-        toneVariant="tag"
       />
       <ChipManager
         alumniId={alumniId}
@@ -1760,7 +1761,6 @@ export function TagStatusManager({
         options={STATUS_OPTIONS}
         addAction={addStatusLabel}
         removeAction={removeStatusLabel}
-        toneVariant="neutral"
       />
     </div>
   );
