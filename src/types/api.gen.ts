@@ -4092,6 +4092,20 @@ export interface components {
             city: string[] | null;
             /** State */
             state: string[] | null;
+            /** Country */
+            country: string[] | null;
+            /** Region */
+            region: string[] | null;
+            /** Past Title */
+            past_title: string[] | null;
+            /** University */
+            university: string[] | null;
+            /** Degree */
+            degree: string[] | null;
+            /** Major */
+            major: string[] | null;
+            /** Worked In Year */
+            worked_in_year: number | null;
             /** Near */
             near: string | null;
             /** Radius */
@@ -6458,6 +6472,18 @@ export interface components {
             cities: string[];
             /** States */
             states: string[];
+            /** Countries */
+            countries: string[];
+            /** Regions */
+            regions: string[];
+            /** Past Titles */
+            past_titles: string[];
+            /** Universities */
+            universities: string[];
+            /** Degrees */
+            degrees: string[];
+            /** Majors */
+            majors: string[];
             /** Tags */
             tags: string[];
             /** Status Labels */
@@ -8765,6 +8791,20 @@ export interface operations {
                 city?: string[] | null;
                 /** @description Current state(s) — repeatable, exact match. */
                 state?: string[] | null;
+                /** @description Current work country/countries — repeatable, exact match. */
+                country?: string[] | null;
+                /** @description US region(s) derived from the work state (#283) — repeatable, exact match. Same stored value the geography map shades by. */
+                region?: string[] | null;
+                /** @description Prior job title(s) from employment history — repeatable. */
+                past_title?: string[] | null;
+                /** @description University/universities from education history — repeatable. */
+                university?: string[] | null;
+                /** @description Degree(s) from education history — repeatable, exact match. Distinct from 'graduate_degree', which only asks whether the alumnus holds one at all. */
+                degree?: string[] | null;
+                /** @description Major(s) from education history — repeatable, exact match. */
+                major?: string[] | null;
+                /** @description Held any role covering this calendar year. A history row with no end year counts as still running. */
+                worked_in_year?: number | null;
                 /** @description Engagement tag(s) — repeatable, exact match. */
                 tag?: string[] | null;
                 /** @description Status label(s) — repeatable, exact match. */

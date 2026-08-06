@@ -19,6 +19,7 @@ import {
 import { DATA_VIZ_PALETTE, CHART_MUTED_COLOR } from "@/constants/chart";
 import type { UserContext } from "@/types/alumni";
 import type { FilterOptions } from "@/types/filters";
+import { EMPTY_FILTER_OPTIONS } from "@/lib/emptyFilterOptions";
 
 /**
  * Hand-written shape for `/dashboard/summary` — keep it in sync with the API
@@ -391,24 +392,7 @@ export default async function DashboardPage() {
       ]
     : [];
 
-  const EMPTY_OPTIONS: FilterOptions = {
-    employers: [],
-    past_employers: [],
-    titles: [],
-    seniority_levels: [],
-    industries: [],
-    secondary_industries: [],
-    employment_statuses: [],
-    cities: [],
-    states: [],
-    tags: [],
-    status_labels: [],
-    leadership_roles: [],
-    survey_statuses: [],
-    graduation_years: [],
-    graduation_classes: [],
-  };
-
+  
   return (
     <>
       <Topbar title="Dashboard" />
@@ -428,7 +412,7 @@ export default async function DashboardPage() {
                 workspace (quick / advanced) below it */}
             <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:gap-5">
               <SearchHero greeting={greeting} />
-              <DashboardSearch options={filterOptions ?? EMPTY_OPTIONS} />
+              <DashboardSearch options={filterOptions ?? EMPTY_FILTER_OPTIONS} />
             </div>
 
             {/* RIGHT — KPI strip + the chart. Desktop only: on a phone the

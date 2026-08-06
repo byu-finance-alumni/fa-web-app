@@ -20,6 +20,7 @@ import {
   type PassThroughFilters,
 } from "@/lib/alumniFilterParams";
 import type { FilterOptions } from "@/types/filters";
+import { EMPTY_FILTER_OPTIONS } from "@/lib/emptyFilterOptions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -66,23 +67,6 @@ const SORT_OPTIONS: { value: AlumniFilterState["sort"]; label: string }[] = [
   { value: "state", label: "State (A–Z)" },
 ];
 
-const EMPTY_OPTIONS: FilterOptions = {
-  employers: [],
-  past_employers: [],
-  titles: [],
-  seniority_levels: [],
-  industries: [],
-  secondary_industries: [],
-  employment_statuses: [],
-  cities: [],
-  states: [],
-  tags: [],
-  status_labels: [],
-  leadership_roles: [],
-  survey_statuses: [],
-  graduation_years: [],
-  graduation_classes: [],
-};
 
 /**
  * Alumni list toolbar + advanced filter panel. The toolbar has Add / live search
@@ -95,7 +79,7 @@ const EMPTY_OPTIONS: FilterOptions = {
  */
 export function AlumniFilters({
   initial,
-  options = EMPTY_OPTIONS,
+  options = EMPTY_FILTER_OPTIONS,
   canCreate = false,
   canExport = false,
   total,
@@ -264,6 +248,12 @@ export function AlumniFilters({
     chips.push({
       label: `Grad year: ${f.ymin || "…"}–${f.ymax || "…"}`,
       remove: () => setF((p) => ({ ...p, ymin: "", ymax: "" })),
+    });
+  }
+  if (f.workedInYear) {
+    chips.push({
+      label: `Working in ${f.workedInYear}`,
+      remove: () => set("workedInYear", ""),
     });
   }
   if (f.contactedAfter)
@@ -620,6 +610,24 @@ export function AlumniFilters({
                     className="w-24 tabular-nums"
                   />
                 </div>
+              </div>
+
+              {/* Employment history, not graduation: "who was working somewhere in
+                  2008". A single year rather than a range — that is the shape of
+                  the question, and a role with no end date counts as still
+                  running, so current jobs are included. */}
+              <div>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Working in year
+                </p>
+                <Input
+                  type="number"
+                  value={f.workedInYear}
+                  onChange={(e) => set("workedInYear", e.target.value)}
+                  placeholder="e.g. 2008"
+                  aria-label="Held a role covering this year"
+                  className="w-32 tabular-nums"
+                />
               </div>
 
               <div>

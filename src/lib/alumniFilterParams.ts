@@ -44,6 +44,22 @@ export interface AlumniFilterState {
   seniority: string[];
   city: string[];
   state: string[];
+  /** Work country and the derived US region. Both were already stored and both
+   *  were phrasable in the search box; neither had a filter behind it, so asking
+   *  for either returned the whole list instead of an answer. */
+  country: string[];
+  region: string[];
+  /** Employment- and education-history facets: a prior job title, and the
+   *  university / degree / major from education history. `graduateDegree` below
+   *  only answers "do they hold one at all". */
+  pastTitle: string[];
+  university: string[];
+  degree: string[];
+  major: string[];
+  /** Held any role covering this calendar year (employment history). A single
+   *  year rather than a range — "who was at a bank in 2008" is the question
+   *  people actually ask. "" = no filter. */
+  workedInYear: string;
   tag: string[];
   statusLabel: string[];
   leadership: string[];
@@ -117,6 +133,13 @@ export const EMPTY_FILTERS: AlumniFilterState = {
   seniority: [],
   city: [],
   state: [],
+  country: [],
+  region: [],
+  pastTitle: [],
+  university: [],
+  degree: [],
+  major: [],
+  workedInYear: "",
   tag: [],
   statusLabel: [],
   leadership: [],
@@ -170,6 +193,12 @@ export const FACETS: {
   { key: "seniority", label: "Seniority", param: "seniority", optKey: "seniority_levels" },
   { key: "city", label: "City", param: "city", optKey: "cities" },
   { key: "state", label: "State", param: "state", optKey: "states" },
+  { key: "country", label: "Country", param: "country", optKey: "countries" },
+  { key: "region", label: "Region", param: "region", optKey: "regions" },
+  { key: "pastTitle", label: "Past job title", param: "past_title", optKey: "past_titles" },
+  { key: "university", label: "University", param: "university", optKey: "universities" },
+  { key: "degree", label: "Degree", param: "degree", optKey: "degrees" },
+  { key: "major", label: "Major", param: "major", optKey: "majors" },
   { key: "tag", label: "Engagement tag", param: "tag", optKey: "tags" },
   { key: "statusLabel", label: "Status label", param: "status_label", optKey: "status_labels" },
   { key: "leadership", label: "Leadership role", param: "leadership_role", optKey: "leadership_roles" },
@@ -360,6 +389,7 @@ export function parseAlumniFilters(sp: SearchParamMap): AlumniFilterState {
     q: one(sp.q),
     ymin: one(sp.ymin) || one(sp.year),
     ymax: one(sp.ymax) || one(sp.year),
+    workedInYear: one(sp.worked_in_year),
     designations: arr(sp.designations),
     gender:
       one(sp.gender).toUpperCase() === "F"
@@ -403,6 +433,7 @@ export function toAlumniFilterQs(f: AlumniFilterState): string {
   if (f.q.trim()) p.set("q", f.q.trim());
   if (f.ymin.trim()) p.set("ymin", f.ymin.trim());
   if (f.ymax.trim()) p.set("ymax", f.ymax.trim());
+  if (f.workedInYear.trim()) p.set("worked_in_year", f.workedInYear.trim());
   for (const facet of FACETS) {
     for (const v of f[facet.key] as string[]) p.append(facet.param, v);
   }
@@ -537,6 +568,7 @@ export function toAlumniPopulationParams(
   if (f.q.trim()) p.set("q", f.q.trim());
   if (f.ymin.trim()) p.set("grad_year_min", f.ymin.trim());
   if (f.ymax.trim()) p.set("grad_year_max", f.ymax.trim());
+  if (f.workedInYear.trim()) p.set("worked_in_year", f.workedInYear.trim());
   for (const facet of FACETS) {
     for (const v of f[facet.key] as string[]) p.append(facet.param, v);
   }
@@ -592,6 +624,7 @@ export function countActiveFilters(f: AlumniFilterState): number {
     (f.gender ? 1 : 0) +
     (f.industryGroup ? 1 : 0) +
     (f.ymin.trim() || f.ymax.trim() ? 1 : 0) +
+    (f.workedInYear.trim() ? 1 : 0) +
     (f.contactedAfter ? 1 : 0) +
     (f.contactedBefore ? 1 : 0) +
     (f.deceased ? 1 : 0)
