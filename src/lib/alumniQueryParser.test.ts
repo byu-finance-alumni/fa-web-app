@@ -116,6 +116,24 @@ describe("fuzzy phrasings still hand off to the backend geocoder", () => {
     ["Greater Seattle area", { near: "Greater Seattle area" }],
     ["greater NYC area", { near: "greater NYC area" }],
   ]);
+
+  // #588 — the prepositional form. These used to fall out of the geocoder path
+  // entirely and get picked up by the plain city matcher, producing a literal
+  // `city=Bay Area` that matches nobody: a reasonable-looking search returning
+  // an empty page. The bare forms above always worked, which is what hid it.
+  table([
+    ["alumni in the Bay Area", { near: "Bay Area" }],
+    ["find me all alumni in the bay area", { near: "bay area" }],
+    ["who works in the Greater Seattle area", { near: "Greater Seattle area" }],
+    ["show me people in the greater NYC area", { near: "greater NYC area" }],
+    ["alumni in the Provo area", { near: "Provo area" }],
+  ]);
+
+  it("never filters on a literal city for a metro phrase", () => {
+    // The specific regression: a `city=` facet here means the geocoder handoff
+    // was skipped, and no `city` column anywhere says "Bay Area".
+    expect(facets("alumni in the Bay Area").city).toBeUndefined();
+  });
 });
 
 describe("industry", () => {
