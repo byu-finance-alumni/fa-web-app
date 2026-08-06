@@ -7864,6 +7864,21 @@ export interface components {
              * @default 0
              */
             emails_sent_all_time: number;
+            /**
+             * Recipients
+             * @default 0
+             */
+            recipients: number;
+            /**
+             * Replied
+             * @default 0
+             */
+            replied: number;
+            /**
+             * Awaiting Review
+             * @default 0
+             */
+            awaiting_review: number;
         };
         /**
          * SurveySchedulePauseAllResult

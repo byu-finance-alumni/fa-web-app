@@ -41,6 +41,7 @@ import {
   clientPostJson,
 } from "@/lib/api-client";
 import { PendingSubmissions } from "@/components/needs-surveying/PendingSubmissions";
+import { CampaignProgressTable } from "@/components/needs-surveying/CampaignProgressTable";
 import type { components } from "@/types/api.gen";
 
 /** Distinct graduation years present in the DB, straight off the OpenAPI. */
@@ -634,6 +635,11 @@ export function SurveyCampaignConsole() {
           </Button>
         </div>
       </Card>
+
+      {/* ── Every year's campaign at once (#543). Sits above the year picker
+          because "how is it going overall" comes before "let me work on one
+          year". Reads the schedules already fetched below — no second call. ── */}
+      <CampaignProgressTable schedules={schedules} />
 
       {/* ── Graduation-year picker — pinned above the tabs; the selected year
           drives both tabs. Also carries the load/empty/select states. ── */}
