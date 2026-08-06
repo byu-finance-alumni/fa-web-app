@@ -38,9 +38,22 @@ export function CampaignProgressTable({
     );
   }
   if (schedules.length === 0) {
-    // Distinct from "campaigns exist but nothing has been sent" — that case
-    // renders the table with dashes, which is a different and truer statement.
-    return null;
+    // Say so rather than rendering nothing. Returning null here meant that a
+    // failed fetch, a permissions problem and "no campaigns yet" all looked
+    // identical from the outside — an empty page you cannot tell apart from a
+    // missing feature. The whole point of this table is to answer a question,
+    // so it has to answer it even when the answer is "nothing has started".
+    return (
+      <Card className="mt-4 p-5">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+          Campaign progress
+        </h2>
+        <p className="mt-2 text-sm text-gray-500">
+          No campaigns yet. Once a graduation year is scheduled or sent to, its
+          progress appears here.
+        </p>
+      </Card>
+    );
   }
 
   const rows = toProgressRows(schedules);
