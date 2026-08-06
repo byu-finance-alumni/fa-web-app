@@ -46,6 +46,33 @@ export type FormState = {
   fieldErrors?: Record<string, string>;
 } | null;
 
+/**
+ * A write response carrying the backend's soft duplicate warnings (#627).
+ *
+ * `POST /alumni` and `PATCH /alumni/{id}` both return `AlumniWriteResult` — the
+ * saved record plus `duplicate_warnings`. These never block the write; they are
+ * the "you just renamed this person into someone else's name and class year"
+ * notice, which used to be computed on the backend and silently thrown away.
+ */
+type AlumniWriteResponse = {
+  alumni_id: number;
+  duplicate_warnings?: { code: string; alumni_id: number | null }[];
+};
+
+/**
+ * The query string that carries a duplicate warning onto the profile page.
+ *
+ * The colliding records' IDs travel, not their names — the profile fetches
+ * those itself, so a stale or hand-edited URL can't put invented text on the
+ * screen. Empty when there is nothing to warn about, which is the normal case.
+ */
+function duplicateQuery(result: AlumniWriteResponse | undefined): string {
+  const ids = (result?.duplicate_warnings ?? [])
+    .filter((w) => w.code === "possible_duplicate" && w.alumni_id != null)
+    .map((w) => w.alumni_id);
+  return ids.length ? `?duplicate_of=${ids.join(",")}` : "";
+}
+
 /** Translate an ApiError into a FormState, splitting out 422 field details. */
 function toFormState(e: unknown, fallback: string): FormState {
   if (e instanceof ApiError) {
@@ -279,17 +306,16 @@ function buildCreatePayload(formData: FormData): Record<string, unknown> {
 async function createFrom(
   payload: Record<string, unknown>,
 ): Promise<FormState> {
-  let id: number;
+  let created: AlumniWriteResponse;
   try {
-    const created = await apiPost<{ alumni_id: number }>("/alumni", payload);
-    id = created.alumni_id;
+    created = await apiPost<AlumniWriteResponse>("/alumni", payload);
   } catch (e) {
     return toFormState(e, "Failed to create.");
   }
   revalidatePath("/alumni");
   revalidateTag("dashboard");
   revalidateTag("geography");
-  redirect(`/alumni/${id}`);
+  redirect(`/alumni/${created.alumni_id}${duplicateQuery(created)}`);
 }
 
 export async function createAlumni(
@@ -322,8 +348,9 @@ export async function updateAlumni(
     payload.contact as Record<string, unknown> | undefined,
   );
   if (contact) payload.contact = contact;
+  let saved: AlumniWriteResponse;
   try {
-    await apiPatch(`/alumni/${id}`, payload);
+    saved = await apiPatch<AlumniWriteResponse>(`/alumni/${id}`, payload);
   } catch (e) {
     return toFormState(e, "Failed to save.");
   }
@@ -331,7 +358,7 @@ export async function updateAlumni(
   revalidatePath("/alumni");
   revalidateTag("dashboard");
   revalidateTag("geography");
-  redirect(`/alumni/${id}`);
+  redirect(`/alumni/${id}${duplicateQuery(saved)}`);
 }
 
 /* ---------------------------------------------- focused per-section edits --- */
@@ -343,13 +370,18 @@ export async function updateAlumni(
 // DOES clear a field (spouse last name, CFA/CFP designations). Engagement sends
 // every boolean explicitly so a flag can be toggled OFF.
 
-/** PATCH one section's payload, revalidate, and return to the profile. */
+/** PATCH one section's payload, revalidate, and return to the profile.
+ *
+ * This is the path #627 was about: these focused forms never call `/preview`,
+ * so the duplicate warning the backend raises on the write is the ONLY chance
+ * to tell anyone. It rides back on the redirect. */
 async function saveSection(
   id: number,
   payload: Record<string, unknown>,
 ): Promise<FormState> {
+  let saved: AlumniWriteResponse;
   try {
-    await apiPatch(`/alumni/${id}`, payload);
+    saved = await apiPatch<AlumniWriteResponse>(`/alumni/${id}`, payload);
   } catch (e) {
     return toFormState(e, "Failed to save.");
   }
@@ -357,7 +389,7 @@ async function saveSection(
   revalidatePath("/alumni");
   revalidateTag("dashboard");
   revalidateTag("geography");
-  redirect(`/alumni/${id}`);
+  redirect(`/alumni/${id}${duplicateQuery(saved)}`);
 }
 
 /** Employment: top-level status/LinkedIn + nested career + contact work fields. */

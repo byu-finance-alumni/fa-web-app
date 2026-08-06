@@ -49,6 +49,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { designationFullName, splitDesignations } from "@/lib/designations";
 import { blankIfNa } from "@/lib/na";
+import { parseDuplicateOf } from "@/lib/duplicateNotice";
 import { formatPhone } from "@/lib/phone";
 
 /* ----------------------------------------------------------------- helpers */
@@ -346,10 +347,14 @@ export async function AlumniProfileView({
   id,
   basePath = "/alumni",
   backLabel = "Alumni",
+  duplicateOf = [],
 }: {
   id: string;
   basePath?: string;
   backLabel?: string;
+  /** Alumni IDs this record now collides with by name + graduation year, handed
+   *  over by the save that caused it (#627). Renders the notice below. */
+  duplicateOf?: number[];
 }) {
   let profile: Profile;
   try {
@@ -369,6 +374,29 @@ export async function AlumniProfileView({
   } catch {
     /* notes unavailable — render the card empty rather than 500 the page */
   }
+
+  // Possible-duplicate notice (#627): the save that landed here reported that
+  // this record now shares a name and graduation year with the records below.
+  // Only the IDs travel in the URL, so the names are read back from the API —
+  // a hand-edited `?duplicate_of=` can name a real record or nothing at all,
+  // never invented text. A failed lookup drops that entry rather than the page.
+  const duplicates = (
+    await Promise.all(
+      duplicateOf.map(async (dupId) => {
+        try {
+          const d = await apiGet<{
+            alumni_id: number;
+            first_name: string | null;
+            last_name: string | null;
+            graduation_year: number | null;
+          }>(`/alumni/${dupId}`);
+          return d;
+        } catch {
+          return null;
+        }
+      }),
+    )
+  ).filter((d) => d !== null);
 
   // Pay It Forward giving (#161): only surfaces a tab when this alumnus actually
   // has donations. Readable by every role; dollar amounts arrive pre-gated from
@@ -641,6 +669,43 @@ export async function AlumniProfileView({
 
       <main className="flex-1 overflow-y-auto bg-gray-100 p-4 md:p-6">
         <div className="mx-auto max-w-6xl space-y-4">
+          {/* #627 — the edit that just saved created a name + graduation-year
+              collision. Advisory, never blocking: two alumni genuinely can share
+              a name and a year, so this states the fact and links to the other
+              record rather than pretending the save was wrong. */}
+          {duplicates.length > 0 && (
+            <div
+              role="status"
+              className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"
+            >
+              <p className="font-semibold">
+                Saved — but this name is now shared.
+              </p>
+              <p className="mt-1">
+                {duplicates.length === 1
+                  ? "Another record has the same name and graduation year:"
+                  : "Other records have the same name and graduation year:"}
+              </p>
+              <ul className="mt-2 space-y-1">
+                {duplicates.map((d) => (
+                  <li key={d.alumni_id}>
+                    <Link
+                      href={`${basePath}/${d.alumni_id}`}
+                      className="font-medium underline underline-offset-2"
+                    >
+                      {[d.first_name, d.last_name].filter(Boolean).join(" ") ||
+                        `Record ${d.alumni_id}`}
+                      {d.graduation_year ? ` (Class of ${d.graduation_year})` : ""}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2">
+                If they are the same person, merge them from the duplicates
+                screen. If not, no action is needed.
+              </p>
+            </div>
+          )}
           {/* Mobile header — a clean card: avatar, then name / headline /
               location / contact / tags. No banner; the profile actions live in
               the floating + button (bottom-right). Phone only; the desktop
@@ -2231,9 +2296,19 @@ function programChips(p: Profile["program_engagement"]): string[] {
  *  diverge (#494). */
 export default async function AlumniProfilePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ duplicate_of?: string | string[] }>;
 }) {
   const { id } = await params;
-  return <AlumniProfileView id={id} basePath="/alumni" backLabel="Alumni" />;
+  const { duplicate_of } = await searchParams;
+  return (
+    <AlumniProfileView
+      id={id}
+      basePath="/alumni"
+      backLabel="Alumni"
+      duplicateOf={parseDuplicateOf(duplicate_of)}
+    />
+  );
 }
