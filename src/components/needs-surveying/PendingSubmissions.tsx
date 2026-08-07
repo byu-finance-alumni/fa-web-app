@@ -13,20 +13,14 @@ import type { components } from "@/types/api.gen";
 type ResponseItem = components["schemas"]["SurveyResponseItem"];
 
 /**
- * What `POST /survey/responses/{id}/apply` returns (#646).
+ * What `POST /survey/responses/{id}/apply` returns (#646) — the generated type,
+ * so the CI drift guard covers it.
  *
- * Hand-written on purpose, for now: the endpoint changed from a bodyless 204 to
- * a 200 with this body in the same batch as this change, and `api.gen.ts` can
- * only be regenerated once the backend is deployed to dev. Replace this with
- * `components["schemas"]["SurveyApplyResult"]` after the regen — it is the same
- * shape, and the drift guard in CI will not cover it until then.
- *
- * Optional everywhere because the old 204 is still what a not-yet-redeployed
- * backend returns, and `clientPost` hands back `undefined` for an empty body.
+ * `clientPost` is still typed as possibly-undefined at the call site: the
+ * endpoint was a bodyless 204 until this batch, and a backend that hasn't been
+ * redeployed yet still returns one. `reject` returns no body at all.
  */
-type ApplyResult = {
-  duplicate_warnings?: { code: string; message: string; alumni_id?: number | null }[];
-};
+type ApplyResult = components["schemas"]["SurveyApplyResult"];
 
 /**
  * Admin review queue for a graduation year: the alumni who submitted "confirm

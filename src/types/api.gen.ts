@@ -3190,6 +3190,14 @@ export interface paths {
         /**
          * Survey Apply Response
          * @description Apply a staged response to the alum's record.
+         *
+         *     Returns any soft duplicate warnings the apply raised (#646). A survey can now
+         *     change an alum's name, and a rename can collide with an existing record —
+         *     the same fuzzy first + last + graduation-year check the staff rename path
+         *     runs (#627). It NEVER blocks: the write has already happened by the time this
+         *     returns, exactly as on that path.
+         *
+         *     Was a bodyless 204 before #646.
          */
         post: operations["survey_apply_response_survey_responses__response_id__apply_post"];
         delete?: never;
@@ -5717,6 +5725,8 @@ export interface components {
             contacted_this_month: number;
             /** Alumni Edited This Month */
             alumni_edited_this_month: number;
+            /** Alumni Edited This Year */
+            alumni_edited_this_year: number;
             /** Not Contacted 6Mo */
             not_contacted_6mo: number;
             /** Not Contacted 12Mo */
@@ -7547,6 +7557,30 @@ export interface components {
             last_reset_at: string | null;
             /** Blocked Reasons */
             blocked_reasons: string[];
+        };
+        /**
+         * SurveyApplyResult
+         * @description What applying a staged response reports back (#646).
+         *
+         *     The apply itself is already done and committed — this is not a confirmation,
+         *     it is the one thing the reviewer could not have known before clicking:
+         *     ``duplicate_warnings`` is non-empty when the response RENAMED the alumnus into
+         *     a collision with a live record (same first + last name and graduation year).
+         *
+         *     Warn-and-continue, matching the staff rename path this reuses (#627): two
+         *     alumni genuinely can share a name and a year, and a marriage rename into a
+         *     real collision is sometimes correct. Empty on every apply that didn't move
+         *     ``first_name`` / ``last_name`` — the check isn't even run.
+         *
+         *     The endpoint used to be a bodyless 204. Consumers that ignore the body keep
+         *     working; the frontend's generated client needs a regen.
+         */
+        SurveyApplyResult: {
+            /**
+             * Duplicate Warnings
+             * @default []
+             */
+            duplicate_warnings: components["schemas"]["DuplicateWarning"][];
         };
         /**
          * SurveyChange
@@ -12887,11 +12921,13 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            204: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["SurveyApplyResult"];
+                };
             };
             /** @description Validation Error */
             422: {
