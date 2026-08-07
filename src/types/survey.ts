@@ -77,6 +77,20 @@ export const SURVEY_FIELDS: SurveyField[] = [
   { key: "contact.country", table: "alumni_contact_info", column: "country", label: "Country", group: "contact", kind: "text" },
 
   // --- Profile (alumni) ---
+  // Name + marital status (#646/#647). These are on the SURVEY FORM, so they
+  // have to be offerable in the email's "here's what we have on file" block too
+  // — a field the survey asks about but the email cannot show is exactly the
+  // drift this whitelist exists to prevent. Being listed here only makes them
+  // AVAILABLE in the email column picker; it does not put them in the email.
+  // `DEFAULT_EMAIL_FIELDS` decides that, and is deliberately unchanged.
+  //
+  // "Middle or Maiden name" matches the form's label — maiden names live in
+  // `middle_name`; `birth_name` stays unused and is deliberately not listed.
+  { key: "profile.first_name", table: "alumni", column: "first_name", label: "First name", group: "profile", kind: "text" },
+  { key: "profile.middle_name", table: "alumni", column: "middle_name", label: "Middle or Maiden name", group: "profile", kind: "text" },
+  { key: "profile.last_name", table: "alumni", column: "last_name", label: "Last name", group: "profile", kind: "text" },
+  { key: "profile.preferred_first_name", table: "alumni", column: "preferred_first_name", label: "Preferred first name", group: "profile", kind: "text" },
+  { key: "profile.marital_status", table: "alumni", column: "marital_status", label: "Marital status", group: "profile", kind: "text" },
   { key: "profile.employment_status", table: "alumni", column: "employment_status", label: "Current employment status", group: "profile", kind: "text" },
   { key: "profile.other_designations", table: "alumni", column: "other_designations", label: "Finance designations", group: "profile", kind: "text" },
   { key: "profile.linkedin_url", table: "alumni", column: "linkedin_url", label: "LinkedIn URL", group: "profile", kind: "text" },
@@ -85,6 +99,16 @@ export const SURVEY_FIELDS: SurveyField[] = [
   { key: "profile.graduate_graduation_year", table: "alumni", column: "graduate_graduation_year", label: "Projected or completed graduation year", group: "profile", kind: "text" },
   { key: "profile.spouse_first_name", table: "alumni", column: "spouse_first_name", label: "Spouse first name", group: "profile", kind: "text" },
   { key: "profile.spouse_last_name", table: "alumni", column: "spouse_last_name", label: "Spouse last name", group: "profile", kind: "text" },
+  // The rest of the form's "Personal details" group. These have been on the
+  // survey and in the backend's submit whitelist for a while but were never
+  // added here, so the email could not offer them — the same drift as the names
+  // above, found alongside it. `kind` is "text" because this list only drives
+  // how a value is DISPLAYED in the preview; the form owns the real control
+  // (birthday renders as a date picker there).
+  { key: "profile.gender", table: "alumni", column: "gender", label: "Gender", group: "profile", kind: "text" },
+  { key: "profile.birth_date", table: "alumni", column: "birth_date", label: "Birthday", group: "profile", kind: "text" },
+  { key: "profile.citizenship", table: "alumni", column: "citizenship", label: "Citizenship", group: "profile", kind: "text" },
+  { key: "profile.home_country", table: "alumni", column: "home_country", label: "Home country", group: "profile", kind: "text" },
 
   // --- Employment (current_employment) ---
   { key: "employment.current_employer", table: "current_employment", column: "current_employer", label: "Current employer", group: "employment", kind: "text" },
@@ -95,6 +119,8 @@ export const SURVEY_FIELDS: SurveyField[] = [
   { key: "employment.current_state", table: "current_employment", column: "current_state", label: "Work state", group: "employment", kind: "text" },
   { key: "employment.current_country", table: "current_employment", column: "current_country", label: "Work country", group: "employment", kind: "text" },
   { key: "employment.seniority_level", table: "current_employment", column: "seniority_level", label: "Seniority level", group: "employment", kind: "text" },
+  // Also on the form and in the backend whitelist, also never listed here.
+  { key: "employment.current_zip", table: "current_employment", column: "current_zip", label: "Company ZIP", group: "employment", kind: "text" },
 
   // --- Willingness & engagement (alumni_program_engagement booleans → tags) ---
   { key: "program.mentor_willing", table: "alumni_program_engagement", column: "mentor_willing", label: "Willing to mentor students", group: "engagement", kind: "boolean" },
