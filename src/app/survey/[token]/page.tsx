@@ -21,7 +21,7 @@ import type { components } from "@/types/api.gen";
  *
  * The signed token in the URL resolves (via public `GET /survey/respond/{token}`)
  * to the alum's REAL on-file info. Review shows the full field list; "I need to
- * make changes" opens a section menu (Employment / Residence / Personal / …) the
+ * make changes" opens a section menu (Employment / Personal / …) the
  * alum drills into. `demo` shows the sample alum.
  *
  * This file owns only the DATA: resolving the token, staging the response, and

@@ -144,6 +144,34 @@ export const EMPLOYMENT_STATUS_OPTIONS = [
 export type EmploymentStatus = (typeof EMPLOYMENT_STATUS_OPTIONS)[number];
 
 /**
+ * Marital status choices (#647).
+ *
+ * Free text until now, which is why staff reported the field as "missing" on the
+ * survey: an empty box with no options beside it reads as nothing being asked,
+ * so alumni skipped it and the column stayed blank.
+ *
+ * NOT a `vocabulary_terms` category, for the same reason employment status
+ * isn't — plus one that is specific to this field: the survey now ENFORCES this
+ * list on write, so an admin editing a runtime-mutable category could silently
+ * start rejecting answers alumni submit. These four are a product call.
+ *
+ * A stored value outside these four still DISPLAYS — the survey's
+ * `SelectControl` prepends it. That matters here: the CSV import already maps
+ * "Undeclared"/"N/A"/"None"/"Unknown" to blank on the way in, so an off-list
+ * value that survived in production is a real answer someone typed, and blanking
+ * it while the alum edits an unrelated field would be silent data loss.
+ *
+ * Mirrors `MARITAL_STATUSES` in fa-web-api/app/core/dropdowns.py, whose own
+ * tests pin it against `database/dropdowns.md`.
+ */
+export const MARITAL_STATUS_OPTIONS: readonly string[] = [
+  "Single",
+  "Married",
+  "Divorced",
+  "Widowed",
+];
+
+/**
  * Statuses that are a recorded NON-ANSWER rather than a real one (#572/#377).
  *
  * `Unknown` / `UNKNOWN` means "we asked and we don't know". Jake's call: keep it

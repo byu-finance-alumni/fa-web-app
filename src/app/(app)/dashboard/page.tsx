@@ -39,8 +39,21 @@ interface Summary {
    * `contacted_this_month` uses, so the two tiles legitimately disagree.
    * Optional here because the field only exists on a backend that has the #606
    * change deployed; the tile falls back to "—" until then.
+   *
+   * Counts alumni ROWS, not edits: the backend filters the `alumni` table on
+   * `updated_at`, so ten changes to one person is inherently one (Amy, #645).
    */
   alumni_edited_this_month?: number;
+  /**
+   * #645: the same population and the same `updated_at` column as
+   * `alumni_edited_this_month`, widened to the CURRENT CALENDAR YEAR to date
+   * (Jan 1 00:00 UTC through now) — Amy's "running total for the entire year".
+   * Calendar year-to-date is the decided call, NOT a trailing 12 months, so it
+   * legitimately drops to near zero every January. Optional for the same reason
+   * as the month field above: the tile shows "—" until a backend returning it
+   * is deployed, so this file never has to wait on the API change.
+   */
+  alumni_edited_this_year?: number;
   upcoming_follow_ups: number;
   duplicate_count: number;
   upcoming_events: number;
@@ -101,6 +114,26 @@ function resolveFirstName(ctx: UserContext | null): string | null {
 }
 
 /* -------------------------------------------------------------- presentation -- */
+
+/**
+ * Shared hit-area styling for the two halves of the split "Alumni edited" tile
+ * (#645). The tile is ONE MetricCard whose two figures link separately, so the
+ * card itself can't be a link (an anchor inside an anchor is invalid HTML and
+ * React will not render it) — these classes give each half back the same hover
+ * tint and focus ring MetricCard applies to a whole-card link, so the tile still
+ * feels clickable. `block` makes the number and its caption a single target
+ * (comfortably over the 44px minimum in UX-UI.md), and both halves sit inside
+ * MetricCard's centered value paragraph, so they end up the same width and the
+ * divider between them lines up.
+ */
+const EDITED_FIGURE_CLASS =
+  "block rounded-lg px-3 py-1 transition-colors hover:bg-brand-blue-50/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500";
+
+/** Caption under each figure in the split tile — sentence case and muted, so it
+ *  reads as a legend for the number above it rather than repeating the card's
+ *  uppercase label. */
+const EDITED_CAPTION_CLASS =
+  "mt-0.5 block text-xs font-medium tracking-normal text-gray-500";
 
 function Panel({
   title,
@@ -434,18 +467,68 @@ export default async function DashboardPage() {
                   href={`/alumni?contacted_after=${thirtyDaysAgo}`}
                   linkLabel="View alumni contacted this month"
                 />
-                {/* #606: replaces the old "Events attended this month" tile.
-                    Counts alumni records touched in the CURRENT CALENDAR month
-                    — note the tile to its left is a rolling 30 days, so the two
-                    numbers are not directly comparable. Deep-links to the
-                    alumni list sorted most-recently-edited first, whose "Last
-                    updated" column makes the count checkable. */}
+                {/* #606, split per Amy in #645: replaces the old "Events
+                    attended this month" tile and now carries TWO figures —
+                    records touched this calendar MONTH on top, with the
+                    calendar YEAR-to-date running total beneath it. Deliberately
+                    still ONE card in the same slot: a fourth tile would break
+                    the three-across strip, and the year total is a companion to
+                    the month number rather than an independent KPI.
+
+                    Both windows are CALENDAR windows (month resets on the 1st,
+                    year on Jan 1 — so "This year" reads near zero every January
+                    by design; it is year-to-date, not a trailing 12 months).
+                    The tile to the LEFT, "Contacted this month", is a rolling
+                    30 days instead, so its number is not comparable to either
+                    of these — which is why the captions here stay bare ("This
+                    month" / "This year") and claim no shared window.
+
+                    Composed inside the MetricCard primitive rather than as a
+                    new component: the card is left non-interactive (no `href`)
+                    and each figure is its own link, since nesting anchors is
+                    invalid. Both land on the same list sorted most-recently-
+                    edited first, whose "Last updated" column makes either count
+                    checkable, so they need distinct aria-labels to be told
+                    apart by a screen reader. The month keeps the neighbours'
+                    text-3xl; the year is a step down at text-2xl so the tile
+                    reads as one primary figure plus its running total, and so
+                    the taller card doesn't squeeze the Industry panel below. */}
                 <MetricCard
                   size="lg"
-                  label="Alumni edited this month"
-                  value={s?.alumni_edited_this_month ?? "—"}
-                  href="/alumni?sort=updated"
-                  linkLabel="View alumni sorted by most recently edited"
+                  label="Alumni edited"
+                  value={
+                    <>
+                      <Link
+                        href="/alumni?sort=updated"
+                        aria-label="View alumni edited this month, sorted by most recently edited"
+                        className={EDITED_FIGURE_CLASS}
+                      >
+                        <span className="block text-3xl leading-tight">
+                          {s?.alumni_edited_this_month ?? "—"}
+                        </span>
+                        <span className={EDITED_CAPTION_CLASS}>This month</span>
+                      </Link>
+                      {/* Hairline between the two figures. Its own element
+                          rather than a `border-t` on the link below, so the
+                          hover tint stops short of the rule instead of hugging
+                          it. Decorative — the captions already say which figure
+                          is which. */}
+                      <span
+                        aria-hidden="true"
+                        className="my-1 block border-t border-gray-200"
+                      />
+                      <Link
+                        href="/alumni?sort=updated"
+                        aria-label="View alumni edited this year, sorted by most recently edited"
+                        className={EDITED_FIGURE_CLASS}
+                      >
+                        <span className="block text-2xl leading-tight">
+                          {s?.alumni_edited_this_year ?? "—"}
+                        </span>
+                        <span className={EDITED_CAPTION_CLASS}>This year</span>
+                      </Link>
+                    </>
+                  }
                 />
               </div>
               {/* Industry breakdown fills the entire leftover column space

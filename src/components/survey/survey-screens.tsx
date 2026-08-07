@@ -17,7 +17,7 @@
  * by construction rather than by remembering to edit two files.
  */
 
-import { useRef, useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import { Check, ChevronRight, ExternalLink, Heart } from "lucide-react";
 
 import { HeadshotCropper } from "@/components/alumni/HeadshotCropper";
@@ -31,6 +31,7 @@ import {
   splitOtherDesignationSlots,
 } from "@/lib/designations";
 import {
+  MARITAL_STATUS_OPTIONS,
   PRIMARY_INDUSTRY_OPTIONS,
   SURVEY_EMPLOYMENT_STATUS_OPTIONS,
   isEmploymentStatusPlaceholder,
@@ -73,6 +74,80 @@ const INDUSTRY_CHOICES: readonly string[] = PRIMARY_INDUSTRY_OPTIONS.filter(
   (o) => o !== "Other",
 );
 
+/**
+ * Marital status choices (#647) — re-exported from the shared constants module
+ * so the survey's existing importers keep working.
+ *
+ * The list itself lives in `constants/dropdowns.ts` alongside the employment
+ * statuses, mirroring `MARITAL_STATUSES` in fa-web-api. It was briefly kept
+ * local here while the server list did not exist; it does now, so there is one
+ * copy per repo rather than three, and the backend enforces it on write.
+ */
+export { MARITAL_STATUS_OPTIONS };
+
+// The three keys the marital-status ↔ spouse-name interaction spans. Named
+// because they are referenced from three places (the section list, the change
+// handler, and the review panel's spouse-name collapse) and a typo in any one of
+// them fails silently.
+export const MARITAL_STATUS_KEY = "profile.marital_status";
+export const SPOUSE_FIRST_NAME_KEY = "profile.spouse_first_name";
+export const SPOUSE_LAST_NAME_KEY = "profile.spouse_last_name";
+
+/**
+ * Statuses that ASSERT there is no current spouse — the only ones for which a
+ * spouse name still sitting on the record is worth asking about (#647).
+ *
+ * A deliberate whitelist, not "everything except Married". Anything we don't
+ * recognise (a legacy free-text value, a status added later) must fall through
+ * to "don't ask", because a prompt about deleting someone's spouse is only
+ * acceptable when we are sure the answer they just gave contradicts it.
+ *
+ * "Widowed" IS NOT ON THIS LIST, AND MUST NEVER BE. Many widows deliberately
+ * keep their spouse on the record — it is often the reason the record is
+ * accurate at all — and a form popping up to ask whether they'd like to delete
+ * their late spouse's name is a genuinely awful thing to hand someone in the
+ * middle of a two-minute admin task. Widowed leaves the spouse name completely
+ * alone: no dialog, no clearing, no highlight. If a widow wants the name gone
+ * they can clear the two fields themselves, which is one scroll away. This is
+ * not an oversight and should not be "fixed" into consistency with Single and
+ * Divorced.
+ */
+export const SPOUSE_CLEAR_PROMPT_STATUSES: readonly string[] = [
+  "Single",
+  "Divorced",
+];
+
+/**
+ * Whether changing marital status to `nextStatus` should ASK about the spouse
+ * name on file. Never clears anything itself — the caller prompts, and only a
+ * human answer clears (#647).
+ *
+ * Auto-clearing on a dropdown change is a destructive inference: the alum said
+ * something about themselves, not about the record, and "Divorced" plus a name
+ * we still hold is a question, not a contradiction we get to resolve for them.
+ *
+ * Returns false when there is no spouse name to lose (nothing to ask about),
+ * when the status is blank (clearing the dropdown asserts nothing), and for
+ * every status outside `SPOUSE_CLEAR_PROMPT_STATUSES` — including Widowed, for
+ * the reason documented on that constant.
+ *
+ * Compared case-insensitively and trimmed, because the column is free text
+ * historically and production holds casing drift from the intake sheet.
+ */
+export function shouldPromptSpouseClear(
+  nextStatus: string | null | undefined,
+  spouseFirstName: string | null | undefined,
+  spouseLastName: string | null | undefined,
+): boolean {
+  const hasSpouseOnFile = Boolean(
+    (spouseFirstName ?? "").trim() || (spouseLastName ?? "").trim(),
+  );
+  if (!hasSpouseOnFile) return false;
+  const next = (nextStatus ?? "").trim().toLowerCase();
+  if (!next) return false;
+  return SPOUSE_CLEAR_PROMPT_STATUSES.some((s) => s.toLowerCase() === next);
+}
+
 export type FieldKind =
   | "text"
   | "boolean"
@@ -81,6 +156,12 @@ export type FieldKind =
   | "country"
   | "industry"
   | "employmentStatus"
+  // Marital status over a fixed four-option list (#647). Its own kind rather
+  // than a generic "select with options on the field" because every other
+  // dropdown here works the same way — the kind names the vocabulary, and the
+  // control decides where that vocabulary comes from, which is what lets the
+  // backend become the source for it later without touching a section list.
+  | "maritalStatus"
   // A single tickbox for "do you hold this designation" (#529). Distinct from
   // `boolean`, whose Yes/No radios ask a question; a checklist of designations
   // reads as a checklist, and it's what Jake's mock draws.
@@ -98,6 +179,21 @@ export type EditField = {
   placeholder?: string;
   /** Guidance shown under the label — examples too long to sit in the label. */
   helpText?: string;
+  /**
+   * Starts a labelled GROUP of fields inside a section (#649). Set on the FIRST
+   * field of the group; every field after it belongs to that group until the
+   * next `groupLabel`.
+   *
+   * A flat marker rather than a nested `Section.groups[]` on purpose. Two
+   * screens read this same list — the review panel and the edit form — plus a
+   * handful of key-based special cases (the spouse-name collapse, the
+   * marital-status prompt), and all of them iterate `section.fields` linearly.
+   * Nesting would have rewritten every one of those loops to buy grouping for
+   * exactly one section. If a second section ever needs real nesting, that is
+   * the moment to reach for it; today this is one optional string and two
+   * render branches.
+   */
+  groupLabel?: string;
 };
 export type Section = { id: string; title: string; blurb: string; fields: EditField[] };
 
@@ -123,11 +219,17 @@ export function displayValue(field: EditField, value: string): string {
 // Employment status leads, then the rest of the Career Directors' list, grouped
 // (order per Tanya, #568: status first, because the answer to it decides how
 // much of the rest of the section even applies).
+//
+// Amy's meeting notes, 2026-08-06 (#649): "Residence" is no longer a section of
+// its own and LinkedIn no longer sits under Personal. A three-field Residence
+// section made the menu look like there was more to do than there was, and
+// LinkedIn is how staff find someone's CURRENT JOB — it belongs next to the
+// employer and title it corroborates, not next to their birthday.
 export const INFO_SECTIONS: Section[] = [
   {
     id: "employment",
     title: "Employment",
-    blurb: "Status, company, title, industry, work location",
+    blurb: "Status, company, title, industry, work location, LinkedIn",
     fields: [
       { key: "profile.employment_status", label: "Employment Status", kind: "employmentStatus" },
       { key: "employment.current_employer", label: "Company", kind: "text" },
@@ -138,31 +240,53 @@ export const INFO_SECTIONS: Section[] = [
       { key: "employment.current_state", label: "Employment state", kind: "usState" },
       { key: "employment.current_country", label: "Employment country", kind: "country" },
       { key: "employment.current_zip", label: "Company ZIP", kind: "text" },
-    ],
-  },
-  {
-    id: "residence",
-    title: "Residence",
-    blurb: "Where you live",
-    fields: [
-      { key: "contact.city", label: "City", kind: "text" },
-      { key: "contact.state", label: "State", kind: "usState" },
-      { key: "contact.country", label: "Country", kind: "country" },
+      // Last, not next to Job Title: the four location fields above are one
+      // block and splitting them to slot a URL in the middle reads worse than
+      // ending on it. Moved here from Personal (#649).
+      { key: "profile.linkedin_url", label: "LinkedIn", kind: "text" },
     ],
   },
   {
     id: "personal",
     title: "Personal",
-    blurb: "Spouse, contact, & personal details",
+    // Seventeen fields — by far the longest section, and on a phone a flat
+    // seventeen-input column is a wall nobody finishes. So it is ONE section
+    // (one tap, one submit) with `groupLabel` subheadings inside it (#649):
+    // the alum sees five short lists instead of one long one, and staff still
+    // get a single "Personal" row in the menu.
+    blurb: "Name, marriage, contact, residence, & personal details",
     fields: [
-      { key: "profile.spouse_first_name", label: "Spouse first name", kind: "text" },
-      { key: "profile.spouse_last_name", label: "Spouse last name", kind: "text" },
-      { key: "contact.personal_email", label: "Permanent email", kind: "text", required: true },
+      { key: "profile.first_name", label: "First name", kind: "text", groupLabel: "Name" },
+      // "Middle or Maiden name", verbatim and deliberately — staff have been
+      // recording maiden names in `middle_name` for years, so the label has to
+      // describe what the column actually holds or alumni will "correct" it by
+      // wiping the maiden name we have. There IS an unused `birth_name` column
+      // that would be the tidier home for it; surfacing it would split the same
+      // fact across two columns and orphan everything already filed under
+      // `middle_name`. Product call: do not surface `birth_name` here.
+      { key: "profile.middle_name", label: "Middle or Maiden name", kind: "text" },
+      { key: "profile.last_name", label: "Last name", kind: "text" },
+      { key: "profile.preferred_first_name", label: "Preferred first name", kind: "text" },
+
+      // Marital status LEADS this group so it sits directly beside the two
+      // spouse names — that adjacency is the whole point of the regrouping. It
+      // is also what makes the change-prompt legible: the name the question is
+      // about is the next thing on screen (#647).
+      { key: MARITAL_STATUS_KEY, label: "Marital status", kind: "maritalStatus", groupLabel: "Marriage" },
+      { key: SPOUSE_FIRST_NAME_KEY, label: "Spouse first name", kind: "text" },
+      { key: SPOUSE_LAST_NAME_KEY, label: "Spouse last name", kind: "text" },
+
+      { key: "contact.personal_email", label: "Permanent email", kind: "text", required: true, groupLabel: "Contact" },
       { key: "contact.work_email", label: "Work email", kind: "text" },
       { key: "contact.phone", label: "Phone", kind: "text" },
-      { key: "profile.linkedin_url", label: "LinkedIn", kind: "text" },
-      { key: "profile.gender", label: "Gender", kind: "text" },
-      { key: "profile.marital_status", label: "Marital status", kind: "text" },
+
+      // Was its own section until #649. Same three columns, same order — only
+      // the heading changed from a section title to a subheading.
+      { key: "contact.city", label: "City", kind: "text", groupLabel: "Residence" },
+      { key: "contact.state", label: "State", kind: "usState" },
+      { key: "contact.country", label: "Country", kind: "country" },
+
+      { key: "profile.gender", label: "Gender", kind: "text", groupLabel: "Personal details" },
       { key: "profile.birth_date", label: "Birthday", kind: "date" },
       { key: "profile.citizenship", label: "Citizenship", kind: "text" },
       { key: "profile.home_country", label: "Home country", kind: "country" },
@@ -255,12 +379,24 @@ export function initialsOf(name: string): string {
 /* ------------------------------------------------------------ review group -- */
 
 export function ReviewGroup({ section, fields }: { section: Section; fields: Fields }) {
-  // Collapse spouse first/last into one "Spouse name" row for the read view.
-  const rows: { label: string; value: string }[] = [];
+  // Fields split into their `groupLabel` runs (#649). The read view has the same
+  // problem the edit form does — seventeen rows under one "Personal" heading is
+  // an unreadable slab — so the subheadings render here too, from the same
+  // markers. One list, two screens: that is why the marker lives on the field
+  // rather than in either renderer.
+  //
+  // Rows are still built one-per-field with the spouse collapse applied inside
+  // the run, so first/last stay ONE "Spouse name" row and the run they belong to
+  // is unaffected by the collapse.
+  const groups: { label: string | null; rows: { label: string; value: string }[] }[] = [];
   for (const f of section.fields) {
-    if (f.key === "profile.spouse_last_name") continue;
-    if (f.key === "profile.spouse_first_name") {
-      const spouse = [fields["profile.spouse_first_name"], fields["profile.spouse_last_name"]]
+    if (f.groupLabel || groups.length === 0) {
+      groups.push({ label: f.groupLabel ?? null, rows: [] });
+    }
+    const rows = groups[groups.length - 1].rows;
+    if (f.key === SPOUSE_LAST_NAME_KEY) continue;
+    if (f.key === SPOUSE_FIRST_NAME_KEY) {
+      const spouse = [fields[SPOUSE_FIRST_NAME_KEY], fields[SPOUSE_LAST_NAME_KEY]]
         .filter(Boolean)
         .join(" ");
       rows.push({ label: "Spouse name", value: spouse });
@@ -268,21 +404,38 @@ export function ReviewGroup({ section, fields }: { section: Section; fields: Fie
       rows.push({ label: f.label, value: displayValue(f, fields[f.key] ?? "") });
     }
   }
+  // A subheading with nothing under it is noise — only reachable if a group
+  // consisted solely of the collapsed spouse-last-name field, but cheap to rule
+  // out permanently.
+  const shown = groups.filter((g) => g.rows.length > 0);
+
   return (
     <div>
       <h3 className="text-xs font-semibold uppercase tracking-wide text-navy-800">
         {section.title}
       </h3>
-      <dl className="mt-1.5 divide-y divide-gray-100">
-        {rows.map((r) => (
-          <div key={r.label} className="flex items-baseline justify-between gap-6 py-1.5">
-            <dt className="shrink-0 text-xs text-gray-500">{r.label}</dt>
-            <dd className="min-w-0 break-words text-right text-sm font-medium text-gray-900">
-              {r.value ? r.value : <span className="font-normal text-gray-400">—</span>}
-            </dd>
-          </div>
-        ))}
-      </dl>
+      {shown.map((group, i) => (
+        // Each run gets its own <dl> rather than headings inside one list: a
+        // <dl> may only contain dt/dd (or divs wrapping them), so an <h4> in
+        // there would be invalid markup that screen readers read unpredictably.
+        <div key={group.label ?? `group-${i}`} className={i === 0 ? "" : "mt-3"}>
+          {group.label ? (
+            <h4 className="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+              {group.label}
+            </h4>
+          ) : null}
+          <dl className="mt-1.5 divide-y divide-gray-100">
+            {group.rows.map((r) => (
+              <div key={r.label} className="flex items-baseline justify-between gap-6 py-1.5">
+                <dt className="shrink-0 text-xs text-gray-500">{r.label}</dt>
+                <dd className="min-w-0 break-words text-right text-sm font-medium text-gray-900">
+                  {r.value ? r.value : <span className="font-normal text-gray-400">—</span>}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      ))}
     </div>
   );
 }
@@ -327,6 +480,33 @@ export function EditFlow({
       ? null
       : EDIT_SECTIONS.find((s) => s.id === openSection);
 
+  // The status the alum just picked that we're ASKING about their spouse name
+  // for, or null when there's nothing to ask (#647). Never used to decide what
+  // to save — only whether the question is on screen.
+  const [spousePrompt, setSpousePrompt] = useState<string | null>(null);
+
+  // Every field writes through here so the marital-status ↔ spouse-name
+  // question has somewhere to live. The status change itself is ALWAYS applied
+  // immediately — the alum answered that question and we take the answer; the
+  // only thing in doubt is the spouse name, which nothing but a human answer
+  // will touch.
+  const onFieldChange = (field: EditField, next: string) => {
+    setEdit(field.key, next);
+    if (field.key !== MARITAL_STATUS_KEY) return;
+    // Recomputed on EVERY status change, so picking "Divorced" and then
+    // correcting it to "Married" takes the question back down rather than
+    // leaving a stale prompt about a status they no longer claim.
+    setSpousePrompt(
+      shouldPromptSpouseClear(
+        next,
+        valueOf(SPOUSE_FIRST_NAME_KEY),
+        valueOf(SPOUSE_LAST_NAME_KEY),
+      )
+        ? next
+        : null,
+    );
+  };
+
   // A specific section (or the photo screen) is open.
   if (openSection) {
     return (
@@ -352,12 +532,40 @@ export function EditFlow({
             </h1>
             <div className="mt-6 space-y-5 rounded-lg border border-gray-200 bg-white p-5 sm:p-6">
               {section.fields.map((f) => (
-                <FieldControl
-                  key={f.key}
-                  field={f}
-                  value={valueOf(f.key)}
-                  onChange={(v) => setEdit(f.key, v)}
-                />
+                <Fragment key={f.key}>
+                  {f.groupLabel ? (
+                    // A rule + label, not just bold text: the groups are the
+                    // only thing making a 17-field section scannable, so they
+                    // have to survive a glance. `first:` strips the rule off the
+                    // opening group, which would otherwise draw a line straight
+                    // under the section heading.
+                    <h2 className="border-t border-gray-200 pt-5 text-xs font-semibold uppercase tracking-wide text-navy-800 first:border-t-0 first:pt-0">
+                      {f.groupLabel}
+                    </h2>
+                  ) : null}
+                  <FieldControl
+                    field={f}
+                    value={valueOf(f.key)}
+                    onChange={(v) => onFieldChange(f, v)}
+                  />
+                  {f.key === MARITAL_STATUS_KEY && spousePrompt ? (
+                    <SpouseNamePrompt
+                      status={spousePrompt}
+                      spouseName={[
+                        valueOf(SPOUSE_FIRST_NAME_KEY),
+                        valueOf(SPOUSE_LAST_NAME_KEY),
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                      onKeep={() => setSpousePrompt(null)}
+                      onClear={() => {
+                        setEdit(SPOUSE_FIRST_NAME_KEY, "");
+                        setEdit(SPOUSE_LAST_NAME_KEY, "");
+                        setSpousePrompt(null);
+                      }}
+                    />
+                  ) : null}
+                </Fragment>
               ))}
             </div>
           </>
@@ -411,19 +619,59 @@ export function EditFlow({
         <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
       </a>
 
-      {submitError ? (
-        <p className="mt-4 text-sm text-danger-600">{submitError}</p>
-      ) : null}
+      {/*
+        The submit block (#648). This is a COMPLETION-RATE problem, not a colour
+        preference: an alum who fills the whole form and never finds this button
+        has done all the work and sent us nothing, and we can't tell that apart
+        from someone who never opened the link.
 
-      <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Button type="button" variant="ghost" onClick={onBack} disabled={submitting}>
-          Back
-        </Button>
+        Four levers, applied together, roughly in order of how hard they pull:
+          1. POSITION + ISOLATION — its own block behind a rule, with nothing
+             beside it. "Back" used to sit on the same row, which on desktop put
+             a competing control in the same glance; it now lives above, at the
+             lowest emphasis the design system has.
+          2. SIZE — full width at every breakpoint (it was `sm:w-auto`, i.e. it
+             shrank to fit its label exactly where the screen had room to spare)
+             and taller than the standard control height.
+          3. COLOUR — green. An approved, documented exception to the palette;
+             see the token comment below and UX-UI.md.
+          4. WORDING — unchanged for now, per the ask.
+
+        Colour is deliberately last. It is the weakest of the four on its own,
+        and the reason the old navy button "blended in" was never really its hue
+        — it was a same-size button in a row of buttons.
+      */}
+      <div className="mt-10 border-t border-gray-200 pt-8">
+        <div className="flex">
+          <Button type="button" variant="ghost" onClick={onBack} disabled={submitting}>
+            Back
+          </Button>
+        </div>
+
+        {submitError ? (
+          <p className="mt-4 text-sm text-danger-600">{submitError}</p>
+        ) : null}
+
+        {/*
+          `submit-green-600` / `-700` are real Tailwind tokens (tailwind.config.ts)
+          — no hex in JSX, per UX-UI.md. Overridden on the shared Button via
+          className rather than added as a Button variant on purpose: the
+          exception is scoped to THIS button, and a `green` variant in the design
+          system is an invitation to use green elsewhere, which is exactly what
+          the palette rule exists to prevent.
+
+          Hover goes DARKER (700), not lighter the way `brand-blue` does: a
+          lighter green fails the 4.5:1 bar for white text, and a hover state
+          that drops below AA is still a contrast failure.
+
+          `md:h-12` as well as `h-12`: `size="lg"` sets `h-11 md:h-10`, and
+          tailwind-merge only drops the conflicting *unprefixed* height, so
+          without it the button would quietly shrink back to 40px on desktop.
+        */}
         <Button
           type="button"
-          variant="navy"
           size="lg"
-          className="w-full sm:w-auto"
+          className="mt-4 h-12 w-full bg-submit-green-600 text-base text-white hover:bg-submit-green-700 active:bg-submit-green-700 md:h-12"
           onClick={onSubmit}
           disabled={submitting}
         >
@@ -459,6 +707,65 @@ function SectionRow({
         <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" aria-hidden="true" />
       </button>
     </li>
+  );
+}
+
+/**
+ * The spouse-name question raised by a marital-status change (#647).
+ *
+ * Rendered INLINE, directly under the dropdown that raised it, rather than as a
+ * modal dialog. Three reasons: it appears immediately above the two fields it is
+ * about, so the alum can see the name in question; it doesn't seize focus in the
+ * middle of typing; and on a phone a centred dialog over a form is the pattern
+ * UX-UI.md explicitly steers away from.
+ *
+ * "Keep it" is listed first and is the visually heavier of the two. Doing
+ * nothing at all — ignoring this entirely and scrolling on — also keeps the
+ * name. Every path except one explicit click preserves the data.
+ */
+function SpouseNamePrompt({
+  status,
+  spouseName,
+  onKeep,
+  onClear,
+}: {
+  status: string;
+  spouseName: string;
+  onKeep: () => void;
+  onClear: () => void;
+}) {
+  return (
+    <div
+      // `polite`, not `assertive`: it is a question about something already on
+      // file, not an error, and nothing is lost by hearing it a beat late.
+      aria-live="polite"
+      className="rounded-md border border-warning-600/30 bg-warning-50 p-4"
+    >
+      <p className="text-sm leading-relaxed text-gray-900">
+        You changed your marital status to <strong>{status}</strong>, and we
+        still have{" "}
+        {spouseName ? (
+          <strong>{spouseName}</strong>
+        ) : (
+          "a spouse name"
+        )}{" "}
+        on file. Would you like to keep it?
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button type="button" variant="secondary" size="sm" onClick={onKeep}>
+          Keep it
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="text-danger-600 hover:bg-danger-50 hover:text-danger-600"
+          onClick={onClear}
+        >
+          Remove it
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -625,6 +932,23 @@ const SELECT_CLASS =
   "disabled:cursor-not-allowed disabled:opacity-50";
 
 /**
+ * `options`, with a stored value that isn't already on the list prepended to it.
+ *
+ * This is the single rule that keeps a controlled dropdown from destroying data
+ * it doesn't recognise: an alum opening the survey to fix their phone number
+ * must not have their unusual country, state, employment status or marital
+ * status silently rewritten to blank because a list narrowed since it was
+ * recorded. Extracted from `SelectControl` so it can be tested directly — the
+ * suites run in Node with no DOM, so a mounted <select> can't be asserted on.
+ */
+export function withStoredValue(
+  options: readonly string[],
+  value: string,
+): readonly string[] {
+  return value && !options.includes(value) ? [value, ...options] : options;
+}
+
+/**
  * A native dropdown over a fixed option list (US states, countries). A stored
  * value that isn't in the list (e.g. an international province, or a country
  * spelled differently) is preserved by prepending it as a selectable option, so
@@ -643,8 +967,7 @@ function SelectControl({
   placeholder: string;
   onChange: (v: string) => void;
 }) {
-  const opts =
-    value && !options.includes(value) ? [value, ...options] : options;
+  const opts = withStoredValue(options, value);
   return (
     <select
       id={id}
@@ -867,6 +1190,19 @@ function FieldControl({
             value={value}
             options={SURVEY_EMPLOYMENT_STATUS_OPTIONS}
             placeholder="Select your status"
+            onChange={onChange}
+          />
+        ) : field.kind === "maritalStatus" ? (
+          // Same `SelectControl` the employment status uses, for the same
+          // reason: a stored value off the canonical list is prepended and
+          // stays selectable, so an alum whose record says something we no
+          // longer offer sees it rather than an empty box (#647). Free text
+          // until now, which is why staff read the field as "missing".
+          <SelectControl
+            id={controlId}
+            value={value}
+            options={MARITAL_STATUS_OPTIONS}
+            placeholder="Select an option"
             onChange={onChange}
           />
         ) : field.kind === "industry" ? (

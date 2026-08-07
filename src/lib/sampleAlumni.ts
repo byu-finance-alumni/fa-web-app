@@ -16,7 +16,15 @@ export const SAMPLE_ALUM: Record<string, string> = {
   "contact.zip": "84101",
   "contact.country": "United States",
   // Profile
+  // Name (#646). Present so the staff preview shows the new Name group filled
+  // in — an empty first/last name in the sample reads as a broken form rather
+  // than as sample data.
+  "profile.first_name": "Jordan",
+  "profile.middle_name": "Reese",
+  "profile.last_name": "Avery",
+  "profile.preferred_first_name": "Jordy",
   "profile.employment_status": "Employed",
+  "profile.marital_status": "Married",
   // Designations (#529): the CFA is a ticked box backed by its own column, so
   // the free text carries only what the presets don't cover.
   "program.cfa_designation": "Yes",

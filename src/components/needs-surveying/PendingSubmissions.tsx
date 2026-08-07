@@ -13,6 +13,22 @@ import type { components } from "@/types/api.gen";
 type ResponseItem = components["schemas"]["SurveyResponseItem"];
 
 /**
+ * What `POST /survey/responses/{id}/apply` returns (#646).
+ *
+ * Hand-written on purpose, for now: the endpoint changed from a bodyless 204 to
+ * a 200 with this body in the same batch as this change, and `api.gen.ts` can
+ * only be regenerated once the backend is deployed to dev. Replace this with
+ * `components["schemas"]["SurveyApplyResult"]` after the regen — it is the same
+ * shape, and the drift guard in CI will not cover it until then.
+ *
+ * Optional everywhere because the old 204 is still what a not-yet-redeployed
+ * backend returns, and `clientPost` hands back `undefined` for an empty body.
+ */
+type ApplyResult = {
+  duplicate_warnings?: { code: string; message: string; alumni_id?: number | null }[];
+};
+
+/**
  * Admin review queue for a graduation year: the alumni who submitted "confirm
  * your info" updates, each with a before/after diff. Apply writes the changes to
  * the record; reject discards them. Both hit the real backend and refresh the
@@ -43,12 +59,34 @@ export function PendingSubmissions({ gradYear }: { gradYear: number }) {
   const act = async (id: number, action: "apply" | "reject", name: string) => {
     setBusyId(id);
     try {
-      await clientPost(`/survey/responses/${id}/${action}`);
-      toast.success(
-        action === "apply"
-          ? `Applied ${name}'s updates.`
-          : `Rejected ${name}'s submission.`,
+      const result = await clientPost<ApplyResult | undefined>(
+        `/survey/responses/${id}/${action}`,
       );
+      // A survey response can RENAME an alumnus, and a rename can land on top of
+      // a live record (#627/#646). The backend applies it either way — two alumni
+      // genuinely can share a name and a year — and reports the collision here.
+      // This is the one thing the reviewer could not have known before clicking,
+      // so it must not be swallowed. `reject` never returns warnings.
+      //
+      // Shown as `info`, not `error`: the apply SUCCEEDED. There is no warning
+      // variant, and dressing a completed write in the red error surface would
+      // read as "your change failed", which is the opposite of what happened.
+      // Caveat: every toast auto-dismisses after 4.5s, so a reviewer who looks
+      // away misses this. The durable record is the audit row.
+      const warnings = result?.duplicate_warnings ?? [];
+      if (action === "apply" && warnings.length > 0) {
+        toast.info(
+          `Applied ${name}'s updates, but the new name may duplicate an existing record: ${warnings
+            .map((w) => w.message)
+            .join(" ")}`,
+        );
+      } else {
+        toast.success(
+          action === "apply"
+            ? `Applied ${name}'s updates.`
+            : `Rejected ${name}'s submission.`,
+        );
+      }
       setItems((prev) =>
         prev ? prev.filter((r) => r.survey_response_id !== id) : prev,
       );
