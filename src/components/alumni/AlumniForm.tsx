@@ -28,6 +28,7 @@ import {
   Section,
 } from "@/components/alumni/form-fields";
 import { validateName } from "@/lib/nameValidation";
+import { validateLinkedinUrl } from "@/lib/urlSafety";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -97,7 +98,6 @@ const BYU_ID_RE = /^\d{9}$/;
 const MAX_LEN = {
   net_id: 50,
   gender: 50,
-  linkedin_url: 500,
   notes: 10000, // matches the backend cap (_NOTES_MAX)
 } as const;
 
@@ -145,20 +145,11 @@ function validateField(name: string, raw: string): string | null {
         return `Must be ${MAX_LEN.gender} characters or fewer.`;
       return null;
 
-    case "linkedin_url": {
-      if (v === "") return null;
-      if (v.length > MAX_LEN.linkedin_url)
-        return `Must be ${MAX_LEN.linkedin_url} characters or fewer.`;
-      let host: string;
-      try {
-        host = new URL(v).hostname.toLowerCase();
-      } catch {
-        return "Enter a full URL, e.g. https://www.linkedin.com/in/you.";
-      }
-      if (host !== "linkedin.com" && !host.endsWith(".linkedin.com"))
-        return "Must be a linkedin.com URL.";
-      return null;
-    }
+    // Moved to `@/lib/urlSafety` (api #418) so profile Edit → Employment and
+    // the public survey apply the IDENTICAL rule; the survey previously had no
+    // rule at all, which is how unvalidated strings reached the column.
+    case "linkedin_url":
+      return validateLinkedinUrl(v);
 
     case "notes":
       if (v.length > MAX_LEN.notes)

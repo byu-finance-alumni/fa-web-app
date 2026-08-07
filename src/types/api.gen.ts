@@ -347,6 +347,12 @@ export interface paths {
          *     Unauthenticated. The frontend calls this before attempting the Supabase
          *     sign-in and refuses to attempt it when ``allowed`` is false, collapsing both
          *     throttle reasons into one generic message.
+         *
+         *     Per-IP rate limited (#423). The limiter is a ROUTE dependency, so it resolves
+         *     before the body does and cannot see the email — a 429 is a property of the
+         *     caller, never of the account, which is what keeps it out of the
+         *     anti-enumeration contract. The frontend fails open on any non-OK response, so
+         *     being throttled here skips the pre-check rather than blocking a sign-in.
          */
         post: operations["login_precheck_auth_login_precheck_post"];
         delete?: never;
@@ -386,6 +392,22 @@ export interface paths {
          *     and from where. That insert is BEST-EFFORT: a logging failure is swallowed so
          *     it can never break the throttle response, and it is a pure side-effect — the
          *     response body is unchanged, preserving the anti-enumeration behavior.
+         *
+         *     Per-IP rate limited (#423), on the same route-dependency-before-the-body
+         *     basis as ``/auth/login/precheck``.
+         *
+         *     RETENTION (#423): the failure path also triggers the expired-record purge,
+         *     at most once an hour per process. It is hooked HERE, and nowhere else, on
+         *     purpose — this route is the only thing in the app that CREATES a row in
+         *     either table, so the growth and the cleanup share one trigger and the cleanup
+         *     runs hardest exactly when the abuse is happening (the only other writers
+         *     DELETE: ``_clear_login_attempts`` on a real sign-in and on an admin password
+         *     reset). The alternative was a cron entry, but the project has exactly
+         *     one cron surface (``/survey/cron/run``, wired from vercel.json) and a second
+         *     one is a second unauthenticated-by-secret endpoint to own; folding this into
+         *     that existing job instead would be a fine follow-up. Deliberately NOT hooked
+         *     on the success path or on ``/auth/login/precheck``: neither creates rows, and
+         *     both are on the critical path of a real sign-in.
          */
         post: operations["login_record_auth_login_record_post"];
         delete?: never;
@@ -528,10 +550,21 @@ export interface paths {
          *     ``upload_headshot_started`` row).
          *
          *     Defense-in-depth: the bucket's own allow-list/size-limit is the primary guard
-         *     on the direct PUT, but we re-check the object's type + size here and delete
-         *     anything outside the contract, so a bucket misconfig can't silently let a bad
-         *     file through. The probe FAILS OPEN — if it can't read the object we fall back
-         *     to a plain existence check rather than reject a legitimate upload.
+         *     on the direct PUT, but we re-check the object's type + size here AND sniff its
+         *     real leading bytes, deleting anything outside the contract, so a bucket
+         *     misconfig can't silently let a bad file through. The probe FAILS OPEN — if it
+         *     can't read the object we fall back to a plain existence check rather than
+         *     reject a legitimate upload.
+         *
+         *     The byte sniff is the load-bearing half (#419). Nothing about the object here
+         *     was chosen by us: the browser PUT it straight to storage and picked its own
+         *     ``Content-Type``, exactly like the multipart header on the single-request
+         *     upload above. This path used to check only that declared type, so anyone with
+         *     the photo capability could mint a legitimate signed URL, skip the cropper, PUT
+         *     arbitrary bytes labelled ``image/jpeg`` and have them audited
+         *     ``upload_headshot`` and served back as a verified headshot. The bulk-import
+         *     sibling (:func:`_verify_landed_headshot`) always sniffed; this one had drifted,
+         *     and the two now do the same thing for the same reason.
          */
         post: operations["confirm_headshot_upload_alumni__alumni_id__headshot_confirm_post"];
         delete?: never;
@@ -3433,6 +3466,10 @@ export interface paths {
          *     who replied and when — and it is read as the first half of a decision about
          *     who receives a real email, exactly like `GET /survey/alumni/{id}/state`, whose
          *     gate is narrowed for that same reason.
+         *
+         *     AUDITED (#422): naming alumni and dating their replies is a disclosure, so
+         *     the read writes a `read_survey_held_out` row recording who asked and for which
+         *     year/bucket/page — never any of the people it returned.
          */
         get: operations["list_survey_held_out_survey_campaigns__grad_year__held_out_get"];
         put?: never;
@@ -3777,6 +3814,11 @@ export interface paths {
          *     Engineer-gated (`RequireEngineer` = the non-assignable `engineer`
          *     capability), matching its twin below: the read exists to inform that one
          *     decision, so widening it would only invite the reset to be run blind.
+         *
+         *     AUDITED (#422): this is a named alumnus's survey history, so the read writes a
+         *     `read_survey_alumni_state` row saying who looked at whose record — the reset
+         *     below was already audited, and the read that justifies it now is too. The row
+         *     carries the alumni_id and nothing the response returned.
          */
         get: operations["survey_alumnus_state_survey_alumni__alumni_id__state_get"];
         put?: never;
@@ -8124,6 +8166,13 @@ export interface components {
              */
             campaign_created: boolean;
             breakdown: components["schemas"]["SurveyRecipientBreakdown"] | null;
+            /** Budget Remaining */
+            budget_remaining: number | null;
+            /**
+             * Budget Limited
+             * @default false
+             */
+            budget_limited: boolean;
         };
         /**
          * SurveySendSample

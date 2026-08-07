@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { CircleAlert, Check } from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
 import { fetchHeadshotUrl } from "@/lib/headshots";
+import { safeExternalHref } from "@/lib/urlSafety";
 import type { Contact, Profile } from "@/types/profile";
 import { employerApplies, employerDisplay } from "@/constants/dropdowns";
 import type { UserContext } from "@/types/alumni";
@@ -118,6 +119,12 @@ function HeaderContact({
   // dropped too. Email/phone are PII (editor-gated); LinkedIn is visible to
   // every role. A gated-away or empty target resolves to null so we never leak
   // PII or point at a blank field.
+  //
+  // The LinkedIn value is scheme-checked before it can become an href (api
+  // #418): the public survey writes this column with no validation of its own,
+  // and everything below renders it as a link staff click while signed in. An
+  // unusable value drops the link entirely rather than rendering a live one.
+  const linkedinHref = safeExternalHref(linkedinUrl);
   let primary: { label: string; value: string; href: string } | null = null;
   switch (contact?.preferred_contact_method) {
     case "personal_email":
@@ -145,8 +152,8 @@ function HeaderContact({
         };
       break;
     case "linkedin":
-      if (linkedinUrl)
-        primary = { label: "LinkedIn", value: "LinkedIn", href: linkedinUrl };
+      if (linkedinHref)
+        primary = { label: "LinkedIn", value: "LinkedIn", href: linkedinHref };
       break;
     default:
       break;
@@ -168,7 +175,7 @@ function HeaderContact({
       };
   }
 
-  if (!primary && !linkedinUrl) return null;
+  if (!primary && !linkedinHref) return null;
 
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
@@ -187,9 +194,9 @@ function HeaderContact({
       ) : null}
       {/* LinkedIn stays up top (non-PII, visible to every role) unless it's
           already the starred primary. */}
-      {linkedinUrl && primary?.href !== linkedinUrl ? (
+      {linkedinHref && primary?.href !== linkedinHref ? (
         <a
-          href={linkedinUrl}
+          href={linkedinHref}
           target="_blank"
           rel="noopener noreferrer"
           className="font-medium text-brand-blue-600 hover:text-brand-blue-500"
@@ -1110,12 +1117,15 @@ export async function AlumniProfileView({
                     <Field label="Company ZIP" value={career?.current_zip ?? null} />
                   </div>
                 </div>
-                {/* LinkedIn spans the full width at the bottom of the box. */}
+                {/* LinkedIn spans the full width at the bottom of the box. The
+                    stored text still shows in full — staff need to SEE a bad
+                    value to fix it — but only a scheme-checked value becomes a
+                    clickable link (api #418). */}
                 <div className="mt-4">
                   <ContactField
                     label="LinkedIn profile"
                     value={a.linkedin_url}
-                    href={a.linkedin_url ?? undefined}
+                    href={safeExternalHref(a.linkedin_url) ?? undefined}
                     hrefLabel="Open ↗"
                     preferred={c?.preferred_contact_method === "linkedin"}
                   />
