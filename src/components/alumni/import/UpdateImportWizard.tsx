@@ -8,6 +8,7 @@ import type {
   UpdateImportResult,
   UpdateImportRowResult,
 } from "@/types/alumni";
+import type { ManualEditAlert as ManualEditAlertData } from "@/lib/updateImport";
 import {
   previewUpdateImport,
   commitUpdateImport,
@@ -27,6 +28,10 @@ import {
   formatCell as fmt,
   ignoredColumns,
   isCsvFile as isCsv,
+  manualEditAlert,
+  manualEditDate,
+  manualEditHeadline,
+  manualEditor,
   partitionPreviewRows,
   previewGate,
 } from "@/lib/updateImport";
@@ -576,9 +581,15 @@ function ReviewStep({
   const { changed, unmatched, errored } = partitionPreviewRows(rows);
   const { headersOk: columns_ok, nothingToDo, canApply } = previewGate(preview);
   const ignored = ignoredColumns(preview);
+  const manualEdits = manualEditAlert(preview);
 
   return (
     <div className="space-y-4">
+      {/* Rows that would revert a recent hand correction (#420) — first thing
+          on the screen, above the counts, because it is the one finding here
+          that a clean-looking preview otherwise hides. It never gates Apply. */}
+      {manualEdits.show && <ManualEditWarning alert={manualEdits} />}
+
       {/* Summary counts */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <SummaryCard label="Rows in file" value={summary.total} />
@@ -699,6 +710,115 @@ function ReviewStep({
               }`}
         </Button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The rows that would revert a RECENT hand correction (#420).
+ *
+ * A staffer fixes an employer in the profile editor, a colleague uploads a
+ * week-old cohort export, and the fix is gone — in the change table it looks
+ * like any other field change. So this names the rows: who to check, what would
+ * change, and who touched the record last.
+ *
+ * Warn, not block (Jake's call): no confirmation step, no per-row opt-out, and
+ * nothing here feeds `previewGate` — Apply stays exactly as reachable as it was.
+ * Its weight comes from position (first on the screen) and a full-strength
+ * warning border rather than from standing in the operator's way. It renders
+ * only when at least one row is flagged; a banner on every import is one people
+ * learn to dismiss.
+ */
+function ManualEditWarning({ alert }: { alert: ManualEditAlertData }) {
+  return (
+    <div
+      role="alert"
+      className="rounded-lg border-2 border-warning-600 bg-warning-50 p-4 shadow-card"
+    >
+      <h2 className="text-base font-semibold text-warning-600">
+        Double-check these before you apply
+      </h2>
+      <p className="mt-1 text-sm font-medium text-gray-900">
+        {manualEditHeadline(alert)}
+      </p>
+      <p className="mt-1 text-sm text-gray-700">
+        Someone corrected these profiles by hand recently, and this file holds a
+        different value. If the file is older than the correction, applying it
+        puts the old value back. Nothing is blocked — Apply still updates every
+        row below — so open the ones that look wrong first.
+      </p>
+
+      {/* Guard rather than an empty list: the count comes from the summary and
+          the list from the rows, so a payload where they disagree still gets a
+          headline that says how many, without a heading over nothing. */}
+      {alert.rows.length > 0 && (
+        <ul className="mt-3 max-h-72 space-y-2 overflow-auto">
+          {alert.rows.map((row) => {
+            const warning = row.overwrites_manual_edit;
+            if (!warning) return null;
+            const when = manualEditDate(warning.manually_edited_at);
+            const who = manualEditor(warning);
+            return (
+              <li
+                key={row.row}
+                className="rounded-md border border-warning-600/30 bg-white p-3"
+              >
+                <div className="flex flex-wrap items-baseline gap-2 text-sm">
+                  <span className="shrink-0 tabular-nums text-gray-500">
+                    Row {row.row}
+                  </span>
+                  <span className="font-medium text-gray-900">
+                    {row.name || "—"}
+                  </span>
+                  {row.alumni_id != null && (
+                    <Link
+                      href={`/alumni/${row.alumni_id}`}
+                      className="text-xs font-medium text-brand-blue-600 underline hover:text-brand-blue-500"
+                    >
+                      View #{row.alumni_id}
+                    </Link>
+                  )}
+                </div>
+
+                <ul className="mt-1.5 space-y-1 text-sm text-gray-700">
+                  {row.changes.map((c, i) => (
+                    <li key={`${c.field}-${i}`}>
+                      <span className="font-medium text-gray-900">
+                        {fieldLabel(c.field)}:
+                      </span>{" "}
+                      <span className="text-gray-500 line-through">
+                        {fmt(c.old)}
+                      </span>{" "}
+                      <span aria-hidden="true">→</span>{" "}
+                      <span className="text-gray-900">{fmt(c.new)}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                {/* Who last touched it. `unknown` means an older row or an edit
+                    that came from an import — say we don't know rather than
+                    putting a name to it. */}
+                <p className="mt-2 text-xs text-gray-700">
+                  Edited by hand{when ? ` on ${when}` : ""}
+                  {who.name ? (
+                    <>
+                      {" by "}
+                      <span className="font-medium text-gray-900">
+                        {who.name}
+                      </span>
+                      {who.note && (
+                        <span className="text-gray-500"> ({who.note})</span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-gray-500"> — editor not recorded</span>
+                  )}
+                </p>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

@@ -4733,6 +4733,37 @@ export interface components {
             engagement: components["schemas"]["EngagementCreate"] | null;
         };
         /**
+         * AlumniUpdateManualEditWarning
+         * @description Set on a preview row that would overwrite a RECENT manual edit (#420).
+         *
+         *     A staffer's hand correction stamps ``alumni.manually_edited_at``; a cohort
+         *     file built from an older export would silently revert it, looking like any
+         *     other field change in the preview. This surfaces those rows so the operator
+         *     can check them specifically. It is a WARNING ONLY — the commit still applies
+         *     the row unchanged, there is no block, skip, or per-row override.
+         *
+         *     ``edited_by`` follows the profile's "Profile updated by ..." display rule
+         *     rather than a second mechanism of its own, and ``edited_by_source`` says
+         *     which rule produced it:
+         *       * ``user``    — the app user behind ``profile_updated_by_user_id``, shown
+         *         as "First Last" (or their email when the name columns are empty);
+         *       * ``sheet``   — no linked user, so the intake sheet's free-text
+         *         "Profile Updated By" name;
+         *       * ``unknown`` — neither is recorded (an older row, or an edit that came
+         *         from an import). ``edited_by`` is null; say we don't know, don't guess.
+         */
+        AlumniUpdateManualEditWarning: {
+            /** Manually Edited At */
+            manually_edited_at: string;
+            /** Edited By */
+            edited_by: string | null;
+            /**
+             * Edited By Source
+             * @default unknown
+             */
+            edited_by_source: string;
+        };
+        /**
          * AlumniUpdatePreview
          * @description ``POST /alumni/import/update/preview`` dry-run report.
          */
@@ -4796,6 +4827,7 @@ export interface components {
             error: string | null;
             /** Message */
             message: string | null;
+            overwrites_manual_edit: components["schemas"]["AlumniUpdateManualEditWarning"] | null;
         };
         /**
          * AlumniUpdateRowResult
@@ -4826,6 +4858,11 @@ export interface components {
             with_changes: number;
             /** Errors */
             errors: number;
+            /**
+             * Overwrites Manual Edit
+             * @default 0
+             */
+            overwrites_manual_edit: number;
         };
         /**
          * AlumniWriteResult

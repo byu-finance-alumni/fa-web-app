@@ -169,9 +169,19 @@ export interface ImportResult {
 export type UpdateImportFieldChange = Schema<"AlumniUpdateFieldChange">;
 
 /**
+ * Set on a preview row that would overwrite a RECENT manual edit (#420) — who
+ * hand-corrected the record, when, and which rule produced the name
+ * (`user` / `sheet` / `unknown`). Warning only: the commit still applies the
+ * row. (`AlumniUpdateManualEditWarning`)
+ */
+export type UpdateImportManualEditWarning =
+  Schema<"AlumniUpdateManualEditWarning">;
+
+/**
  * Per-row detail in the update preview. `status` is one of `update`,
  * `no_changes`, `unmatched`, `unmatched_archived`, or `error`; `message`
  * explains an unmatched row and `error` carries a mapping/validation message.
+ * `overwrites_manual_edit` is set when the row would revert a recent hand edit.
  * (`AlumniUpdateRowReport`)
  */
 export type UpdateImportRowReport = Schema<"AlumniUpdateRowReport">;

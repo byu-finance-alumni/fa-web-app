@@ -12,7 +12,11 @@
  * immediate, specific answer instead of a wall of header errors.
  */
 
-import type { UpdateImportPreview, UpdateImportRowReport } from "@/types/alumni";
+import type {
+  UpdateImportManualEditWarning,
+  UpdateImportPreview,
+  UpdateImportRowReport,
+} from "@/types/alumni";
 
 /** File types the CSV picker accepts (the backend re-checks the content). */
 export const CSV_ACCEPT_ATTR = ".csv,text/csv";
@@ -98,3 +102,103 @@ export function previewGate(preview: UpdateImportPreview): {
  */
 export const ignoredColumns = (preview: UpdateImportPreview): string[] =>
   preview.ignored_columns ?? [];
+
+/* ------------------------------------ overwriting a recent hand edit (#420) --- */
+
+/**
+ * What the review step needs to warn about rows that would revert a RECENT
+ * manual correction (#420).
+ *
+ * The failure this exists for: a staffer fixes an employer in the profile
+ * editor, a colleague uploads a week-old cohort export, and the correction is
+ * gone — shown in the preview as an ordinary field change, indistinguishable
+ * from a real one. The backend flags a row when it would change at least one
+ * field AND the record was hand-edited in the last 30 days.
+ *
+ * Jake's call is WARN, NOT BLOCK: the commit still applies every row, there is
+ * no confirmation step, no per-row opt-out, and `previewGate` is untouched.
+ * `show` is false at zero — a banner that appears on every import is one people
+ * learn to dismiss, which would defeat the point.
+ */
+export interface ManualEditAlert {
+  /** The flagged rows, in file order — the ones worth opening and checking. */
+  rows: UpdateImportRowReport[];
+  /** How many rows are flagged. */
+  count: number;
+  /** Rows in the file, for the "N of M" headline. */
+  total: number;
+  /** Render the alert at all. */
+  show: boolean;
+}
+
+export function manualEditAlert(preview: UpdateImportPreview): ManualEditAlert {
+  const rows = preview.rows.filter((r) => r.overwrites_manual_edit != null);
+  // The summary count is the number the operator is told; the row list is what
+  // we can actually name. Both come from the same dry run and agree — the
+  // fallback only covers a payload from before the summary field existed.
+  const count = preview.summary.overwrites_manual_edit ?? rows.length;
+  return { rows, count, total: preview.summary.total, show: count > 0 };
+}
+
+/**
+ * The alert's headline sentence — the number first, in plain words.
+ *
+ * "rows" agrees with the file total ("1 of 2,000 rows"), while "a change" vs
+ * "changes" agrees with the flagged count, so a single flagged row doesn't read
+ * as if several people were overwritten.
+ */
+export function manualEditHeadline(alert: ManualEditAlert): string {
+  const rowWord = alert.total === 1 ? "row" : "rows";
+  const changeWord = alert.count === 1 ? "a change" : "changes";
+  return `${alert.count} of ${alert.total.toLocaleString()} ${rowWord} will overwrite ${changeWord} someone made by hand in the last 30 days.`;
+}
+
+/** Who made the recent edit, as far as we can honestly say. */
+export interface ManualEditor {
+  /** The name to show, or `null` when the editor isn't recorded. */
+  name: string | null;
+  /** Where the name came from, when that's worth saying (the sheet only). */
+  note: string | null;
+}
+
+/**
+ * Resolve the "who" for a flagged row, following the profile's
+ * "Profile updated by …" display rule that the backend already applied:
+ *
+ *   * `user`    — an app user is linked to the edit; name them plainly.
+ *   * `sheet`   — no linked user, so this is the intake sheet's free-text
+ *     "Profile Updated By" name. Still worth showing (it's usually right), but
+ *     noted, because nobody stood behind it in the app.
+ *   * `unknown` — an older row, or an edit that came from an import. Say so;
+ *     never name anyone here, even if `edited_by` somehow carries a value.
+ */
+export function manualEditor(
+  warning: UpdateImportManualEditWarning,
+): ManualEditor {
+  const name = warning.edited_by?.trim() || null;
+  if (!name || warning.edited_by_source === "unknown") {
+    return { name: null, note: null };
+  }
+  if (warning.edited_by_source === "sheet") {
+    return { name, note: "from the intake sheet" };
+  }
+  if (warning.edited_by_source === "user") return { name, note: null };
+  // An unrecognized source is treated as unknown rather than trusted — the
+  // whole value of this alert is the operator believing what it says.
+  return { name: null, note: null };
+}
+
+/**
+ * When the edit happened, in the same "Aug 5, 2026" form the profile's
+ * "Last updated" tile uses for exactly this data. `null` for an unparseable
+ * timestamp so the caller can drop the clause rather than print "Invalid Date".
+ */
+export function manualEditDate(iso: string): string | null {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
