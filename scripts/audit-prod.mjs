@@ -20,10 +20,14 @@ import { execSync } from "node:child_process";
 // GHSA id -> why it's accepted. HIGH/CRITICAL only (moderates never gate, so
 // listing them would just add noise). Keep the justification honest and current.
 const ALLOW = new Map([
-  // Next.js — fixed only in a 16.3.0-preview; no stable release yet.
-  ["GHSA-m99w-x7hq-7vfj", "next: DoS via Server Actions"],
-  ["GHSA-89xv-2m56-2m9x", "next: SSRF in Server Actions on custom servers"],
-  ["GHSA-p9j2-gv94-2wf4", "next: SSRF in rewrites via destination hostname"],
+  // The three `next` entries that lived here — DoS via Server Actions, SSRF in
+  // Server Actions, SSRF in rewrites — are GONE as of 2026-08-07. They were
+  // accepted on the belief that only a 16.3.0-preview fixed them; in fact 15.5.21
+  // did, and we are now on 15.5.23. This script reported them as "no longer
+  // present" the moment the upgrade landed, which is the whole point of it
+  // nagging about stale entries: an allowlist nobody prunes stops being a list
+  // of accepted risks and becomes a list of forgotten ones.
+  //
   // postcss / sharp — pinned transitively by next; clear when next moves.
   ["GHSA-6g55-p6wh-862q", "postcss (transitive via next)"],
   ["GHSA-r28c-9q8g-f849", "postcss (transitive via next)"],
