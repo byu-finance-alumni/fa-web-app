@@ -42,6 +42,12 @@ import {
 } from "@/lib/api-client";
 import { PendingSubmissions } from "@/components/needs-surveying/PendingSubmissions";
 import { CampaignProgressTable } from "@/components/needs-surveying/CampaignProgressTable";
+import { usePendingSubmissions } from "@/components/needs-surveying/use-pending-submissions";
+import {
+  pendingBadgeText,
+  pendingReviewCount,
+  submissionsTabLabel,
+} from "@/components/needs-surveying/pending-review";
 import {
   campaignRemoveConfirm,
   RESET_POINTER_ENGINEER_SURVEYS,
@@ -307,6 +313,21 @@ export function SurveyCampaignConsole({
   // "submissions" (the review queue). Both tabs act on the selected year.
   const [activeTab, setActiveTab] = useState("schedule");
 
+  /**
+   * The selected year's review queue (Jake, 2026-08-07).
+   *
+   * Owned HERE rather than inside the Submissions panel, because the tab strip
+   * now badges the count and the panel lists the rows — one state, handed to
+   * both, so the number on the tab is the length of the list beneath it by
+   * construction. Applying or rejecting a row drops it from this array, which is
+   * what makes the badge clear itself without a reload.
+   *
+   * It loads on year change, not on tab open: a badge is only worth anything on
+   * a tab nobody has clicked.
+   */
+  const pending = usePendingSubmissions(selectedYear);
+  const pendingCount = pendingReviewCount(pending.items);
+
   // Real Resend usage against the caps — emails actually sent today / this
   // calendar month, from GET /survey/usage. 0 until the fetch resolves.
   const [sentToday, setSentToday] = useState(0);
@@ -560,6 +581,17 @@ export function SurveyCampaignConsole({
     setRepliedOpen(false);
     loadBreakdown(selectedYear);
   }, [selectedYear, loadBreakdown]);
+
+  // Re-read the queue when someone opens the tab, which is what the panel did
+  // for itself before the fetch moved up here — a reviewer coming back to it
+  // should not be working from whatever was true when they picked the year.
+  // `reload` keeps the current rows on screen while it refreshes, so neither the
+  // list nor the badge blinks. Depends on the tab alone (the identity of
+  // `reload` never changes), so a year change refetches once, not twice.
+  const reloadPending = pending.reload;
+  useEffect(() => {
+    if (activeTab === "submissions") reloadPending();
+  }, [activeTab, reloadPending]);
 
   // The unreachable names, fetched lazily when staff expand the list.
   const toggleUnreachable = () => {
@@ -884,7 +916,17 @@ export function SurveyCampaignConsole({
               vertical scrollbar on the tab strip (same fix as #530). */}
           <TabsList className="w-full overflow-x-auto overflow-y-hidden">
             <TabsTrigger value="schedule">Schedule &amp; send</TabsTrigger>
-            <TabsTrigger value="submissions">Submissions</TabsTrigger>
+            {/* The count badge (Jake, 2026-08-07). The number is announced in
+                the tab's accessible name — a circle reading "3" is meaningless
+                read aloud — and the circle itself is hidden from the
+                accessibility tree so it isn't read twice. */}
+            <TabsTrigger
+              value="submissions"
+              aria-label={submissionsTabLabel(pendingCount)}
+            >
+              Submissions
+              <PendingCountBadge count={pendingCount} />
+            </TabsTrigger>
             <TabsTrigger value="progress">Progress</TabsTrigger>
           </TabsList>
 
@@ -1195,9 +1237,10 @@ export function SurveyCampaignConsole({
           </TabsContent>
 
           {/* ── Tab 2: admin review queue — real alum submissions to apply/reject.
-              Keeps its own "N to review" badge inside the panel. ── */}
+              Reads the SAME queue the tab's badge counts (see
+              `usePendingSubmissions`), so the two cannot disagree. ── */}
           <TabsContent value="submissions">
-            <PendingSubmissions gradYear={selected.graduation_year} />
+            <PendingSubmissions queue={pending} />
           </TabsContent>
 
           {/* ── Tab 3: every graduation year at once (#543). The ONE panel here
@@ -1561,6 +1604,44 @@ function HeldOutRow({
         </div>
       ) : null}
     </li>
+  );
+}
+
+/* ------------------------------------------------------- pending count badge -- */
+
+/**
+ * The "there is something to review" circle on the Submissions tab
+ * (Jake, 2026-08-07).
+ *
+ * Two things it must do that are easy to get wrong:
+ *
+ *  1. NOTHING at zero — and nothing while the count is still loading. A circle
+ *     that is always present, reading "0", is on screen every visit and stops
+ *     being read within a week; a circle that flashes a number and takes it back
+ *     is worse. `pendingBadgeText` returns "" for both cases.
+ *  2. No layout shift. The slot is always rendered at a fixed size, so the
+ *     badge appearing after the fetch — or vanishing when the last submission is
+ *     applied — never nudges the "Progress" tab sideways. Only the fill inside
+ *     it comes and goes.
+ *
+ * Solid `brand-blue-600` on white: this is an attention mark on an otherwise
+ * gray inactive tab, not a status colour, so it takes the primary interactive
+ * token rather than warning/danger. Nothing here is wrong — there is just work.
+ */
+function PendingCountBadge({ count }: { count: number | null }) {
+  const text = pendingBadgeText(count);
+  return (
+    // aria-hidden: the number is already in the tab's accessible name.
+    <span
+      aria-hidden="true"
+      className="inline-flex h-5 w-6 shrink-0 items-center justify-center"
+    >
+      {text ? (
+        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-blue-600 px-1 text-[11px] font-semibold leading-none tabular-nums text-white">
+          {text}
+        </span>
+      ) : null}
+    </span>
   );
 }
 
