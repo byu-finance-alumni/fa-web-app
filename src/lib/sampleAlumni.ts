@@ -16,7 +16,15 @@ export const SAMPLE_ALUM: Record<string, string> = {
   "contact.zip": "84101",
   "contact.country": "United States",
   // Profile
+  // Name (#646). Present so the staff preview shows the new Name group filled
+  // in — an empty first/last name in the sample reads as a broken form rather
+  // than as sample data.
+  "profile.first_name": "Jordan",
+  "profile.middle_name": "Reese",
+  "profile.last_name": "Avery",
+  "profile.preferred_first_name": "Jordy",
   "profile.employment_status": "Employed",
+  "profile.marital_status": "Married",
   // Designations (#529): the CFA is a ticked box backed by its own column, so
   // the free text carries only what the presets don't cover.
   "program.cfa_designation": "Yes",
@@ -27,6 +35,14 @@ export const SAMPLE_ALUM: Record<string, string> = {
   "profile.graduate_graduation_year": "2027",
   "profile.spouse_first_name": "Taylor",
   "profile.spouse_last_name": "Avery",
+  // Personal details. Every field the survey asks about needs a value here, or
+  // it renders as "—" in the staff preview and reads as a broken form rather
+  // than as sample data — and in the EMAIL preview it is dropped entirely,
+  // because that block keeps only fields with a value on file.
+  "profile.gender": "F",
+  "profile.birth_date": "1998-04-12",
+  "profile.citizenship": "United States",
+  "profile.home_country": "United States",
   // Employment
   "employment.current_employer": "Goldman Sachs",
   "employment.current_title": "Investment Banking Analyst",
@@ -35,6 +51,7 @@ export const SAMPLE_ALUM: Record<string, string> = {
   "employment.current_city": "New York",
   "employment.current_state": "NY",
   "employment.current_country": "United States",
+  "employment.current_zip": "10282",
   "employment.seniority_level": "Analyst",
 };
 

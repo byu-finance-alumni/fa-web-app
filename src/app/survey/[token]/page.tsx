@@ -21,7 +21,7 @@ import type { components } from "@/types/api.gen";
  *
  * The signed token in the URL resolves (via public `GET /survey/respond/{token}`)
  * to the alum's REAL on-file info. Review shows the full field list; "I need to
- * make changes" opens a section menu (Employment / Residence / Personal / …) the
+ * make changes" opens a section menu (Employment / Personal / …) the
  * alum drills into. `demo` shows the sample alum.
  *
  * This file owns only the DATA: resolving the token, staging the response, and
@@ -61,6 +61,21 @@ export default function SurveyConfirmPage({
   const [photoFailed, setPhotoFailed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // `?step=edit` opens straight on the section menu — the screen an alum reaches
+  // by pressing "I need to make changes". Staff previewing the survey want to
+  // look at the editable form, and making them click through the review panel
+  // first to get there is friction for no reason.
+  //
+  // DEMO ONLY, deliberately. A real alum must meet the review panel first: it is
+  // where they are told what we hold and that a human checks the answer, and
+  // skipping it would also let a forwarded link land someone straight in a form
+  // over another person's record.
+  useEffect(() => {
+    if (token !== "demo") return;
+    const step = new URLSearchParams(window.location.search).get("step");
+    if (step === "edit") setStatus("editing");
+  }, [token]);
 
   useEffect(() => {
     if (token === "demo") {

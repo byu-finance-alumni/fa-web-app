@@ -25,6 +25,20 @@ const config: Config = {
           50: "#EEF2FA",
         },
         success: { 600: "#15803D", 50: "#ECFDF3" },
+        // APPROVED PALETTE EXCEPTION — the alumni survey's "Submit my updates"
+        // button, and nothing else. Approved by Jake, 2026-08-06 (#648); the
+        // rationale and the scope live in UX-UI.md under "Approved palette
+        // exceptions" so a design-compliance pass doesn't revert it as stray
+        // green. Named for its one use on purpose: there is no generic green in
+        // this product.
+        //
+        // 600 is the same green as `success-600` — one green in the app, not
+        // two — but kept as its own token because this is an ACTION colour, not
+        // the success/verified semantic, and the two must be free to diverge.
+        // 700 is the hover, DARKER rather than lighter (the opposite of
+        // `brand-blue`): a lighter green drops white text under 4.5:1.
+        // Contrast on white text: 600 = 5.0:1, 700 = 6.6:1 — both pass WCAG AA.
+        "submit-green": { 600: "#15803D", 700: "#126B33" },
         warning: { 600: "#B45309", 50: "#FEF6E7" },
         danger: { 600: "#B42318", 50: "#FEF3F2" },
         // App background — a near-white neutral. White cards pop cleanly
