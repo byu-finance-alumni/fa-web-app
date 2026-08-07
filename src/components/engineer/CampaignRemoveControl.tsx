@@ -8,7 +8,11 @@ import {
 } from "@/app/(app)/engineer/surveys/actions";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/button";
-import { campaignRemoveActions } from "./campaign-remove-mode";
+import {
+  campaignRemoveActions,
+  campaignRemoveConfirm,
+  type CampaignRemoveMode,
+} from "./campaign-remove-mode";
 
 /**
  * Remove or stop one graduation year's campaign, next to Pause/Resume (#398).
@@ -36,6 +40,10 @@ import { campaignRemoveActions } from "./campaign-remove-mode";
  * the emails and the answers go with it and they do not. It says what is
  * removed, what is kept, and what creating a new campaign for the year will do.
  * It must never say "permanently deletes" — that would simply be false.
+ *
+ * Both confirms' WORDING lives in `campaign-remove-mode.ts` (#659), so the facts
+ * they promise — chiefly that answering holds someone out for a year whatever
+ * happens to the campaign — are pinned by tests instead of living only in JSX.
  */
 export function CampaignRemoveControl({
   graduationYear,
@@ -49,15 +57,18 @@ export function CampaignRemoveControl({
   const { toast } = useToast();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [confirming, setConfirming] = useState<"delete" | "cancel" | null>(null);
+  const [confirming, setConfirming] = useState<CampaignRemoveMode | null>(null);
 
   const { canDelete, canCancel } = campaignRemoveActions(status);
   const hasSent = emailsSentAllTime > 0;
   const emailCount = `${emailsSentAllTime} email${
     emailsSentAllTime === 1 ? "" : "s"
   }`;
+  const confirm = confirming
+    ? campaignRemoveConfirm(confirming, { graduationYear, emailsSentAllTime })
+    : null;
 
-  function run(action: "delete" | "cancel") {
+  function run(action: CampaignRemoveMode) {
     startTransition(async () => {
       const res =
         action === "cancel"
@@ -110,7 +121,7 @@ export function CampaignRemoveControl({
         </Button>
       ) : null}
 
-      {confirming ? (
+      {confirming && confirm ? (
         <div
           role="alertdialog"
           aria-modal="true"
@@ -123,59 +134,20 @@ export function CampaignRemoveControl({
               id={`remove-title-${graduationYear}`}
               className="mb-3 text-lg font-semibold text-gray-900"
             >
-              {confirming === "cancel"
-                ? `Cancel the Class of ${graduationYear} campaign?`
-                : `Delete the Class of ${graduationYear} campaign?`}
+              {confirm.title}
             </h2>
             <div
               id={`remove-desc-${graduationYear}`}
               className="space-y-3 text-sm text-gray-600"
             >
-              {confirming === "cancel" ? (
-                <>
-                  <p>
-                    Sending stops immediately and the campaign stays listed here
-                    with its counts. A cancelled campaign never resumes — running
-                    this cohort again means starting a new campaign for it.
-                  </p>
-                  <p className="font-medium text-gray-900">
-                    The emails already sent and every answer alumni submitted are
-                    kept.
-                  </p>
-                  <p>
-                    To take the campaign off this list entirely, delete it
-                    instead.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p>
-                    The campaign is removed from this list and will not send
-                    again.
-                  </p>
-                  <p className="font-medium text-gray-900">
-                    {hasSent ? (
-                      <>
-                        The record of the {emailCount} it sent is kept, and so is
-                        every answer alumni submitted — including any still
-                        waiting to be reviewed.
-                      </>
-                    ) : (
-                      <>
-                        This campaign never sent an email. Every answer alumni
-                        submitted for this graduation year is kept, on their
-                        profiles and in the review queue.
-                      </>
-                    )}
-                  </p>
-                  <p>
-                    You can create a new campaign for the Class of{" "}
-                    {graduationYear} afterwards. It starts a fresh cycle, so the
-                    alumni this one emailed can be emailed again — apart from
-                    anyone who has answered in the last year.
-                  </p>
-                </>
-              )}
+              {confirm.paragraphs.map((para) => (
+                <p
+                  key={para.text}
+                  className={para.emphasis ? "font-medium text-gray-900" : undefined}
+                >
+                  {para.text}
+                </p>
+              ))}
             </div>
             <div className="mt-5 flex justify-end gap-2">
               <Button

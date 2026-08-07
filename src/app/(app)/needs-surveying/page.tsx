@@ -4,6 +4,12 @@ import { SurveyPreview } from "@/components/needs-surveying/SurveyPreview";
 import { SurveyMessageEditor } from "@/components/needs-surveying/SurveyMessageEditor";
 import { SurveyBulkScheduler } from "@/components/needs-surveying/SurveyBulkScheduler";
 import { SurveyCampaignConsole } from "@/components/needs-surveying/SurveyCampaignConsole";
+import { apiGet } from "@/lib/api";
+import { getAuthContext } from "@/lib/auth-context";
+import { isEngineer } from "@/constants/roles";
+import { engineerSupportContact } from "@/lib/survey-reset-contact";
+import type { ResetContact } from "@/lib/survey-reset-contact";
+import type { SupportContact } from "@/types/support";
 
 /**
  * "Needs Surveying" — the annual "confirm your info" re-survey surface.
@@ -14,7 +20,45 @@ import { SurveyCampaignConsole } from "@/components/needs-surveying/SurveyCampai
  * it renders the live survey's own screens (`components/survey/survey-screens`)
  * over a sample record, so it cannot drift from what is actually sent.
  */
-export default function NeedsSurveyingPage() {
+
+/**
+ * Who is reading this page, for the one control that depends on it (#658): the
+ * per-alumnus survey reset, which is engineer-only on the backend.
+ *
+ * FAILS CLOSED. A `/auth/context` we could not read means "no reset button and
+ * here's who to ask", never "assume engineer" — the console's reset would 403
+ * on click, and a control that fails on press is worse than one that explains
+ * itself. This is UX only; the backend re-enforces `RequireEngineer` regardless.
+ *
+ * The support contacts are fetched ONLY for a non-engineer, because they are
+ * only used to tell someone who to ask. An engineer needs no such sentence, and
+ * the request would be pure overhead on the page's critical path.
+ */
+async function resetAudience(): Promise<{
+  isEngineer: boolean;
+  engineerContact: ResetContact | null;
+}> {
+  let engineer = false;
+  try {
+    engineer = isEngineer((await getAuthContext()).roles);
+  } catch {
+    /* fail closed — see above */
+  }
+  if (engineer) return { isEngineer: true, engineerContact: null };
+
+  let contacts: SupportContact[] = [];
+  try {
+    contacts = await apiGet<SupportContact[]>("/support-contacts");
+  } catch {
+    // No contacts is a supported state, not an error: the copy falls back to
+    // the Finance Department by name, with no invented address.
+  }
+  return { isEngineer: false, engineerContact: engineerSupportContact(contacts) };
+}
+
+export default async function NeedsSurveyingPage() {
+  const { isEngineer: engineer, engineerContact } = await resetAudience();
+
   return (
     <>
       <Topbar title="Needs Surveying" />
@@ -48,7 +92,10 @@ export default function NeedsSurveyingPage() {
             backend for survey campaigns yet; all sends/submits are staged in
             local state and no email or record write happens). */}
         <div className="mt-4">
-          <SurveyCampaignConsole />
+          <SurveyCampaignConsole
+            isEngineer={engineer}
+            engineerContact={engineerContact}
+          />
         </div>
       </main>
     </>
