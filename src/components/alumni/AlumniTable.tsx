@@ -6,6 +6,7 @@ import { ArrowDown, ArrowUp, ChevronsUpDown, ExternalLink } from "lucide-react";
 import { RowAvatar } from "@/components/shared/RowAvatar";
 import { AlumniRowActions } from "@/components/alumni/AlumniRowActions";
 import { abbreviateState } from "@/lib/usStates";
+import { safeExternalHref } from "@/lib/urlSafety";
 import { cn } from "@/lib/utils";
 import type { Alumni } from "@/types/alumni";
 
@@ -275,21 +276,30 @@ export function AlumniTable({
                 )}
               </td>
               <td className="px-3 py-2.5 text-center">
-                {a.linkedin_url ? (
-                  <a
-                    href={a.linkedin_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    aria-label="Open LinkedIn profile"
-                    title="Open LinkedIn profile"
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-brand-blue-600 transition-colors hover:bg-brand-blue-50"
-                  >
-                    <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                  </a>
-                ) : (
-                  <span className="text-gray-300">—</span>
-                )}
+                {(() => {
+                  // Scheme-checked before it reaches the DOM (api #418). The
+                  // public survey can write ANY string into this column, and
+                  // staff click this cell from an authenticated session — so a
+                  // `javascript:` value must never become a live link here. A
+                  // value we can't vouch for renders as the same em-dash an
+                  // empty one does.
+                  const linkedinHref = safeExternalHref(a.linkedin_url);
+                  return linkedinHref ? (
+                    <a
+                      href={linkedinHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      aria-label="Open LinkedIn profile"
+                      title="Open LinkedIn profile"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-brand-blue-600 transition-colors hover:bg-brand-blue-50"
+                    >
+                      <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                    </a>
+                  ) : (
+                    <span className="text-gray-300">—</span>
+                  );
+                })()}
               </td>
               {showActions ? (
                 <td className="px-3 py-2.5 text-center">

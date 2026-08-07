@@ -29,7 +29,10 @@ export const SAMPLE_ALUM: Record<string, string> = {
   // the free text carries only what the presets don't cover.
   "program.cfa_designation": "Yes",
   "profile.other_designations": "Series 7, Series 66",
-  "profile.linkedin_url": "linkedin.com/in/jordan-avery",
+  // A FULL URL, not the bare `linkedin.com/in/…` this used to hold: the field
+  // now applies the same linkedin.com rule the staff forms do (api #418), and a
+  // sample that trips its own validation on blur models the wrong thing.
+  "profile.linkedin_url": "https://www.linkedin.com/in/jordan-avery",
   "profile.graduate_degree": "MBA",
   "profile.graduate_school": "BYU Marriott School of Business",
   "profile.graduate_graduation_year": "2027",

@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PAY_IT_FORWARD_URL } from "@/types/survey";
 import { STATE_NAMES } from "@/lib/geo/state-field";
+import { validateLinkedinUrl } from "@/lib/urlSafety";
 import {
   joinOtherDesignationSlots,
   splitOtherDesignationSlots,
@@ -156,6 +157,18 @@ export type FieldKind =
   | "country"
   | "industry"
   | "employmentStatus"
+  // A URL the alum types that STAFF later click from a signed-in session (api
+  // #418). Its own kind for the same reason `employmentStatus` is one: the kind
+  // names what the answer means, and the control decides what rule applies —
+  // here `validateLinkedinUrl`, the identical rule "Add alumni" and profile
+  // Edit → Employment show. Until now this was a plain `text` field with no rule
+  // at all, which is how arbitrary strings reached the `linkedin_url` column.
+  //
+  // Inline feedback only. The backend re-validates on write, and every staff
+  // screen scheme-checks the stored value before rendering it as a link, so a
+  // row that predates this (or that never came through this form) is still
+  // handled — see `@/lib/urlSafety`.
+  | "linkedin"
   // Marital status over a fixed four-option list (#647). Its own kind rather
   // than a generic "select with options on the field" because every other
   // dropdown here works the same way — the kind names the vocabulary, and the
@@ -215,6 +228,26 @@ export function displayValue(field: EditField, value: string): string {
   return value;
 }
 
+/**
+ * The inline rule for one field, or `null` when the value is acceptable (api
+ * #418).
+ *
+ * Kind-driven, so a rule is added by giving a field the kind that carries it
+ * rather than by naming keys in a validator — the same way `displayValue`
+ * above special-cases by kind. Today only `linkedin` has one.
+ *
+ * Callers validate the fields the alum actually EDITED, never everything on
+ * screen: the form is pre-filled from the record, and a legacy stored value
+ * (production holds bare `linkedin.com/in/…` strings) must not block someone
+ * from submitting an unrelated change they came here to make.
+ */
+export function validateSurveyField(
+  field: EditField,
+  value: string,
+): string | null {
+  return field.kind === "linkedin" ? validateLinkedinUrl(value) : null;
+}
+
 // The single source of truth for BOTH the review panel and the edit form —
 // Employment status leads, then the rest of the Career Directors' list, grouped
 // (order per Tanya, #568: status first, because the answer to it decides how
@@ -243,7 +276,7 @@ export const INFO_SECTIONS: Section[] = [
       // Last, not next to Job Title: the four location fields above are one
       // block and splitting them to slot a URL in the middle reads worse than
       // ending on it. Moved here from Personal (#649).
-      { key: "profile.linkedin_url", label: "LinkedIn", kind: "text" },
+      { key: "profile.linkedin_url", label: "LinkedIn", kind: "linkedin" },
     ],
   },
   {
@@ -485,6 +518,18 @@ export function EditFlow({
   // to save — only whether the question is on screen.
   const [spousePrompt, setSpousePrompt] = useState<string | null>(null);
 
+  // Inline field errors, keyed by field key (api #418), plus the set of fields
+  // the alum has actually EDITED. Only edited fields are checked on submit: the
+  // form is pre-filled from the record, and production holds legacy values
+  // (bare `linkedin.com/in/…`) that must not stand between someone and the
+  // unrelated change they came here to make.
+  //
+  // `touched` is a plain Set in state rather than a ref because nothing renders
+  // from it — it is only read inside the submit handler — but it must survive
+  // the re-renders that opening and closing sections cause.
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Set<string>>(() => new Set());
+
   // Every field writes through here so the marital-status ↔ spouse-name
   // question has somewhere to live. The status change itself is ALWAYS applied
   // immediately — the alum answered that question and we take the answer; the
@@ -492,6 +537,20 @@ export function EditFlow({
   // will touch.
   const onFieldChange = (field: EditField, next: string) => {
     setEdit(field.key, next);
+    setTouched((prev) => {
+      if (prev.has(field.key)) return prev;
+      const updated = new Set(prev);
+      updated.add(field.key);
+      return updated;
+    });
+    // Typing is the alum answering the complaint — drop it and re-check on blur
+    // rather than re-running the rule against a half-typed URL.
+    setFieldErrors((prev) => {
+      if (!prev[field.key]) return prev;
+      const updated = { ...prev };
+      delete updated[field.key];
+      return updated;
+    });
     if (field.key !== MARITAL_STATUS_KEY) return;
     // Recomputed on EVERY status change, so picking "Divorced" and then
     // correcting it to "Married" takes the question back down rather than
@@ -505,6 +564,47 @@ export function EditFlow({
         ? next
         : null,
     );
+  };
+
+  const onFieldBlur = (field: EditField) => {
+    const msg = validateSurveyField(field, valueOf(field.key));
+    setFieldErrors((prev) => {
+      if ((prev[field.key] ?? null) === msg) return prev;
+      const updated = { ...prev };
+      if (msg) updated[field.key] = msg;
+      else delete updated[field.key];
+      return updated;
+    });
+  };
+
+  // Submit gate (api #418). Re-checks every EDITED field, then opens the
+  // section holding the first complaint so the alum lands on the input with the
+  // message under it — an error banner on the menu screen would name a field
+  // they'd then have to go hunting for.
+  //
+  // Client-side only, and deliberately not the last word: the backend validates
+  // the same value on write, and the staff screens that render it guard
+  // themselves. This exists so an alum learns about a typo here rather than
+  // never learning about it at all.
+  const handleSubmit = () => {
+    const found: Record<string, string> = {};
+    for (const s of EDIT_SECTIONS) {
+      for (const f of s.fields) {
+        if (!touched.has(f.key)) continue;
+        const msg = validateSurveyField(f, valueOf(f.key));
+        if (msg) found[f.key] = msg;
+      }
+    }
+    setFieldErrors(found);
+    const firstBad = Object.keys(found)[0];
+    if (!firstBad) {
+      onSubmit();
+      return;
+    }
+    const owning = EDIT_SECTIONS.find((s) =>
+      s.fields.some((f) => f.key === firstBad),
+    );
+    if (owning) openSectionNav(owning.id);
   };
 
   // A specific section (or the photo screen) is open.
@@ -547,6 +647,8 @@ export function EditFlow({
                     field={f}
                     value={valueOf(f.key)}
                     onChange={(v) => onFieldChange(f, v)}
+                    onBlur={() => onFieldBlur(f)}
+                    error={fieldErrors[f.key]}
                   />
                   {f.key === MARITAL_STATUS_KEY && spousePrompt ? (
                     <SpouseNamePrompt
@@ -672,7 +774,7 @@ export function EditFlow({
           type="button"
           size="lg"
           className="mt-4 h-12 w-full bg-submit-green-600 text-base text-white hover:bg-submit-green-700 active:bg-submit-green-700 md:h-12"
-          onClick={onSubmit}
+          onClick={handleSubmit}
           disabled={submitting}
         >
           {submitting ? "Submitting…" : "Submit my updates"}
@@ -1095,10 +1197,16 @@ function FieldControl({
   field,
   value: storedValue,
   onChange,
+  onBlur,
+  error,
 }: {
   field: EditField;
   value: string;
   onChange: (v: string) => void;
+  /** Fires when a validated control loses focus — see `validateSurveyField`. */
+  onBlur?: () => void;
+  /** Inline message from `validateSurveyField`, owned by `EditFlow`. */
+  error?: string;
 }) {
   // A placeholder non-answer ("Unknown") renders as an untouched, empty control
   // — so it is never offered back as a choice — while staying in the DB (#572).
@@ -1106,6 +1214,7 @@ function FieldControl({
   const controlId = `survey-${field.key}`;
   const labelId = `${controlId}-label`;
   const helpId = field.helpText ? `${controlId}-help` : undefined;
+  const errorId = error ? `${controlId}-error` : undefined;
 
   // A designation is one tick, so its label belongs ON the box rather than as a
   // heading above it — "CFA" over an unlabelled checkbox reads as a question
@@ -1156,6 +1265,27 @@ function FieldControl({
             aria-describedby={helpId}
             placeholder={field.placeholder ?? "Add a value"}
             onChange={(e) => onChange(e.target.value)}
+          />
+        ) : field.kind === "linkedin" ? (
+          // The same text box, plus the rule. `type="url"` (not `text`) gets
+          // phones a keyboard with "/" and ".com" on it, which is most of why a
+          // typed URL comes out malformed in the first place. Validated on BLUR
+          // rather than per keystroke — an error appearing on the "h" of
+          // "https" reads as the form arguing with someone who is typing fine.
+          <Input
+            id={controlId}
+            type="url"
+            inputMode="url"
+            value={value}
+            required={field.required}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={errorId ?? helpId}
+            placeholder="https://www.linkedin.com/in/you"
+            onChange={(e) => onChange(e.target.value)}
+            onBlur={onBlur}
+            className={
+              error ? "border-danger-600 focus-visible:ring-danger-600" : undefined
+            }
           />
         ) : field.kind === "date" ? (
           <Input
@@ -1250,6 +1380,11 @@ function FieldControl({
           </>
         )}
       </div>
+      {error ? (
+        <p id={errorId} className="mt-1 text-xs text-danger-600">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
