@@ -6,16 +6,17 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { MultiSelect } from "@/components/alumni/MultiSelect";
-import { facetOptions } from "@/lib/alumniFilterParams";
+import { facetOptions, type AlumniFilterState } from "@/lib/alumniFilterParams";
 import type { FilterOptions } from "@/types/filters";
 
 /**
  * Dashboard search workspace — the left column's primary tool. Two tabs under
  * the page heading:
- *   1. Quick search  — identity fields (first / last / preferred / Net ID) +
- *      grad-year range, deep-linking into the alumni list.
+ *   1. Quick search  — identity fields (first / last / preferred / Net ID),
+ *      grad-year range and gender, deep-linking into the alumni list.
  *   2. Advanced search — the same identity fields plus the full facet set
  *      (employment, industry, location, engagement, …).
  *
@@ -230,10 +231,57 @@ function GradYearRange({
   );
 }
 
+/**
+ * Gender, borrowed wholesale from the alumni-list filter model — this is the
+ * SAME `gender` param the list's Filters slide-over already sets, not a second
+ * one (`AlumniFilterState["gender"]`, "" | "M" | "F").
+ */
+type Gender = AlumniFilterState["gender"];
+
+/**
+ * Quick-search gender picker (#644 / api#360). Amy's ask was placement, not a
+ * feature: `gender=F` already narrowed GET /alumni, already round-tripped
+ * through the URL, and already had a control in the list's Filters panel — it
+ * just wasn't reachable from the dashboard, which is where staff start.
+ *
+ * Two options only. The column stores a single letter and the backend matches
+ * on the first letter of the stored value ('Male'/'M' both match), so M/F is
+ * the whole vocabulary; anything wider is a data question, not a UI one. The
+ * wording ("All" / "Female (F)" / "Male (M)") is copied verbatim from
+ * `AlumniFilters` so the two controls read as the same filter in two places.
+ */
+function GenderPicker({
+  value,
+  onChange,
+}: {
+  value: Gender;
+  onChange: (next: Gender) => void;
+}) {
+  return (
+    // Sized to its longest option rather than stretched: it shares a wrapping
+    // row with the fixed-width grad-year inputs, and a fluid select would make
+    // that row's break point depend on nothing in particular.
+    <div className="w-40">
+      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+        Gender
+      </p>
+      <Select
+        value={value}
+        onChange={(e) => onChange(e.target.value as Gender)}
+        aria-label="Filter by gender"
+      >
+        <option value="">All</option>
+        <option value="F">Female (F)</option>
+        <option value="M">Male (M)</option>
+      </Select>
+    </div>
+  );
+}
+
 /** "Friends of the program" toggle. When checked, the Quick search targets the
  *  Friends roster (/friends — is_alumni=false via the backend `kind=friend`
  *  param) instead of Alumni. This mirrors how the rest of the app scopes to
- *  friends: by route, carrying the same identity + grad-year query params. */
+ *  friends: by route, carrying the same identity / grad-year / gender params. */
 function FriendsToggle({
   checked,
   onChange,
@@ -254,6 +302,54 @@ function FriendsToggle({
   );
 }
 
+/* ------------------------------------------------------- query building ---- */
+/* Both tabs build their /alumni querystring from these, so a field can't mean
+   one thing in Quick and another in Advanced. Blank values are never written —
+   an empty param would narrow the list to nothing. */
+
+function identityParams(p: URLSearchParams, id: Identity) {
+  for (const f of IDENTITY_FIELDS) {
+    const v = id[f.key].trim();
+    if (v) p.set(f.key, v);
+  }
+}
+
+function yearParams(p: URLSearchParams, y: { ymin: string; ymax: string }) {
+  if (y.ymin.trim()) p.set("ymin", y.ymin.trim());
+  if (y.ymax.trim()) p.set("ymax", y.ymax.trim());
+}
+
+/** `gender=M|F`. "" means "all", which is the ABSENCE of the param — writing
+ *  `gender=` would hand the roster an empty predicate rather than no predicate. */
+function genderParam(p: URLSearchParams, gender: Gender) {
+  if (gender) p.set("gender", gender);
+}
+
+/**
+ * The destination a Quick search navigates to. Exported so the suite can assert
+ * the emitted URL directly rather than inferring it from the source.
+ *
+ * Both routes render the same roster (`AlumniRoster`) off the same parser, so
+ * every param here means the same thing on either — `friends` only picks which
+ * population (`kind=alumni` vs `kind=friend`) the roster asks the API for.
+ */
+export function quickSearchHref(
+  id: Identity,
+  year: { ymin: string; ymax: string },
+  gender: Gender,
+  friends: boolean,
+): string {
+  const p = new URLSearchParams();
+  identityParams(p, id);
+  yearParams(p, year);
+  genderParam(p, gender);
+  // Same params, but route to the Friends roster when the toggle is on (both
+  // routes read these params identically).
+  const base = friends ? "/friends" : "/alumni";
+  const qs = p.toString();
+  return qs ? `${base}?${qs}` : base;
+}
+
 export function DashboardSearch({ options }: { options: FilterOptions }) {
   const router = useRouter();
 
@@ -261,6 +357,8 @@ export function DashboardSearch({ options }: { options: FilterOptions }) {
   const [quick, setQuick] = useState<Identity>(EMPTY_IDENTITY);
   const [quickYear, setQuickYear] = useState({ ymin: "", ymax: "" });
   const [quickYearError, setQuickYearError] = useState<string | null>(null);
+  // "" = all; the two letters are the whole stored vocabulary (see GenderPicker).
+  const [quickGender, setQuickGender] = useState<Gender>("");
   // When true, Quick search targets the Friends roster (/friends) instead of
   // Alumni — same params, different route (the app scopes friends by route).
   const [quickFriends, setQuickFriends] = useState(false);
@@ -272,36 +370,19 @@ export function DashboardSearch({ options }: { options: FilterOptions }) {
   const [facets, setFacets] = useState<Record<string, string[]>>({});
   const [flags, setFlags] = useState<Record<string, boolean>>({});
 
-  function identityParams(p: URLSearchParams, id: Identity) {
-    for (const f of IDENTITY_FIELDS) {
-      const v = id[f.key].trim();
-      if (v) p.set(f.key, v);
-    }
-  }
-
-  function yearParams(p: URLSearchParams, y: { ymin: string; ymax: string }) {
-    if (y.ymin.trim()) p.set("ymin", y.ymin.trim());
-    if (y.ymax.trim()) p.set("ymax", y.ymax.trim());
-  }
-
   function runQuick() {
     // Block an inverted grad-year range before navigating (it would return
     // nothing) and surface a clear inline message instead (L5).
     const err = gradRangeError(quickYear);
     setQuickYearError(err);
     if (err) return;
-    const p = new URLSearchParams();
-    identityParams(p, quick);
-    yearParams(p, quickYear);
-    // Same identity + grad-year params, but route to the Friends roster when the
-    // toggle is on (both routes read these params identically).
-    const base = quickFriends ? "/friends" : "/alumni";
-    router.push(p.toString() ? `${base}?${p.toString()}` : base);
+    router.push(quickSearchHref(quick, quickYear, quickGender, quickFriends));
   }
   function resetQuick() {
     setQuick(EMPTY_IDENTITY);
     setQuickYear({ ymin: "", ymax: "" });
     setQuickYearError(null);
+    setQuickGender("");
     setQuickFriends(false);
   }
 
@@ -341,22 +422,40 @@ export function DashboardSearch({ options }: { options: FilterOptions }) {
           value="quick"
           className="flex flex-col space-y-4 lg:min-h-0 lg:flex-1"
         >
-          <IdentityGrid value={quick} onChange={setQuick} />
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <GradYearRange
-              ymin={quickYear.ymin}
-              ymax={quickYear.ymax}
-              onChange={(next) => {
-                setQuickYear(next);
-                if (quickYearError) setQuickYearError(null);
-              }}
-              error={quickYearError}
-            />
-            <FriendsToggle checked={quickFriends} onChange={setQuickFriends} />
+          {/* The fields take the space the deleted quick-filter tiles used to
+              occupy (#594) and STRETCH into what's left, so Search/Reset lands
+              on the bottom edge of the card the way the Advanced tab's action
+              bar already does — the two tabs now end at the same line instead of
+              Quick bottoming out short of the right column. Desktop-only, like
+              the tiles were: below lg the fields just flow. `flex-1` alone (no
+              min-h-0) so the block can grow but never shrink under its content —
+              Quick must stay scroll-free at desktop height. */}
+          <div className="space-y-4 lg:flex-1">
+            <IdentityGrid value={quick} onChange={setQuick} />
+            {/* The narrowers, sharing one baseline-aligned row: they answer
+                "which of these people", where the grid above answers "who". Not
+                the 2-up GRID the identity fields use — the year inputs are a
+                fixed 224px pair, and a half-width grid cell is only ~150px in
+                this column at 1024px wide, so they'd overflow it. flex-wrap
+                lets the row reflow instead. */}
+            <div className="flex flex-wrap items-end gap-4">
+              <GradYearRange
+                ymin={quickYear.ymin}
+                ymax={quickYear.ymax}
+                onChange={(next) => {
+                  setQuickYear(next);
+                  if (quickYearError) setQuickYearError(null);
+                }}
+                error={quickYearError}
+              />
+              <GenderPicker value={quickGender} onChange={setQuickGender} />
+              <FriendsToggle checked={quickFriends} onChange={setQuickFriends} />
+            </div>
           </div>
           {/* Compact action buttons on mobile (h-9) to match the slim search
-              bar; desktop keeps its default h-9 too, so it's unchanged. */}
-          <div className="flex gap-2 pt-1">
+              bar; desktop keeps its default h-9 too, so it's unchanged. Same
+              divider + spacing as the Advanced tab's bar. */}
+          <div className="flex gap-2 border-t border-gray-100 pt-3">
             <Button type="button" onClick={runQuick} className="h-9">
               Search
             </Button>

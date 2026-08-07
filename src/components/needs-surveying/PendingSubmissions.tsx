@@ -13,6 +13,16 @@ import type { components } from "@/types/api.gen";
 type ResponseItem = components["schemas"]["SurveyResponseItem"];
 
 /**
+ * What `POST /survey/responses/{id}/apply` returns (#646) — the generated type,
+ * so the CI drift guard covers it.
+ *
+ * `clientPost` is still typed as possibly-undefined at the call site: the
+ * endpoint was a bodyless 204 until this batch, and a backend that hasn't been
+ * redeployed yet still returns one. `reject` returns no body at all.
+ */
+type ApplyResult = components["schemas"]["SurveyApplyResult"];
+
+/**
  * Admin review queue for a graduation year: the alumni who submitted "confirm
  * your info" updates, each with a before/after diff. Apply writes the changes to
  * the record; reject discards them. Both hit the real backend and refresh the
@@ -43,12 +53,34 @@ export function PendingSubmissions({ gradYear }: { gradYear: number }) {
   const act = async (id: number, action: "apply" | "reject", name: string) => {
     setBusyId(id);
     try {
-      await clientPost(`/survey/responses/${id}/${action}`);
-      toast.success(
-        action === "apply"
-          ? `Applied ${name}'s updates.`
-          : `Rejected ${name}'s submission.`,
+      const result = await clientPost<ApplyResult | undefined>(
+        `/survey/responses/${id}/${action}`,
       );
+      // A survey response can RENAME an alumnus, and a rename can land on top of
+      // a live record (#627/#646). The backend applies it either way — two alumni
+      // genuinely can share a name and a year — and reports the collision here.
+      // This is the one thing the reviewer could not have known before clicking,
+      // so it must not be swallowed. `reject` never returns warnings.
+      //
+      // Shown as `info`, not `error`: the apply SUCCEEDED. There is no warning
+      // variant, and dressing a completed write in the red error surface would
+      // read as "your change failed", which is the opposite of what happened.
+      // Caveat: every toast auto-dismisses after 4.5s, so a reviewer who looks
+      // away misses this. The durable record is the audit row.
+      const warnings = result?.duplicate_warnings ?? [];
+      if (action === "apply" && warnings.length > 0) {
+        toast.info(
+          `Applied ${name}'s updates, but the new name may duplicate an existing record: ${warnings
+            .map((w) => w.message)
+            .join(" ")}`,
+        );
+      } else {
+        toast.success(
+          action === "apply"
+            ? `Applied ${name}'s updates.`
+            : `Rejected ${name}'s submission.`,
+        );
+      }
       setItems((prev) =>
         prev ? prev.filter((r) => r.survey_response_id !== id) : prev,
       );

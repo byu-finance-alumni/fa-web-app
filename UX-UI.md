@@ -91,6 +91,40 @@ Derived directly from the brand logos:
 | `danger-50`   | `#FEF3F2` | Danger background tint |
 | `info-600`    | `#2E4A86` | Informational (reuse `blue-600`) |
 
+### Approved palette exceptions
+
+The palette above is otherwise strictly enforced — a colour that isn't a token is a bug. This
+section is the **complete** list of sanctioned departures. Anything green, purple, teal or otherwise
+off-brand that is **not listed here** is still a defect; do not treat this section as permission to
+add more. New exceptions need the same thing this one had: a named approver and a stated reason.
+
+| Token | Hex | Scope | Approved by | Why |
+| --- | --- | --- | --- | --- |
+| `submit-green-600` | `#15803D` | The alumni survey's **"Submit my updates"** button only (`src/components/survey/survey-screens.tsx`) | Jake, 2026-08-06 (#648) | Completion rate, not aesthetics — see below |
+| `submit-green-700` | `#126B33` | Hover/active state of the above | ″ | ″ |
+
+**Why this one exists.** The survey's submit button was navy `navy-800`, the same weight as every
+other control on the screen and sitting in a row next to "Back". Alumni were filling the form in and
+not finding it. That failure is invisible to us — a response that was written and never submitted
+looks identical to a link that was never opened — and it wastes the one minute of attention a year we
+get from that person. So the button is treated as a completion-rate problem and gets every lever:
+full width at all breakpoints, taller than the standard control height, isolated in its own block
+behind a rule with nothing beside it, and a colour that is not used anywhere else in the product.
+
+**This is the first non-brand action colour in the app. It is deliberately single-purpose.** It is
+*not* a general "positive action" green and there is no `green` Button variant — the exception is
+applied as a `className` override on that one button precisely so it can't spread. If you find
+yourself wanting `submit-green` on a second control, the answer is almost certainly `brand-blue-600`.
+
+`success-600` is the same hex and is **not** interchangeable with it: that one is the semantic
+success/verified colour (badges, toasts, checkmarks), this one is an action surface. They are
+separate tokens so either can move without dragging the other along.
+
+**Contrast.** White text on `submit-green-600` is 5.0:1 and on `submit-green-700` is 6.6:1 — both
+clear the WCAG AA 4.5:1 bar in the Accessibility section. Note the hover goes *darker*, the opposite
+of the `brand-blue-600 → 500` convention: a lighter green drops white text below AA, and a hover
+state that fails contrast is still a contrast failure. Don't "fix" the inconsistency.
+
 ### Data-viz palette (charts, map clusters, tags)
 
 Sequential blues for cohort/employer/industry charts; keep categorical hues distinct but on-brand:
@@ -138,7 +172,8 @@ JSX**.
   headers, and server-side pagination over spacious marketing layouts.
 - **Cards/surfaces:** white on `gray-100`, `gray-300` 1px borders, subtle shadow, ~8px radius.
 - **Primary action** = `blue-600` solid; **secondary** = white with `gray-300` border; **destructive**
-  = `danger-600`. One primary action per view.
+  = `danger-600`. One primary action per view. The one sanctioned departure is the alumni survey's
+  submit button — see **Approved palette exceptions** in the Color system.
 - **Role-aware UI:** render a **View-Only** variant of every screen — for faculty, edit/create/
   import/export/merge/upload controls are hidden (not just disabled). Authorization is always
   enforced server-side; the UI only reflects it.
