@@ -7,6 +7,10 @@
  * pick the next. That is fine for running a campaign and useless for answering
  * "how is it going", which needs all of them side by side.
  *
+ * Lives in its own "Progress" tab. It is the one panel in the console that is
+ * NOT about the selected year — the overview you read before deciding which
+ * year to go and work on.
+ *
  * Reads the same `GET /survey/schedules` payload the console already fetches —
  * no second endpoint, so this table and the per-year view cannot disagree about
  * a number. Every count is scoped to the year's CURRENT campaign, so a year on
@@ -32,7 +36,7 @@ export function CampaignProgressTable({
 }) {
   if (schedules === null) {
     return (
-      <Card className="mt-4 p-5">
+      <Card className="p-5">
         <p className="text-sm text-gray-500">Loading campaign progress…</p>
       </Card>
     );
@@ -44,7 +48,7 @@ export function CampaignProgressTable({
     // missing feature. The whole point of this table is to answer a question,
     // so it has to answer it even when the answer is "nothing has started".
     return (
-      <Card className="mt-4 p-5">
+      <Card className="p-5">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
           Campaign progress
         </h2>
@@ -60,7 +64,7 @@ export function CampaignProgressTable({
   const totals = totalProgress(rows);
 
   return (
-    <Card className="mt-4 p-5">
+    <Card className="p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
           Campaign progress

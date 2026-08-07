@@ -636,11 +636,6 @@ export function SurveyCampaignConsole() {
         </div>
       </Card>
 
-      {/* ── Every year's campaign at once (#543). Sits above the year picker
-          because "how is it going overall" comes before "let me work on one
-          year". Reads the schedules already fetched below — no second call. ── */}
-      <CampaignProgressTable schedules={schedules} />
-
       {/* ── Graduation-year picker — pinned above the tabs; the selected year
           drives both tabs. Also carries the load/empty/select states. ── */}
       <Card className="mt-4 p-5">
@@ -732,6 +727,7 @@ export function SurveyCampaignConsole() {
           <TabsList className="w-full overflow-x-auto overflow-y-hidden">
             <TabsTrigger value="schedule">Schedule &amp; send</TabsTrigger>
             <TabsTrigger value="submissions">Submissions</TabsTrigger>
+            <TabsTrigger value="progress">Progress</TabsTrigger>
           </TabsList>
 
           {/* ── Tab 1: a SINGLE box — the year's overview + status badge with
@@ -964,6 +960,14 @@ export function SurveyCampaignConsole() {
               Keeps its own "N to review" badge inside the panel. ── */}
           <TabsContent value="submissions">
             <PendingSubmissions gradYear={selected.graduation_year} />
+          </TabsContent>
+
+          {/* ── Tab 3: every graduation year at once (#543). The ONE panel here
+              that is not about the selected year — it is the overview you check
+              before deciding which year to work on. Reads the schedules already
+              fetched for the picker, so opening this tab costs no request. ── */}
+          <TabsContent value="progress">
+            <CampaignProgressTable schedules={schedules} />
           </TabsContent>
         </Tabs>
       ) : null}
