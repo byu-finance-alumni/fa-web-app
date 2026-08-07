@@ -542,7 +542,17 @@ export function SurveyCampaignConsole() {
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("survey:schedules-changed"));
       }
-      toast.success(`Cancelled the schedule for graduation year ${selectedYear}.`);
+      // This used to report "cancelled" and nothing else (#659), which reads as
+      // "the campaign is gone, I can start over" — it almost is, and the gap is
+      // where it bit: cancel does not release anyone who ALREADY ANSWERED, so a
+      // re-send to the cohort silently skips them. The engineer console's cancel
+      // confirm says the same thing before the click; this button has no confirm,
+      // so the toast is the only place it can be said here.
+      toast.success(
+        `Cancelled the schedule for graduation year ${selectedYear}. Nothing ` +
+          `more will send, and anyone who already answered stays out of the ` +
+          `next survey for a year.`,
+      );
     } catch (err) {
       const msg =
         err instanceof ApiClientError && err.message
