@@ -22,6 +22,7 @@ import {
   withValue,
 } from "@/hooks/useVocabOptions";
 import { regionForState, regionForTypedState } from "@/lib/geo/state-field";
+import { validateLinkedinUrl } from "@/lib/urlSafety";
 
 export type EmploymentDefaults = {
   employment_status: string;
@@ -48,7 +49,34 @@ export function EmploymentSectionForm({
     updateEmploymentSection.bind(null, id),
     null,
   );
-  const errors = state?.fieldErrors ?? {};
+  // Inline LinkedIn validation (api #418), on the SAME `validateLinkedinUrl`
+  // "Add alumni" uses — edit must never be laxer than create, and this section
+  // owns the only other staff-facing input for the column. Arranged exactly like
+  // the name rules in `PersonalSectionForm`: a client-error map merged over the
+  // server's 422 field errors, checked on blur and again pre-submit.
+  //
+  // This is FEEDBACK, not the guard. The backend re-validates on write, and the
+  // render sites scheme-check whatever is already stored — see `@/lib/urlSafety`.
+  const [clientErrors, setClientErrors] = useState<Record<string, string>>({});
+  const errors = { ...(state?.fieldErrors ?? {}), ...clientErrors };
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    const raw = new FormData(e.currentTarget).get("linkedin_url");
+    const msg = validateLinkedinUrl(typeof raw === "string" ? raw : "");
+    setClientErrors(msg ? { linkedin_url: msg } : {});
+    if (!msg) return;
+    // preventDefault stops React from invoking the server action.
+    e.preventDefault();
+    const el = e.currentTarget.elements.namedItem("linkedin_url");
+    if (el instanceof HTMLElement) el.focus();
+  };
+  // Clear the inline error as soon as the value becomes valid on blur.
+  const handleLinkedinBlur = (_name: string, value: string) => {
+    const msg = validateLinkedinUrl(value);
+    setClientErrors((prev) => {
+      if (prev.linkedin_url === msg || (!prev.linkedin_url && !msg)) return prev;
+      return msg ? { linkedin_url: msg } : {};
+    });
+  };
   // Same editable-vocabulary Industry dropdown the full AlumniForm uses, on the
   // `scope=primary` list #452 introduced — it hides the four secondary-only
   // industries. The secondary field fetches the full list for itself (see
@@ -157,6 +185,7 @@ export function EmploymentSectionForm({
       error={state?.error}
       cancelHref={`/alumni/${id}`}
       pickerHref={`/alumni/${id}/edit`}
+      onSubmit={handleSubmit}
     >
       {/* The full eight-option staff list (#568/#377) — the survey shows one
           fewer, withholding "Unknown". A record holding a legacy free-text
@@ -284,6 +313,8 @@ export function EmploymentSectionForm({
         name="linkedin_url"
         defaultValue={defaults.linkedin_url}
         error={errors.linkedin_url}
+        onBlur={handleLinkedinBlur}
+        hint="Full URL, e.g. https://www.linkedin.com/in/you"
       />
     </FocusedEditForm>
   );

@@ -58,6 +58,13 @@ function result(over: Record<string, unknown> = {}) {
     stage_complete: false,
     campaign_created: false,
     breakdown: null,
+    // Added by the send-cap fix (api #417): a send is now clamped to the
+    // remaining daily/monthly budget, and the result says whether that clamp
+    // is what limited it. `null` here means "no cap configured", which is the
+    // right default for these cases — they are about WHO was eligible, not
+    // about the budget.
+    budget_remaining: null,
+    budget_limited: false,
     ...over,
   } as Parameters<typeof zeroSendReason>[0];
 }
