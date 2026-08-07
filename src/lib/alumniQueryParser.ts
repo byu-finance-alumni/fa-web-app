@@ -134,6 +134,35 @@ function cleanPlace(s: string): string {
 }
 
 /**
+ * Trim a captured METRO phrase ("… area") down to the place itself (#588).
+ *
+ * The mirror image of `cleanPlace`, and it has to be. In "near Provo that work
+ * in tech" the place is what FOLLOWS the keyword, so the junk is a trailing
+ * clause. In "alumni in the Bay Area" the place is what PRECEDES "area", so the
+ * junk is the lead-in — and running `cleanPlace` over it cut the string at
+ * " in " and kept the LEFT side, leaving "alumni". That failed the caller's
+ * `NOT_A_CITY` guard, the whole geocoder handoff was abandoned, and the plain
+ * city matcher then filtered on a literal city named "Bay Area" that no
+ * alumnus has. A search that reads perfectly and returns an empty page.
+ *
+ * Bare "Bay Area" and "Greater Seattle area" always worked; only the
+ * prepositional form broke. "greater" is part of the name, not filler, so it is
+ * deliberately not in `NOT_A_CITY` and survives.
+ */
+function cleanMetro(phrase: string): string {
+  const words = phrase.trim().split(/\s+/);
+  // Never strip the whole phrase: stop while a place still remains.
+  while (words.length > 1 && NOT_A_CITY.has(words[0].toLowerCase())) {
+    words.shift();
+  }
+  // Cap the same way `cleanCity` does — a metro name is "Bay Area" or "Greater
+  // Salt Lake area", never six words. Keep the END, which is where the name is.
+  return (words.length > 4 ? words.slice(-4) : words)
+    .join(" ")
+    .replace(/^[\s,.;]+|[\s,.;]+$/g, "");
+}
+
+/**
  * Reduce a captured phrase to a bare city name, or null when what's left isn't
  * one (#585).
  *
@@ -217,9 +246,10 @@ function detectLocation(text: string): { near: string; radius?: string } | null 
   m = text.match(/\b(?:near|nearby|around|close to|closest to)\s+(.+)/i);
   if (m) return { near: cleanPlace(m[1]) };
 
-  // Metro nicknames: "Bay Area", "Greater Seattle area", "greater NYC area".
+  // Metro nicknames: "Bay Area", "Greater Seattle area", "greater NYC area",
+  // and the prepositional form "alumni in the Bay Area" (#588).
   m = text.match(/\b((?:greater\s+)?[a-z][a-z .'-]*?\s+area)\b/i);
-  if (m) return { near: cleanPlace(m[1]) };
+  if (m) return { near: cleanMetro(m[1]) };
 
   return null;
 }

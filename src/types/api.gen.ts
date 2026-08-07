@@ -404,7 +404,12 @@ export interface paths {
         /** List Alumni */
         get: operations["list_alumni_alumni_get"];
         put?: never;
-        /** Create Alumni */
+        /**
+         * Create Alumni
+         * @description Create an alumnus. Returns the saved record plus any soft duplicate
+         *     warnings (``duplicate_warnings``) the write raised — see #627. Exact
+         *     ``byu_id`` / ``net_id`` collisions still 409 instead.
+         */
         post: operations["create_alumni_alumni_post"];
         delete?: never;
         options?: never;
@@ -870,7 +875,14 @@ export interface paths {
         delete: operations["archive_alumni_alumni__alumni_id__delete"];
         options?: never;
         head?: never;
-        /** Update Alumni */
+        /**
+         * Update Alumni
+         * @description Update an alumnus. Returns the saved record plus any soft duplicate
+         *     warnings (``duplicate_warnings``) — the rename case in #627: the checks run
+         *     against the stored row with this patch overlaid, so a partial edit that only
+         *     sends the name fields is still measured against the record's real graduation
+         *     year. Warnings never block; exact ID collisions still 409.
+         */
         patch: operations["update_alumni_alumni__alumni_id__patch"];
         trace?: never;
     };
@@ -1547,74 +1559,6 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
-        trace?: never;
-    };
-    "/dashboard/presets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Dashboard Presets
-         * @description The quick-filter presets to show on the dashboard (ordered).
-         */
-        get: operations["list_dashboard_presets_dashboard_presets_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin/dashboard-presets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Dashboard Presets Admin
-         * @description Same list, behind the admin gate, for the editor UI.
-         */
-        get: operations["list_dashboard_presets_admin_admin_dashboard_presets_get"];
-        put?: never;
-        /**
-         * Create Dashboard Preset
-         * @description Add a quick-filter preset (engineer / super_admin).
-         */
-        post: operations["create_dashboard_preset_admin_dashboard_presets_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin/dashboard-presets/{preset_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Delete Dashboard Preset
-         * @description Remove a quick-filter preset (engineer / super_admin). 404 if missing.
-         */
-        delete: operations["delete_dashboard_preset_admin_dashboard_presets__preset_id__delete"];
-        options?: never;
-        head?: never;
-        /**
-         * Update Dashboard Preset
-         * @description Edit a quick-filter preset (engineer / super_admin). 404 if missing.
-         */
-        patch: operations["update_dashboard_preset_admin_dashboard_presets__preset_id__patch"];
         trace?: never;
     };
     "/admin/users": {
@@ -4080,6 +4024,20 @@ export interface components {
             city: string[] | null;
             /** State */
             state: string[] | null;
+            /** Country */
+            country: string[] | null;
+            /** Region */
+            region: string[] | null;
+            /** Past Title */
+            past_title: string[] | null;
+            /** University */
+            university: string[] | null;
+            /** Degree */
+            degree: string[] | null;
+            /** Major */
+            major: string[] | null;
+            /** Worked In Year */
+            worked_in_year: number | null;
             /** Near */
             near: string | null;
             /** Radius */
@@ -4771,6 +4729,135 @@ export interface components {
             with_changes: number;
             /** Errors */
             errors: number;
+        };
+        /**
+         * AlumniWriteResult
+         * @description What POST /alumni and PATCH /alumni/{id} return: the saved record, plus
+         *     any soft duplicate warnings the write raised.
+         *
+         *     A superset of ``AlumniRead``, so every existing consumer of these two
+         *     responses keeps working unchanged.
+         *
+         *     This field exists because the warnings used to be computed on the write path
+         *     and then thrown away — only ``/preview`` surfaced them, and the focused edit
+         *     forms don't call preview, so renaming an alumnus into an exact name +
+         *     graduation-year collision saved silently (#627). Warn-and-continue rather
+         *     than block: a rename that genuinely collides is sometimes correct, and it
+         *     matches how the rest of this app treats soft warnings.
+         */
+        AlumniWriteResult: {
+            /** Alumni Id */
+            alumni_id: number;
+            /** Source Id */
+            source_id: number | null;
+            /** Byu Id */
+            byu_id: string | null;
+            /** Mst Id */
+            mst_id: string | null;
+            /** Net Id */
+            net_id: string | null;
+            /** First Name */
+            first_name: string | null;
+            /** Middle Name */
+            middle_name: string | null;
+            /** Last Name */
+            last_name: string | null;
+            /** Preferred First Name */
+            preferred_first_name: string | null;
+            /** Birth Name */
+            birth_name: string | null;
+            /** Gender */
+            gender: string | null;
+            /** Birth Year */
+            birth_year: number | null;
+            /** Birth Date */
+            birth_date: string | null;
+            /** Graduation Year */
+            graduation_year: number | null;
+            /** Graduation Semester */
+            graduation_semester: string | null;
+            /** Graduation Class */
+            graduation_class: number | null;
+            /** Finance Program Year */
+            finance_program_year: number | null;
+            /** Graduate Degree */
+            graduate_degree: string | null;
+            /** Graduate Graduation Year */
+            graduate_graduation_year: number | null;
+            /** Citizenship */
+            citizenship: string | null;
+            /** Marital Status */
+            marital_status: string | null;
+            /** Hometown */
+            hometown: string | null;
+            /** Home Country */
+            home_country: string | null;
+            /** Employment Status */
+            employment_status: string | null;
+            /** Other Designations */
+            other_designations: string | null;
+            /** Survey Completed Date */
+            survey_completed_date: string | null;
+            /** Profile Updated Date */
+            profile_updated_date: string | null;
+            /** Profile Updated By */
+            profile_updated_by: string | null;
+            /** Profile Updated By Name */
+            profile_updated_by_name: string | null;
+            /** Mba Program */
+            mba_program: string | null;
+            /** Law School */
+            law_school: string | null;
+            /** Medical School */
+            medical_school: string | null;
+            /** Graduate School */
+            graduate_school: string | null;
+            /** Startup Involvement */
+            startup_involvement: string | null;
+            /** Advisory Roles */
+            advisory_roles: string | null;
+            /** Secondary Employment */
+            secondary_employment: string | null;
+            /** Spouse First Name */
+            spouse_first_name: string | null;
+            /** Spouse Last Name */
+            spouse_last_name: string | null;
+            /** Spouse Birth Date */
+            spouse_birth_date: string | null;
+            /** Spouse Alumni Id */
+            spouse_alumni_id: number | null;
+            /** Deceased */
+            deceased: boolean;
+            /**
+             * Is Alumni
+             * @default true
+             */
+            is_alumni: boolean;
+            /** Linkedin Url */
+            linkedin_url: string | null;
+            /** Notes */
+            notes: string | null;
+            /** Archived */
+            archived: boolean;
+            /** Manually Edited At */
+            manually_edited_at: string | null;
+            /** Last Imported At */
+            last_imported_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Duplicate Warnings
+             * @default []
+             */
+            duplicate_warnings: components["schemas"]["DuplicateWarning"][];
         };
         /** AttachmentRead */
         AttachmentRead: {
@@ -5601,44 +5688,6 @@ export interface components {
             count: number;
         };
         /**
-         * DashboardPresetCreate
-         * @description Add a quick-filter preset (engineer / super_admin).
-         */
-        DashboardPresetCreate: {
-            /** Label */
-            label: string;
-            /** Href */
-            href: string;
-            /**
-             * Sort Order
-             * @default 0
-             */
-            sort_order: number;
-        };
-        /** DashboardPresetRead */
-        DashboardPresetRead: {
-            /** Dashboard Preset Id */
-            dashboard_preset_id: number;
-            /** Label */
-            label: string;
-            /** Href */
-            href: string;
-            /** Sort Order */
-            sort_order: number;
-        };
-        /**
-         * DashboardPresetUpdate
-         * @description Edit a quick-filter preset. Only fields present are applied.
-         */
-        DashboardPresetUpdate: {
-            /** Label */
-            label?: string | null;
-            /** Href */
-            href?: string | null;
-            /** Sort Order */
-            sort_order?: number | null;
-        };
-        /**
          * DashboardStateCount
          * @description One state bucket in the by-state distribution.
          */
@@ -5829,6 +5878,23 @@ export interface components {
             month?: number | null;
             /** Notes */
             notes?: string | null;
+        };
+        /**
+         * DuplicateWarning
+         * @description One soft duplicate warning raised by a create or update (#627).
+         *
+         *     ``code`` is ``possible_duplicate`` (same first + last name and graduation
+         *     year as a live record) or ``duplicate_archived`` (the BYU/Net ID matches an
+         *     archived record). Neither blocks the write — exact ID collisions are what
+         *     409, and two alumni genuinely can share a name and a year.
+         */
+        DuplicateWarning: {
+            /** Code */
+            code: string;
+            /** Message */
+            message: string;
+            /** Alumni Id */
+            alumni_id: number | null;
         };
         /** EducationRead */
         EducationRead: {
@@ -6300,6 +6366,18 @@ export interface components {
             cities: string[];
             /** States */
             states: string[];
+            /** Countries */
+            countries: string[];
+            /** Regions */
+            regions: string[];
+            /** Past Titles */
+            past_titles: string[];
+            /** Universities */
+            universities: string[];
+            /** Degrees */
+            degrees: string[];
+            /** Majors */
+            majors: string[];
             /** Tags */
             tags: string[];
             /** Status Labels */
@@ -7786,6 +7864,21 @@ export interface components {
              * @default 0
              */
             emails_sent_all_time: number;
+            /**
+             * Recipients
+             * @default 0
+             */
+            recipients: number;
+            /**
+             * Replied
+             * @default 0
+             */
+            replied: number;
+            /**
+             * Awaiting Review
+             * @default 0
+             */
+            awaiting_review: number;
         };
         /**
          * SurveySchedulePauseAllResult
@@ -8607,6 +8700,20 @@ export interface operations {
                 city?: string[] | null;
                 /** @description Current state(s) — repeatable, exact match. */
                 state?: string[] | null;
+                /** @description Current work country/countries — repeatable, exact match. */
+                country?: string[] | null;
+                /** @description US region(s) derived from the work state (#283) — repeatable, exact match. Same stored value the geography map shades by. */
+                region?: string[] | null;
+                /** @description Prior job title(s) from employment history — repeatable. */
+                past_title?: string[] | null;
+                /** @description University/universities from education history — repeatable. */
+                university?: string[] | null;
+                /** @description Degree(s) from education history — repeatable, exact match. Distinct from 'graduate_degree', which only asks whether the alumnus holds one at all. */
+                degree?: string[] | null;
+                /** @description Major(s) from education history — repeatable, exact match. */
+                major?: string[] | null;
+                /** @description Held any role covering this calendar year. A history row with no end year counts as still running. */
+                worked_in_year?: number | null;
                 /** @description Engagement tag(s) — repeatable, exact match. */
                 tag?: string[] | null;
                 /** @description Status label(s) — repeatable, exact match. */
@@ -8710,7 +8817,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AlumniRead"];
+                    "application/json": components["schemas"]["AlumniWriteResult"];
                 };
             };
             /** @description Validation Error */
@@ -9333,7 +9440,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AlumniRead"];
+                    "application/json": components["schemas"]["AlumniWriteResult"];
                 };
             };
             /** @description Validation Error */
@@ -10312,145 +10419,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FollowUpRow"][];
-                };
-            };
-        };
-    };
-    list_dashboard_presets_dashboard_presets_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DashboardPresetRead"][];
-                };
-            };
-        };
-    };
-    list_dashboard_presets_admin_admin_dashboard_presets_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DashboardPresetRead"][];
-                };
-            };
-        };
-    };
-    create_dashboard_preset_admin_dashboard_presets_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DashboardPresetCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DashboardPresetRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_dashboard_preset_admin_dashboard_presets__preset_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                preset_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DashboardPresetRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_dashboard_preset_admin_dashboard_presets__preset_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                preset_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DashboardPresetUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DashboardPresetRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

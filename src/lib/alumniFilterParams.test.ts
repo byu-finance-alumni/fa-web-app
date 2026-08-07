@@ -77,6 +77,13 @@ const MAXIMAL: AlumniFilterState = {
   ymax: "2015",
   employmentStatus: ["Employed", "Self-Employed"],
   pastEmployer: ["Goldman Sachs"],
+  country: ["Canada", "United States"],
+  region: ["Mountain West"],
+  pastTitle: ["Analyst"],
+  university: ["Brigham Young University"],
+  degree: ["MBA"],
+  major: ["Accounting"],
+  workedInYear: "2008",
   industry: ["Investment Banking"],
   secondaryIndustry: ["Private Equity", "Venture Capital"],
   title: ["Analyst"],
@@ -407,6 +414,12 @@ describe("the Employment status facet offers a fixed list, not the data", () => 
     employment_statuses: ["Full-time", "Employed"],
     cities: ["Provo"],
     states: ["Utah"],
+    countries: ["United States"],
+    regions: ["Mountain West"],
+    past_titles: [],
+    universities: [],
+    degrees: [],
+    majors: [],
     tags: ["Mentor"],
     status_labels: ["Retired"],
     leadership_roles: [],
@@ -573,6 +586,13 @@ function exportBodyAsParams(e: AlumniExportFilters): URLSearchParams {
   multi("employment_status", e.employment_status);
   multi("city", e.city);
   multi("state", e.state);
+  multi("country", e.country);
+  multi("region", e.region);
+  multi("past_title", e.past_title);
+  multi("university", e.university);
+  multi("degree", e.degree);
+  multi("major", e.major);
+  text("worked_in_year", e.worked_in_year);
   multi("tag", e.tag);
   multi("status_label", e.status_label);
   multi("leadership_role", e.leadership_role);
