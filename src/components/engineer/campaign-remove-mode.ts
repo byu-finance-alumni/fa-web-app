@@ -25,6 +25,11 @@
  * `campaignRemoveConfirm` below.
  */
 
+import {
+  resetContactPhrase,
+  type ResetContact,
+} from "@/lib/survey-reset-contact";
+
 /**
  * The statuses a cancel would actually stop — the two the daily send cron acts
  * on, plus the reversible `paused`. Mirrors the backend's `_RUNNABLE_STATUSES`.
@@ -57,6 +62,68 @@ export function campaignRemoveActions(status: string): CampaignRemoveActions {
  * one control that clears it — a guard in the test file pins the two together.
  */
 export const RESET_CONTROL_LABEL = "Reset one alum’s survey campaign";
+
+/**
+ * WHERE that control is, said from the seat of whoever is reading the confirm.
+ *
+ * The engineer Surveys page renders the reset card directly above the campaign
+ * table, so its confirms can say "on this page". The needs-surveying console's
+ * "Cancel schedule" confirm is a different screen with no reset on it, so "on
+ * this page" there would send someone hunting a card that isn't rendered — it
+ * names the page to go to instead. Both spellings live here, next to the copy
+ * that uses them, so the two confirms cannot drift into naming different places.
+ */
+export const RESET_CONTROL_HERE = "on this page";
+export const RESET_CONTROL_ON_ENGINEER_SURVEYS =
+  "on the engineer Surveys page";
+
+/**
+ * Where the reader is sent for the per-alumnus reset — WHICH DEPENDS ON WHO IS
+ * READING (#658).
+ *
+ * Naming the page was still a dead end for most people: `/engineer/*` is
+ * engineer-only and its layout bounces everyone else to the dashboard, so a
+ * full-access staffer following "use it on the engineer Surveys page" lands
+ * somewhere they cannot open, with no idea why. Only an engineer can reset an
+ * alumnus at all (the backend enforces `RequireEngineer` on the state/reset
+ * pair), so for anyone else the honest instruction is a person to ask, not a
+ * door to try.
+ *
+ * `contact` is null when no engineer support contact is configured; the sentence
+ * then falls back to the Finance Department by Jake's rule (2026-08-07).
+ */
+export type ResetPointer =
+  /** The reader can run the reset themselves; `at` says where the control is. */
+  | { canReset: true; at: string }
+  /** The reader cannot — name who to ask instead. */
+  | { canReset: false; contact: ResetContact | null };
+
+/** An engineer reading a confirm on the engineer Surveys page. */
+export const RESET_POINTER_HERE: ResetPointer = {
+  canReset: true,
+  at: RESET_CONTROL_HERE,
+};
+
+/** An engineer reading a confirm on the needs-surveying console. */
+export const RESET_POINTER_ENGINEER_SURVEYS: ResetPointer = {
+  canReset: true,
+  at: RESET_CONTROL_ON_ENGINEER_SURVEYS,
+};
+
+/**
+ * The closing sentence of both confirms' last paragraph: what to do about the
+ * alumni a reply is holding out. Split out so the two audiences get two
+ * genuinely different instructions from one place.
+ */
+export function resetPointerSentence(pointer: ResetPointer): string {
+  if (pointer.canReset) {
+    return `To clear it for one person, use “${RESET_CONTROL_LABEL}” ${pointer.at}.`;
+  }
+  return (
+    "Only an engineer can clear it for one person — contact " +
+    `${resetContactPhrase(pointer.contact)}.`
+  );
+}
 
 export type CampaignRemoveMode = "cancel" | "delete";
 
@@ -91,13 +158,31 @@ export type CampaignRemoveConfirm = {
  * is how the missing fact stays missing. Pulled out of the component so the
  * facts can be pinned by a test without a DOM, exactly like
  * `campaignRemoveActions` above.
+ *
+ * The cancel copy has a SECOND caller: "Cancel schedule" on the needs-surveying
+ * console, which used to cancel a live campaign in one click with no confirm at
+ * all (that is the button Jake actually pressed). It shows this same wording
+ * rather than a second, differently-worded dialog — one set of promises about
+ * what cancelling does, in one place, checked by one set of tests. Only
+ * `resetControlAt` differs, because the reset card is not on that screen.
  */
 export function campaignRemoveConfirm(
   mode: CampaignRemoveMode,
   {
     graduationYear,
     emailsSentAllTime,
-  }: { graduationYear: number; emailsSentAllTime: number },
+    resetPointer = RESET_POINTER_HERE,
+  }: {
+    graduationYear: number;
+    emailsSentAllTime: number;
+    /**
+     * Where to send the reader for the per-alumnus reset. Defaults to the
+     * engineer Surveys page's own phrasing, because that page is where these
+     * confirms started and only an engineer can open it; a caller on any other
+     * screen passes its own, including the "you can't, ask this person" variant.
+     */
+    resetPointer?: ResetPointer;
+  },
 ): CampaignRemoveConfirm {
   const emailCount = `${emailsSentAllTime} email${
     emailsSentAllTime === 1 ? "" : "s"
@@ -110,19 +195,20 @@ export function campaignRemoveConfirm(
         {
           text:
             "Sending stops now, reminders included, and the campaign stays " +
-            "listed here with its counts. A cancelled campaign never resumes — " +
+            "listed with its counts. A cancelled campaign never resumes — " +
             "running this cohort again means starting a new campaign for it.",
         },
         {
           text:
-            "The emails already sent and every answer alumni submitted are kept.",
+            "Nothing is deleted — the emails already sent and every answer " +
+            "alumni submitted are kept.",
           emphasis: true,
         },
         {
           text:
             "Alumni who have already answered stay out of the next survey for a " +
-            `year — cancelling doesn’t change that. To clear it for one person, ` +
-            `use “${RESET_CONTROL_LABEL}” on this page.`,
+            `year — cancelling doesn’t change that. ` +
+            resetPointerSentence(resetPointer),
         },
       ],
     };
@@ -147,8 +233,8 @@ export function campaignRemoveConfirm(
         text:
           `You can create a new campaign for the Class of ${graduationYear} ` +
           "afterwards, and it will reach the alumni this one emailed. Anyone " +
-          "who has answered in the last year still stays out; to clear that for " +
-          `one person, use “${RESET_CONTROL_LABEL}” on this page.`,
+          "who has answered in the last year still stays out. " +
+          resetPointerSentence(resetPointer),
       },
     ],
   };

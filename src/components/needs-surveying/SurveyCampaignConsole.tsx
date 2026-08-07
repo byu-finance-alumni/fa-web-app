@@ -42,6 +42,21 @@ import {
 } from "@/lib/api-client";
 import { PendingSubmissions } from "@/components/needs-surveying/PendingSubmissions";
 import { CampaignProgressTable } from "@/components/needs-surveying/CampaignProgressTable";
+import {
+  campaignRemoveConfirm,
+  RESET_POINTER_ENGINEER_SURVEYS,
+} from "@/components/engineer/campaign-remove-mode";
+import {
+  formatConsoleDate,
+  heldOutRequestPath,
+  heldOutTruncatedNote,
+  repliedLabel,
+} from "@/components/needs-surveying/held-out";
+import {
+  heldOutNamesRequireEngineer,
+  resetRequiresEngineerHint,
+} from "@/lib/survey-reset-contact";
+import type { ResetContact } from "@/lib/survey-reset-contact";
 import type { components } from "@/types/api.gen";
 
 /** Distinct graduation years present in the DB, straight off the OpenAPI. */
@@ -91,6 +106,18 @@ type SurveyRecipientBreakdown = {
   recipients: number;
   work_email_fallback: number;
 };
+
+/**
+ * One page of the held-out drill-down and one alumnus in it (#658), straight off
+ * the OpenAPI — the endpoint shipped before this screen did, so there is nothing
+ * to hand-type here.
+ */
+type SurveyHeldOutPage = components["schemas"]["SurveyHeldOutPage"];
+type SurveyHeldOutAlum = components["schemas"]["SurveyHeldOutAlum"];
+/** What is holding one alumnus out, read BEFORE offering a reset (#395). */
+type SurveyAlumniState = components["schemas"]["SurveyAlumniState"];
+/** What a reset actually did — and, as importantly, what it kept. */
+type SurveyResetResult = components["schemas"]["SurveyResetResult"];
 
 /** One alumnus the campaign cannot email, from `/campaigns/{year}/unreachable`. */
 type SurveyUnreachableAlum = {
@@ -183,17 +210,14 @@ function formatDate(iso: string): string {
   });
 }
 
-/** Format a full timestamp (e.g. `last_run_at`) as e.g. "Mar 3, 2026". */
+/**
+ * Format a full timestamp (e.g. `last_run_at`) as e.g. "Mar 3, 2026".
+ *
+ * The formatting itself lives in `held-out.ts` so the held-out list's reply
+ * dates come out identical to this stat's — see `repliedLabel`.
+ */
 function formatWhen(iso: string | null): string {
-  if (!iso) return "Never";
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? "Never"
-    : d.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
+  return formatConsoleDate(iso, "Never");
 }
 
 /**
@@ -249,7 +273,28 @@ export function zeroSendReason(result: SendResult): string {
   return `${parts.join("; ")}.`;
 }
 
-export function SurveyCampaignConsole() {
+export function SurveyCampaignConsole({
+  isEngineer = false,
+  engineerContact = null,
+}: {
+  /**
+   * Whether the signed-in user holds the `engineer` role, resolved server-side
+   * on the page from `GET /auth/context` (#658).
+   *
+   * Drives one thing only: whether the per-alumnus reset is offered. It is NOT
+   * a security control — the backend re-enforces `RequireEngineer` on both the
+   * held-out list and the state/reset pair — so it FAILS CLOSED. If the page
+   * could not read the user's roles it passes false, which costs a real
+   * engineer a button and shows them who to contact (themselves), rather than
+   * rendering a control that 403s on click.
+   */
+  isEngineer?: boolean;
+  /**
+   * The engineer's support-contact row, for everyone who can't reset. Null when
+   * none is configured, which the copy handles by naming the Finance Department.
+   */
+  engineerContact?: ResetContact | null;
+}) {
   const { toast } = useToast();
 
   // Real database graduation years (null while loading, [] when the DB has none).
@@ -286,6 +331,18 @@ export function SurveyCampaignConsole() {
     SurveyUnreachableAlum[] | null
   >(null);
 
+  // The already-replied drill-down (#658) — the same count with names and reply
+  // dates on it. Fetched lazily on expand, like the unreachable list.
+  const [repliedOpen, setRepliedOpen] = useState(false);
+  const [heldOut, setHeldOut] = useState<SurveyHeldOutAlum[] | null>(null);
+  const [heldOutTotal, setHeldOutTotal] = useState(0);
+  // The list endpoint is engineer-gated. A non-engineer is never offered the
+  // expander, so this is the belt-and-braces case: roles read wrong, or an
+  // engineer's role revoked mid-session. It shows the same "ask the engineer"
+  // message the count already carries instead of an error toast, because a 403
+  // here is the expected answer to the question, not a failure.
+  const [heldOutDenied, setHeldOutDenied] = useState(false);
+
   // "Edit caps" dialog — draft values, prefilled from sendConfig on open.
   const [capsOpen, setCapsOpen] = useState(false);
   const [savingCaps, setSavingCaps] = useState(false);
@@ -297,6 +354,11 @@ export function SurveyCampaignConsole() {
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduling, setScheduling] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  // The "Cancel schedule" confirm (#659). This button used to cancel a live
+  // campaign on a single click with nothing in between — which is how a real
+  // cohort's campaign got cancelled — so it now asks first, in the engineer
+  // console's words rather than a second set of its own.
+  const [cancelOpen, setCancelOpen] = useState(false);
 
   // Real send usage (today / this month). Refetched after each send so the
   // numbers reflect what actually went out.
@@ -319,6 +381,17 @@ export function SurveyCampaignConsole() {
       .catch(() => setSchedules([]));
   }, []);
 
+  /**
+   * The DB's graduation years with their per-class reply tallies. Also re-read
+   * after a per-alumnus reset, because the picker's "N replied" badge is exactly
+   * the figure a reset changes.
+   */
+  const loadYears = useCallback(() => {
+    return clientGet<GradYearCount[]>("/survey/graduation-years").then(
+      (data) => data ?? [],
+    );
+  }, []);
+
   // Account-wide send-cap config. Keeps the last-known config if the fetch fails.
   const loadConfig = useCallback(() => {
     clientGet<SurveySendConfig>("/survey/send-config")
@@ -337,10 +410,9 @@ export function SurveyCampaignConsole() {
     loadUsage();
     loadSchedules();
     loadConfig();
-    clientGet<GradYearCount[]>("/survey/graduation-years")
-      .then((data) => {
+    loadYears()
+      .then((list) => {
         if (cancelled) return;
-        const list = data ?? [];
         setYears(list);
         setSelectedYear((cur) =>
           cur !== null && list.some((y) => y.graduation_year === cur)
@@ -366,7 +438,7 @@ export function SurveyCampaignConsole() {
         );
       }
     };
-  }, [loadUsage, loadSchedules, loadConfig]);
+  }, [loadUsage, loadSchedules, loadConfig, loadYears]);
 
   const selected =
     years?.find((y) => y.graduation_year === selectedYear) ?? null;
@@ -389,6 +461,27 @@ export function SurveyCampaignConsole() {
   useEffect(() => {
     setScheduleDate(selectedStartDate);
   }, [selectedStartDate]);
+
+  // What the "Cancel schedule" confirm says (#659) — the engineer Surveys
+  // page's cancel wording, reused verbatim rather than reworded here, so the two
+  // buttons cannot end up promising different things about the same action. The
+  // one thing that differs is where the per-alumnus reset lives: it is on the
+  // engineer console, not this screen.
+  //
+  // ...and WHO can get there (#658). `/engineer/*` bounces everyone but the
+  // engineer, so naming that page to a full-access staffer sent them to a door
+  // that doesn't open. They are told who to ask instead; an engineer reading the
+  // same dialog still gets the page name.
+  const cancelConfirm =
+    selectedYear === null
+      ? null
+      : campaignRemoveConfirm("cancel", {
+          graduationYear: selectedYear,
+          emailsSentAllTime: selectedSchedule?.emails_sent_all_time ?? 0,
+          resetPointer: isEngineer
+            ? RESET_POINTER_ENGINEER_SURVEYS
+            : { canReset: false, contact: engineerContact },
+        });
 
   // Effective caps for display + math. Until the config loads, fall back to the
   // previous defaults; when the cap is disabled, the limits are effectively
@@ -429,11 +522,42 @@ export function SurveyCampaignConsole() {
       .catch(() => setBreakdown(null));
   }, []);
 
+  /**
+   * The already-replied names for the selected year (#658).
+   *
+   * `force` re-reads a list that is already on screen — after a reset, the alum
+   * who was just released has to leave it, or the panel still shows them held
+   * out by the very thing that was just cleared.
+   */
+  const loadHeldOut = useCallback(
+    (year: number | null, force = false) => {
+      if (year === null) return;
+      if (!force && heldOut !== null) return;
+      clientGet<SurveyHeldOutPage>(heldOutRequestPath(year))
+        .then((page) => {
+          setHeldOut(page?.items ?? []);
+          setHeldOutTotal(page?.total ?? 0);
+          setHeldOutDenied(false);
+        })
+        .catch((err) => {
+          // 403 is the endpoint answering correctly, not breaking — see
+          // `heldOutDenied` above.
+          setHeldOutDenied(err instanceof ApiClientError && err.status === 403);
+          setHeldOut([]);
+        });
+    },
+    [heldOut],
+  );
+
   useEffect(() => {
     // Clear first so a stale year's numbers can never be read as this year's.
     setBreakdown(null);
     setUnreachable(null);
     setUnreachableOpen(false);
+    setHeldOut(null);
+    setHeldOutTotal(0);
+    setHeldOutDenied(false);
+    setRepliedOpen(false);
     loadBreakdown(selectedYear);
   }, [selectedYear, loadBreakdown]);
 
@@ -448,6 +572,29 @@ export function SurveyCampaignConsole() {
         .then((list) => setUnreachable(list ?? []))
         .catch(() => setUnreachable([]));
     }
+  };
+
+  const toggleReplied = () => {
+    const opening = !repliedOpen;
+    setRepliedOpen(opening);
+    if (opening) loadHeldOut(selectedYear);
+  };
+
+  /**
+   * One alumnus was just released. Re-read both the list and the breakdown: the
+   * count above the list is the same number by construction (the backend derives
+   * both from the same predicates), so refreshing one without the other would
+   * put "2 already replied" over a list of one.
+   */
+  const onAlumnusReset = () => {
+    loadHeldOut(selectedYear, true);
+    loadBreakdown(selectedYear);
+    // The picker's "N replied" badge is the same fact one level up.
+    loadYears()
+      .then(setYears)
+      .catch(() => {
+        /* keep the last-known tallies; the panel below is the live figure */
+      });
   };
 
   const changeSelectedYear = (year: number) => {
@@ -542,12 +689,13 @@ export function SurveyCampaignConsole() {
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("survey:schedules-changed"));
       }
+      setCancelOpen(false);
       // This used to report "cancelled" and nothing else (#659), which reads as
       // "the campaign is gone, I can start over" — it almost is, and the gap is
       // where it bit: cancel does not release anyone who ALREADY ANSWERED, so a
-      // re-send to the cohort silently skips them. The engineer console's cancel
-      // confirm says the same thing before the click; this button has no confirm,
-      // so the toast is the only place it can be said here.
+      // re-send to the cohort silently skips them. The confirm above now says so
+      // before the click; the toast repeats it after, because that is the half
+      // someone reads once the deed is done and starts planning the re-send.
       toast.success(
         `Cancelled the schedule for graduation year ${selectedYear}. Nothing ` +
           `more will send, and anyone who already answered stays out of the ` +
@@ -820,7 +968,7 @@ export function SurveyCampaignConsole() {
                         type="button"
                         variant="secondary"
                         size="sm"
-                        onClick={cancelSchedule}
+                        onClick={() => setCancelOpen(true)}
                         disabled={cancelling}
                       >
                         <XCircle aria-hidden="true" />
@@ -936,6 +1084,86 @@ export function SurveyCampaignConsole() {
                 </div>
               ) : null}
 
+              {/* ── Already replied (#658) ────────────────────────────────
+                  The bucket that sent Jake hunting. He cancelled a campaign,
+                  went to re-send to the cohort, and read "1 already replied
+                  within the last year" — with no way to tell whether that 1 was
+                  the alumna he was trying to reach. He searched the class by
+                  hand in the engineer console until she turned up.
+
+                  Expanding names them, each with the DATE they replied, because
+                  that date is the decision: three weeks ago means leave them
+                  alone, eleven months ago is a judgement call. Only an engineer
+                  can do anything about it, so only an engineer is offered the
+                  list — everyone else gets the count and the person to ask,
+                  which is the true state of affairs rather than a button that
+                  403s.
+
+                  Text-only: no icons in new UI. */}
+              {breakdown && breakdown.already_responded > 0 ? (
+                <div className="mt-4 rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-navy-800">
+                      Already replied —{" "}
+                      <span className="tabular-nums">
+                        {breakdown.already_responded.toLocaleString()}
+                      </span>{" "}
+                      {breakdown.already_responded === 1
+                        ? "alumnus"
+                        : "alumni"}{" "}
+                      answered within the last year
+                    </p>
+                    {isEngineer ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={toggleReplied}
+                      >
+                        {repliedOpen ? "Hide list" : "Show who"}
+                      </Button>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    A reply holds someone out of the survey for 365 days,
+                    whatever happens to the campaign that asked — cancelling or
+                    deleting it does not release them.
+                  </p>
+                  {!isEngineer || heldOutDenied ? (
+                    <p className="mt-2 text-xs text-gray-500">
+                      {heldOutNamesRequireEngineer(engineerContact)}
+                    </p>
+                  ) : null}
+                  {isEngineer && repliedOpen && !heldOutDenied ? (
+                    heldOut === null ? (
+                      <p className="mt-3 text-xs text-gray-500">Loading…</p>
+                    ) : heldOut.length === 0 ? (
+                      <p className="mt-3 text-xs text-gray-500">
+                        Nobody to show.
+                      </p>
+                    ) : (
+                      <>
+                        <ul className="mt-3 divide-y divide-gray-200 border-t border-gray-200">
+                          {heldOut.map((a) => (
+                            <HeldOutRow
+                              key={a.alumni_id}
+                              alum={a}
+                              engineerContact={engineerContact}
+                              onReset={onAlumnusReset}
+                            />
+                          ))}
+                        </ul>
+                        {heldOutTruncatedNote(heldOut.length, heldOutTotal) ? (
+                          <p className="mt-2 text-xs text-gray-500">
+                            {heldOutTruncatedNote(heldOut.length, heldOutTotal)}
+                          </p>
+                        ) : null}
+                      </>
+                    )
+                  ) : null}
+                </div>
+              ) : null}
+
               {/* Suppressed is its own line, never folded into the count above:
                   never-email-them and can't-email-them are different states. */}
               {breakdown && breakdown.suppressed > 0 ? (
@@ -980,6 +1208,53 @@ export function SurveyCampaignConsole() {
             <CampaignProgressTable schedules={schedules} />
           </TabsContent>
         </Tabs>
+      ) : null}
+
+      {/* Cancel-schedule confirm (#659). Text-only: no icons in new UI. */}
+      {cancelConfirm ? (
+        <Dialog
+          open={cancelOpen}
+          onOpenChange={(open) => {
+            // Don't let a click on the backdrop (or Esc) dismiss it mid-request
+            // and leave the operator unsure whether the cancel went through.
+            if (!cancelling) setCancelOpen(open);
+          }}
+        >
+          <DialogContent title={cancelConfirm.title}>
+            <DialogBody className="space-y-3 text-sm text-gray-600">
+              {cancelConfirm.paragraphs.map((para) => (
+                <p
+                  key={para.text}
+                  className={
+                    para.emphasis ? "font-medium text-gray-900" : undefined
+                  }
+                >
+                  {para.text}
+                </p>
+              ))}
+            </DialogBody>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setCancelOpen(false)}
+                disabled={cancelling}
+              >
+                Keep it
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={cancelSchedule}
+                disabled={cancelling}
+              >
+                {cancelling ? "Cancelling…" : "Cancel schedule"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       ) : null}
 
       {/* Send dialog */}
@@ -1106,6 +1381,186 @@ export function SurveyCampaignConsole() {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+/* ------------------------------------------------------------- held-out row -- */
+
+/**
+ * One already-replied alumnus, with the reset an engineer needs (#658).
+ *
+ * THE STATE READ IS NOT A LOADING STEP, it is the point. A reset is cheap to
+ * click and expensive to be wrong about: it puts a real email in front of a real
+ * alumnus. Someone in this list is here because they ANSWERED, and answering
+ * three weeks ago is a reason to leave them alone — so `GET /survey/alumni/{id}
+ * /state` runs first and its answer is shown, exactly as the engineer console's
+ * `SurveyCampaignReset` does it. A reset that unblocks nothing is noise, and the
+ * state read is the only thing that can say so before the fact.
+ *
+ * The reset itself deletes nothing (#395): their answers, the emails sent to
+ * them and anything awaiting review all stay. The confirm copy says so, because
+ * this button used to delete them and people remember that.
+ */
+function HeldOutRow({
+  alum,
+  engineerContact,
+  onReset,
+}: {
+  alum: SurveyHeldOutAlum;
+  engineerContact: ResetContact | null;
+  onReset: () => void;
+}) {
+  const { toast } = useToast();
+  const [state, setState] = useState<SurveyAlumniState | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // The role went away between the page render and this click. Say who to ask
+  // rather than reporting a failure the reader can't act on.
+  const [denied, setDenied] = useState(false);
+  const [reset, setReset] = useState(false);
+
+  const check = () => {
+    if (loading) return;
+    setError(null);
+    setDenied(false);
+    setLoading(true);
+    clientGet<SurveyAlumniState>(`/survey/alumni/${alum.alumni_id}/state`)
+      .then((s) => setState(s ?? null))
+      .catch((err) => {
+        if (err instanceof ApiClientError && err.status === 403) {
+          setDenied(true);
+          return;
+        }
+        setError("Couldn’t read this alum’s survey state.");
+      })
+      .finally(() => setLoading(false));
+  };
+
+  const run = async () => {
+    if (resetting) return;
+    setResetting(true);
+    try {
+      const result = await clientPost<SurveyResetResult>(
+        `/survey/alumni/${alum.alumni_id}/reset`,
+      );
+      setReset(true);
+      setState(null);
+      toast.success(
+        `${result?.name ?? alum.name} can be surveyed again — their earlier ` +
+          `answers and send history are kept.`,
+      );
+      onReset();
+    } catch (err) {
+      if (err instanceof ApiClientError && err.status === 403) {
+        setDenied(true);
+      } else {
+        const msg =
+          err instanceof ApiClientError && err.message
+            ? err.message
+            : "the request failed.";
+        toast.error(`Couldn’t reset ${alum.name}: ${msg}`);
+      }
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  const blockedReasons = state?.blocked_reasons ?? [];
+
+  return (
+    <li className="py-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <a
+          href={`/alumni/${alum.alumni_id}`}
+          className="text-sm font-medium text-navy-800 underline underline-offset-2"
+        >
+          {alum.name}
+        </a>
+        <span className="flex flex-wrap items-baseline gap-3">
+          {/* The date, not the fact — the fact is the whole list. */}
+          <span className="text-xs tabular-nums text-gray-600">
+            {repliedLabel(alum.last_reply_at)}
+          </span>
+          {reset ? (
+            <span className="text-xs text-success-600">
+              Reset — in the next send
+            </span>
+          ) : state ? null : (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={check}
+              disabled={loading}
+            >
+              {loading ? "Checking…" : "Reset survey"}
+            </Button>
+          )}
+        </span>
+      </div>
+
+      {denied ? (
+        <p className="mt-1 text-xs text-gray-500">
+          {resetRequiresEngineerHint(engineerContact)}
+        </p>
+      ) : null}
+      {error ? <p className="mt-1 text-xs text-danger-600">{error}</p> : null}
+
+      {/* What the state read found, and only then the reset. */}
+      {state ? (
+        <div className="mt-2 rounded-md border border-gray-200 bg-white p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+            What is holding {state.name} out
+          </p>
+          {blockedReasons.length > 0 ? (
+            <ul className="mt-1 space-y-1 text-xs text-gray-700">
+              {blockedReasons.map((r) => (
+                <li key={r}>— {r}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-1 text-xs text-warning-600">
+              Nothing is holding them back, so a reset would change nothing.
+            </p>
+          )}
+          {state.reset_count > 0 ? (
+            <p className="mt-1 text-xs text-gray-500">
+              Already reset {state.reset_count.toLocaleString()}{" "}
+              {state.reset_count === 1 ? "time" : "times"}, most recently{" "}
+              {formatWhen(state.last_reset_at)}.
+            </p>
+          ) : null}
+          <p className="mt-2 text-xs text-gray-500">
+            Resetting sends them another survey email. Nothing is deleted — their{" "}
+            {state.responses.length === 1
+              ? "reply stays"
+              : "replies stay"}{" "}
+            on record, including anything still awaiting review.
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="navy"
+              size="sm"
+              onClick={run}
+              disabled={resetting}
+            >
+              {resetting ? "Resetting…" : "Reset survey campaign"}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setState(null)}
+              disabled={resetting}
+            >
+              Close
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </li>
   );
 }
 

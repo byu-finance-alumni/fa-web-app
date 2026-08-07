@@ -3396,6 +3396,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/survey/campaigns/{grad_year}/held-out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Survey Held Out
+         * @description WHO this year's send is holding out, and why (#658).
+         *
+         *     `SurveyRecipientBreakdown` gives the three exclusions as counts; this expands
+         *     them into people. It was written for one specific dead end: a campaign was
+         *     deleted and re-sent, the console said "1 already replied within the last
+         *     year", and there was no way to find out who. The behaviour was right —
+         *     retiring a cycle deliberately does not clear the 365-day annual window for
+         *     alumni who actually ANSWERED — but a "1" nobody can expand is not something
+         *     an operator can act on, so the cohort was searched by name until she turned
+         *     up.
+         *
+         *     `already_responded` rows carry `last_reply_at`, which is the fact the
+         *     decision turns on: a reply from three months ago is a reason to leave someone
+         *     alone; one that predates a retired campaign may not be. The way to act on it
+         *     is `GET /survey/alumni/{alumni_id}/state` and then, if warranted, `POST
+         *     /survey/alumni/{alumni_id}/reset` — this endpoint changes nothing itself.
+         *
+         *     `reason` narrows to one bucket; omit it for all three. `total` is always the
+         *     size of the FULL filtered set, so it can be checked against the matching
+         *     breakdown count — both come from the same predicates and are supposed to be
+         *     identical. Paged (default 200, max 1000) because the responded bucket grows
+         *     for the life of a campaign.
+         *
+         *     ENGINEER-GATED (`RequireEngineer`), matching the state/reset pair it exists to
+         *     inform rather than the console's assignable `surveys.manage`. It names alumni
+         *     who replied and when — and it is read as the first half of a decision about
+         *     who receives a real email, exactly like `GET /survey/alumni/{id}/state`, whose
+         *     gate is narrowed for that same reason.
+         */
+        get: operations["list_survey_held_out_survey_campaigns__grad_year__held_out_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/survey/schedules": {
         parameters: {
             query?: never;
@@ -7595,6 +7642,56 @@ export interface components {
             before: string;
             /** After */
             after: string;
+        };
+        /**
+         * SurveyHeldOutAlum
+         * @description One alumnus this year's send is holding out, and why (#658).
+         *
+         *     `SurveyRecipientBreakdown` reports the exclusions as three counts. A count is
+         *     not actionable: a cancelled-then-re-sent campaign told staff "1 already
+         *     replied within the last year" and there was no way to find out who, so the
+         *     cohort had to be searched by hand until she turned up. This is that same
+         *     number with a name on it.
+         *
+         *     `alumni_id` is here because it is what the engineer's next call needs — the
+         *     state/reset pair (`GET|POST /survey/alumni/{alumni_id}/...`) is keyed on it,
+         *     and that reset is the only thing that makes a recent responder sendable again.
+         */
+        SurveyHeldOutAlum: {
+            /** Alumni Id */
+            alumni_id: number;
+            /** Name */
+            name: string;
+            /** Reason */
+            reason: string;
+            /** Reason Label */
+            reason_label: string;
+            /** Last Reply At */
+            last_reply_at: string | null;
+        };
+        /**
+         * SurveyHeldOutPage
+         * @description A page of the held-out list, plus the size of the whole set (#658).
+         *
+         *     `total` is the count BEFORE paging, and it is the number the console can
+         *     check its own breakdown against: both come from the same predicates, so
+         *     `total` for `reason="already_responded"` is
+         *     `SurveyRecipientBreakdown.already_responded` by construction. If they ever
+         *     differ, something has re-derived one of them and that is the bug.
+         */
+        SurveyHeldOutPage: {
+            /** Graduation Year */
+            graduation_year: number;
+            /** Reason */
+            reason: string | null;
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Items */
+            items: components["schemas"]["SurveyHeldOutAlum"][];
         };
         /**
          * SurveyNewCyclePreview
@@ -13145,6 +13242,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SurveyUnreachableAlum"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_survey_held_out_survey_campaigns__grad_year__held_out_get: {
+        parameters: {
+            query?: {
+                reason?: ("suppressed" | "already_responded" | "unreachable") | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                grad_year: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyHeldOutPage"];
                 };
             };
             /** @description Validation Error */
