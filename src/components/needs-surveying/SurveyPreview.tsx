@@ -74,6 +74,31 @@ export function SurveyPreview() {
           title="Sample survey"
           description="The email message, then exactly what an alum sees, using a sample record. Click through it — no email is sent and no record is touched."
         >
+          {/*
+            Open the real survey page in a new tab, on the sample record, landing
+            on the section menu — the screen an alum reaches by pressing "I need
+            to make changes" in the email.
+
+            Worth having even though the dialog below shows the same screens: this
+            is the survey at FULL WIDTH in a real browser tab, not boxed inside a
+            modal that is narrower than any alum's window. Layout questions ("is
+            the submit button obvious?", "how long is Personal really?") can only
+            honestly be answered at the size the alum sees.
+
+            `/survey/demo` is the sample alum, so nothing here touches a record.
+            Opening in a new tab keeps the console page — and the campaign the
+            staffer was part-way through setting up — exactly where it was.
+          */}
+          <a
+            href="/survey/demo?step=edit"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mb-4 inline-block text-sm font-medium text-brand-blue-600 underline underline-offset-2 hover:text-brand-blue-500"
+          >
+            Open the full survey in a new tab — as an alum sees it after &ldquo;I
+            need to make changes&rdquo;
+          </a>
+
           {/* Remounting on each open resets the walkthrough, so the dialog
               always opens on the review screen rather than wherever the last
               viewer stopped. */}

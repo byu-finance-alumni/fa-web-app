@@ -62,6 +62,21 @@ export default function SurveyConfirmPage({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // `?step=edit` opens straight on the section menu — the screen an alum reaches
+  // by pressing "I need to make changes". Staff previewing the survey want to
+  // look at the editable form, and making them click through the review panel
+  // first to get there is friction for no reason.
+  //
+  // DEMO ONLY, deliberately. A real alum must meet the review panel first: it is
+  // where they are told what we hold and that a human checks the answer, and
+  // skipping it would also let a forwarded link land someone straight in a form
+  // over another person's record.
+  useEffect(() => {
+    if (token !== "demo") return;
+    const step = new URLSearchParams(window.location.search).get("step");
+    if (step === "edit") setStatus("editing");
+  }, [token]);
+
   useEffect(() => {
     if (token === "demo") {
       setName(SAMPLE_ALUM_NAME);
