@@ -1,16 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { CheckCircle2, XCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/ui/Toast";
-import { ApiClientError, clientGet, clientPost } from "@/lib/api-client";
+import { ApiClientError, clientPost } from "@/lib/api-client";
+import { pendingReviewCount } from "@/components/needs-surveying/pending-review";
+import type { PendingSubmissionsQueue } from "@/components/needs-surveying/use-pending-submissions";
 import type { components } from "@/types/api.gen";
-
-type ResponseItem = components["schemas"]["SurveyResponseItem"];
 
 /**
  * What `POST /survey/responses/{id}/apply` returns (#646) — the generated type,
@@ -27,28 +27,21 @@ type ApplyResult = components["schemas"]["SurveyApplyResult"];
  * your info" updates, each with a before/after diff. Apply writes the changes to
  * the record; reject discards them. Both hit the real backend and refresh the
  * list. This is the "admin confirms before anything is applied" step.
+ *
+ * The queue itself is NOT fetched here (Jake, 2026-08-07). The console owns it
+ * via `usePendingSubmissions` and passes it in, because the Submissions tab now
+ * shows the same count as a badge and the two must be the same state — see the
+ * hook for why. This component renders that state and resolves rows out of it.
  */
-export function PendingSubmissions({ gradYear }: { gradYear: number }) {
+export function PendingSubmissions({
+  queue,
+}: {
+  queue: PendingSubmissionsQueue;
+}) {
   const { toast } = useToast();
-  const [items, setItems] = useState<ResponseItem[] | null>(null);
+  const { items, removeItem } = queue;
+  const count = pendingReviewCount(items);
   const [busyId, setBusyId] = useState<number | null>(null);
-
-  const load = useCallback(() => {
-    let cancelled = false;
-    setItems(null);
-    clientGet<ResponseItem[]>(`/survey/campaigns/${gradYear}/responses`)
-      .then((data) => {
-        if (!cancelled) setItems(data);
-      })
-      .catch(() => {
-        if (!cancelled) setItems([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [gradYear]);
-
-  useEffect(() => load(), [load]);
 
   const act = async (id: number, action: "apply" | "reject", name: string) => {
     setBusyId(id);
@@ -81,9 +74,8 @@ export function PendingSubmissions({ gradYear }: { gradYear: number }) {
             : `Rejected ${name}'s submission.`,
         );
       }
-      setItems((prev) =>
-        prev ? prev.filter((r) => r.survey_response_id !== id) : prev,
-      );
+      // Out of the shared queue, so the row and the tab's badge go together.
+      removeItem(id);
     } catch (err) {
       const msg =
         err instanceof ApiClientError && err.message
@@ -101,8 +93,10 @@ export function PendingSubmissions({ gradYear }: { gradYear: number }) {
         <h2 className="text-sm font-semibold text-gray-900">
           Pending submissions
         </h2>
+        {/* The same figure the tab's badge shows, through the same derivation —
+            this header and that circle are two views of one list. */}
         <Badge variant="neutral">
-          {items ? `${items.length.toLocaleString()} to review` : "…"}
+          {count === null ? "…" : `${count.toLocaleString()} to review`}
         </Badge>
       </header>
 
