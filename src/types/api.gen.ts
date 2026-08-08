@@ -3158,6 +3158,8 @@ export interface paths {
          * Survey Submit
          * @description PUBLIC (token-gated): stage the alum's submitted changes for admin review.
          *     Nothing is applied to the record here.
+         *
+         *     An over-cap payload is a 413 and stages nothing — see `_oversized_submission`.
          */
         post: operations["survey_submit_survey_respond__token__post"];
         delete?: never;
