@@ -162,6 +162,9 @@ function PreviewBody() {
   }, [closing, hydrated]);
 
   const valueOf = (key: string) => edits[key] ?? fields[key] ?? "";
+  // The sample record untouched by the walkthrough's edits, so the controlled
+  // vocabularies behave here exactly as they do for a real alum (#426).
+  const onFileValueOf = (key: string) => fields[key] ?? "";
   const setEdit = (key: string, value: string) =>
     setEdits((prev) => ({ ...prev, [key]: value }));
 
@@ -212,6 +215,7 @@ function PreviewBody() {
           firstName={firstName}
           name={name}
           valueOf={valueOf}
+          onFileValueOf={onFileValueOf}
           setEdit={setEdit}
           openSection={openSection}
           openSectionNav={setOpenSection}

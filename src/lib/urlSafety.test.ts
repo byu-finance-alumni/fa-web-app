@@ -10,6 +10,7 @@ import {
 } from "@/lib/urlSafety";
 import {
   EDIT_SECTIONS,
+  SURVEY_CHOICE_OPTIONS,
   validateSurveyField,
   type EditField,
 } from "@/components/survey/survey-screens";
@@ -176,10 +177,34 @@ describe("the survey's LinkedIn field carries a rule", () => {
     ).toBeNull();
   });
 
-  it("leaves every other field unvalidated", () => {
-    const others = fields.filter((f) => f.key !== "profile.linkedin_url");
+  it("leaves every field without a rule of its own unvalidated", () => {
+    // The controlled vocabularies grew their own rule in #426 (see
+    // `survey-industry-validation.test.ts`) and are asserted separately below.
+    // Everything else on the survey is genuinely free text and must stay that
+    // way — a survey that argues with a job title nobody can spell "correctly"
+    // is worse than one that takes it.
+    const others = fields.filter(
+      (f) =>
+        f.key !== "profile.linkedin_url" && !(f.kind in SURVEY_CHOICE_OPTIONS),
+    );
     for (const f of others) {
       expect(validateSurveyField(f, "javascript:alert(1)")).toBeNull();
+    }
+  });
+
+  it("refuses the same payload in a controlled-vocabulary field", () => {
+    // Not a URL rule and not the point of #426 — but a nice consequence of it.
+    // The industry box was the survey's other free-text-from-anyone field, and
+    // nothing that isn't a real industry can be typed into it any more.
+    const choiceFields = fields.filter((f) => f.kind in SURVEY_CHOICE_OPTIONS);
+    expect(choiceFields.length).toBeGreaterThan(0);
+    for (const f of choiceFields) {
+      expect(validateSurveyField(f, "javascript:alert(1)")).not.toBeNull();
+      // ...and not with the LinkedIn wording, which would send an alum looking
+      // for a URL box that isn't there.
+      expect(validateSurveyField(f, "javascript:alert(1)")).not.toContain(
+        "linkedin.com",
+      );
     }
   });
 });
