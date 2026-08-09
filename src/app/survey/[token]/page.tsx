@@ -109,6 +109,10 @@ export default function SurveyConfirmPage({
   }, [token]);
 
   const valueOf = (key: string) => edits[key] ?? fields[key] ?? "";
+  // The record as it arrived, with no edit folded over it. The controlled
+  // vocabularies need it to tell "the odd industry already on your record" from
+  // "something you just typed that we can't save" (#426) — see `isValueOnFile`.
+  const onFileValueOf = (key: string) => fields[key] ?? "";
   const setEdit = (key: string, value: string) =>
     setEdits((prev) => ({ ...prev, [key]: value }));
 
@@ -228,6 +232,7 @@ export default function SurveyConfirmPage({
             firstName={firstName}
             name={name}
             valueOf={valueOf}
+            onFileValueOf={onFileValueOf}
             setEdit={setEdit}
             openSection={openSection}
             openSectionNav={openSectionNav}

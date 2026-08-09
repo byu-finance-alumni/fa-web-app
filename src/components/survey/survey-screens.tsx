@@ -32,6 +32,7 @@ import {
   splitOtherDesignationSlots,
 } from "@/lib/designations";
 import {
+  INDUSTRY_OPTIONS,
   MARITAL_STATUS_OPTIONS,
   PRIMARY_INDUSTRY_OPTIONS,
   SURVEY_EMPLOYMENT_STATUS_OPTIONS,
@@ -228,13 +229,113 @@ export function displayValue(field: EditField, value: string): string {
   return value;
 }
 
+/* ------------------------------------------------- controlled vocabularies -- */
+
+/**
+ * The list the SERVER will accept for each controlled-vocabulary kind, and the
+ * whole reason this table exists (api #426).
+ *
+ * The public survey used to take free text for these columns, so anyone holding
+ * a survey link could mint a phantom industry that then showed up in the
+ * dashboard breakdown and the filters as though it were one of ours. The backend
+ * now matches each submitted value against a fixed list and IGNORES anything
+ * off it — the submission still returns 200, and the column keeps whatever it
+ * already held. Silently. That disposition is right for a public endpoint (an
+ * odd-looking real answer is never rejected back at someone who can't be told
+ * why) but it means the FORM has to be the thing that speaks up, or an alum
+ * types "Underwater Basket Weaving", is thanked for it, and we throw it away.
+ *
+ * THIS IS NOT THE LIST THE CONTROL OFFERS, and the difference is load-bearing:
+ *
+ *   * industry — offers `INDUSTRY_CHOICES` (the primary list minus "Other"),
+ *     but ACCEPTS all of `INDUSTRY_OPTIONS`. The four primary-excluded
+ *     industries (Law, Corporate Banking, Sales and Trading, Credit Risk) and
+ *     the literal "Other" are hidden from the dropdown yet are perfectly good
+ *     stored values the server still writes. Validating against the narrower
+ *     offered list would refuse an alum whose record says "Law" for handing us
+ *     back the exact value we sent them, which is the opposite of the point.
+ *   * employmentStatus / maritalStatus — the offered list and the accepted list
+ *     coincide today; they are listed so a `SelectControl` that later gains an
+ *     "Other" escape hatch inherits the rule instead of reopening this hole.
+ *
+ * Mirrors `_FIELDS`' `choice` entries in fa-web-api/app/services/survey_responses.py.
+ */
+export const SURVEY_CHOICE_OPTIONS: Partial<Record<FieldKind, readonly string[]>> = {
+  industry: INDUSTRY_OPTIONS,
+  employmentStatus: SURVEY_EMPLOYMENT_STATUS_OPTIONS,
+  maritalStatus: MARITAL_STATUS_OPTIONS,
+};
+
+/**
+ * What the alum reads when they've given an answer the server would drop.
+ *
+ * Every one of these names the way OUT, not just the problem — the alum can't
+ * fix a rule, only pick a different answer, so a message that stops at "that
+ * isn't valid" leaves them stuck in a form they can't submit. Plain English, no
+ * jargon, no field names they never saw.
+ */
+const SURVEY_CHOICE_ERRORS: Partial<Record<FieldKind, string>> = {
+  industry:
+    "We can only save an industry from the list above. Pick the closest match, or clear this box to leave the industry on your record as it is.",
+  employmentStatus:
+    "We can only save a status from the list. Please pick one of the options above.",
+  maritalStatus:
+    "We can only save an option from the list. Please pick one of the options above.",
+};
+
+/**
+ * Whether `value` matches one of `options` the way the SERVER matches it —
+ * trimmed and case-insensitive.
+ *
+ * The server re-canonicalises rather than rejecting on case (`_choice` in
+ * fa-web-api), so "investment banking" is written as "Investment Banking" and
+ * must not be complained about here. A stricter client rule would refuse values
+ * the server would happily have taken, which is its own kind of silent loss.
+ */
+export function isCanonicalChoice(
+  options: readonly string[],
+  value: string,
+): boolean {
+  const v = value.trim().toLowerCase();
+  return v !== "" && options.some((o) => o.trim().toLowerCase() === v);
+}
+
+/**
+ * Whether `value` is the value ALREADY ON FILE for this field — the single
+ * distinction this whole feature turns on.
+ *
+ * An off-list value on someone's record is not a mistake they are making now: it
+ * is a real answer, recorded before the list existed, that the survey shows back
+ * to them verbatim so nothing is lost. Handing it back unchanged is a no-op
+ * server-side (the value is ignored, the column keeps it), so it must never
+ * raise an error — blocking a legitimate alum from submitting is a worse outcome
+ * than the bug this validation exists to fix.
+ *
+ * Compared trimmed and case-insensitively for the same reason the server does:
+ * an off-list value re-submitted unchanged carries whatever casing drift the
+ * record already holds.
+ */
+export function isValueOnFile(
+  value: string,
+  onFile: string | null | undefined,
+): boolean {
+  const v = value.trim().toLowerCase();
+  return v !== "" && v === (onFile ?? "").trim().toLowerCase();
+}
+
 /**
  * The inline rule for one field, or `null` when the value is acceptable (api
- * #418).
+ * #418, #426).
  *
  * Kind-driven, so a rule is added by giving a field the kind that carries it
  * rather than by naming keys in a validator — the same way `displayValue`
- * above special-cases by kind. Today only `linkedin` has one.
+ * above special-cases by kind. Two rules today: `linkedin`, and the controlled
+ * vocabularies in `SURVEY_CHOICE_OPTIONS`.
+ *
+ * `onFile` is the value the record HELD when the survey was opened, and is what
+ * separates "the odd industry already on your record" from "you just typed
+ * something we can't save". Passing it is not optional in practice: omit it and
+ * every legacy record is blocked from submitting.
  *
  * Callers validate the fields the alum actually EDITED, never everything on
  * screen: the form is pre-filled from the record, and a legacy stored value
@@ -244,8 +345,18 @@ export function displayValue(field: EditField, value: string): string {
 export function validateSurveyField(
   field: EditField,
   value: string,
+  onFile?: string | null,
 ): string | null {
-  return field.kind === "linkedin" ? validateLinkedinUrl(value) : null;
+  if (field.kind === "linkedin") return validateLinkedinUrl(value);
+  const options = SURVEY_CHOICE_OPTIONS[field.kind];
+  if (!options) return null;
+  // A blank is a skipped question, not a bad answer — the server treats it as
+  // "leave what's on file alone" (`blankable=False`), so clearing the box is a
+  // legitimate way out of this message rather than a second complaint.
+  if (!value.trim()) return null;
+  if (isCanonicalChoice(options, value)) return null;
+  if (isValueOnFile(value, onFile)) return null;
+  return SURVEY_CHOICE_ERRORS[field.kind] ?? null;
 }
 
 // The single source of truth for BOTH the review panel and the edit form —
@@ -479,6 +590,7 @@ export function EditFlow({
   firstName,
   name,
   valueOf,
+  onFileValueOf,
   setEdit,
   openSection,
   openSectionNav,
@@ -494,6 +606,17 @@ export function EditFlow({
   firstName: string;
   name: string;
   valueOf: (key: string) => string;
+  /**
+   * The value the RECORD held when the survey was opened — never the alum's
+   * in-progress edit (#426).
+   *
+   * `valueOf` can't answer this: it already folds `edits` over the record, so by
+   * the time a controlled-vocabulary field is being checked it returns whatever
+   * was just typed. The only question that matters for those fields is "is this
+   * the odd value we sent them, or something new they've entered?", and that
+   * needs the untouched original. See `isValueOnFile`.
+   */
+  onFileValueOf: (key: string) => string;
   setEdit: (key: string, value: string) => void;
   openSection: string | null;
   /** Open a section AND push a history entry so Back returns here (#526). */
@@ -567,7 +690,11 @@ export function EditFlow({
   };
 
   const onFieldBlur = (field: EditField) => {
-    const msg = validateSurveyField(field, valueOf(field.key));
+    const msg = validateSurveyField(
+      field,
+      valueOf(field.key),
+      onFileValueOf(field.key),
+    );
     setFieldErrors((prev) => {
       if ((prev[field.key] ?? null) === msg) return prev;
       const updated = { ...prev };
@@ -585,13 +712,20 @@ export function EditFlow({
   // Client-side only, and deliberately not the last word: the backend validates
   // the same value on write, and the staff screens that render it guard
   // themselves. This exists so an alum learns about a typo here rather than
-  // never learning about it at all.
+  // never learning about it at all — and, for the controlled vocabularies, so
+  // they learn about it AT ALL: the server's disposition for an off-list answer
+  // is to ignore it and return success (#426).
+  //
+  // Still gated on `touched`, and doubly so for the vocabularies, which also
+  // compare against the on-file value. Either guard alone would let a legacy
+  // record through; together they also cover the alum who fiddles with the
+  // industry dropdown and puts their own odd value back exactly as it was.
   const handleSubmit = () => {
     const found: Record<string, string> = {};
     for (const s of EDIT_SECTIONS) {
       for (const f of s.fields) {
         if (!touched.has(f.key)) continue;
-        const msg = validateSurveyField(f, valueOf(f.key));
+        const msg = validateSurveyField(f, valueOf(f.key), onFileValueOf(f.key));
         if (msg) found[f.key] = msg;
       }
     }
@@ -646,6 +780,7 @@ export function EditFlow({
                   <FieldControl
                     field={f}
                     value={valueOf(f.key)}
+                    onFileValue={onFileValueOf(f.key)}
                     onChange={(v) => onFieldChange(f, v)}
                     onBlur={() => onFieldBlur(f)}
                     error={fieldErrors[f.key]}
@@ -1091,19 +1226,52 @@ function SelectControl({
  * Current industry (#525): the controlled industry list with an "Other" option
  * that reveals a free-text input. A stored value outside the list is treated as
  * "Other" and shown in the text box, so nothing on file is lost.
+ *
+ * THAT PRESERVATION IS THE POINT OF THE TEXT BOX and must survive any change
+ * here — an alum whose record says "Underwater Basket Weaving" opens the survey,
+ * sees their own answer, and can submit an unrelated correction without it being
+ * blanked or rewritten into something more generic.
+ *
+ * What CHANGED in #426: the box no longer accepts arbitrary new text in silence.
+ * The server now writes only values on `INDUSTRY_OPTIONS` and ignores everything
+ * else — returning success either way — so typing a brand-new off-list industry
+ * used to end with the alum being thanked for an answer we discarded. The rule
+ * is now enforced here, where it can actually be explained, with the on-file
+ * value exempted so the legacy case above is untouched. See
+ * `validateSurveyField` / `isValueOnFile`.
+ *
+ * `onFileValue` is the record's value, not the working one, which is what lets
+ * the hint under the box tell those two situations apart.
  */
 function IndustryControl({
   id,
   value,
+  onFileValue,
   onChange,
+  onBlur,
+  error,
+  errorId,
 }: {
   id: string;
   value: string;
+  onFileValue?: string;
   onChange: (v: string) => void;
+  onBlur?: () => void;
+  error?: string;
+  errorId?: string;
 }) {
   const inList = INDUSTRY_CHOICES.includes(value);
   const [other, setOther] = useState(value !== "" && !inList);
   const selectValue = other ? "__other__" : inList ? value : "";
+  const hintId = `${id}-industry-hint`;
+  // The box currently holds the off-list value the record already had — the one
+  // case that is NOT a mistake. Checked against the accepted list, not the
+  // offered one, so a stored "Law" (hidden from the dropdown, but a perfectly
+  // good stored value) reads as an ordinary industry rather than as a legacy
+  // oddity we're apologising for.
+  const showsValueOnFile =
+    !isCanonicalChoice(INDUSTRY_OPTIONS, value) &&
+    isValueOnFile(value, onFileValue);
   return (
     <>
       <select
@@ -1130,12 +1298,38 @@ function IndustryControl({
         <option value="__other__">Other</option>
       </select>
       {other ? (
-        <Input
-          className="mt-2"
-          value={value}
-          placeholder="Type your industry"
-          onChange={(e) => onChange(e.target.value)}
-        />
+        <>
+          {/*
+            Validated on BLUR, like the LinkedIn field and for the same reason:
+            a complaint that appears on the "U" of "Underwater" reads as the form
+            arguing with someone who is typing fine.
+          */}
+          <Input
+            className={
+              error
+                ? "mt-2 border-danger-600 focus-visible:ring-danger-600"
+                : "mt-2"
+            }
+            value={value}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={errorId ?? hintId}
+            placeholder="Type your industry"
+            onChange={(e) => onChange(e.target.value)}
+            onBlur={onBlur}
+          />
+          {/*
+            The hint is suppressed while the error is up — `FieldControl` renders
+            that message directly below this, and two lines of guidance stacked
+            on one input is noise at the moment the alum is least able to read it.
+          */}
+          {error ? null : (
+            <p id={hintId} className="mt-1 text-xs leading-relaxed text-gray-500">
+              {showsValueOnFile
+                ? "This is the industry we have on file, and we'll keep it as it is. To change it, pick one from the list above."
+                : "We can only save industries from the list above — if yours isn't there, pick the closest match."}
+            </p>
+          )}
+        </>
       ) : null}
     </>
   );
@@ -1196,12 +1390,19 @@ function OtherDesignationsControl({
 function FieldControl({
   field,
   value: storedValue,
+  onFileValue,
   onChange,
   onBlur,
   error,
 }: {
   field: EditField;
   value: string;
+  /**
+   * The value the RECORD holds, before any edit in this session. Only the
+   * controlled-vocabulary controls read it, to tell an off-list value that was
+   * already on file apart from one the alum has just typed (#426).
+   */
+  onFileValue?: string;
   onChange: (v: string) => void;
   /** Fires when a validated control loses focus — see `validateSurveyField`. */
   onBlur?: () => void;
@@ -1336,7 +1537,15 @@ function FieldControl({
             onChange={onChange}
           />
         ) : field.kind === "industry" ? (
-          <IndustryControl id={controlId} value={value} onChange={onChange} />
+          <IndustryControl
+            id={controlId}
+            value={value}
+            onFileValue={onFileValue}
+            onChange={onChange}
+            onBlur={onBlur}
+            error={error}
+            errorId={errorId}
+          />
         ) : field.kind === "otherDesignations" ? (
           <OtherDesignationsControl
             id={controlId}
