@@ -91,14 +91,6 @@ const CHART_GRAD_STUDENT_COLOR = "#0E7490"; // teal accent
 
 /* ------------------------------------------------------------- date helpers -- */
 
-/** YYYY-MM-DD for a date `days` before today (UTC) — matches the rolling
- *  30-day KPI windows so a tile's count and its deep-linked list agree. */
-function isoDaysAgo(days: number): string {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() - days);
-  return d.toISOString().slice(0, 10);
-}
-
 /** A clean first name from the auth context, or null if there's nothing usable.
  *  Falls back to the local-part of the email (title-cased) when no name field is
  *  set — never a fabricated name. */
@@ -114,26 +106,6 @@ function resolveFirstName(ctx: UserContext | null): string | null {
 }
 
 /* -------------------------------------------------------------- presentation -- */
-
-/**
- * Shared hit-area styling for the two halves of the split "Alumni edited" tile
- * (#645). The tile is ONE MetricCard whose two figures link separately, so the
- * card itself can't be a link (an anchor inside an anchor is invalid HTML and
- * React will not render it) — these classes give each half back the same hover
- * tint and focus ring MetricCard applies to a whole-card link, so the tile still
- * feels clickable. `block` makes the number and its caption a single target
- * (comfortably over the 44px minimum in UX-UI.md), and both halves sit inside
- * MetricCard's centered value paragraph, so they end up the same width and the
- * divider between them lines up.
- */
-const EDITED_FIGURE_CLASS =
-  "block rounded-lg px-3 py-1 transition-colors hover:bg-brand-blue-50/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500";
-
-/** Caption under each figure in the split tile — sentence case and muted, so it
- *  reads as a legend for the number above it rather than repeating the card's
- *  uppercase label. */
-const EDITED_CAPTION_CLASS =
-  "mt-0.5 block text-xs font-medium tracking-normal text-gray-500";
 
 function Panel({
   title,
@@ -160,16 +132,17 @@ function Panel({
   );
 }
 
-/** Industry breakdown as a vertical list of per-industry coloured bars with the
- *  FULL (un-truncated) industry name above each bar, plus its count (#375 —
- *  replaces the old donut wheel so long industry names are fully legible). Real
- *  finance industries are listed alphabetically (A→Z); the "Other" and "Unknown"
- *  catch-all buckets always sort LAST since they aren't part of the A→Z category
- *  list. Each row carries its own `color` (resolved by the caller from the
- *  UX-UI.md data-viz palette) so every bar is a different colour — deliberately
- *  distinct from the single-blue Top Employers bars beneath it. Zero-count
- *  industries are still listed, shown muted (grey); each row links to the
- *  filtered alumni list. */
+/** Industry breakdown as a vertical list of per-industry coloured bars, ONE ROW
+ *  PER INDUSTRY — name, bar and count on a single line (#375 replaced the old
+ *  donut wheel so long industry names are legible; the name moved from above the
+ *  bar to beside it on 2026-08-11 so the full list fits a laptop — see the
+ *  layout note in the body). Real finance industries are listed alphabetically
+ *  (A→Z); the "Other" and "Unknown" catch-all buckets always sort LAST since
+ *  they aren't part of the A→Z category list. Each row carries its own `color`
+ *  (resolved by the caller from the UX-UI.md data-viz palette) so every bar is a
+ *  different colour — deliberately distinct from the single-blue Top Employers
+ *  bars beneath it. Zero-count industries are still listed, shown muted (grey);
+ *  each row links to the filtered alumni list. */
 function IndustryBarList({
   rows,
   emptyLabel,
@@ -200,11 +173,25 @@ function IndustryBarList({
   ];
   const max = Math.max(1, ...ordered.map((r) => r.count));
 
-  // Desktop (lg): the list fills the panel height with rows distributed evenly
-  // (each row flex-1) and NO scrollbar — every industry visible at once, bars as
-  // tall as the space allows. Mobile: rows take their natural height with a
-  // fixed, readable bar so the list reads as a clean stacked list (the fill-
-  // height math has no bounded height to work with on a phone).
+  // ONE ROW PER INDUSTRY, single column (Jake, 2026-08-11): name, bar and count
+  // share a single horizontal line rather than the name sitting stacked ABOVE
+  // its bar. That is what makes the whole list fit.
+  //
+  // The stacked form cost ~30px a row and grew its bar vertically to fill the
+  // leftover height, so 18 industries needed ~540px — more than the ~380px a
+  // laptop leaves under the KPI strip. The rows past the fold were then silently
+  // CLIPPED by the panel's `overflow-hidden`, with no scrollbar to hint at it,
+  // so "Graduate Student" was simply invisible. It only ever fit on a tall
+  // desktop monitor. A one-line row is ~20px and its bar is a fixed-height
+  // horizontal track, so 18 rows come in around 360px and the list fits.
+  //
+  // Rows still stretch to fill the panel when there IS spare height (flex-1) but
+  // can never be squeezed below `min-h-[20px]`; past that the panel scrolls (see
+  // the caller's `overflow-y-auto`) rather than hiding rows again.
+  //
+  // The label column is a fixed width so every bar starts at the same x — the
+  // bars are only comparable to each other if they share a baseline. Long names
+  // truncate there (the full text stays in the `title` and the aria-label).
   return (
     <ul className="flex flex-col gap-0.5 lg:h-full">
       {ordered.map((r) => {
@@ -212,60 +199,56 @@ function IndustryBarList({
         // "Unknown" is a data-gap bucket: always drawn in danger red (label +
         // count), even at 0, so it never blends into the muted zero rows.
         const isUnknown = r.label === "Unknown";
+        const toneClass = isUnknown
+          ? "text-danger-600"
+          : muted
+            ? "text-gray-400"
+            : "text-gray-700";
+        const countToneClass = isUnknown
+          ? "text-danger-600"
+          : muted
+            ? "text-gray-400"
+            : "text-gray-900";
         const body = (
           <>
-            <div className="flex items-baseline justify-between gap-2">
+            <span
+              className={`w-40 shrink-0 truncate text-xs font-medium ${toneClass}`}
+            >
+              {r.label}
+            </span>
+            {/* Fixed-height horizontal track — it no longer grows with the row,
+                which is exactly what frees the vertical space. A zero-count row
+                draws no fill but keeps its muted label + 0. */}
+            <span className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-100">
               <span
-                className={`min-w-0 truncate text-xs font-medium ${
-                  isUnknown
-                    ? "text-danger-600"
-                    : muted
-                      ? "text-gray-400"
-                      : "text-gray-700"
-                }`}
-              >
-                {r.label}
-              </span>
-              <span
-                className={`shrink-0 text-xs font-semibold tabular-nums ${
-                  isUnknown
-                    ? "text-danger-600"
-                    : muted
-                      ? "text-gray-400"
-                      : "text-gray-900"
-                }`}
-              >
-                {r.count}
-              </span>
-            </div>
-            {/* Bar track grows to fill the row's leftover height (flex-1), so the
-                bars are as tall as they can be while all rows still fit. A
-                zero-count row draws no fill but keeps its muted label + 0. */}
-            <div className="mt-1 h-2 overflow-hidden rounded-full bg-gray-100 lg:h-auto lg:min-h-[6px] lg:flex-1">
-              <div
-                className="h-full rounded-full"
+                className="block h-full rounded-full"
                 style={{
                   width: `${Math.round((r.count / max) * 100)}%`,
                   backgroundColor: r.color,
                 }}
               />
-            </div>
+            </span>
+            <span
+              className={`w-10 shrink-0 text-right text-xs font-semibold tabular-nums ${countToneClass}`}
+            >
+              {r.count}
+            </span>
           </>
         );
         return (
-          <li key={r.label} className="flex flex-col lg:min-h-0 lg:flex-1">
+          <li key={r.label} className="flex flex-col lg:min-h-[20px] lg:flex-1">
             {r.href ? (
               <Link
                 href={r.href}
                 aria-label={`View ${r.label} (${r.count}) in alumni list`}
                 title={`${r.label}: ${r.count}`}
-                className="flex flex-col rounded-lg px-1.5 py-0.5 transition hover:bg-brand-blue-50/40 lg:h-full"
+                className="flex items-center gap-3 rounded-lg px-1.5 py-0.5 transition hover:bg-brand-blue-50/40 lg:h-full"
               >
                 {body}
               </Link>
             ) : (
               <div
-                className="flex flex-col px-1.5 py-0.5 lg:h-full"
+                className="flex items-center gap-3 px-1.5 py-0.5 lg:h-full"
                 title={`${r.label}: ${r.count}`}
               >
                 {body}
@@ -281,8 +264,6 @@ function IndustryBarList({
 /* --------------------------------------------------------------------- page -- */
 
 export default async function DashboardPage() {
-  const thirtyDaysAgo = isoDaysAgo(30);
-
   let s: Summary | null = null;
   let ctx: UserContext | null = null;
   let notProvisioned = false;
@@ -460,81 +441,43 @@ export default async function DashboardPage() {
                   href="/alumni"
                   linkLabel="View all alumni"
                 />
+                {/* Jake, 2026-08-11: "Contacted this month" is gone and the two
+                    edit counts are now tiles in their own right. They used to be
+                    stacked inside ONE split card (#645) because a fourth tile
+                    would have orphaned the three-across strip — dropping
+                    Contacted frees that slot, so each figure gets a full card.
+                    That also makes the strip shorter, which gives the Industry
+                    panel below it back the height it was starved of.
+
+                    Both are CALENDAR windows off the alumni table's
+                    `updated_at` — the month resets on the 1st, the year on Jan 1
+                    (year-to-date, NOT a trailing 12 months, so it reads near
+                    zero every January by design). They count alumni ROWS, not
+                    edits: ten changes to one person is one. Both land on the
+                    same most-recently-edited list, whose "Last updated" column
+                    makes either count checkable. */}
                 <MetricCard
                   size="lg"
-                  label="Contacted this month"
-                  value={s?.contacted_this_month ?? "—"}
-                  href={`/alumni?contacted_after=${thirtyDaysAgo}`}
-                  linkLabel="View alumni contacted this month"
+                  label="Alumni edited this month"
+                  value={s?.alumni_edited_this_month ?? "—"}
+                  href="/alumni?sort=updated"
+                  linkLabel="View alumni edited this month, sorted by most recently edited"
                 />
-                {/* #606, split per Amy in #645: replaces the old "Events
-                    attended this month" tile and now carries TWO figures —
-                    records touched this calendar MONTH on top, with the
-                    calendar YEAR-to-date running total beneath it. Deliberately
-                    still ONE card in the same slot: a fourth tile would break
-                    the three-across strip, and the year total is a companion to
-                    the month number rather than an independent KPI.
-
-                    Both windows are CALENDAR windows (month resets on the 1st,
-                    year on Jan 1 — so "This year" reads near zero every January
-                    by design; it is year-to-date, not a trailing 12 months).
-                    The tile to the LEFT, "Contacted this month", is a rolling
-                    30 days instead, so its number is not comparable to either
-                    of these — which is why the captions here stay bare ("This
-                    month" / "This year") and claim no shared window.
-
-                    Composed inside the MetricCard primitive rather than as a
-                    new component: the card is left non-interactive (no `href`)
-                    and each figure is its own link, since nesting anchors is
-                    invalid. Both land on the same list sorted most-recently-
-                    edited first, whose "Last updated" column makes either count
-                    checkable, so they need distinct aria-labels to be told
-                    apart by a screen reader. The month keeps the neighbours'
-                    text-3xl; the year is a step down at text-2xl so the tile
-                    reads as one primary figure plus its running total, and so
-                    the taller card doesn't squeeze the Industry panel below. */}
                 <MetricCard
                   size="lg"
-                  label="Alumni edited"
-                  value={
-                    <>
-                      <Link
-                        href="/alumni?sort=updated"
-                        aria-label="View alumni edited this month, sorted by most recently edited"
-                        className={EDITED_FIGURE_CLASS}
-                      >
-                        <span className="block text-3xl leading-tight">
-                          {s?.alumni_edited_this_month ?? "—"}
-                        </span>
-                        <span className={EDITED_CAPTION_CLASS}>This month</span>
-                      </Link>
-                      {/* Hairline between the two figures. Its own element
-                          rather than a `border-t` on the link below, so the
-                          hover tint stops short of the rule instead of hugging
-                          it. Decorative — the captions already say which figure
-                          is which. */}
-                      <span
-                        aria-hidden="true"
-                        className="my-1 block border-t border-gray-200"
-                      />
-                      <Link
-                        href="/alumni?sort=updated"
-                        aria-label="View alumni edited this year, sorted by most recently edited"
-                        className={EDITED_FIGURE_CLASS}
-                      >
-                        <span className="block text-2xl leading-tight">
-                          {s?.alumni_edited_this_year ?? "—"}
-                        </span>
-                        <span className={EDITED_CAPTION_CLASS}>This year</span>
-                      </Link>
-                    </>
-                  }
+                  label="Alumni edited this year"
+                  value={s?.alumni_edited_this_year ?? "—"}
+                  href="/alumni?sort=updated"
+                  linkLabel="View alumni edited this year, sorted by most recently edited"
                 />
               </div>
               {/* Industry breakdown fills the entire leftover column space
                   beneath the KPI strip (#354/#375). Every industry fits without
-                  a scrollbar — the rows distribute evenly to fill the height and
-                  the bars grow as large as the space allows (#294 follow-up). */}
+                  a scrollbar at laptop height and up — the rows distribute
+                  evenly to fill whatever height is left. That claim is what the
+                  one-line row shape buys; it was NOT true of the older stacked
+                  rows, which quietly overflowed on anything shorter than a
+                  desktop monitor. */}
               <Panel
                 title="Industry breakdown"
                 action={
@@ -544,7 +487,11 @@ export default async function DashboardPage() {
                 }
                 className="lg:min-h-0 lg:flex-1"
               >
-                <div className="flex w-full flex-col lg:min-h-0 lg:flex-1 lg:overflow-hidden">
+                {/* `overflow-y-auto`, NOT `overflow-hidden`: the list is sized
+                    to fit (two columns, see IndustryBarList), but on a very
+                    short viewport the honest failure is a scrollbar, not rows
+                    that vanish with nothing on screen saying so. */}
+                <div className="flex w-full flex-col lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
                   <IndustryBarList
                     rows={industryRows}
                     emptyLabel="No industry data yet."
