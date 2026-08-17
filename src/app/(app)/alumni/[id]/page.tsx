@@ -1077,13 +1077,38 @@ export async function AlumniProfileView({
 
               {/* RIGHT column, row 1 — Current employment contact information
                   (#366, #399: swapped to the right, keeps its 2-col width). Work
-                  email is contact PII (editor-gated); LinkedIn and directory-like
-                  company location stay visible to every role. */}
+                  email is contact PII (editor-gated); LinkedIn, directory-like
+                  company location, and the industry pair (#683) stay visible to
+                  every role — industry is already non-sensitive in the KPI
+                  strip, which every role sees. */}
               <Panel
                 title="Current employment contact information"
                 action={canEdit ? <EditLink id={aid} /> : undefined}
                 className="lg:col-span-2"
               >
+                {/* Industry pair (#683) — the only industry surface on the whole
+                    profile used to be the KPI tile, and that tile printed the
+                    words "Secondary industry" ONLY when the value was non-empty.
+                    On a record with a blank secondary there was no on-screen
+                    evidence the field existed, which is exactly how it got
+                    reported as missing. Both fields now render unconditionally
+                    with the page's standard em-dash empty state, paired
+                    side-by-side in the same order as the Employment edit form,
+                    so a blank reads as "empty — click Edit" rather than "no such
+                    field". This also gives the profile its first *labelled*
+                    primary industry. Deliberately NOT done in the KPI strip: it
+                    is `hidden md:grid` (invisible on a narrow window) and its
+                    laptop layout was reworked in #676. */}
+                <div className="mb-4 grid grid-cols-1 gap-x-6 gap-y-4 border-b border-gray-100 pb-4 sm:grid-cols-2">
+                  <Field
+                    label="Industry"
+                    value={career?.current_industry ?? null}
+                  />
+                  <Field
+                    label="Secondary industry"
+                    value={career?.current_industry_secondary ?? null}
+                  />
+                </div>
                 {/* Split into two columns (#profile tweak): work email + city on
                     the left, state + country + ZIP on the right. LinkedIn moved
                     to Personal & family. The left column lost its Company

@@ -8,7 +8,11 @@ const SECTIONS: { slug: string; title: string; description: string }[] = [
   {
     slug: "employment",
     title: "Update Employment Information",
-    description: "Employer, title, industry, work location, LinkedIn.",
+    // Names BOTH industry fields (#683). The old singular "industry" read as
+    // one field, so nothing on this card hinted that Secondary industry is
+    // edited here too.
+    description:
+      "Employer, title, primary and secondary industry, work location, LinkedIn.",
   },
   {
     slug: "personal",
