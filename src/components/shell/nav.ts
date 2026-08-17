@@ -37,6 +37,12 @@ export const NAV: NavItem[] = [
   { href: "/alumni", label: "Alumni" },
   { href: "/friends", label: "Friends" },
   { href: "/events", label: "Events" },
+  // Opportunity links (api #441). Top-level rather than under Manage because it
+  // is a browsing surface staff work out of, not a one-off admin task — but it
+  // IS the moderation queue for a public-submitted field, so it carries the same
+  // capability the backend requires for `status=pending|rejected` and for every
+  // write. Same gate as Needs Surveying, which is the other survey-review screen.
+  { href: "/links", label: "Links", capability: CAPABILITY.SURVEYS_MANAGE },
   { href: "/map", label: "Map" },
   { href: "/statistics", label: "Statistics" },
   {
