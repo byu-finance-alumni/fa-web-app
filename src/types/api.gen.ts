@@ -2897,6 +2897,115 @@ export interface paths {
         patch: operations["update_note_notes__note_id__patch"];
         trace?: never;
     };
+    "/opportunity-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Opportunity Links
+         * @description The staff Links tab: filtered, paginated, newest first.
+         *
+         *     DEFAULTS TO APPROVED. An unfiltered read is the safe read: a caller who does
+         *     not ask for unmoderated rows does not get them, whatever their role. A
+         *     moderator asking for the queue passes ``?status=pending``.
+         */
+        get: operations["list_opportunity_links_opportunity_links_get"];
+        put?: never;
+        /**
+         * Create Opportunity Link
+         * @description Staff manual entry (surveys.manage). Lands APPROVED — the staff member
+         *     typing it in is the review. 404 if the alumnus does not exist, 422 if any
+         *     field fails the shared validation rules.
+         */
+        post: operations["create_opportunity_link_opportunity_links_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/opportunity-links/{link_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Opportunity Link
+         * @description One link. 404 if it does not exist; 403 if it is unmoderated and the
+         *     caller may not moderate — the same boundary the list draws, enforced here too
+         *     so a direct id fetch is not a way around the status gate.
+         */
+        get: operations["get_opportunity_link_opportunity_links__link_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Opportunity Link
+         * @description Delete a link (surveys.manage). Snapshotted to the audit trail first.
+         */
+        delete: operations["delete_opportunity_link_opportunity_links__link_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Opportunity Link
+         * @description Edit a link (surveys.manage). Only the keys present in the body change,
+         *     and the merged row is re-validated as a whole. Does NOT change the moderation
+         *     status — fixing a typo in a pending link must not approve it.
+         */
+        patch: operations["update_opportunity_link_opportunity_links__link_id__patch"];
+        trace?: never;
+    };
+    "/opportunity-links/{link_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Opportunity Link
+         * @description Approve a link (surveys.manage), stamping the reviewer and the time.
+         *
+         *     ⚠️ This records that a named person took responsibility for the link. It is
+         *     NOT a check that the URL is safe: scheme gating on the write path stops
+         *     ``javascript:``, but no automated rule — and no human eyeballing a queue —
+         *     reliably distinguishes a real careers page from a phishing one. See
+         *     ``app/schemas/opportunity_link.validate_opportunity_url``.
+         */
+        post: operations["approve_opportunity_link_opportunity_links__link_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/opportunity-links/{link_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject Opportunity Link
+         * @description Reject a link (surveys.manage). The row is kept — rejection is a decision
+         *     worth having on the record, and it is reversible if it was a mistake.
+         */
+        post: operations["reject_opportunity_link_opportunity_links__link_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tasks": {
         parameters: {
             query?: never;
@@ -3162,6 +3271,45 @@ export interface paths {
          *     An over-cap payload is a 413 and stages nothing — see `_oversized_submission`.
          */
         post: operations["survey_submit_survey_respond__token__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/respond/{token}/links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Survey Submit Opportunity Links
+         * @description PUBLIC (token-gated, no login): stage the alum's internship / job links
+         *     for staff review (#441). Every link lands PENDING.
+         *
+         *     A SEPARATE call from `POST /respond/{token}` on purpose, not an extra key in
+         *     that body. The field submit is built on "one survey question maps to one
+         *     database column" — its payload keys are literally `table.column` — and an
+         *     opportunity has a url, a location, a role type, a deadline and a description
+         *     of its own, several per alum. It gets its own table, its own write path, and
+         *     its own moderation, and it does NOT enter the survey field whitelist or the
+         *     response review queue.
+         *
+         *     THE URL IS PUBLIC INPUT RENDERED AS AN HREF TO A SIGNED-IN STAFF MEMBER. It
+         *     is validated on THIS path, server-side, by the same function the staff create
+         *     route uses — see `app/schemas/opportunity_link.validate_opportunity_url` for
+         *     what scheme gating does and does not defend, and why the later human approval
+         *     is a governance control rather than a filter that catches phishing.
+         *
+         *     A bad field is a 422 for the whole batch, not a silently dropped value: unlike
+         *     the field whitelist there is no existing good value to protect here, and an
+         *     alum at their keyboard can fix what they are told about.
+         */
+        post: operations["survey_submit_opportunity_links_survey_respond__token__links_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7191,6 +7339,193 @@ export interface components {
             body: string;
         };
         /**
+         * OpportunityLinkCreate
+         * @description Staff manual entry. ``alumni_id`` is explicit — staff are recording an
+         *     opportunity ON BEHALF of an alum, so provenance has to be stated. On the
+         *     survey path it comes from the signed token instead and is never client-supplied.
+         */
+        OpportunityLinkCreate: {
+            /**
+             * Is Own Company
+             * @default false
+             */
+            is_own_company: boolean;
+            /** Company Name */
+            company_name?: string | null;
+            /** Url */
+            url: string;
+            /** Location City */
+            location_city?: string | null;
+            /** Location State */
+            location_state?: string | null;
+            /**
+             * Role Type
+             * @enum {string}
+             */
+            role_type: "internship" | "full_time" | "both";
+            /** Application Deadline */
+            application_deadline?: string | null;
+            /** Details */
+            details?: string | null;
+            /** Alumni Id */
+            alumni_id: number;
+        };
+        /**
+         * OpportunityLinkPage
+         * @description A page of links: the ``{items, total, limit, offset}`` envelope the other
+         *     paginated list endpoints return.
+         */
+        OpportunityLinkPage: {
+            /** Items */
+            items: components["schemas"]["OpportunityLinkRead"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+        };
+        /**
+         * OpportunityLinkRead
+         * @description One link as the staff list sees it.
+         *
+         *     ``company_name`` here is the RESOLVED display name: the alum's current
+         *     employer when ``is_own_company`` is set (looked up at read time so it follows
+         *     a job change), otherwise the typed name. It can be ``None`` when an alum
+         *     ticked "my company" and has no employer on file — the list shows a dash
+         *     rather than inventing one.
+         */
+        OpportunityLinkRead: {
+            /** Opportunity Link Id */
+            opportunity_link_id: number;
+            /** Alumni Id */
+            alumni_id: number;
+            /** Submitted By */
+            submitted_by: string | null;
+            /** Is Own Company */
+            is_own_company: boolean;
+            /** Company Name */
+            company_name: string | null;
+            /** Url */
+            url: string;
+            /** Location City */
+            location_city: string | null;
+            /** Location State */
+            location_state: string | null;
+            /**
+             * Role Type
+             * @enum {string}
+             */
+            role_type: "internship" | "full_time" | "both";
+            /** Application Deadline */
+            application_deadline: string | null;
+            /** Details */
+            details: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "approved" | "rejected";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "survey" | "staff";
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            /** Reviewed By */
+            reviewed_by: string | null;
+            /** Reviewed At */
+            reviewed_at: string | null;
+        };
+        /**
+         * OpportunityLinkSubmitRequest
+         * @description The public survey body: a batch of links from one alum.
+         *
+         *     Batched because the survey page collects them together, and capped because
+         *     this is an unauthenticated write — ``_MAX_LINKS_PER_SUBMIT`` bounds how many
+         *     rows one call can create, the same way the field-submit route caps payload
+         *     bytes. The whole batch is refused or accepted together, so a submitter never
+         *     has to guess which of their entries landed.
+         */
+        OpportunityLinkSubmitRequest: {
+            /** Links */
+            links: components["schemas"]["OpportunitySurveyLinkSubmit"][];
+        };
+        /**
+         * OpportunityLinkSubmitResult
+         * @description Outcome of a public submit — how many links were staged for review.
+         *
+         *     Mirrors ``SurveySubmitResult``: the alum is told their entries are pending,
+         *     never that they are live.
+         */
+        OpportunityLinkSubmitResult: {
+            /** Staged */
+            staged: boolean;
+            /** Link Count */
+            link_count: number;
+        };
+        /**
+         * OpportunityLinkUpdate
+         * @description A staff edit. Every field optional; only what is sent is changed.
+         *
+         *     ``model_fields_set`` is what distinguishes "not sent" from "sent as null", so
+         *     clearing a deadline is expressible and omitting it is not a clear.
+         */
+        OpportunityLinkUpdate: {
+            /** Is Own Company */
+            is_own_company?: boolean | null;
+            /** Company Name */
+            company_name?: string | null;
+            /** Url */
+            url?: string | null;
+            /** Location City */
+            location_city?: string | null;
+            /** Location State */
+            location_state?: string | null;
+            /** Role Type */
+            role_type?: ("internship" | "full_time" | "both") | null;
+            /** Application Deadline */
+            application_deadline?: string | null;
+            /** Details */
+            details?: string | null;
+        };
+        /**
+         * OpportunitySurveyLinkSubmit
+         * @description One link submitted through the PUBLIC survey. Identical field rules to the
+         *     staff shape by inheritance — that sameness is the point, and it is what the
+         *     prior High-severity finding was about. ``alumni_id`` is deliberately absent:
+         *     it comes from the signed token, so a submitter cannot post links onto someone
+         *     else's record.
+         */
+        OpportunitySurveyLinkSubmit: {
+            /**
+             * Is Own Company
+             * @default false
+             */
+            is_own_company: boolean;
+            /** Company Name */
+            company_name: string | null;
+            /** Url */
+            url: string;
+            /** Location City */
+            location_city: string | null;
+            /** Location State */
+            location_state: string | null;
+            /**
+             * Role Type
+             * @enum {string}
+             */
+            role_type: "internship" | "full_time" | "both";
+            /** Application Deadline */
+            application_deadline: string | null;
+            /** Details */
+            details: string | null;
+        };
+        /**
          * PasswordCompleteResponse
          * @description Acknowledgement that the caller's force-change flag was cleared.
          */
@@ -8091,6 +8426,16 @@ export interface components {
              * @default 0
              */
             awaiting_review: number;
+            /**
+             * Applied
+             * @default 0
+             */
+            applied: number;
+            /**
+             * Rejected
+             * @default 0
+             */
+            rejected: number;
         };
         /**
          * SurveySchedulePauseAllResult
@@ -12566,6 +12911,236 @@ export interface operations {
             };
         };
     };
+    list_opportunity_links_opportunity_links_get: {
+        parameters: {
+            query?: {
+                /** @description Moderation state. Omit for approved links only. 'pending' / 'rejected' require the surveys.manage capability. */
+                status?: ("pending" | "approved" | "rejected") | null;
+                /** @description Internship / full-time / both. */
+                role_type?: ("internship" | "full_time" | "both") | null;
+                /** @description Substring match on the company the link is listed under — the typed name, or the alum's employer for 'my company' entries. */
+                company?: string | null;
+                /** @description Free-text search over company, details, location and url. */
+                q?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpportunityLinkPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_opportunity_link_opportunity_links_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpportunityLinkCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpportunityLinkRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_opportunity_link_opportunity_links__link_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                link_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpportunityLinkRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_opportunity_link_opportunity_links__link_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                link_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_opportunity_link_opportunity_links__link_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                link_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpportunityLinkUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpportunityLinkRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_opportunity_link_opportunity_links__link_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                link_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpportunityLinkRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_opportunity_link_opportunity_links__link_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                link_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpportunityLinkRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_tasks_tasks_get: {
         parameters: {
             query?: {
@@ -13017,6 +13592,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SurveySubmitResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    survey_submit_opportunity_links_survey_respond__token__links_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpportunityLinkSubmitRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpportunityLinkSubmitResult"];
                 };
             };
             /** @description Validation Error */
