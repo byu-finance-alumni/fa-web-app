@@ -40,6 +40,11 @@ export default async function PersonalEditPage({
             work_email: s(c?.work_email),
             phone: s(c?.phone),
             preferred_contact_method: s(c?.preferred_contact_method),
+            // Residence (#440) — the same three contact columns the survey
+            // collects and the profile shows as "Resident city".
+            city: s(c?.city),
+            state: s(c?.state),
+            country: s(c?.country),
             net_id: s(a.net_id),
             spouse_name: spouseName,
             citizenship: s(a.citizenship),
