@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { clientGet } from "@/lib/api-client";
+import { loginPathWithNext } from "@/lib/urlSafety";
 
 // How often to ask the backend "is this still the account's active session?".
 // Short enough that a superseded device is signed out promptly, long enough to
@@ -17,13 +18,24 @@ const POLL_MS = 20_000;
  * wouldn't notice until its next request. This poller asks
  * `GET /auth/session/active` on an interval (and on tab focus); when the backend
  * says this session was superseded, it signs the device out and sends it to the
- * login page with an explanatory notice.
+ * login page with an explanatory notice — carrying the page they were on as
+ * `?next=`, exactly as the middleware does for a cold navigation (#682).
  *
  * Renders nothing. Mounted once in the app shell layout.
  */
 export function SessionGuard() {
   const router = useRouter();
   const kicked = useRef(false);
+
+  // The current path, read through a ref rather than an effect dependency: the
+  // effect owns a long-lived interval and listeners, and re-running it on every
+  // navigation would restart the poll clock. The ref keeps the redirect using
+  // the page the user is on NOW without touching the effect's lifetime.
+  const pathname = usePathname();
+  const pathRef = useRef(pathname);
+  useEffect(() => {
+    pathRef.current = pathname;
+  }, [pathname]);
 
   useEffect(() => {
     let cancelled = false;
@@ -42,7 +54,9 @@ export function SessionGuard() {
         } catch {
           /* best-effort — redirect regardless */
         }
-        router.replace("/login?signedout=other-device");
+        router.replace(
+          loginPathWithNext(pathRef.current, { signedout: "other-device" }),
+        );
       } catch {
         // Transient/network/auth error — ignore and retry next tick. A truly
         // expired session is handled by the middleware / SessionTimeout.

@@ -4,13 +4,11 @@ import { cookies, headers } from "next/headers";
 import { redirect, RedirectType } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
-
-// Only allow same-origin relative paths as the post-login redirect, so a
-// crafted `?next=` can't bounce the user to an external site.
-function safeNext(next: string | null | undefined): string {
-  if (next && next.startsWith("/") && !next.startsWith("//")) return next;
-  return "/dashboard";
-}
+// The post-login destination is attacker-influenceable (`?next=` rides on a URL
+// anyone can hand a victim) and nothing downstream re-checks it, so the
+// validation is the security control. It lives in the shared module so the
+// middleware and the client-side sign-out paths apply the identical rule.
+import { safeNextPath } from "@/lib/urlSafety";
 
 // Single GENERIC message for BOTH the cooldown and the locked states. We never
 // reveal which one applies — distinguishing "wait a bit" from "fully locked"
@@ -268,5 +266,5 @@ export async function signIn(
   // restores the cached login paint from bfcache (a visible flash) before the
   // middleware re-redirects an authenticated user to the app (issue #31).
   // Replacing drops `/login` from history so Back never returns to it.
-  redirect(safeNext(next), RedirectType.replace);
+  redirect(safeNextPath(next), RedirectType.replace);
 }

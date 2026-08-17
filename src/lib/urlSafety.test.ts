@@ -3,9 +3,13 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  APP_HOME,
   LINKEDIN_URL_MAX_LEN,
+  isReturnablePath,
   isSafeHref,
+  loginPathWithNext,
   safeExternalHref,
+  safeNextPath,
   validateLinkedinUrl,
 } from "@/lib/urlSafety";
 import {
@@ -237,5 +241,261 @@ describe("render sites never hand a stored URL straight to an href", () => {
     // null, which is the part worth pinning.
     expect(safeExternalHref("javascript:alert(document.cookie)")).toBeNull();
     expect(safeExternalHref("javascript:alert(1)") ?? undefined).toBeUndefined();
+  });
+});
+
+/* ==================================================================== *
+ * Post-login return path (#682)
+ * ==================================================================== */
+
+/**
+ * Guards for the post-login redirect (#682).
+ *
+ * Issue #682 as WRITTEN asked to discard return-to-page and always land on the
+ * dashboard, which would have removed attacker influence over the destination
+ * entirely. That was reversed: return-to-page is KEPT, which promotes
+ * `safeNextPath` from a formality to the security control — `?next=` rides on a
+ * URL an attacker can hand a victim, and nothing downstream re-checks it.
+ *
+ * THE BUG THIS SUITE PINS. The check that shipped before was
+ * `next.startsWith("/") && !next.startsWith("//")`. It reads like an origin
+ * check and is not one: per the WHATWG URL spec a browser treats `\` as `/` in
+ * the authority position of a special scheme, and strips tab/CR/LF from input
+ * before parsing. `/\evil.com` cleared that test and resolved to
+ * https://evil.com/. The suite below is written as "resolving the result
+ * against our origin must never leave our origin", because that is the property
+ * that actually matters — asserting a particular return value would let the
+ * next clever input slip past a green test.
+ */
+const APP_ORIGIN = "https://finance.alumni.byu.edu";
+
+/** The origin the browser would ACTUALLY end up on for a given `?next=`. */
+function landsOn(next: string | null | undefined): string {
+  return new URL(safeNextPath(next), APP_ORIGIN).origin;
+}
+
+describe("safeNextPath — hostile destinations cannot move the user off-origin", () => {
+  it.each([
+    ["protocol-relative", "//evil.com"],
+    ["protocol-relative with a path", "//evil.com/alumni/1"],
+    ["triple slash", "///evil.com"],
+    ["a single BACKSLASH authority", "/\\evil.com"],
+    ["backslash then slash", "/\\/evil.com"],
+    ["double backslash", "/\\\\evil.com"],
+    ["slash-slash-backslash", "//\\evil.com"],
+    ["a leading backslash", "\\\\evil.com"],
+    ["an absolute https URL", "https://evil.com"],
+    ["an absolute http URL", "http://evil.com/alumni"],
+    ["a scheme-only absolute URL", "https://evil.com/#/dashboard"],
+    ["javascript:", "javascript:alert(1)"],
+    ["javascript: mixed case", "JaVaScRiPt:alert(1)"],
+    ["javascript: split by a newline", "java\nscript:alert(1)"],
+    ["data:", "data:text/html,<script>alert(1)</script>"],
+    ["an embedded TAB in the authority", "/\t/evil.com"],
+    ["an embedded NEWLINE in the authority", "/\n/evil.com"],
+    ["an embedded CRLF in the authority", "/\r\n//evil.com"],
+    ["userinfo smuggling", "https://finance.alumni.byu.edu@evil.com/"],
+    ["a percent-encoded protocol-relative value", "%2f%2fevil.com"],
+    ["a percent-encoded backslash", "%5Cevil.com"],
+    ["a percent-encoded absolute URL", "https%3A%2F%2Fevil.com"],
+    ["an encoded scheme-relative value", "/%2F%2Fevil.com".toLowerCase()],
+  ])("keeps the user on-origin for %s", (_label, next) => {
+    expect(landsOn(next)).toBe(APP_ORIGIN);
+  });
+
+  it("keeps the user on-origin for EVERY hostile shape, in one sweep", () => {
+    // Belt and braces over the table above: the property is what matters, so
+    // assert it over a generated cross-product of the tricks that historically
+    // defeat string-prefix checks.
+    const hosts = ["evil.com", "finance.alumni.byu.edu.evil.com"];
+    const authorities = ["//", "/\\", "\\/", "\\\\", "/\t/", "/\n/", "///"];
+    for (const host of hosts) {
+      for (const authority of authorities) {
+        for (const suffix of ["", "/", "/x?y=1#z"]) {
+          const next = `${authority}${host}${suffix}`;
+          expect(landsOn(next), JSON.stringify(next)).toBe(APP_ORIGIN);
+        }
+      }
+    }
+  });
+
+  it("falls back to the dashboard rather than somewhere arbitrary", () => {
+    for (const next of ["//evil.com", "/\\evil.com", "https://evil.com"]) {
+      expect(safeNextPath(next)).toBe(APP_HOME);
+    }
+  });
+
+  it("pins the exact bypass in the string-prefix check this replaced", () => {
+    // The old implementation, verbatim. Kept here as executable evidence of WHY
+    // the parser-based check exists — delete this and the reason evaporates.
+    const oldCheck = (next: string) =>
+      next.startsWith("/") && !next.startsWith("//") ? next : APP_HOME;
+
+    // It passed the value straight through...
+    expect(oldCheck("/\\evil.com")).toBe("/\\evil.com");
+    // ...and the browser's own parser resolved that OFF-ORIGIN.
+    expect(new URL(oldCheck("/\\evil.com"), APP_ORIGIN).origin).toBe(
+      "https://evil.com",
+    );
+    // The replacement does not.
+    expect(landsOn("/\\evil.com")).toBe(APP_ORIGIN);
+    expect(safeNextPath("/\\evil.com")).toBe(APP_HOME);
+  });
+});
+
+describe("safeNextPath — real destinations still work", () => {
+  it.each([
+    "/dashboard",
+    "/alumni",
+    "/alumni/42",
+    "/admin/import",
+    "/engineer/campaigns",
+  ])("returns %s unchanged", (next) => {
+    expect(safeNextPath(next)).toBe(next);
+    expect(landsOn(next)).toBe(APP_ORIGIN);
+  });
+
+  it("keeps a query string and hash on a same-origin path", () => {
+    expect(safeNextPath("/alumni?grad_year=2020#top")).toBe(
+      "/alumni?grad_year=2020#top",
+    );
+  });
+
+  it("leaves a percent-encoded path encoded (it stays a PATH, not an authority)", () => {
+    // `%2f` is not decoded into a slash by the parser, so this can never become
+    // an authority — it is a weird path on our own origin, which is harmless.
+    expect(landsOn("/%2f%2fevil.com")).toBe(APP_ORIGIN);
+    expect(safeNextPath("/%2f%2fevil.com")).toBe("/%2f%2fevil.com");
+  });
+
+  it("falls back to the dashboard for an absent or empty value", () => {
+    expect(safeNextPath(null)).toBe(APP_HOME);
+    expect(safeNextPath(undefined)).toBe(APP_HOME);
+    expect(safeNextPath("")).toBe(APP_HOME);
+  });
+
+  it("refuses a bare relative segment that would only resolve by accident", () => {
+    expect(safeNextPath("dashboard")).toBe(APP_HOME);
+    expect(safeNextPath("../dashboard")).toBe(APP_HOME);
+  });
+
+  it("refuses /login, which would only bounce off itself", () => {
+    // The middleware sends a signed-in user sitting on /login to APP_HOME, so
+    // honouring it costs a visible flash of the login page and gains nothing.
+    expect(safeNextPath("/login")).toBe(APP_HOME);
+  });
+
+  it("isReturnablePath is the boolean form of 'honoured as-is'", () => {
+    expect(isReturnablePath("/alumni/42")).toBe(true);
+    expect(isReturnablePath("/\\evil.com")).toBe(false);
+    expect(isReturnablePath("//evil.com")).toBe(false);
+    expect(isReturnablePath("/login")).toBe(false);
+    expect(isReturnablePath(null)).toBe(false);
+    expect(isReturnablePath("")).toBe(false);
+  });
+});
+
+describe("loginPathWithNext — every expiry path carries the same URL shape", () => {
+  it("keeps the idle-timeout notice AND the return path", () => {
+    const url = loginPathWithNext("/alumni/42", { reason: "timeout" });
+    const params = new URL(url, APP_ORIGIN).searchParams;
+    expect(params.get("reason")).toBe("timeout");
+    expect(params.get("next")).toBe("/alumni/42");
+  });
+
+  it("keeps the other-device notice AND the return path", () => {
+    const url = loginPathWithNext("/events/7", {
+      signedout: "other-device",
+    });
+    const params = new URL(url, APP_ORIGIN).searchParams;
+    expect(params.get("signedout")).toBe("other-device");
+    expect(params.get("next")).toBe("/events/7");
+  });
+
+  it("still points at /login", () => {
+    expect(
+      new URL(loginPathWithNext("/alumni/42", { reason: "timeout" }), APP_ORIGIN)
+        .pathname,
+    ).toBe("/login");
+  });
+
+  it("omits next entirely when there is nothing safe to return to", () => {
+    for (const path of [null, undefined, "", "/login", "//evil.com", "/\\evil.com"]) {
+      const url = loginPathWithNext(path, { reason: "timeout" });
+      expect(new URL(url, APP_ORIGIN).searchParams.get("next"), url).toBeNull();
+      // The notice must survive even when the path does not.
+      expect(new URL(url, APP_ORIGIN).searchParams.get("reason")).toBe(
+        "timeout",
+      );
+    }
+  });
+
+  it("produces a bare /login when there is no notice and no path", () => {
+    expect(loginPathWithNext(null)).toBe("/login");
+  });
+
+  it("round-trips through URL parsing the way the login form reads it", () => {
+    // LoginForm reads `searchParams.get("next")` and hands it to the action, so
+    // what matters is that the value SURVIVES that round trip and is then
+    // honoured. The two halves agreeing is the whole feature — a `next` that is
+    // emitted but then rejected is the silent failure this replaces.
+    for (const path of ["/alumni/42", "/admin/import", "/engineer/campaigns"]) {
+      const url = loginPathWithNext(path, { reason: "timeout" });
+      const carried = new URL(url, APP_ORIGIN).searchParams.get("next");
+      expect(carried, url).toBe(path);
+      expect(safeNextPath(carried)).toBe(path);
+    }
+  });
+
+  it("a path with reserved characters survives the round trip intact", () => {
+    // URLSearchParams percent-encodes the slashes on the way out; getting the
+    // SAME string back on the way in is what makes the two halves agree.
+    const path = "/alumni/42";
+    const url = loginPathWithNext(path, { signedout: "other-device" });
+    expect(url).toContain("next=%2Falumni%2F42");
+    expect(new URL(url, APP_ORIGIN).searchParams.get("next")).toBe(path);
+  });
+});
+
+describe("all four sign-out paths share ONE redirect rule (#682)", () => {
+  it("the login action validates with safeNextPath, not its own string test", () => {
+    const src = read("src/app/login/actions.ts");
+    expect(src).toContain('from "@/lib/urlSafety"');
+    expect(src).toContain("safeNextPath(next)");
+    // The pre-fix form. Its absence is the whole assertion.
+    expect(src).not.toContain('next.startsWith("//")');
+  });
+
+  it("the middleware shares APP_HOME and the returnable-path gate", () => {
+    const src = read("src/utils/supabase/middleware.ts");
+    expect(src).toContain('from "@/lib/urlSafety"');
+    expect(src).toContain("isReturnablePath(pathname)");
+    // A second copy of the destination is exactly the drift this prevents.
+    expect(src).not.toContain('const APP_HOME = "/dashboard"');
+  });
+
+  it("the idle timeout carries the path instead of a bare /login", () => {
+    const src = read("src/components/auth/SessionTimeout.tsx");
+    expect(src).toContain('from "@/lib/urlSafety"');
+    expect(src).toContain("loginPathWithNext");
+    expect(src).not.toContain('"/login?reason=timeout"');
+  });
+
+  it("the other-device eviction carries the path instead of a bare /login", () => {
+    const src = read("src/components/auth/SessionGuard.tsx");
+    expect(src).toContain('from "@/lib/urlSafety"');
+    expect(src).toContain("loginPathWithNext");
+    expect(src).not.toContain('"/login?signedout=other-device"');
+  });
+
+  it("no sign-out path keeps a hand-rolled redirect check of its own", () => {
+    for (const path of [
+      "src/app/login/actions.ts",
+      "src/utils/supabase/middleware.ts",
+      "src/components/auth/SessionTimeout.tsx",
+      "src/components/auth/SessionGuard.tsx",
+    ]) {
+      expect(read(path), path).not.toContain('startsWith("//")');
+    }
   });
 });
