@@ -184,18 +184,30 @@ export function campaignCreatedNote(result: SendResult, year: number): string {
  *     replace / cancel the auto-send schedule for a year.
  *
  * Layout: an account card (Resend usage + caps) and the graduation-year picker
- * stay pinned at the top as shared context, then two tabs — "Schedule & send"
+ * stay pinned at the top as shared context, then three tabs — "Schedule & send"
  * (a single box: the year's overview + status badge with the per-year schedule
- * control on the right, per-stage sent counts, and manual send) and
- * "Submissions" (the admin review queue) — so the console isn't one long scroll.
- * The bulk "schedule all years" dialog lives in the page header
- * (`SurveyBulkScheduler`), not here.
+ * control on the right, per-stage sent counts, and manual send), "Submissions"
+ * (the admin review queue) and "Progress" (every graduation year at once) — so
+ * the console isn't one long scroll. The first two act on the selected year and
+ * are disabled until one is picked; "Progress" is the all-years overview and is
+ * available immediately, since needing a year to see the year-agnostic view was
+ * backwards (#497). The bulk "schedule all years" dialog lives in the page
+ * header (`SurveyBulkScheduler`), not here.
  */
 
 // Fallback send caps used only until GET /survey/send-config resolves (and if
 // it ever fails). The live caps come from that endpoint and are staff-editable.
 const DEFAULT_DAILY_LIMIT = 100;
 const DEFAULT_MONTHLY_LIMIT = 3000;
+
+/**
+ * The year-scoped tabs while no year is selected. Greyed and unclickable rather
+ * than hidden, so it stays obvious that they exist and what unlocks them —
+ * matching the `disabled:opacity-50` treatment the shared controls already use.
+ * The hover override stops a disabled trigger from lighting up under the cursor.
+ */
+const DISABLED_TAB =
+  "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-gray-500";
 
 /** Today as an ISO `YYYY-MM-DD` (local, no tz drift) — the min for scheduling. */
 function todayIso(): string {
@@ -309,8 +321,11 @@ export function SurveyCampaignConsole({
   const [schedules, setSchedules] = useState<SurveyScheduleItem[] | null>(null);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
 
-  // Which tab is showing — "schedule" (Schedule & send, the default) or
-  // "submissions" (the review queue). Both tabs act on the selected year.
+  // Which tab the operator last chose — "schedule" (Schedule & send, the
+  // default), "submissions" (the review queue) or "progress" (all years). The
+  // first two act on the selected year; "progress" does not. What actually
+  // shows is `visibleTab` below, which falls back to Progress while no year is
+  // selected and the other two are unusable.
   const [activeTab, setActiveTab] = useState("schedule");
 
   /**
@@ -463,6 +478,16 @@ export function SurveyCampaignConsole({
 
   const selected =
     years?.find((y) => y.graduation_year === selectedYear) ?? null;
+
+  // Two of the three tabs act on the selected year and stay unusable until one
+  // is picked. "Progress" does not — it is the all-years overview, the panel you
+  // read BEFORE deciding which year to work on — so hiding the whole strip
+  // behind a year selection made the one non-year-scoped view the hardest to
+  // reach (#497). The strip now always renders; the year-scoped triggers are
+  // disabled instead, and Progress is what shows until a year is chosen.
+  const yearScopedTabsDisabled = selected === null;
+  const visibleTab = yearScopedTabsDisabled ? "progress" : activeTab;
+
   // Only a RUNNABLE schedule (scheduled/active) counts as "this year is
   // scheduled". A cancelled/completed row is treated as no schedule, so the
   // control clears (blank date, "Schedule" not "Reschedule", no Cancel button)
@@ -904,354 +929,363 @@ export function SurveyCampaignConsole({
         )}
       </Card>
 
-      {/* ── Tabs: keep the console from being one long scroll. Both tabs act on
-          the selected year, so they only render once a year is chosen. ── */}
-      {selected !== null ? (
-        <Tabs
-          value={activeTab}
-          onValueChange={setActiveTab}
-          className="mt-4 w-full"
-        >
-          {/* `overflow-y-hidden` alongside `overflow-x-auto` prevents a stray
-              vertical scrollbar on the tab strip (same fix as #530). */}
-          <TabsList className="w-full overflow-x-auto overflow-y-hidden">
-            <TabsTrigger value="schedule">Schedule &amp; send</TabsTrigger>
-            {/* The count badge (Jake, 2026-08-07). The number is announced in
-                the tab's accessible name — a circle reading "3" is meaningless
-                read aloud — and the circle itself is hidden from the
-                accessibility tree so it isn't read twice. */}
-            <TabsTrigger
-              value="submissions"
-              aria-label={submissionsTabLabel(pendingCount)}
-            >
-              Submissions
-              <PendingCountBadge count={pendingCount} />
-            </TabsTrigger>
-            <TabsTrigger value="progress">Progress</TabsTrigger>
-          </TabsList>
+      {/* ── Tabs: keep the console from being one long scroll. "Schedule & send"
+          and "Submissions" act on the selected year and are disabled until one
+          is chosen; "Progress" is the all-years overview and is always
+          available, so the strip itself always renders (#497). ── */}
+      <Tabs
+        value={visibleTab}
+        onValueChange={setActiveTab}
+        className="mt-4 w-full"
+      >
+        {/* `overflow-y-hidden` alongside `overflow-x-auto` prevents a stray
+            vertical scrollbar on the tab strip (same fix as #530). */}
+        <TabsList className="w-full overflow-x-auto overflow-y-hidden">
+          <TabsTrigger
+            value="schedule"
+            disabled={yearScopedTabsDisabled}
+            className={DISABLED_TAB}
+          >
+            Schedule &amp; send
+          </TabsTrigger>
+          {/* The count badge (Jake, 2026-08-07). The number is announced in
+              the tab's accessible name — a circle reading "3" is meaningless
+              read aloud — and the circle itself is hidden from the
+              accessibility tree so it isn't read twice. */}
+          <TabsTrigger
+            value="submissions"
+            aria-label={submissionsTabLabel(pendingCount)}
+            disabled={yearScopedTabsDisabled}
+            className={DISABLED_TAB}
+          >
+            Submissions
+            <PendingCountBadge count={pendingCount} />
+          </TabsTrigger>
+          <TabsTrigger value="progress">Progress</TabsTrigger>
+        </TabsList>
 
-          {/* ── Tab 1: a SINGLE box — the year's overview + status badge with
-              the per-year schedule control on the right, per-stage counts, and
-              the manual "Send now". ── */}
-          <TabsContent value="schedule">
-            <Card className="p-5">
-              {/* Top: the "Last auto-send" stat on the LEFT, the per-year
-                  schedule control (date + Schedule/Reschedule + status badge +
-                  Cancel) filling the SCHEDULE slot on the RIGHT. */}
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-                <div className="lg:flex-1 lg:pr-5">
+        {/* ── Tab 1: a SINGLE box — the year's overview + status badge with
+            the per-year schedule control on the right, per-stage counts, and
+            the manual "Send now". ── */}
+        <TabsContent value="schedule">
+          <Card className="p-5">
+            {/* Top: the "Last auto-send" stat on the LEFT, the per-year
+                schedule control (date + Schedule/Reschedule + status badge +
+                Cancel) filling the SCHEDULE slot on the RIGHT. */}
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+              <div className="lg:flex-1 lg:pr-5">
+                <MiniStat
+                  icon={<History className="h-4 w-4" aria-hidden="true" />}
+                  label="Last auto-send"
+                  value={formatWhen(selectedSchedule?.last_run_at ?? null)}
+                />
+                {/* Reply tally for the selected class — replied vs. the class
+                    total, with the not-yet-replied count. */}
+                <div className="mt-3">
                   <MiniStat
-                    icon={<History className="h-4 w-4" aria-hidden="true" />}
-                    label="Last auto-send"
-                    value={formatWhen(selectedSchedule?.last_run_at ?? null)}
+                    icon={
+                      <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                    }
+                    label="Replies"
+                    value={
+                      selected
+                        ? `${selected.responded.toLocaleString()} of ${selected.total_alumni.toLocaleString()} replied`
+                        : "—"
+                    }
+                    sub={
+                      recipientCount !== null
+                        ? `${recipientCount.toLocaleString()} can be emailed`
+                        : undefined
+                    }
                   />
-                  {/* Reply tally for the selected class — replied vs. the class
-                      total, with the not-yet-replied count. */}
-                  <div className="mt-3">
-                    <MiniStat
-                      icon={
-                        <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                      }
-                      label="Replies"
-                      value={
-                        selected
-                          ? `${selected.responded.toLocaleString()} of ${selected.total_alumni.toLocaleString()} replied`
-                          : "—"
-                      }
-                      sub={
-                        recipientCount !== null
-                          ? `${recipientCount.toLocaleString()} can be emailed`
-                          : undefined
-                      }
-                    />
-                  </div>
                 </div>
+              </div>
 
-                {/* SCHEDULE slot — the per-year schedule control (top-right of
-                    the box), replacing the old "Schedule status" stat. Equal
-                    width with the left column so the divider sits centered. Its
-                    label matches the "Last auto-send" stat's label style. */}
-                <div className="lg:flex-1 lg:border-l lg:border-gray-200 lg:pl-5">
-                  <Label
-                    htmlFor="schedule-date"
-                    className="flex items-center gap-1 text-xs font-medium text-gray-500"
+              {/* SCHEDULE slot — the per-year schedule control (top-right of
+                  the box), replacing the old "Schedule status" stat. Equal
+                  width with the left column so the divider sits centered. Its
+                  label matches the "Last auto-send" stat's label style. */}
+              <div className="lg:flex-1 lg:border-l lg:border-gray-200 lg:pl-5">
+                <Label
+                  htmlFor="schedule-date"
+                  className="flex items-center gap-1 text-xs font-medium text-gray-500"
+                >
+                  <span className="text-gray-400">
+                    <CalendarClock className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                  Schedule
+                </Label>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <Input
+                    id="schedule-date"
+                    type="date"
+                    min={todayIso()}
+                    value={scheduleDate}
+                    onChange={(e) => setScheduleDate(e.target.value)}
+                    className="w-[10.5rem]"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={submitSchedule}
+                    disabled={!scheduleDate || scheduling}
                   >
-                    <span className="text-gray-400">
-                      <CalendarClock className="h-4 w-4" aria-hidden="true" />
-                    </span>
-                    Schedule
-                  </Label>
-                  <div className="mt-1 flex flex-wrap items-center gap-2">
-                    <Input
-                      id="schedule-date"
-                      type="date"
-                      min={todayIso()}
-                      value={scheduleDate}
-                      onChange={(e) => setScheduleDate(e.target.value)}
-                      className="w-[10.5rem]"
-                    />
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={submitSchedule}
-                      disabled={!scheduleDate || scheduling}
-                    >
-                      <CalendarPlus aria-hidden="true" />
-                      {scheduling
-                        ? "Scheduling…"
-                        : selectedSchedule
-                          ? "Reschedule"
-                          : "Schedule"}
-                    </Button>
-                    {selectedSchedule &&
-                    selectedSchedule.status !== "cancelled" &&
-                    selectedSchedule.status !== "completed" ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setCancelOpen(true)}
-                        disabled={cancelling}
-                      >
-                        <XCircle aria-hidden="true" />
-                        {cancelling ? "Cancelling…" : "Cancel schedule"}
-                      </Button>
-                    ) : null}
-                  </div>
-                  <p className="mt-2 text-xs text-gray-400">
-                    On the chosen date, the survey automatically sends to the{" "}
-                    {selectedYear !== null
-                      ? `Class of ${selectedYear}`
-                      : "selected class"}
-                    , then follows up with anyone who hasn&apos;t replied after 1
-                    and 2 weeks.
-                  </p>
-                </div>
-              </div>
-
-              {/* Per-stage sent counts from the real schedule (0s if none yet). */}
-              <div className="mt-4 border-t border-gray-200 pt-4">
-                <p className="text-xs font-medium text-gray-500">
-                  Emails sent — initial, then 1-week &amp; 2-week reminders to
-                  non-responders
-                </p>
-                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  <StageStat
-                    label="Initial"
-                    count={selectedSchedule?.sent_initial ?? 0}
-                  />
-                  <StageStat
-                    label="1-week reminder"
-                    count={selectedSchedule?.sent_reminder_1 ?? 0}
-                  />
-                  <StageStat
-                    label="2-week reminder"
-                    count={selectedSchedule?.sent_reminder_2 ?? 0}
-                  />
-                </div>
-              </div>
-
-              {/* ── Cannot be reached (#392) ──────────────────────────────
-                  Alumni this campaign wants to email and can't, because there
-                  is no usable address on either column. Before this they were
-                  simply absent: a campaign reaching 180 of 200 looked identical
-                  to one reaching all 180 it had.
-
-                  Deliberately NOT merged with suppression. Deceased / Do Not
-                  Contact alumni are excluded from this list by the backend —
-                  they are a decision to honour, not a gap to close, and listing
-                  them here would read as an instruction to go find their
-                  address. The suppressed figure is shown separately below.
-
-                  Text-only: no icons in new UI. */}
-              {breakdown && breakdown.unreachable > 0 ? (
-                <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-medium text-navy-800">
-                      Cannot be reached —{" "}
-                      <span className="tabular-nums">
-                        {breakdown.unreachable.toLocaleString()}
-                      </span>{" "}
-                      {breakdown.unreachable === 1 ? "alumnus" : "alumni"} with
-                      no usable email address
-                    </p>
+                    <CalendarPlus aria-hidden="true" />
+                    {scheduling
+                      ? "Scheduling…"
+                      : selectedSchedule
+                        ? "Reschedule"
+                        : "Schedule"}
+                  </Button>
+                  {selectedSchedule &&
+                  selectedSchedule.status !== "cancelled" &&
+                  selectedSchedule.status !== "completed" ? (
                     <Button
                       type="button"
                       variant="secondary"
                       size="sm"
-                      onClick={toggleUnreachable}
+                      onClick={() => setCancelOpen(true)}
+                      disabled={cancelling}
                     >
-                      {unreachableOpen ? "Hide list" : "Show list"}
+                      <XCircle aria-hidden="true" />
+                      {cancelling ? "Cancelling…" : "Cancel schedule"}
                     </Button>
-                  </div>
-                  <p className="mt-1 text-xs text-gray-500">
-                    They are not counted as recipients and no email is attempted.
-                    Add an address to bring them into the next send.
+                  ) : null}
+                </div>
+                <p className="mt-2 text-xs text-gray-400">
+                  On the chosen date, the survey automatically sends to the{" "}
+                  {selectedYear !== null
+                    ? `Class of ${selectedYear}`
+                    : "selected class"}
+                  , then follows up with anyone who hasn&apos;t replied after 1
+                  and 2 weeks.
+                </p>
+              </div>
+            </div>
+
+            {/* Per-stage sent counts from the real schedule (0s if none yet). */}
+            <div className="mt-4 border-t border-gray-200 pt-4">
+              <p className="text-xs font-medium text-gray-500">
+                Emails sent — initial, then 1-week &amp; 2-week reminders to
+                non-responders
+              </p>
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <StageStat
+                  label="Initial"
+                  count={selectedSchedule?.sent_initial ?? 0}
+                />
+                <StageStat
+                  label="1-week reminder"
+                  count={selectedSchedule?.sent_reminder_1 ?? 0}
+                />
+                <StageStat
+                  label="2-week reminder"
+                  count={selectedSchedule?.sent_reminder_2 ?? 0}
+                />
+              </div>
+            </div>
+
+            {/* ── Cannot be reached (#392) ──────────────────────────────
+                Alumni this campaign wants to email and can't, because there
+                is no usable address on either column. Before this they were
+                simply absent: a campaign reaching 180 of 200 looked identical
+                to one reaching all 180 it had.
+
+                Deliberately NOT merged with suppression. Deceased / Do Not
+                Contact alumni are excluded from this list by the backend —
+                they are a decision to honour, not a gap to close, and listing
+                them here would read as an instruction to go find their
+                address. The suppressed figure is shown separately below.
+
+                Text-only: no icons in new UI. */}
+            {breakdown && breakdown.unreachable > 0 ? (
+              <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-navy-800">
+                    Cannot be reached —{" "}
+                    <span className="tabular-nums">
+                      {breakdown.unreachable.toLocaleString()}
+                    </span>{" "}
+                    {breakdown.unreachable === 1 ? "alumnus" : "alumni"} with
+                    no usable email address
                   </p>
-                  {unreachableOpen ? (
-                    unreachable === null ? (
-                      <p className="mt-3 text-xs text-gray-500">Loading…</p>
-                    ) : unreachable.length === 0 ? (
-                      <p className="mt-3 text-xs text-gray-500">
-                        Nobody to show.
-                      </p>
-                    ) : (
-                      <ul className="mt-3 divide-y divide-amber-200 border-t border-amber-200">
-                        {unreachable.map((a) => (
-                          <li
-                            key={a.alumni_id}
-                            className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2"
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={toggleUnreachable}
+                  >
+                    {unreachableOpen ? "Hide list" : "Show list"}
+                  </Button>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  They are not counted as recipients and no email is attempted.
+                  Add an address to bring them into the next send.
+                </p>
+                {unreachableOpen ? (
+                  unreachable === null ? (
+                    <p className="mt-3 text-xs text-gray-500">Loading…</p>
+                  ) : unreachable.length === 0 ? (
+                    <p className="mt-3 text-xs text-gray-500">
+                      Nobody to show.
+                    </p>
+                  ) : (
+                    <ul className="mt-3 divide-y divide-amber-200 border-t border-amber-200">
+                      {unreachable.map((a) => (
+                        <li
+                          key={a.alumni_id}
+                          className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2"
+                        >
+                          <a
+                            href={`/alumni/${a.alumni_id}`}
+                            className="text-sm font-medium text-navy-800 underline underline-offset-2"
                           >
-                            <a
-                              href={`/alumni/${a.alumni_id}`}
-                              className="text-sm font-medium text-navy-800 underline underline-offset-2"
-                            >
-                              {a.name}
-                            </a>
-                            <span className="text-xs text-gray-600">
-                              {a.reason_label}
-                              {/* Show the offending value so a typo can be
-                                  fixed on sight rather than chased. */}
-                              {a.personal_email || a.work_email ? (
-                                <span className="ml-1 text-gray-400">
-                                  ({a.personal_email || a.work_email})
-                                </span>
-                              ) : null}
-                            </span>
-                          </li>
+                            {a.name}
+                          </a>
+                          <span className="text-xs text-gray-600">
+                            {a.reason_label}
+                            {/* Show the offending value so a typo can be
+                                fixed on sight rather than chased. */}
+                            {a.personal_email || a.work_email ? (
+                              <span className="ml-1 text-gray-400">
+                                ({a.personal_email || a.work_email})
+                              </span>
+                            ) : null}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                ) : null}
+              </div>
+            ) : null}
+
+            {/* ── Already replied (#658) ────────────────────────────────
+                The bucket that sent Jake hunting. He cancelled a campaign,
+                went to re-send to the cohort, and read "1 already replied
+                within the last year" — with no way to tell whether that 1 was
+                the alumna he was trying to reach. He searched the class by
+                hand in the engineer console until she turned up.
+
+                Expanding names them, each with the DATE they replied, because
+                that date is the decision: three weeks ago means leave them
+                alone, eleven months ago is a judgement call. Only an engineer
+                can do anything about it, so only an engineer is offered the
+                list — everyone else gets the count and the person to ask,
+                which is the true state of affairs rather than a button that
+                403s.
+
+                Text-only: no icons in new UI. */}
+            {breakdown && breakdown.already_responded > 0 ? (
+              <div className="mt-4 rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-navy-800">
+                    Already replied —{" "}
+                    <span className="tabular-nums">
+                      {breakdown.already_responded.toLocaleString()}
+                    </span>{" "}
+                    {breakdown.already_responded === 1
+                      ? "alumnus"
+                      : "alumni"}{" "}
+                    answered within the last year
+                  </p>
+                  {isEngineer ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={toggleReplied}
+                    >
+                      {repliedOpen ? "Hide list" : "Show who"}
+                    </Button>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  A reply holds someone out of the survey for 365 days,
+                  whatever happens to the campaign that asked — cancelling or
+                  deleting it does not release them.
+                </p>
+                {!isEngineer || heldOutDenied ? (
+                  <p className="mt-2 text-xs text-gray-500">
+                    {heldOutNamesRequireEngineer(engineerContact)}
+                  </p>
+                ) : null}
+                {isEngineer && repliedOpen && !heldOutDenied ? (
+                  heldOut === null ? (
+                    <p className="mt-3 text-xs text-gray-500">Loading…</p>
+                  ) : heldOut.length === 0 ? (
+                    <p className="mt-3 text-xs text-gray-500">
+                      Nobody to show.
+                    </p>
+                  ) : (
+                    <>
+                      <ul className="mt-3 divide-y divide-gray-200 border-t border-gray-200">
+                        {heldOut.map((a) => (
+                          <HeldOutRow
+                            key={a.alumni_id}
+                            alum={a}
+                            engineerContact={engineerContact}
+                            onReset={onAlumnusReset}
+                          />
                         ))}
                       </ul>
-                    )
-                  ) : null}
-                </div>
-              ) : null}
-
-              {/* ── Already replied (#658) ────────────────────────────────
-                  The bucket that sent Jake hunting. He cancelled a campaign,
-                  went to re-send to the cohort, and read "1 already replied
-                  within the last year" — with no way to tell whether that 1 was
-                  the alumna he was trying to reach. He searched the class by
-                  hand in the engineer console until she turned up.
-
-                  Expanding names them, each with the DATE they replied, because
-                  that date is the decision: three weeks ago means leave them
-                  alone, eleven months ago is a judgement call. Only an engineer
-                  can do anything about it, so only an engineer is offered the
-                  list — everyone else gets the count and the person to ask,
-                  which is the true state of affairs rather than a button that
-                  403s.
-
-                  Text-only: no icons in new UI. */}
-              {breakdown && breakdown.already_responded > 0 ? (
-                <div className="mt-4 rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-medium text-navy-800">
-                      Already replied —{" "}
-                      <span className="tabular-nums">
-                        {breakdown.already_responded.toLocaleString()}
-                      </span>{" "}
-                      {breakdown.already_responded === 1
-                        ? "alumnus"
-                        : "alumni"}{" "}
-                      answered within the last year
-                    </p>
-                    {isEngineer ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={toggleReplied}
-                      >
-                        {repliedOpen ? "Hide list" : "Show who"}
-                      </Button>
-                    ) : null}
-                  </div>
-                  <p className="mt-1 text-xs text-gray-500">
-                    A reply holds someone out of the survey for 365 days,
-                    whatever happens to the campaign that asked — cancelling or
-                    deleting it does not release them.
-                  </p>
-                  {!isEngineer || heldOutDenied ? (
-                    <p className="mt-2 text-xs text-gray-500">
-                      {heldOutNamesRequireEngineer(engineerContact)}
-                    </p>
-                  ) : null}
-                  {isEngineer && repliedOpen && !heldOutDenied ? (
-                    heldOut === null ? (
-                      <p className="mt-3 text-xs text-gray-500">Loading…</p>
-                    ) : heldOut.length === 0 ? (
-                      <p className="mt-3 text-xs text-gray-500">
-                        Nobody to show.
-                      </p>
-                    ) : (
-                      <>
-                        <ul className="mt-3 divide-y divide-gray-200 border-t border-gray-200">
-                          {heldOut.map((a) => (
-                            <HeldOutRow
-                              key={a.alumni_id}
-                              alum={a}
-                              engineerContact={engineerContact}
-                              onReset={onAlumnusReset}
-                            />
-                          ))}
-                        </ul>
-                        {heldOutTruncatedNote(heldOut.length, heldOutTotal) ? (
-                          <p className="mt-2 text-xs text-gray-500">
-                            {heldOutTruncatedNote(heldOut.length, heldOutTotal)}
-                          </p>
-                        ) : null}
-                      </>
-                    )
-                  ) : null}
-                </div>
-              ) : null}
-
-              {/* Suppressed is its own line, never folded into the count above:
-                  never-email-them and can't-email-them are different states. */}
-              {breakdown && breakdown.suppressed > 0 ? (
-                <p className="mt-2 text-xs text-gray-500">
-                  {breakdown.suppressed.toLocaleString()} more{" "}
-                  {breakdown.suppressed === 1 ? "alumnus is" : "alumni are"}{" "}
-                  marked Deceased or Do Not Contact and are never emailed. This
-                  is separate from the alumni above — no action needed.
-                </p>
-              ) : null}
-
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs text-gray-400">
-                  Each recipient gets an email with their personal survey link.
-                </span>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => setSendOpen(true)}
-                  disabled={!canSend}
-                >
-                  <Send aria-hidden="true" />
-                  {recipientCount === null
-                    ? "Send now"
-                    : `Send now (${recipientCount.toLocaleString()})`}
-                </Button>
+                      {heldOutTruncatedNote(heldOut.length, heldOutTotal) ? (
+                        <p className="mt-2 text-xs text-gray-500">
+                          {heldOutTruncatedNote(heldOut.length, heldOutTotal)}
+                        </p>
+                      ) : null}
+                    </>
+                  )
+                ) : null}
               </div>
-            </Card>
-          </TabsContent>
+            ) : null}
 
-          {/* ── Tab 2: admin review queue — real alum submissions to apply/reject.
-              Reads the SAME queue the tab's badge counts (see
-              `usePendingSubmissions`), so the two cannot disagree. ── */}
-          <TabsContent value="submissions">
-            <PendingSubmissions queue={pending} />
-          </TabsContent>
+            {/* Suppressed is its own line, never folded into the count above:
+                never-email-them and can't-email-them are different states. */}
+            {breakdown && breakdown.suppressed > 0 ? (
+              <p className="mt-2 text-xs text-gray-500">
+                {breakdown.suppressed.toLocaleString()} more{" "}
+                {breakdown.suppressed === 1 ? "alumnus is" : "alumni are"}{" "}
+                marked Deceased or Do Not Contact and are never emailed. This
+                is separate from the alumni above — no action needed.
+              </p>
+            ) : null}
 
-          {/* ── Tab 3: every graduation year at once (#543). The ONE panel here
-              that is not about the selected year — it is the overview you check
-              before deciding which year to work on. Reads the schedules already
-              fetched for the picker, so opening this tab costs no request. ── */}
-          <TabsContent value="progress">
-            <CampaignProgressTable schedules={schedules} />
-          </TabsContent>
-        </Tabs>
-      ) : null}
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs text-gray-400">
+                Each recipient gets an email with their personal survey link.
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setSendOpen(true)}
+                disabled={!canSend}
+              >
+                <Send aria-hidden="true" />
+                {recipientCount === null
+                  ? "Send now"
+                  : `Send now (${recipientCount.toLocaleString()})`}
+              </Button>
+            </div>
+          </Card>
+        </TabsContent>
+
+        {/* ── Tab 2: admin review queue — real alum submissions to apply/reject.
+            Reads the SAME queue the tab's badge counts (see
+            `usePendingSubmissions`), so the two cannot disagree. ── */}
+        <TabsContent value="submissions">
+          <PendingSubmissions queue={pending} />
+        </TabsContent>
+
+        {/* ── Tab 3: every graduation year at once (#543). The ONE panel here
+            that is not about the selected year — it is the overview you check
+            before deciding which year to work on, which is why it is reachable
+            with no year selected (#497). Reads the schedules already fetched
+            for the picker, so opening this tab costs no request. ── */}
+        <TabsContent value="progress">
+          <CampaignProgressTable schedules={schedules} />
+        </TabsContent>
+      </Tabs>
 
       {/* Cancel-schedule confirm (#659). Text-only: no icons in new UI. */}
       {cancelConfirm ? (
