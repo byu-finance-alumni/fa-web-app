@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import { loginPathWithNext } from "@/lib/urlSafety";
 import { Button } from "@/components/ui/button";
 
 const ACTIVITY_EVENTS = [
@@ -26,6 +27,11 @@ const ACTIVITY_EVENTS = [
  * user must explicitly click to stay (genuine activity in another tab still
  * cancels it).
  *
+ * Signing out carries the page the user was on to `/login` as `?next=`, the same
+ * way the middleware does for a cold navigation, so "put me back where I was"
+ * works however the session ended (#682). Each tab carries ITS OWN path, which
+ * is what you want when the sign-out arrives over the channel from another tab.
+ *
  * Mounted once in the authenticated app layout, so it only runs for signed-in
  * users.
  */
@@ -44,6 +50,16 @@ export function SessionTimeout({
   // buttons call them without re-subscribing the listeners on every render.
   const stayRef = useRef<() => void>(() => {});
   const leaveRef = useRef<() => void>(() => {});
+
+  // The current path, held in a ref rather than an effect dependency. The effect
+  // owns the idle timer, the countdown and the BroadcastChannel; adding pathname
+  // to its deps would tear all three down and re-arm the idle clock on every
+  // navigation — and would reset an open warning dialog mid-countdown.
+  const pathname = usePathname();
+  const pathRef = useRef(pathname);
+  useEffect(() => {
+    pathRef.current = pathname;
+  }, [pathname]);
 
   useEffect(() => {
     let phase: "active" | "warning" = "active";
@@ -75,7 +91,7 @@ export function SessionTimeout({
         await createClient().auth.signOut();
       } finally {
         // Refresh so the middleware re-evaluates the (now empty) session.
-        router.replace("/login?reason=timeout");
+        router.replace(loginPathWithNext(pathRef.current, { reason: "timeout" }));
         router.refresh();
       }
     };
@@ -148,7 +164,9 @@ export function SessionTimeout({
           goodbye = true;
           clearIdle();
           clearTick();
-          router.replace("/login?reason=timeout");
+          router.replace(
+            loginPathWithNext(pathRef.current, { reason: "timeout" }),
+          );
           router.refresh();
         }
       };
