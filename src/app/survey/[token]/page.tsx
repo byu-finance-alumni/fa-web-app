@@ -5,6 +5,12 @@ import { use, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { SAMPLE_ALUM, SAMPLE_ALUM_NAME } from "@/lib/sampleAlumni";
 import {
+  emptyLinkEntry,
+  linkSubmitErrorMessage,
+  linksToSubmit,
+  type LinkEntry,
+} from "@/lib/opportunityLinks";
+import {
   EditFlow,
   INFO_SECTIONS,
   InvalidPanel,
@@ -61,6 +67,22 @@ export default function SurveyConfirmPage({
   const [photoFailed, setPhotoFailed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // Opportunity links (#441). One blank entry to start, so opening the section
+  // shows a form rather than an empty page with a button on it; a blank entry
+  // submits nothing, so an alum who looks and backs out sends nothing.
+  const [links, setLinks] = useState<LinkEntry[]>(() => [emptyLinkEntry()]);
+  // Which steps have already landed, so pressing Submit again after a failure
+  // RETRIES only what failed. Without this, a links failure the alum fixes and
+  // resubmits would stage their field response a second time — two pending rows
+  // for one submission, and the response queue is all-or-nothing per row, so a
+  // reviewer would apply the same change twice.
+  const [fieldsStaged, setFieldsStaged] = useState(false);
+  const [linksStaged, setLinksStaged] = useState(false);
+  // How many links went with the submission, so the thank-you screen can say
+  // what happens to them next. They are staged PENDING like everything else
+  // here — the alum is never told they are live.
+  const [linkCount, setLinkCount] = useState(0);
 
   // `?step=edit` opens straight on the section menu — the screen an alum reaches
   // by pressing "I need to make changes". Staff previewing the survey want to
@@ -143,6 +165,16 @@ export default function SurveyConfirmPage({
   // Stage the alum's edits for admin review (public, token-gated POST). If a new
   // profile photo was chosen, upload it as a SECOND token-gated step keyed to the
   // returned response id — a photo failure never loses the field submission.
+  //
+  // Opportunity links are a THIRD call (#441), to their own endpoint, because
+  // they are rows in their own table with their own moderation queue rather than
+  // `table.column` answers the response pipeline can carry.
+  //
+  // ORDER IS DELIBERATE: fields, then photo, then links. The fields are what the
+  // alum was asked here to do, so an optional extra failing — a rate limit, a
+  // rejected url — must never cost them the corrections they came to make. Each
+  // step records that it landed, so pressing Submit again after a failure
+  // retries ONLY what failed.
   const handleSubmit = async () => {
     if (token === "demo") {
       setStatus("submitted");
@@ -150,36 +182,74 @@ export default function SurveyConfirmPage({
     }
     setSubmitting(true);
     setSubmitError(null);
-    setPhotoFailed(false);
     try {
-      const res = await fetch(
-        `${API_URL}/survey/respond/${encodeURIComponent(token)}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          // Flag a photo-only submission so the backend still creates a response
-          // row (and returns its id) even when `fields` is empty (#537).
-          body: JSON.stringify({ fields: edits, has_photo: photoFile != null }),
-        },
-      );
-      if (!res.ok) throw new Error(String(res.status));
-      const result = (await res.json()) as SubmitResult;
-      // Fields are safely staged. Attach the photo if one was picked; surface a
-      // soft warning on failure but still treat the submission as successful.
-      if (photoFile && result.survey_response_id != null) {
-        try {
-          const form = new FormData();
-          form.append("survey_response_id", String(result.survey_response_id));
-          form.append("photo", photoFile);
-          const photoRes = await fetch(
-            `${API_URL}/survey/respond/${encodeURIComponent(token)}/photo`,
-            { method: "POST", body: form },
-          );
-          if (!photoRes.ok) setPhotoFailed(true);
-        } catch {
-          setPhotoFailed(true);
+      if (!fieldsStaged) {
+        // Reset INSIDE the guard: on a links-only retry the photo step doesn't
+        // run again, so clearing this would lose the "we couldn't upload your
+        // photo" warning the first pass earned.
+        setPhotoFailed(false);
+        const res = await fetch(
+          `${API_URL}/survey/respond/${encodeURIComponent(token)}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            // Flag a photo-only submission so the backend still creates a response
+            // row (and returns its id) even when `fields` is empty (#537).
+            body: JSON.stringify({ fields: edits, has_photo: photoFile != null }),
+          },
+        );
+        if (!res.ok) throw new Error(String(res.status));
+        const result = (await res.json()) as SubmitResult;
+        setFieldsStaged(true);
+        // Fields are safely staged. Attach the photo if one was picked; surface a
+        // soft warning on failure but still treat the submission as successful.
+        if (photoFile && result.survey_response_id != null) {
+          try {
+            const form = new FormData();
+            form.append("survey_response_id", String(result.survey_response_id));
+            form.append("photo", photoFile);
+            const photoRes = await fetch(
+              `${API_URL}/survey/respond/${encodeURIComponent(token)}/photo`,
+              { method: "POST", body: form },
+            );
+            if (!photoRes.ok) setPhotoFailed(true);
+          } catch {
+            setPhotoFailed(true);
+          }
         }
       }
+
+      // Blank entries are dropped, so an alum who never opened the section sends
+      // nothing — and must not, since the body requires at least one link.
+      const linkPayload = linksToSubmit(links);
+      if (linkPayload.length > 0 && !linksStaged) {
+        // The batch is all-or-nothing server-side: one bad value is a 422 for
+        // the whole call and NOTHING is staged. So a failure here is reported
+        // as a thing to fix and retry, on the form, rather than folded into the
+        // thank-you screen as a soft warning the way a failed photo is — the
+        // alum can act on it, and the entries are still on screen to act on.
+        let status: number | null = null;
+        try {
+          const res = await fetch(
+            `${API_URL}/survey/respond/${encodeURIComponent(token)}/links`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ links: linkPayload }),
+            },
+          );
+          status = res.status;
+          if (res.ok) setLinksStaged(true);
+        } catch {
+          // Network/CORS failure — no status to reason about.
+          status = null;
+        }
+        if (status === null || status < 200 || status >= 300) {
+          setSubmitError(linkSubmitErrorMessage(status));
+          return;
+        }
+      }
+      setLinkCount(linkPayload.length);
       setStatus("submitted");
     } catch {
       setSubmitError(
@@ -211,11 +281,18 @@ export default function SurveyConfirmPage({
         ) : status === "submitted" ? (
           <SuccessPanel
             title="Thank you — your updates are in"
-            body={
+            body={[
+              "Our team will review your response before any changes are applied to your record.",
               photoFailed
-                ? "Our team will review your response before any changes are applied to your record. We couldn't upload your new photo this time, but the rest of your updates were received. You can safely close this page."
-                : "Our team will review your response before any changes are applied to your record. You can safely close this page."
-            }
+                ? "We couldn't upload your new photo this time, but the rest of your updates were received."
+                : null,
+              linkCount > 0
+                ? `We've also received the ${linkCount === 1 ? "opportunity" : `${linkCount} opportunities`} you shared — our team checks each one before passing it on to students.`
+                : null,
+              "You can safely close this page.",
+            ]
+              .filter(Boolean)
+              .join(" ")}
           />
         ) : status === "confirmed" ? (
           <SuccessPanel
@@ -240,6 +317,8 @@ export default function SurveyConfirmPage({
             photoPreview={photoPreview}
             setPhotoPreview={setPhotoPreview}
             setPhotoFile={setPhotoFile}
+            links={links}
+            setLinks={setLinks}
             onBack={() => setStatus("review")}
             onSubmit={handleSubmit}
             submitting={submitting}
