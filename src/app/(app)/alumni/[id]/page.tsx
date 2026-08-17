@@ -633,14 +633,21 @@ export async function AlumniProfileView({
     },
     { label: "Email", ok: Boolean(c?.personal_email || c?.work_email) },
     { label: "Cell phone", ok: Boolean(c?.phone) },
-    // These read contact.city/state/zip, which hold the EMPLOYER's address (the
-    // import binds the sheet's work-address block to the contact row). Labelled
-    // "Company …" so they say what they measure — "Mailing ZIP code" implied a
-    // residence this system has never stored. Relabelled rather than removed:
-    // the underlying data is real and wanted, and dropping the checks would
-    // shrink the denominator and silently move every alum's completeness score.
-    { label: "Company city & state", ok: Boolean(c?.city && c?.state) },
-    { label: "Company ZIP code", ok: Boolean(c?.zip) },
+    // These read contact.city/state/zip — the alum's RESIDENCE (#440). They
+    // were briefly labelled "Company …" because #287 stage 1 rebound the
+    // address block to the employer, but residence came back: the survey asks
+    // for it and writes contact.city/state/country, the intake sheet has
+    // Residence city/state, this page renders `c?.city` as "Resident city"
+    // below, and staff can now enter it in the Personal edit section. The
+    // "Company …" labels contradicted that within one page, so they say
+    // residence like everything else that reads these columns. The employer's
+    // location is `career.current_*` and is measured nowhere in this list.
+    //
+    // Relabelled rather than removed: the underlying data is real and wanted,
+    // and dropping the checks would shrink the denominator and silently move
+    // every alum's completeness score.
+    { label: "Residence city & state", ok: Boolean(c?.city && c?.state) },
+    { label: "Residence ZIP code", ok: Boolean(c?.zip) },
     { label: "LinkedIn", ok: Boolean(a.linkedin_url) },
     { label: "Graduation year", ok: Boolean(a.graduation_year) },
     { label: "Current industry", ok: Boolean(career?.current_industry) },
@@ -1232,14 +1239,16 @@ export async function AlumniProfileView({
                     <Field label="Spouse" value={blankIfNa(a.spouse_first_name) || null} />
                     <Field label="Birthday" value={fmtDate(a.birth_date)} />
                   </div>
-                  {/* Col 3: net id · resident city · home country/citizenship.
+                  {/* Col 3: net id · residence city · home country/citizenship.
                       Home country and citizenship are combined into one field
                       (#531) — shown once when equal, "{home} / {citizenship}"
                       when they differ — and the freed slot shows the alum's
-                      resident (contact) city instead. */}
+                      residence (contact) city instead. "Residence city", not
+                      the old "Resident city", so this matches the completeness
+                      checklist above and the Personal edit form (#440). */}
                   <div className="space-y-4">
                     <Field label="BYU Net ID" value={a.net_id} />
-                    <Field label="Resident city" value={c?.city ?? null} />
+                    <Field label="Residence city" value={c?.city ?? null} />
                     <Field
                       label="Home country / Citizenship"
                       value={homeCountryCitizenship}

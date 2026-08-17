@@ -32,6 +32,7 @@ import {
   splitOtherDesignationSlots,
 } from "@/lib/designations";
 import {
+  COUNTRY_OPTIONS,
   INDUSTRY_OPTIONS,
   MARITAL_STATUS_OPTIONS,
   PRIMARY_INDUSTRY_OPTIONS,
@@ -41,34 +42,13 @@ import {
 
 export type Fields = Record<string, string>;
 
-// Country dropdown options (#525) — United States FIRST, then the rest
-// alphabetically. Kept local to the public survey (its only consumer); the app
-// otherwise stores country as free text, so a stored value outside this list is
-// still preserved by the select (see `SelectControl`).
-const COUNTRY_OPTIONS: readonly string[] = [
-  "United States",
-  "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Argentina",
-  "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain",
-  "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bolivia",
-  "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria",
-  "Burkina Faso", "Cambodia", "Cameroon", "Canada", "Chile", "China",
-  "Colombia", "Costa Rica", "Croatia", "Cyprus", "Czechia", "Denmark",
-  "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Estonia",
-  "Ethiopia", "Fiji", "Finland", "France", "Georgia", "Germany", "Ghana",
-  "Greece", "Guatemala", "Honduras", "Hong Kong", "Hungary", "Iceland",
-  "India", "Indonesia", "Iraq", "Ireland", "Israel", "Italy", "Jamaica",
-  "Japan", "Jordan", "Kazakhstan", "Kenya", "Kuwait", "Latvia", "Lebanon",
-  "Lithuania", "Luxembourg", "Malaysia", "Maldives", "Malta", "Mexico",
-  "Mongolia", "Montenegro", "Morocco", "Mozambique", "Nepal", "Netherlands",
-  "New Zealand", "Nicaragua", "Nigeria", "North Macedonia", "Norway", "Oman",
-  "Pakistan", "Panama", "Paraguay", "Peru", "Philippines", "Poland",
-  "Portugal", "Qatar", "Romania", "Rwanda", "Saudi Arabia", "Senegal",
-  "Serbia", "Singapore", "Slovakia", "Slovenia", "South Africa", "South Korea",
-  "Spain", "Sri Lanka", "Sweden", "Switzerland", "Taiwan", "Tanzania",
-  "Thailand", "Trinidad and Tobago", "Tunisia", "Turkey", "Uganda", "Ukraine",
-  "United Arab Emirates", "United Kingdom", "Uruguay", "Venezuela", "Vietnam",
-  "Zambia", "Zimbabwe", "Other",
-];
+// Country dropdown options (#525) — the list itself moved to
+// `constants/dropdowns.ts` (#440) once the staff Personal edit form regained the
+// Residence country field: both entry points write `contact.country`, so they
+// have to offer the same options. The app stores country as free text, so a
+// stored value outside this list is still preserved by the select (see
+// `SelectControl`). Same arrangement as `MARITAL_STATUS_OPTIONS` below.
+export { COUNTRY_OPTIONS };
 
 // Industry choices for the current-industry dropdown (#525). "Other" is broken
 // out separately so selecting it reveals a free-text input.
