@@ -142,7 +142,7 @@ export function LinksTable({
             {canReview ? <col className="w-[13rem]" /> : null}
           </colgroup>
           <thead>
-            <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+            <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
               {selecting ? (
                 <th scope="col" className="px-3 py-2">
                   <SelectAllCheckbox
@@ -207,7 +207,7 @@ export function LinksTable({
                   }`}
                 >
                   {selecting ? (
-                    <td className="px-3 py-1.5">
+                    <td className="px-3 py-2.5">
                       <input
                         type="checkbox"
                         checked={rowSelected}
@@ -221,7 +221,7 @@ export function LinksTable({
                     </td>
                   ) : null}
 
-                  <td className="px-3 py-1.5">
+                  <td className="px-3 py-2.5">
                     <div className="flex items-center gap-1.5">
                       {/* The keyboard route into the panel. A real button rather
                           than a tabbable <tr>: it keeps the table a table for a
@@ -270,15 +270,15 @@ export function LinksTable({
                     </div>
                   </td>
 
-                  <td className="truncate px-3 py-1.5 text-gray-700">
+                  <td className="truncate px-3 py-2.5 text-gray-700">
                     {ROLE_TYPE_LABELS[link.role_type]}
                   </td>
 
-                  <td className="truncate px-3 py-1.5 text-gray-700">
+                  <td className="truncate px-3 py-2.5 text-gray-700">
                     {locationDisplay(link)}
                   </td>
 
-                  <td className="px-3 py-1.5">
+                  <td className="px-3 py-2.5">
                     {/* Public-submitted value: only ever an anchor once
                         `linkTarget` has scheme-checked it, and the href is
                         always the FULL url — never the shortened label. */}
@@ -304,13 +304,13 @@ export function LinksTable({
                   </td>
 
                   <td
-                    className="truncate px-3 py-1.5 text-gray-500"
+                    className="truncate px-3 py-2.5 text-gray-500"
                     title={details || undefined}
                   >
                     {details || EM_DASH}
                   </td>
 
-                  <td className="truncate px-3 py-1.5 text-gray-700">
+                  <td className="truncate px-3 py-2.5 text-gray-700">
                     {submittedByDisplay(link)}
                     <span className="text-gray-400">
                       {" "}
@@ -319,7 +319,7 @@ export function LinksTable({
                   </td>
 
                   <td
-                    className={`truncate px-3 py-1.5 tabular-nums ${
+                    className={`truncate px-3 py-2.5 tabular-nums ${
                       stale ? "font-medium text-warning-600" : "text-gray-700"
                     }`}
                     title={`Submitted ${formatLinkDate(link.submitted_at)}`}
@@ -328,7 +328,7 @@ export function LinksTable({
                   </td>
 
                   <td
-                    className={`truncate px-3 py-1.5 tabular-nums ${
+                    className={`truncate px-3 py-2.5 tabular-nums ${
                       deadlinePassed ? "text-danger-600" : "text-gray-700"
                     }`}
                   >
@@ -340,7 +340,7 @@ export function LinksTable({
                   </td>
 
                   {canReview ? (
-                    <td className="px-3 py-1.5">
+                    <td className="px-3 py-2.5">
                       {/* Approve/Reject act on the row; they must not also open
                           it. The wrapper catches clicks that miss a button but
                           still land in the cell. */}
