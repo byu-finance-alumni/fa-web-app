@@ -17,7 +17,7 @@
  * by construction rather than by remembering to edit two files.
  */
 
-import { Fragment, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Check, ChevronRight, ExternalLink, Heart } from "lucide-react";
 
 import { HeadshotCropper } from "@/components/alumni/HeadshotCropper";
@@ -31,12 +31,16 @@ import { validateLinkedinUrl } from "@/lib/urlSafety";
 import {
   CITY_MAX,
   COMPANY_NAME_MAX,
+  COUNTRY_MAX,
   DETAILS_MAX,
   MAX_LINKS,
   ROLE_TYPE_OPTIONS,
+  STATE_MAX,
   URL_MAX,
   addLinkEntry,
   removeLinkEntry,
+  settleOpportunityUrl,
+  todayIsoUtc,
   updateLinkEntry,
   validateLinkEntries,
   type LinkEntry,
@@ -829,6 +833,14 @@ export function EditFlow({
                 return updated;
               })
             }
+            // The other half of `clearError`, for the on-blur URL check: a
+            // complaint can now be RAISED between edits, not only at submit.
+            setError={(entryId, field, message) =>
+              setLinkErrors((prev) => ({
+                ...prev,
+                [entryId]: { ...(prev[entryId] ?? {}), [field]: message },
+              }))
+            }
           />
         ) : section ? (
           <>
@@ -1244,13 +1256,30 @@ function OpportunityLinksSection({
   setEntries,
   errors,
   clearError,
+  setError,
 }: {
   entries: LinkEntry[];
   setEntries: (next: LinkEntry[]) => void;
   errors: Record<string, LinkEntryErrors>;
   clearError: (entryId: string, field: keyof LinkEntryErrors) => void;
+  setError: (
+    entryId: string,
+    field: keyof LinkEntryErrors,
+    message: string,
+  ) => void;
 }) {
   const atCap = entries.length >= MAX_LINKS;
+
+  // Today, for every deadline picker's floor. Resolved once here and after
+  // mount, not during render: this page is client-rendered but Next still
+  // renders it on the server, and a request straddling UTC midnight would
+  // hydrate a `min` that disagrees with the one already in the markup. The rule
+  // does not depend on it — `validateLinkEntries` re-checks against a fresh
+  // clock on submit — so the first frame going without costs nothing.
+  const [minDeadline, setMinDeadline] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    setMinDeadline(todayIsoUtc());
+  }, []);
 
   return (
     <>
@@ -1275,9 +1304,14 @@ function OpportunityLinksSection({
             // section they only just opened.
             canRemove={entries.length > 1}
             errors={errors[entry.id] ?? {}}
+            minDeadline={minDeadline}
             onChange={(patch, cleared) => {
               setEntries(updateLinkEntry(entries, entry.id, patch));
               if (cleared) clearError(entry.id, cleared);
+            }}
+            onFieldError={(field, message) => {
+              if (message) setError(entry.id, field, message);
+              else clearError(entry.id, field);
             }}
             onRemove={() => setEntries(removeLinkEntry(entries, entry.id))}
           />
@@ -1311,21 +1345,50 @@ function OpportunityLinkCard({
   index,
   canRemove,
   errors,
+  minDeadline,
   onChange,
+  onFieldError,
   onRemove,
 }: {
   entry: LinkEntry;
   index: number;
   canRemove: boolean;
   errors: LinkEntryErrors;
+  /** `yyyy-mm-dd` floor for the deadline picker, once the client knows today. */
+  minDeadline?: string;
   /** `cleared` names the field whose complaint this edit answers, if any. */
   onChange: (
     patch: Partial<Omit<LinkEntry, "id">>,
     cleared?: keyof LinkEntryErrors,
   ) => void;
+  /** Raise (or, with `null`, drop) one field's complaint between edits. */
+  onFieldError: (field: keyof LinkEntryErrors, message: string | null) => void;
   onRemove: () => void;
 }) {
   const base = `survey-link-${entry.id}`;
+
+  /**
+   * The link box, once the alum's finger leaves it.
+   *
+   * NORMALISE, then judge. `jakegunnell.com` is written back as
+   * `https://jakegunnell.com/` — the value that will actually be sent, shown in
+   * the box rather than sprung on anyone later — and a link that cannot be
+   * rescued is named right there instead of surviving to the end of the survey.
+   * On a phone, where this whole page lives, finding out at blur is the
+   * difference between one correction and a scroll back through ten cards.
+   *
+   * A blank box settles silently: an alum who tapped into a row and out again
+   * has not made a mistake yet, and the blank row is dropped on submit anyway.
+   */
+  const settleUrl = () => {
+    if (entry.url.trim() === "") {
+      onFieldError("url", null);
+      return;
+    }
+    const { value, error } = settleOpportunityUrl(entry.url);
+    if (value !== entry.url) onChange({ url: value });
+    onFieldError("url", error);
+  };
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-5 sm:p-6">
@@ -1411,7 +1474,7 @@ function OpportunityLinkCard({
           label="Link to the posting"
           required
           error={errors.url}
-          help="The application page, the job posting, or your company's careers page."
+          help="The application page, the job posting, or your company's careers page. A plain address like jakegunnell.com works too."
         >
           {(props) => (
             <Input
@@ -1422,6 +1485,7 @@ function OpportunityLinkCard({
               maxLength={URL_MAX}
               placeholder="https://careers.example.com/jobs/1234"
               onChange={(e) => onChange({ url: e.target.value }, "url")}
+              onBlur={settleUrl}
             />
           )}
         </LinkField>
@@ -1454,6 +1518,32 @@ function OpportunityLinkCard({
           )}
         </LinkField>
 
+        {/*
+          Text-only toggle, like every control on this page. A checkbox rather
+          than two buttons because it is one binary fact about the job.
+
+          FLIPPING IT LOSES NOTHING. The picked state and the typed region are
+          two different slots on the entry, so a state chosen and then abandoned
+          is still there on the way back, and `linksToSubmit` sends only the one
+          belonging to the mode on screen. Same principle as the "at my company"
+          box above: an accidental tap never deletes an answer.
+        */}
+        <label className="flex w-fit cursor-pointer items-center gap-2 rounded-md border border-gray-300 px-4 py-1.5 text-sm text-gray-700 transition-colors hover:border-brand-blue-500 has-[:checked]:border-brand-blue-600 has-[:checked]:bg-brand-blue-50 has-[:checked]:font-medium has-[:checked]:text-navy-800">
+          <input
+            id={`${base}-outside-us`}
+            type="checkbox"
+            checked={entry.isOutsideUS}
+            onChange={(e) => {
+              onChange({ isOutsideUS: e.target.checked }, "state");
+              // The country box comes and goes with this; a message about a
+              // field that just left the screen has nothing to point at.
+              onFieldError("country", null);
+            }}
+            className="h-4 w-4 rounded border-gray-300 text-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
+          />
+          This job is outside the United States
+        </label>
+
         {/* Stacked on a phone, paired from `sm:` — the same breakpoint the rest
             of this page splits at. */}
         <div className="grid gap-5 sm:grid-cols-2">
@@ -1468,33 +1558,74 @@ function OpportunityLinkCard({
               />
             )}
           </LinkField>
-          <LinkField id={`${base}-state`} label="State" error={errors.state}>
+          {entry.isOutsideUS ? (
+            <LinkField
+              id={`${base}-region`}
+              label="Region or province"
+              error={errors.state}
+            >
+              {(props) => (
+                <Input
+                  {...props}
+                  value={entry.region}
+                  maxLength={STATE_MAX}
+                  placeholder="e.g. Ontario"
+                  onChange={(e) => onChange({ region: e.target.value }, "state")}
+                />
+              )}
+            </LinkField>
+          ) : (
+            <LinkField id={`${base}-state`} label="State" error={errors.state}>
+              {(props) => (
+                // The same state list the Employment section offers, so the two
+                // spellings staff filter on stay one spelling. A dropdown also
+                // takes the free-text character rules out of play here entirely.
+                <SelectControl
+                  {...props}
+                  value={entry.state}
+                  options={STATE_NAMES}
+                  placeholder="Select a state"
+                  onChange={(v) => onChange({ state: v }, "state")}
+                />
+              )}
+            </LinkField>
+          )}
+        </div>
+
+        {entry.isOutsideUS ? (
+          <LinkField
+            id={`${base}-country`}
+            label="Country"
+            error={errors.country}
+          >
             {(props) => (
-              // The same state list the Employment section offers, so the two
-              // spellings staff filter on stay one spelling. A dropdown also
-              // takes the free-text character rules out of play here entirely.
-              <SelectControl
+              <Input
                 {...props}
-                value={entry.state}
-                options={STATE_NAMES}
-                placeholder="Select a state"
-                onChange={(v) => onChange({ state: v }, "state")}
+                value={entry.country}
+                maxLength={COUNTRY_MAX}
+                placeholder="e.g. Canada"
+                onChange={(e) => onChange({ country: e.target.value }, "country")}
               />
             )}
           </LinkField>
-        </div>
+        ) : null}
 
         <LinkField
           id={`${base}-deadline`}
           label="Application deadline"
           help="Optional — leave blank if it's open until filled."
+          error={errors.deadline}
         >
           {(props) => (
             <Input
               {...props}
               type="date"
               value={entry.deadline}
-              onChange={(e) => onChange({ deadline: e.target.value })}
+              // Discourages a past date in the picker itself. The rule is
+              // enforced by `validateLinkEntries` on submit, mirroring the
+              // server: today is accepted, only earlier is refused.
+              min={minDeadline}
+              onChange={(e) => onChange({ deadline: e.target.value }, "deadline")}
             />
           )}
         </LinkField>
