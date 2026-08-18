@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { LinksSelectionToggle } from "@/components/links/LinksSelection";
 import {
   DEFAULT_STATUS,
   EMPTY_LINKS_FILTERS,
@@ -22,7 +23,8 @@ import {
 
 /**
  * Toolbar for the Links list: "Add link" on the left, the live search spanning
- * the middle, and the Filters menu pinned far right.
+ * the middle, then the blue Edit (selection-mode) button and the Filters menu
+ * pinned far right.
  *
  * Deliberately the same machine as `EventsToolbar` / `AuditToolbar` — live
  * filtering with no Apply button, `replace()` rather than `push()` so Back does
@@ -160,6 +162,12 @@ export function LinksToolbar({
           ))}
         </Select>
       ) : null}
+
+      {/* The owner's ask: a blue Edit button "next to filters". It renders only
+          for holders of `links.delete` — the component reads the selection
+          context, which the page seeds from the capability and which is absent
+          (so the button is absent) for everyone else. */}
+      <LinksSelectionToggle />
 
       <div ref={menuRef} className="relative shrink-0">
         <Button

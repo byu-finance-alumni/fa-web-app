@@ -475,6 +475,10 @@ export function linkSubmitErrorMessage(status: number | null): string {
 export type OpportunityLink = Schema<"OpportunityLinkRead">;
 export type OpportunityLinkCreate = Schema<"OpportunityLinkCreate">;
 export type OpportunityLinkPage = Schema<"OpportunityLinkPage">;
+export type OpportunityLinkBulkDeleteRequest =
+  Schema<"OpportunityLinkBulkDeleteRequest">;
+export type OpportunityLinkBulkDeleteResult =
+  Schema<"OpportunityLinkBulkDeleteResult">;
 
 export type LinkStatus = OpportunityLink["status"];
 
@@ -928,4 +932,188 @@ export function validateAddLinkStep(
  */
 export function maxReachableAddLinkStep(v: AddLinkFormValues): number {
   return v.alumniId === null ? 0 : ADD_LINK_LAST_STEP;
+}
+
+/* ------------------------------------------------------------------ *
+ * Selection mode + bulk delete
+ * ------------------------------------------------------------------ */
+
+/**
+ * Mirrors `MAX_LINKS_PER_BULK_DELETE` on `POST /opportunity-links/bulk-delete`.
+ *
+ * The backend 422s a longer list, and a 422 on a destructive action is the worst
+ * possible feedback: the user has already committed to deleting and gets a
+ * schema error back. So the cap is restated here to be enforced BEFORE the call
+ * and explained in the user's own units ("links"), not the wire's.
+ *
+ * Currently unreachable through the UI — {@link LINKS_PAGE_SIZE} is 50 and the
+ * selection is pruned to the visible page (see {@link pruneLinkSelection}) — and
+ * that is on purpose. It is the guard that has to already be there on the day
+ * someone raises the page size, because the failure it prevents is one you only
+ * find out about by destroying nothing and confusing somebody.
+ */
+export const MAX_LINKS_PER_BULK_DELETE = 100;
+
+/** Is `id` in the current selection? */
+export function isLinkSelected(
+  selected: readonly number[],
+  id: number,
+): boolean {
+  return selected.includes(id);
+}
+
+/**
+ * Check/uncheck one row. Appends at the end so the selection keeps click order —
+ * nothing depends on the order, but a stable one keeps the confirmation copy and
+ * the request body reproducible.
+ */
+export function toggleLinkSelection(
+  selected: readonly number[],
+  id: number,
+): number[] {
+  return selected.includes(id)
+    ? selected.filter((n) => n !== id)
+    : [...selected, id];
+}
+
+/**
+ * Select-all / clear-all for the rows currently on screen.
+ *
+ * `checked` is passed rather than derived so the header checkbox is a real
+ * checkbox: the DOM tells us what state the user just put it in, and a
+ * half-selected page resolving to "select the rest" (rather than toggling each
+ * row) is what a user expects from a header checkbox.
+ */
+export function setPageLinkSelection(
+  selected: readonly number[],
+  pageIds: readonly number[],
+  checked: boolean,
+): number[] {
+  if (!checked) return selected.filter((id) => !pageIds.includes(id));
+  const missing = pageIds.filter((id) => !selected.includes(id));
+  return [...selected, ...missing];
+}
+
+/** Every row on the page is selected (and there is at least one row). */
+export function isPageFullySelected(
+  selected: readonly number[],
+  pageIds: readonly number[],
+): boolean {
+  return pageIds.length > 0 && pageIds.every((id) => selected.includes(id));
+}
+
+/** Some — but not all — of the page is selected; drives the header's `indeterminate`. */
+export function isPagePartiallySelected(
+  selected: readonly number[],
+  pageIds: readonly number[],
+): boolean {
+  const hit = pageIds.some((id) => selected.includes(id));
+  return hit && !isPageFullySelected(selected, pageIds);
+}
+
+/**
+ * Drop anything that is no longer on screen.
+ *
+ * Run whenever the visible rows change — a filter edit, a search keystroke, a
+ * page step. The selection lives in client state, so without this a row selected
+ * on page 1 would still be counted (and DELETED) while the user is looking at
+ * page 2 with no checkbox to clear it. For an irreversible action the rule is
+ * "you can only delete what you can see"; a silently-shrinking count is a much
+ * smaller surprise than a silently-deleted row.
+ */
+export function pruneLinkSelection(
+  selected: readonly number[],
+  pageIds: readonly number[],
+): number[] {
+  return selected.filter((id) => pageIds.includes(id));
+}
+
+/**
+ * Normalise a selection into a request body list: de-duplicated, positive
+ * integers only, original order kept.
+ *
+ * The service collapses duplicates itself, but sending them would make
+ * `requested` disagree with what the user was shown ("5 selected" → requested 6),
+ * and the honest-reporting copy below is built from those numbers.
+ */
+export function toBulkDeleteIds(ids: readonly number[]): number[] {
+  const seen = new Set<number>();
+  const out: number[] = [];
+  for (const id of ids) {
+    if (!Number.isInteger(id) || id <= 0 || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
+/**
+ * Why this selection cannot be submitted, or `null` when it can. Checked on both
+ * sides of the server action, so the button can be disabled with a reason AND
+ * the action can refuse a hand-made call without leaning on a 422.
+ */
+export function bulkDeleteBlockedReason(
+  ids: readonly number[],
+): string | null {
+  const count = toBulkDeleteIds(ids).length;
+  if (count === 0) return "Select at least one link to delete.";
+  if (count > MAX_LINKS_PER_BULK_DELETE)
+    return `You can delete ${MAX_LINKS_PER_BULK_DELETE} links at a time. ${count} are selected — clear some and try again.`;
+  return null;
+}
+
+/** "1 link" / "4 links" — the unit the confirmation and the count both use. */
+export function linkCountLabel(count: number): string {
+  return count === 1 ? "1 link" : `${count} links`;
+}
+
+/** "Nothing selected" / "1 selected" / "4 selected" for the selection bar. */
+export function selectionCountLabel(count: number): string {
+  return count === 0 ? "Nothing selected" : `${count} selected`;
+}
+
+/**
+ * The confirmation sentence. States the count and that it is permanent, in that
+ * order, because those are the two facts that should stop a mis-click.
+ */
+export function bulkDeleteConfirmMessage(count: number): string {
+  return `Permanently delete ${linkCountLabel(count)}? This cannot be undone — the ${
+    count === 1 ? "link is" : "links are"
+  } removed from the list for everyone.`;
+}
+
+/**
+ * What to tell the user after the call, from the per-id result.
+ *
+ * The endpoint is BEST-EFFORT: ids that no longer exist come back in
+ * `missing_ids` instead of failing the batch. Reporting "Deleted 5 links" when
+ * one of them was already gone would be a lie about a destructive action, and
+ * the count is the only thing the user can check us on — so a partial result
+ * says so in both halves, and `deleted_ids` being empty is not a success at all.
+ */
+export function bulkDeleteOutcomeMessage(
+  result: OpportunityLinkBulkDeleteResult,
+): { tone: "success" | "warning"; message: string } {
+  const deleted = result.deleted_ids.length;
+  const missing = result.missing_ids.length;
+
+  if (missing === 0) {
+    return { tone: "success", message: `Deleted ${linkCountLabel(deleted)}.` };
+  }
+  if (deleted === 0) {
+    return {
+      tone: "warning",
+      message: `Nothing was deleted — ${linkCountLabel(
+        missing,
+      )} had already been removed by someone else. The list has been refreshed.`,
+    };
+  }
+  return {
+    tone: "warning",
+    message: `Deleted ${linkCountLabel(deleted)} of ${
+      result.requested
+    } selected. ${linkCountLabel(
+      missing,
+    )} had already been removed by someone else.`,
+  };
 }

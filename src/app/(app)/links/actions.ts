@@ -3,7 +3,7 @@
 /**
  * Server actions behind the Links tab (api #441).
  *
- * All four mirror the shape used everywhere else in this app (see
+ * All of them mirror the shape used everywhere else in this app (see
  * `pay-it-forward/actions.ts`): they return a discriminated result rather than
  * throwing, so the client component can show WHY something failed instead of a
  * generic message. The backend re-checks the caller's permission on every one of
@@ -14,10 +14,14 @@ import { revalidatePath } from "next/cache";
 import { apiGet, apiPost, ApiError } from "@/lib/api";
 import type { Schema } from "@/types/api";
 import {
+  bulkDeleteBlockedReason,
+  toBulkDeleteIds,
   toCreateBody,
   validateAddLink,
   type AddLinkFormValues,
   type OpportunityLink,
+  type OpportunityLinkBulkDeleteRequest,
+  type OpportunityLinkBulkDeleteResult,
 } from "@/lib/opportunityLinks";
 
 export type LinkActionResult = { ok: true } | { ok: false; error: string };
@@ -60,6 +64,56 @@ export async function rejectLink(
   }
   revalidatePath("/links");
   return { ok: true };
+}
+
+export type BulkDeleteLinksResult =
+  | { ok: true; result: OpportunityLinkBulkDeleteResult }
+  | { ok: false; error: string };
+
+/**
+ * Permanently delete the links a staff member multi-selected in the Links tab.
+ *
+ * Requires the `links.delete` capability — seeded to Super Admin and Engineer
+ * only, and NOT held by Full Access, which keeps approve/reject. The backend is
+ * the control; the Edit button is hidden from everyone else purely so nobody is
+ * offered a destructive action that would 403 on click.
+ *
+ * BEST-EFFORT by design, so this returns the whole per-id result rather than a
+ * boolean: ids that no longer exist come back in `missing_ids` and the caller
+ * reports them. Collapsing that into `{ ok: true }` would mean telling someone
+ * five links were deleted when four were.
+ *
+ * The id list is normalised and cap-checked here as well as in the UI, because a
+ * server action is a real endpoint anything can call and a raw 422 is a poor
+ * answer to a delete request.
+ */
+export async function bulkDeleteLinks(
+  opportunityLinkIds: readonly number[],
+): Promise<BulkDeleteLinksResult> {
+  const ids = toBulkDeleteIds(opportunityLinkIds);
+  const blocked = bulkDeleteBlockedReason(ids);
+  if (blocked) return { ok: false, error: blocked };
+
+  const body: OpportunityLinkBulkDeleteRequest = {
+    opportunity_link_ids: ids,
+  };
+
+  try {
+    const result = await apiPost<OpportunityLinkBulkDeleteResult>(
+      "/opportunity-links/bulk-delete",
+      body,
+    );
+    revalidatePath("/links");
+    return { ok: true, result };
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof ApiError
+          ? e.message
+          : "Couldn't delete the selected links.",
+    };
+  }
 }
 
 export type CreateLinkResult =

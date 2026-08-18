@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { ApiError, apiGet } from "@/lib/api";
 import { getAuthContext } from "@/lib/auth-context";
-import { canManageSurveys } from "@/constants/capabilities";
+import { canDeleteLinks, canManageSurveys } from "@/constants/capabilities";
 import { Topbar } from "@/components/shell/Topbar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { LinksBulkDeleteBar } from "@/components/links/LinksBulkDeleteBar";
+import { LinksSelectionProvider } from "@/components/links/LinksSelection";
 import { LinksTable } from "@/components/links/LinksTable";
 import { LinksToolbar } from "@/components/links/LinksToolbar";
 import {
@@ -37,6 +39,12 @@ import {
  * status control and no review column. As always this is UX — the backend
  * re-checks every request, and the capability is read from `capabilities` rather
  * than from the role string because an engineer can grant it to any role (#379).
+ *
+ * DELETING is a THIRD tier, gated on its own `links.delete` capability — seeded
+ * to Super Admin and Engineer, and deliberately not held by Full Access even
+ * though they keep `surveys.manage` for approve/reject. Approve and reject are
+ * reversible bookkeeping; delete destroys the row. The blue Edit button and the
+ * whole selection mode behind it appear only for holders of that capability.
  */
 
 export default async function LinksPage({
@@ -50,12 +58,20 @@ export default async function LinksPage({
 
   // Fail closed: an unreadable /auth/context means no review controls, never
   // "assume they can review". A control that 403s on click is worse than one
-  // that was never offered.
+  // that was never offered — and doubly so for the delete control, where the
+  // failure mode of guessing wrong is offering someone a destructive action.
   let canReview = false;
+  let canDelete = false;
   try {
-    canReview = canManageSurveys((await getAuthContext()).capabilities);
+    const { capabilities } = await getAuthContext();
+    canReview = canManageSurveys(capabilities);
+    // `links.delete` is a SEPARATE capability from `surveys.manage`, not a
+    // stronger reading of it: Full Access approves and rejects but does not
+    // delete. Never infer one from the other, and never from the role name.
+    canDelete = canDeleteLinks(capabilities);
   } catch {
     canReview = false;
+    canDelete = false;
   }
 
   // A non-reviewer cannot see anything but approved links, so a deep link
@@ -80,6 +96,11 @@ export default async function LinksPage({
   }
 
   const rows = data?.items ?? null;
+  // The ids selection mode is allowed to act on: exactly what is on screen.
+  const pageIds = (rows ?? []).map((r) => r.opportunity_link_id);
+  // Rendered once here and passed down so the age column agrees with itself
+  // across hydration — the table is a client component now.
+  const now = new Date();
   const from = data && data.total > 0 ? offset + 1 : 0;
   const to = data ? Math.min(offset + LINKS_PAGE_SIZE, data.total) : 0;
   const hasPrev = offset > 0;
@@ -96,53 +117,61 @@ export default async function LinksPage({
           </p>
         </div>
 
-        <LinksToolbar
-          initial={effectiveFilters}
-          canReview={canReview}
-          createHref={canReview ? "/links/new" : null}
-        />
+        {/* Selection mode spans the toolbar (the Edit button), the bar under it
+            (count + Delete) and the table (the checkboxes), so all three sit
+            inside one provider. The state is ephemeral and deliberately NOT in
+            the URL — see the component for why. */}
+        <LinksSelectionProvider canDelete={canDelete} pageIds={pageIds}>
+          <LinksToolbar
+            initial={effectiveFilters}
+            canReview={canReview}
+            createHref={canReview ? "/links/new" : null}
+          />
 
-        {error ? (
-          <Card className="p-10 text-center">
-            <p className="text-sm font-semibold text-gray-900">
-              {error.status === 403
-                ? "Your account isn't provisioned for this"
-                : "Couldn't load links"}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">{error.message}</p>
-          </Card>
-        ) : rows && rows.length === 0 ? (
-          <Card className="p-10 text-center text-sm text-gray-500">
-            {hasActiveLinkFilters(effectiveFilters)
-              ? "No links match your filters."
-              : effectiveFilters.status === "pending"
-                ? "Nothing is waiting for review."
-                : "No links yet. Alumni add them through the annual survey, and staff can add one by hand."}
-          </Card>
-        ) : (
-          <>
-            <LinksTable links={rows!} canReview={canReview} />
+          <LinksBulkDeleteBar />
 
-            <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
-              <span className="tabular-nums">
-                Showing {from}–{to} of {data!.total}{" "}
-                {STATUS_LABELS[effectiveFilters.status].toLowerCase()}
-              </span>
-              <div className="flex gap-2">
-                <PageLink
-                  href={linksHref(effectiveFilters, offset - LINKS_PAGE_SIZE)}
-                  enabled={hasPrev}
-                  label="‹ Prev"
-                />
-                <PageLink
-                  href={linksHref(effectiveFilters, offset + LINKS_PAGE_SIZE)}
-                  enabled={hasNext}
-                  label="Next ›"
-                />
+          {error ? (
+            <Card className="p-10 text-center">
+              <p className="text-sm font-semibold text-gray-900">
+                {error.status === 403
+                  ? "Your account isn't provisioned for this"
+                  : "Couldn't load links"}
+              </p>
+              <p className="mt-1 text-sm text-gray-500">{error.message}</p>
+            </Card>
+          ) : rows && rows.length === 0 ? (
+            <Card className="p-10 text-center text-sm text-gray-500">
+              {hasActiveLinkFilters(effectiveFilters)
+                ? "No links match your filters."
+                : effectiveFilters.status === "pending"
+                  ? "Nothing is waiting for review."
+                  : "No links yet. Alumni add them through the annual survey, and staff can add one by hand."}
+            </Card>
+          ) : (
+            <>
+              <LinksTable links={rows!} canReview={canReview} now={now} />
+
+              <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
+                <span className="tabular-nums">
+                  Showing {from}–{to} of {data!.total}{" "}
+                  {STATUS_LABELS[effectiveFilters.status].toLowerCase()}
+                </span>
+                <div className="flex gap-2">
+                  <PageLink
+                    href={linksHref(effectiveFilters, offset - LINKS_PAGE_SIZE)}
+                    enabled={hasPrev}
+                    label="‹ Prev"
+                  />
+                  <PageLink
+                    href={linksHref(effectiveFilters, offset + LINKS_PAGE_SIZE)}
+                    enabled={hasNext}
+                    label="Next ›"
+                  />
+                </div>
               </div>
-            </div>
-          </>
-        )}
+            </>
+          )}
+        </LinksSelectionProvider>
       </main>
     </>
   );

@@ -9,12 +9,26 @@ import {
   EMPTY_ADD_LINK_FORM,
   EMPTY_LINKS_FILTERS,
   LINKS_PAGE_SIZE,
+  MAX_LINKS_PER_BULK_DELETE,
   ROLE_TYPES,
   ROLE_TYPE_LABELS,
   ROLE_TYPE_OPTIONS,
   STALE_AFTER_DAYS,
+  bulkDeleteBlockedReason,
+  bulkDeleteConfirmMessage,
+  bulkDeleteOutcomeMessage,
   companyDisplay,
   daysSince,
+  isLinkSelected,
+  isPageFullySelected,
+  isPagePartiallySelected,
+  linkCountLabel,
+  pruneLinkSelection,
+  selectionCountLabel,
+  setPageLinkSelection,
+  toBulkDeleteIds,
+  toggleLinkSelection,
+  type OpportunityLinkBulkDeleteResult,
   formatLinkDate,
   hasActiveLinkFilters,
   isDeadlinePassed,
@@ -1060,5 +1074,318 @@ describe("the Links nav entry", () => {
   it("introduces no icon — the sidebar renders labels only", () => {
     const src = read("src/components/shell/Sidebar.tsx");
     expect(src).not.toContain("icon:");
+  });
+});
+/* ==================================================================== *
+ * Selection mode + bulk delete (the owner's "Edit next to filters")
+ * ==================================================================== */
+
+describe("row selection", () => {
+  it("toggles one id on and back off", () => {
+    expect(toggleLinkSelection([], 7)).toEqual([7]);
+    expect(toggleLinkSelection([7], 7)).toEqual([]);
+    expect(toggleLinkSelection([3, 7], 9)).toEqual([3, 7, 9]);
+    expect(toggleLinkSelection([3, 7, 9], 7)).toEqual([3, 9]);
+  });
+
+  it("never mutates the array it was given", () => {
+    const before = [1, 2, 3];
+    toggleLinkSelection(before, 2);
+    setPageLinkSelection(before, [4, 5], true);
+    pruneLinkSelection(before, [1]);
+    expect(before).toEqual([1, 2, 3]);
+  });
+
+  it("reads membership", () => {
+    expect(isLinkSelected([1, 2], 2)).toBe(true);
+    expect(isLinkSelected([1, 2], 3)).toBe(false);
+    expect(isLinkSelected([], 1)).toBe(false);
+  });
+
+  it("select-all adds only the page rows that are missing, once each", () => {
+    expect(setPageLinkSelection([], [1, 2, 3], true)).toEqual([1, 2, 3]);
+    expect(setPageLinkSelection([2], [1, 2, 3], true)).toEqual([2, 1, 3]);
+    // Idempotent — a second select-all must not double anything up.
+    const once = setPageLinkSelection([], [1, 2, 3], true);
+    expect(setPageLinkSelection(once, [1, 2, 3], true)).toEqual([1, 2, 3]);
+  });
+
+  it("clear-all on the page drops exactly the page rows", () => {
+    expect(setPageLinkSelection([1, 2, 3], [1, 3], false)).toEqual([2]);
+    expect(setPageLinkSelection([1, 2, 3], [1, 2, 3], false)).toEqual([]);
+  });
+
+  it("reports full / partial page selection for the header checkbox", () => {
+    expect(isPageFullySelected([1, 2], [1, 2])).toBe(true);
+    expect(isPageFullySelected([1], [1, 2])).toBe(false);
+    expect(isPagePartiallySelected([1], [1, 2])).toBe(true);
+    expect(isPagePartiallySelected([1, 2], [1, 2])).toBe(false);
+    expect(isPagePartiallySelected([], [1, 2])).toBe(false);
+  });
+
+  it("an empty page is neither fully nor partially selected", () => {
+    // Guards the header checkbox on a zero-row page: "every id in []" is
+    // vacuously true, which would otherwise render it ticked.
+    expect(isPageFullySelected([], [])).toBe(false);
+    expect(isPagePartiallySelected([], [])).toBe(false);
+  });
+
+  it("prunes to what is on screen, so a filter change can't leave rows armed", () => {
+    // The whole reason this exists: an id selected on page 1 must not still be
+    // queued for deletion while the user is looking at page 2 with no way to
+    // untick it.
+    expect(pruneLinkSelection([1, 2, 3], [2, 3, 4])).toEqual([2, 3]);
+    expect(pruneLinkSelection([1, 2], [])).toEqual([]);
+    expect(pruneLinkSelection([], [1, 2])).toEqual([]);
+  });
+});
+
+describe("the bulk-delete request body", () => {
+  it("de-duplicates and keeps click order", () => {
+    expect(toBulkDeleteIds([3, 1, 3, 2, 1])).toEqual([3, 1, 2]);
+  });
+
+  it("drops anything that is not a positive integer id", () => {
+    expect(toBulkDeleteIds([0, -1, 1.5, Number.NaN, 4])).toEqual([4]);
+  });
+});
+
+describe("the 100-id cap", () => {
+  it("matches MAX_LINKS_PER_BULK_DELETE on the endpoint", () => {
+    expect(MAX_LINKS_PER_BULK_DELETE).toBe(100);
+  });
+
+  it("refuses an empty selection rather than posting one", () => {
+    // The request model requires at least one id, so an empty POST is a 422 on
+    // a destructive action — the worst possible feedback.
+    expect(bulkDeleteBlockedReason([])).toBe(
+      "Select at least one link to delete.",
+    );
+  });
+
+  it("allows exactly the cap", () => {
+    const atCap = Array.from(
+      { length: MAX_LINKS_PER_BULK_DELETE },
+      (_, i) => i + 1,
+    );
+    expect(bulkDeleteBlockedReason(atCap)).toBeNull();
+  });
+
+  it("blocks one over the cap and says what to do", () => {
+    const overCap = Array.from(
+      { length: MAX_LINKS_PER_BULK_DELETE + 1 },
+      (_, i) => i + 1,
+    );
+    const reason = bulkDeleteBlockedReason(overCap);
+    expect(reason).not.toBeNull();
+    expect(reason).toContain("101");
+    expect(reason).toContain(String(MAX_LINKS_PER_BULK_DELETE));
+  });
+
+  it("counts duplicates once, so a repeated id can't fake the cap", () => {
+    const withDupes = [
+      ...Array.from({ length: MAX_LINKS_PER_BULK_DELETE }, (_, i) => i + 1),
+      1,
+      2,
+    ];
+    expect(bulkDeleteBlockedReason(withDupes)).toBeNull();
+  });
+
+  it("a full page still fits inside the cap", () => {
+    // Selection is pruned to the visible page, so a page-worth is the most the
+    // UI can ever submit. Stated as a test so raising LINKS_PAGE_SIZE past the
+    // cap fails here rather than as a 422 in someone's face.
+    expect(LINKS_PAGE_SIZE).toBeLessThanOrEqual(MAX_LINKS_PER_BULK_DELETE);
+  });
+});
+
+describe("the confirmation copy", () => {
+  it("states the count and that it cannot be undone", () => {
+    const msg = bulkDeleteConfirmMessage(4);
+    expect(msg).toContain("4 links");
+    expect(msg).toContain("cannot be undone");
+  });
+
+  it("reads correctly for a single link", () => {
+    expect(bulkDeleteConfirmMessage(1)).toContain("1 link?");
+    expect(bulkDeleteConfirmMessage(1)).not.toContain("1 links");
+  });
+
+  it("counts read as singular / plural everywhere", () => {
+    expect(linkCountLabel(1)).toBe("1 link");
+    expect(linkCountLabel(2)).toBe("2 links");
+    expect(selectionCountLabel(0)).toBe("Nothing selected");
+    expect(selectionCountLabel(1)).toBe("1 selected");
+    expect(selectionCountLabel(3)).toBe("3 selected");
+  });
+});
+
+describe("reporting what the best-effort delete actually did", () => {
+  const result = (
+    requested: number,
+    deleted: number[],
+    missing: number[],
+  ): OpportunityLinkBulkDeleteResult => ({
+    requested,
+    deleted_ids: deleted,
+    missing_ids: missing,
+  });
+
+  it("reports a clean batch as a plain success", () => {
+    const out = bulkDeleteOutcomeMessage(result(3, [1, 2, 3], []));
+    expect(out.tone).toBe("success");
+    expect(out.message).toBe("Deleted 3 links.");
+  });
+
+  it("does NOT report a partial batch as a flat success", () => {
+    // The owner's case: selected 5, four deleted. Saying "Deleted 5 links" is a
+    // lie about a destructive action, and the count is the only thing the user
+    // can check us on.
+    const out = bulkDeleteOutcomeMessage(result(5, [1, 2, 3, 4], [5]));
+    expect(out.tone).toBe("warning");
+    expect(out.message).toContain("Deleted 4 links of 5 selected");
+    expect(out.message).toContain("1 link");
+  });
+
+  it("does not claim a success when nothing was deleted", () => {
+    const out = bulkDeleteOutcomeMessage(result(2, [], [1, 2]));
+    expect(out.tone).toBe("warning");
+    expect(out.message).toContain("Nothing was deleted");
+  });
+
+  it("never invents a number the result did not carry", () => {
+    // len(deleted_ids) + len(missing_ids) == requested is the endpoint's stated
+    // invariant; the copy is built from those fields and nothing else.
+    const r = result(5, [1, 2, 3, 4], [5]);
+    expect(r.deleted_ids.length + r.missing_ids.length).toBe(r.requested);
+    expect(bulkDeleteOutcomeMessage(r).message).not.toContain("5 links");
+  });
+});
+
+/* ==================================================================== *
+ * Capability gating — links.delete, not surveys.manage, never a role
+ * ==================================================================== */
+
+describe("the links.delete gate", () => {
+  it("uses the code the backend registers", () => {
+    const src = read("src/constants/capabilities.ts");
+    expect(src).toContain('LINKS_DELETE: "links.delete"');
+    expect(src).toContain("export const canDeleteLinks");
+    expect(src).toContain("CAPABILITY.LINKS_DELETE");
+  });
+
+  it("the list page reads the capability, not the role, and fails closed", () => {
+    const src = read("src/app/(app)/links/page.tsx");
+    expect(src).toContain("canDelete = canDeleteLinks(capabilities)");
+    // An unreadable /auth/context must not leave the delete controls on.
+    expect(src).toMatch(/catch \{[\s\S]*?canDelete = false;[\s\S]*?\}/);
+    // #379: never a role-name check for a capability-backed control.
+    expect(src).not.toContain("super_admin");
+    expect(src).not.toContain("hasFullAccess");
+    expect(src).not.toContain("isEngineer");
+  });
+
+  it("is a SEPARATE grant from surveys.manage — delete is not inferred from review", () => {
+    const src = read("src/app/(app)/links/page.tsx");
+    // Full Access keeps approve/reject and does NOT get delete, so the two
+    // flags must come from two different capabilities.
+    expect(src).toContain("canReview = canManageSurveys(capabilities)");
+    expect(src).not.toContain("canDelete = canReview");
+    expect(src).not.toContain("canDelete = canManageSurveys");
+  });
+
+  it("the Edit button and the delete bar both require the capability", () => {
+    const toggleSrc = read("src/components/links/LinksSelection.tsx");
+    expect(toggleSrc).toContain("if (!selection?.canDelete) return null;");
+    // Even a forced enter() cannot open selection mode without the capability.
+    expect(toggleSrc).toContain("active: canDelete && active");
+
+    const barSrc = read("src/components/links/LinksBulkDeleteBar.tsx");
+    expect(barSrc).toContain(
+      "if (!selection?.canDelete || !selection.active) return null;",
+    );
+  });
+
+  it("the server action re-checks the cap before it posts", () => {
+    const src = read("src/app/(app)/links/actions.ts");
+    expect(src).toContain("bulkDeleteBlockedReason");
+    expect(src).toContain('"/opportunity-links/bulk-delete"');
+    // The whole per-id result is returned, not a boolean — see the honest
+    // reporting tests above.
+    expect(src).toContain("OpportunityLinkBulkDeleteResult");
+  });
+});
+
+describe("selection mode is ephemeral UI state", () => {
+  it("never enters the URL", () => {
+    // Every other control on this page is URL-driven; this one deliberately is
+    // not. A shareable link pre-armed for a destructive action is a trap.
+    const src = read("src/components/links/LinksSelection.tsx");
+    expect(src).not.toContain("useSearchParams");
+    expect(src).not.toContain("router.replace");
+    expect(src).not.toContain("URLSearchParams");
+    // The filter serializer knows nothing about it either.
+    const withFilters: LinksFilterState = {
+      ...EMPTY_LINKS_FILTERS,
+      company: "Goldman",
+    };
+    expect(toLinksQs(withFilters)).toBe("company=Goldman");
+  });
+
+  it("leaving selection mode clears the selection", () => {
+    const src = read("src/components/links/LinksSelection.tsx");
+    expect(src).toMatch(/setActive\(false\);\s*setSelected\(\[\]\);/);
+  });
+});
+
+describe("the delete UI introduces no icons", () => {
+  it("stays text-only, checkboxes aside", () => {
+    for (const path of [
+      "src/components/links/LinksSelection.tsx",
+      "src/components/links/LinksBulkDeleteBar.tsx",
+      "src/components/links/LinksTable.tsx",
+    ]) {
+      const src = read(path);
+      expect(src).not.toContain("lucide-react");
+      expect(src).not.toMatch(/<svg/);
+    }
+  });
+
+  it("takes its blue from the design tokens, never a literal hex", () => {
+    for (const path of [
+      "src/components/links/LinksSelection.tsx",
+      "src/components/links/LinksBulkDeleteBar.tsx",
+      "src/components/links/LinksTable.tsx",
+    ]) {
+      expect(read(path)).not.toMatch(/#[0-9a-fA-F]{6}/);
+    }
+    // The owner asked for blue; that is the primary Button variant, which is
+    // `brand-blue-600` in tailwind.config.ts.
+    expect(read("src/components/links/LinksSelection.tsx")).toContain(
+      'variant={selection.active ? "secondary" : "primary"}',
+    );
+  });
+});
+
+describe("the engineer console picks links.delete up on its own", () => {
+  it("the permission editor is driven by the backend matrix, not a local list", () => {
+    // GET /engineer/permissions returns every capability with its label,
+    // description, assignable flag and order, so a new backend capability
+    // appears with no frontend change. If anyone ever hardcodes a list here,
+    // this fails and the new capability silently disappears from the console.
+    const src = read("src/components/engineer/PermissionEditor.tsx");
+    expect(src).toContain("matrix.capabilities.map");
+    expect(src).toContain("{cap.label}");
+    expect(src).toContain("{cap.description}");
+    expect(src).not.toContain("links.delete");
+    expect(src).not.toContain("surveys.manage");
+    expect(src).not.toContain("CAPABILITY");
+  });
+
+  it("the read-only role table in Users is driven the same way", () => {
+    const src = read("src/components/admin/RoleCapabilitiesTable.tsx");
+    expect(src).toContain("matrix.capabilities.filter((c) => c.assignable)");
+    expect(src).not.toContain("links.delete");
+    expect(src).not.toContain("CAPABILITY");
   });
 });
