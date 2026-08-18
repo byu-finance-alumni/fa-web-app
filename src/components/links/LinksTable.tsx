@@ -67,6 +67,27 @@ import {
  * a server and a browser in different timezones would otherwise disagree about
  * the age label across a day boundary and warn.
  */
+/**
+ * First `count` words of `text`, with an ellipsis when anything was dropped.
+ *
+ * The Details column is a scanning aid, not the content: the owner asked for
+ * roughly three words so the column stays narrow and the eye can run down it.
+ * The full text is one row-click away in the detail panel and is also on the
+ * cell as a `title`, so nothing is hidden, only deferred.
+ *
+ * Deliberately local to this table rather than in `lib/opportunityLinks`: it is
+ * a presentation choice for this one column, not part of the link model.
+ */
+export function firstWords(text: string, count: number): string {
+  const words = text.trim().split(/s+/).filter(Boolean);
+  if (words.length === 0) return "";
+  if (words.length <= count) return words.join(" ");
+  return words.slice(0, count).join(" ") + "…";
+}
+
+/** How many words of `details` the column shows before the ellipsis. */
+export const DETAILS_PREVIEW_WORDS = 3;
+
 export function LinksTable({
   links,
   canReview,
@@ -131,14 +152,14 @@ export function LinksTable({
               cannot ellipsise, and without ellipsising the rows grow back. */}
           <colgroup>
             {selecting ? <col className="w-10" /> : null}
-            <col className="w-[14%]" />
-            <col className="w-[8%]" />
-            <col className="w-[10%]" />
-            <col className="w-[15%]" />
             <col className="w-[21%]" />
             <col className="w-[12%]" />
-            <col className="w-[9%]" />
-            <col className="w-[11%]" />
+            <col className="w-[15%]" />
+            <col className="w-[6%]" />
+            <col className="w-[14%]" />
+            <col className="w-[12%]" />
+            <col className="w-[8%]" />
+            <col className="w-[12%]" />
             {canReview ? <col className="w-[13rem]" /> : null}
           </colgroup>
           <thead>
@@ -194,6 +215,7 @@ export function LinksTable({
                 now,
               );
               const details = link.details?.trim() ?? "";
+              const detailsPreview = firstWords(details, DETAILS_PREVIEW_WORDS);
 
               const rowSelected =
                 selecting && isLinkSelected(selected, link.opportunity_link_id);
@@ -228,7 +250,7 @@ export function LinksTable({
                           screen reader, and it is the row's name, so its
                           accessible name is already the right one. */}
                       {selecting ? (
-                        <span className="min-w-0 truncate font-semibold text-gray-900">
+                        <span className="font-semibold text-gray-900">
                           {company.label}
                         </span>
                       ) : (
@@ -238,7 +260,7 @@ export function LinksTable({
                             e.stopPropagation();
                             setDetail(link);
                           }}
-                          className="min-w-0 truncate rounded-sm text-left font-semibold text-gray-900 hover:text-brand-blue-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500"
+                          className="rounded-sm text-left font-semibold text-gray-900 hover:text-brand-blue-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500"
                           title={`${company.label} — open the full record`}
                         >
                           {company.label}
@@ -270,11 +292,11 @@ export function LinksTable({
                     </div>
                   </td>
 
-                  <td className="truncate px-3 py-2.5 text-gray-700">
+                  <td className="px-3 py-2.5 text-gray-700">
                     {ROLE_TYPE_LABELS[link.role_type]}
                   </td>
 
-                  <td className="truncate px-3 py-2.5 text-gray-700">
+                  <td className="px-3 py-2.5 text-gray-700">
                     {locationDisplay(link)}
                   </td>
 
@@ -288,17 +310,17 @@ export function LinksTable({
                         target="_blank"
                         rel="noopener noreferrer nofollow"
                         onClick={(e) => e.stopPropagation()}
-                        className="block truncate font-medium text-brand-blue-600 hover:underline"
+                        className="font-medium text-brand-blue-600 hover:underline"
                         title={target.href}
                       >
-                        {target.label}
+                        Link
                       </a>
                     ) : (
                       <span
-                        className="block truncate text-gray-500"
-                        title="Not a usable http(s) address — shown as text, not a link."
+                        className="text-gray-500"
+                        title={`Not a usable http(s) address, so it is not linked: ${target.label}`}
                       >
-                        {target.label}
+                        Not a link
                       </span>
                     )}
                   </td>
@@ -307,7 +329,7 @@ export function LinksTable({
                     className="truncate px-3 py-2.5 text-gray-500"
                     title={details || undefined}
                   >
-                    {details || EM_DASH}
+                    {detailsPreview || EM_DASH}
                   </td>
 
                   <td className="truncate px-3 py-2.5 text-gray-700">
