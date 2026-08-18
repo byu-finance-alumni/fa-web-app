@@ -534,8 +534,8 @@ export async function AlumniProfileView({
       )[0]?.survey_due_date ??
     null;
 
-  // Display location (#450): the header and Career Snapshot both lead with the
-  // EMPLOYMENT city/state and fall back to the residence (contact) location when
+  // Display location (#450): the header leads with the EMPLOYMENT city/state and
+  // falls back to the residence (contact) location when
   // that's blank, so retired/unemployed alumni still show a place. Resolved as a
   // pair — a half-filled work location never pairs its city with the residence
   // state. Note the CSV import mirrors the sheet's single (contact) location
@@ -582,11 +582,6 @@ export async function AlumniProfileView({
         : `${homeCountry} / ${citizenship}`
       : (homeCountry ?? citizenship);
 
-  // Career Snapshot employment (#367): the current role (from current_career,
-  // falling back to the flagged current employment-history row) plus the two
-  // most-recent previous roles from employment history.
-  const currentEmp =
-    profile.employment_history.find((e) => e.is_current) ?? null;
   // #608: for a serving alumnus the employer field holds the BRANCH, which reads
   // as an ordinary company on its own ("Air Force"). `employerDisplay` renders it
   // as "Military/Air Force" — and as plain "Military" when no branch is recorded,
@@ -595,26 +590,18 @@ export async function AlumniProfileView({
     a.employment_status,
     career?.current_employer,
   );
-  const currentJob = career
-    ? {
-        title: career.current_title,
-        company: employerLabel,
-        location: headerPlace,
-      }
-    : currentEmp
-      ? {
-          title: currentEmp.employment_title,
-          company: currentEmp.employer_name,
-          location: place(currentEmp.city, currentEmp.state) ?? residencePlace,
-        }
-      : null;
-  const previousJobsAll = [...profile.employment_history]
+  // Career history employment (#367, #691): PAST roles only, most recent first.
+  // The current role used to lead this list; it was dropped because it already
+  // has two other homes on the page — Current employment contact information
+  // beside it, and the Employment tab — and the panel is now explicitly a
+  // history. Deliberately uncapped (it used to show the two most recent): the
+  // panel IS the history now, so truncating it would silently hide roles.
+  const previousJobs = [...profile.employment_history]
     .filter((e) => !e.is_current)
     .sort(
       (x, y) =>
         (y.end_year ?? y.start_year ?? 0) - (x.end_year ?? x.start_year ?? 0),
     );
-  const previousJobs = previousJobsAll.slice(0, 2);
 
   // Graduate degrees & designations box (#399/#405): graduate degree/school from
   // the alumni record, plus held certifications from program engagement (a
@@ -1035,66 +1022,47 @@ export async function AlumniProfileView({
           <AlumniProfileTabs
             overview={
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-              {/* LEFT column, row 1 — Career snapshot (#399: swapped with Current
-                  employment, which now sits on the right). Current role on top,
-                  then the two most recent previous roles under a "Previous
-                  employment" heading. Employment drawn from employment history. */}
+              {/* LEFT column, row 1 — Career history (#399 swapped it with Current
+                  employment, which sits on the right; #691 renamed it from
+                  "Career snapshot" and dropped the current role from it). PAST
+                  roles only, most recent first, drawn from employment history —
+                  the panel title now says what the list is, so the old inner
+                  "Previous employment" sub-heading went with the current role. */}
               <Panel
-                title="Career snapshot"
+                title="Career history"
                 action={canEdit ? <EditLink id={aid} /> : undefined}
                 className="lg:col-span-1"
               >
                 <div className="flex h-full flex-col">
-                  {currentJob || previousJobs.length ? (
-                    <div className="space-y-4">
-                      {currentJob ? (
-                        <div>
-                          <p className="text-sm font-semibold text-gray-900">
-                            {currentJob.title ?? "—"}
-                          </p>
+                  {previousJobs.length ? (
+                    <div className="space-y-3">
+                      {previousJobs.map((e) => (
+                        <div key={e.employment_history_id}>
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm font-semibold text-gray-900">
+                              {e.employment_title ?? "—"}
+                            </p>
+                            <span className="shrink-0 text-xs tabular-nums text-gray-500">
+                              {e.start_year ?? "—"} – {e.end_year ?? "—"}
+                            </span>
+                          </div>
                           <p className="text-sm text-gray-600">
-                            {currentJob.company ?? "—"}
+                            {e.employer_name ?? "—"}
                           </p>
-                          {currentJob.location ? (
+                          {place(e.city, e.state) ? (
                             <p className="mt-0.5 text-xs text-gray-500">
-                              {currentJob.location}
+                              {place(e.city, e.state)}
                             </p>
                           ) : null}
                         </div>
-                      ) : null}
-                      {previousJobs.length ? (
-                        <div className="border-t border-gray-100 pt-4">
-                          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                            Previous employment
-                          </p>
-                          <div className="space-y-3">
-                            {previousJobs.map((e) => (
-                              <div key={e.employment_history_id}>
-                                <div className="flex items-start justify-between gap-2">
-                                  <p className="text-sm font-semibold text-gray-900">
-                                    {e.employment_title ?? "—"}
-                                  </p>
-                                  <span className="shrink-0 text-xs tabular-nums text-gray-500">
-                                    {e.start_year ?? "—"} – {e.end_year ?? "—"}
-                                  </span>
-                                </div>
-                                <p className="text-sm text-gray-600">
-                                  {e.employer_name ?? "—"}
-                                </p>
-                                {place(e.city, e.state) ? (
-                                  <p className="mt-0.5 text-xs text-gray-500">
-                                    {place(e.city, e.state)}
-                                  </p>
-                                ) : null}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
+                      ))}
                     </div>
                   ) : (
+                    /* Without the current role on top this panel can now be
+                       genuinely empty, so it needs its own empty state rather
+                       than a blank box. */
                     <p className="py-6 text-center text-sm text-gray-500">
-                      No employment on file yet.
+                      No previous roles on file yet.
                     </p>
                   )}
                   {/* Persistent link to the full Employment tab. */}
@@ -1187,64 +1155,12 @@ export async function AlumniProfileView({
                 </div>
               </Panel>
 
-              {/* LEFT column, row 2 — Graduate degrees & designations (#399 new
-                  box, same 1-col width as Career snapshot above it). Populated
-                  from existing profile fields; designation abbreviations carry a
-                  full-name tooltip (#405). */}
-              <Panel
-                title="Graduate degrees & designations"
-                action={canEdit ? <EditLink id={aid} /> : undefined}
-                className="lg:col-span-1"
-              >
-                {hasGradContent ? (
-                  <div className="space-y-4">
-                    {a.graduate_degree ||
-                    a.graduate_school ||
-                    a.graduate_graduation_year ? (
-                      <div className="space-y-4">
-                        <Field
-                          label="Graduate degree"
-                          value={a.graduate_degree}
-                        />
-                        <Field
-                          label="Graduate school"
-                          value={a.graduate_school}
-                        />
-                        <Field
-                          label="Graduate graduation year"
-                          value={
-                            a.graduate_graduation_year != null
-                              ? String(a.graduate_graduation_year)
-                              : null
-                          }
-                        />
-                      </div>
-                    ) : null}
-                    {heldDesignations.length ? (
-                      <ChipRow label="Designations">
-                        {heldDesignations.map((d) => (
-                          <EngagementChip key={d}>
-                            <DesignationAbbr token={d} />
-                          </EngagementChip>
-                        ))}
-                      </ChipRow>
-                    ) : null}
-                    {a.other_designations ? (
-                      <OtherDesignations text={a.other_designations} />
-                    ) : null}
-                  </div>
-                ) : (
-                  <p className="py-6 text-center text-sm text-gray-500">
-                    No graduate degrees or designations on file yet.
-                  </p>
-                )}
-              </Panel>
-
-              {/* RIGHT column, row 2 — Personal & family (#366, #399: shrunk from
-                  full width to the same 2-col width as Current employment).
-                  Fields arranged into three columns (#402): contact · household ·
-                  identity/origin. Personal email + cell phone are contact PII
-                  (editor-gated). Spouse shows the FIRST name only. */}
+              {/* LEFT column, row 2 — Personal & family (#366, #399: shrunk from
+                  full width to a 2-col width; #691: swapped to the left, keeping
+                  that width, so Graduate degrees takes the 1-col slot on the
+                  right). Fields arranged into three columns (#402): contact ·
+                  household · identity/origin. Personal email + cell phone are
+                  contact PII (editor-gated). Spouse shows the FIRST name only. */}
               <Panel
                 title="Personal & family"
                 action={canEdit ? <EditLink id={aid} /> : undefined}
@@ -1308,6 +1224,61 @@ export async function AlumniProfileView({
                     />
                   </div>
                 </div>
+              </Panel>
+
+              {/* RIGHT column, row 2 — Graduate degrees & designations (#399 new
+                  box; #691: swapped to the right, keeping its 1-col width — it
+                  no longer sits under Career history). Populated from existing
+                  profile fields; designation abbreviations carry a full-name
+                  tooltip (#405). Below `lg` the grid is one column, so the swap
+                  simply reverses the vertical order of these two boxes. */}
+              <Panel
+                title="Graduate degrees & designations"
+                action={canEdit ? <EditLink id={aid} /> : undefined}
+                className="lg:col-span-1"
+              >
+                {hasGradContent ? (
+                  <div className="space-y-4">
+                    {a.graduate_degree ||
+                    a.graduate_school ||
+                    a.graduate_graduation_year ? (
+                      <div className="space-y-4">
+                        <Field
+                          label="Graduate degree"
+                          value={a.graduate_degree}
+                        />
+                        <Field
+                          label="Graduate school"
+                          value={a.graduate_school}
+                        />
+                        <Field
+                          label="Graduate graduation year"
+                          value={
+                            a.graduate_graduation_year != null
+                              ? String(a.graduate_graduation_year)
+                              : null
+                          }
+                        />
+                      </div>
+                    ) : null}
+                    {heldDesignations.length ? (
+                      <ChipRow label="Designations">
+                        {heldDesignations.map((d) => (
+                          <EngagementChip key={d}>
+                            <DesignationAbbr token={d} />
+                          </EngagementChip>
+                        ))}
+                      </ChipRow>
+                    ) : null}
+                    {a.other_designations ? (
+                      <OtherDesignations text={a.other_designations} />
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="py-6 text-center text-sm text-gray-500">
+                    No graduate degrees or designations on file yet.
+                  </p>
+                )}
               </Panel>
 
 
@@ -1654,7 +1625,15 @@ export async function AlumniProfileView({
             }
             employment={
               <div>
-                {/* Employment history — its own tab, full width. */}
+                {/* Employment history — its own tab, full width. Rows are
+                    text-only (#690): the 36px letter-avatar circle that used to
+                    lead every row is gone, from the current role AND the history
+                    rows — dropping only one would have left the current role
+                    indented out of line with the rest. The "Current" badge is
+                    `tag` (blue), not `success` (green): UX-UI.md puts the whole
+                    tag family on blue-50/navy-800 and says never green. The
+                    Education tab's "Current" badge is a different meaning (still
+                    attending) and deliberately stays green. */}
                 <Panel
                   title="Employment history"
                   action={canEdit ? <AddRoleButton alumniId={aid} /> : undefined}
@@ -1672,76 +1651,60 @@ export async function AlumniProfileView({
                       {/* Current role lives in current-employment (not history),
                           so surface it here so the tab lists the current job. */}
                       {career ? (
-                        <li className="flex gap-3 border-b border-gray-100 py-3 last:border-0">
-                          <span
-                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white ${avatarColor(career.current_employer ?? "?")}`}
-                          >
-                            {(career.current_employer ?? "?")[0]?.toUpperCase()}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-start justify-between gap-2">
-                              <p className="text-sm font-semibold text-gray-900">
-                                {employerLabel ?? "—"}
-                                <Badge variant="success" className="ml-2">
-                                  Current
-                                </Badge>
-                              </p>
-                              <span className="text-xs tabular-nums text-gray-500">
-                                Present
-                              </span>
-                            </div>
-                            <p className="text-sm text-gray-600">
-                              {career.current_title ?? "—"}
+                        <li className="border-b border-gray-100 py-3 last:border-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm font-semibold text-gray-900">
+                              {employerLabel ?? "—"}
+                              <Badge variant="tag" className="ml-2">
+                                Current
+                              </Badge>
                             </p>
-                            {place(c?.city, c?.state) ? (
-                              <p className="text-xs text-gray-500">
-                                {place(c?.city, c?.state)}
-                              </p>
-                            ) : null}
+                            <span className="text-xs tabular-nums text-gray-500">
+                              Present
+                            </span>
                           </div>
+                          <p className="text-sm text-gray-600">
+                            {career.current_title ?? "—"}
+                          </p>
+                          {place(c?.city, c?.state) ? (
+                            <p className="text-xs text-gray-500">
+                              {place(c?.city, c?.state)}
+                            </p>
+                          ) : null}
                         </li>
                       ) : null}
                       {profile.employment_history.map((e) => (
                         <li
                           key={e.employment_history_id}
-                          className="flex gap-3 border-b border-gray-100 py-3 last:border-0"
+                          className="border-b border-gray-100 py-3 last:border-0"
                         >
-                          <span
-                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white ${avatarColor(e.employer_name ?? "?")}`}
-                          >
-                            {(e.employer_name ?? "?")[0]?.toUpperCase()}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-start justify-between gap-2">
-                              <p className="text-sm font-semibold text-gray-900">
-                                {e.employer_name ?? "—"}
-                                {e.is_current ? (
-                                  <Badge variant="success" className="ml-2">
-                                    Current
-                                  </Badge>
-                                ) : null}
-                              </p>
-                              <div className="flex shrink-0 items-center gap-2">
-                                <span className="text-xs tabular-nums text-gray-500">
-                                  {e.start_year ?? "—"} –{" "}
-                                  {e.is_current
-                                    ? "Present"
-                                    : (e.end_year ?? "—")}
-                                </span>
-                                {canEdit ? (
-                                  <EmploymentRowActions alumniId={aid} row={e} />
-                                ) : null}
-                              </div>
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm font-semibold text-gray-900">
+                              {e.employer_name ?? "—"}
+                              {e.is_current ? (
+                                <Badge variant="tag" className="ml-2">
+                                  Current
+                                </Badge>
+                              ) : null}
+                            </p>
+                            <div className="flex shrink-0 items-center gap-2">
+                              <span className="text-xs tabular-nums text-gray-500">
+                                {e.start_year ?? "—"} –{" "}
+                                {e.is_current ? "Present" : (e.end_year ?? "—")}
+                              </span>
+                              {canEdit ? (
+                                <EmploymentRowActions alumniId={aid} row={e} />
+                              ) : null}
                             </div>
-                            <p className="text-sm text-gray-600">
-                              {e.employment_title ?? "—"}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {[e.employment_industry, place(e.city, e.state)]
-                                .filter(Boolean)
-                                .join(" · ")}
-                            </p>
                           </div>
+                          <p className="text-sm text-gray-600">
+                            {e.employment_title ?? "—"}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {[e.employment_industry, place(e.city, e.state)]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </p>
                         </li>
                       ))}
                     </DrawerList>
@@ -1953,7 +1916,8 @@ export async function AlumniProfileView({
               }
 
               // Additional education — top-level school/program names (#47).
-              // graduate_degree stays in the Career snapshot panel; these are
+              // graduate_degree stays in the Graduate degrees & designations
+              // panel on the Overview tab; these are
               // the secondary-education fields. Only rendered when at least
               // one has a value, and each row is suppressed when empty.
               if (
