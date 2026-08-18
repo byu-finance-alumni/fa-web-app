@@ -90,15 +90,21 @@ export function SurveyPreview() {
             Opening in a new tab keeps the console page — and the campaign the
             staffer was part-way through setting up — exactly where it was.
           */}
-          <a
-            href="/survey/demo?step=edit"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mb-4 inline-block text-sm font-medium text-brand-blue-600 underline underline-offset-2 hover:text-brand-blue-500"
-          >
-            Open the full survey in a new tab — as an alum sees it after &ldquo;I
-            need to make changes&rdquo;
-          </a>
+          {/* Indented to px-5 so its left edge lines up with the blue preview
+              note directly below it, which sits inside PreviewBody's px-5
+              scroll container. Without the wrapper the link is flush to the
+              dialog edge and the two read as belonging to different columns. */}
+          <div className="mb-4 px-5">
+            <a
+              href="/survey/demo?step=edit"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block text-sm font-medium text-brand-blue-600 underline underline-offset-2 hover:text-brand-blue-500"
+            >
+              Open the full survey in a new tab — as an alum sees it after &ldquo;I
+              need to make changes&rdquo;
+            </a>
+          </div>
 
           {/* Remounting on each open resets the walkthrough, so the dialog
               always opens on the review screen rather than wherever the last
