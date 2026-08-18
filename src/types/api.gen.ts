@@ -2945,7 +2945,12 @@ export interface paths {
         post?: never;
         /**
          * Delete Opportunity Link
-         * @description Delete a link (surveys.manage). Snapshotted to the audit trail first.
+         * @description Delete one link (``links.delete``, NOT ``surveys.manage``).
+         *
+         *     Re-gated onto the same capability the bulk route uses, so deletion has one
+         *     rule rather than two: it would be indefensible for a role to be refused the
+         *     multi-select and then be able to loop this endpoint to the same effect.
+         *     Snapshotted to the audit trail first.
          */
         delete: operations["delete_opportunity_link_opportunity_links__link_id__delete"];
         options?: never;
@@ -2957,6 +2962,45 @@ export interface paths {
          *     status — fixing a typo in a pending link must not approve it.
          */
         patch: operations["update_opportunity_link_opportunity_links__link_id__patch"];
+        trace?: never;
+    };
+    "/opportunity-links/bulk-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bulk Delete Opportunity Links
+         * @description Delete the links a staff member multi-selected (``links.delete``).
+         *
+         *     POST rather than ``DELETE`` with a body: a request body on DELETE is legal
+         *     but under-specified, and proxies and clients are entitled to drop it — which
+         *     would turn "delete these three" into a malformed request, or worse, silence.
+         *
+         *     BEST-EFFORT, and the response says exactly what happened. Every id that
+         *     resolves is deleted; ids that no longer resolve come back in ``missing_ids``
+         *     instead of failing the batch, because the commonest reason an id is stale is
+         *     that the row is already gone. It is still ONE transaction — the rows and
+         *     their audit snapshots commit together. See ``OpportunityLinkBulkDeleteResult``
+         *     for the full reasoning, and note that a caller wanting strict all-or-nothing
+         *     can get it by checking ``missing_ids`` is empty.
+         *
+         *     Each deleted row is snapshotted to the audit trail individually, exactly as
+         *     the single delete does, so a bulk delete is reconstructible row by row.
+         *
+         *     422 if the list is empty, contains a non-positive id, or exceeds
+         *     ``MAX_LINKS_PER_BULK_DELETE`` — the cap is what stops one call from being an
+         *     unbounded row-destruction primitive.
+         */
+        post: operations["bulk_delete_opportunity_links_opportunity_links_bulk_delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/opportunity-links/{link_id}/approve": {
@@ -7337,6 +7381,44 @@ export interface components {
         NoteUpdate: {
             /** Body */
             body: string;
+        };
+        /**
+         * OpportunityLinkBulkDeleteRequest
+         * @description The ids a staff member multi-selected in the Links tab and asked to delete.
+         *
+         *     Capped at :data:`MAX_LINKS_PER_BULK_DELETE`; duplicates in the list are
+         *     collapsed by the service, so sending the same id twice deletes one row and
+         *     reports it once.
+         */
+        OpportunityLinkBulkDeleteRequest: {
+            /**
+             * Opportunity Link Ids
+             * @description Ids of the links to delete. At most 100 per call.
+             */
+            opportunity_link_ids: number[];
+        };
+        /**
+         * OpportunityLinkBulkDeleteResult
+         * @description What a bulk delete actually did — per id, not just a count.
+         *
+         *     BEST-EFFORT, NOT ALL-OR-NOTHING, and the response is shaped to make that
+         *     safe. The ids come from a list the browser rendered some seconds ago, so an
+         *     id can be stale for the most ordinary reason there is: somebody else already
+         *     deleted it. Failing the whole batch over a row that is already in the state
+         *     the caller asked for would mean the more links you select the more likely the
+         *     button does nothing — and the caller would have to diff the list by hand to
+         *     find out which. So every id that resolves is deleted, in ONE transaction, and
+         *     the ids that did not resolve are named in ``missing_ids`` rather than
+         *     silently folded into a smaller count. Nothing is guessed at and nothing is
+         *     hidden: ``len(deleted_ids) + len(missing_ids) == requested``.
+         */
+        OpportunityLinkBulkDeleteResult: {
+            /** Requested */
+            requested: number;
+            /** Deleted Ids */
+            deleted_ids: number[];
+            /** Missing Ids */
+            missing_ids: number[];
         };
         /**
          * OpportunityLinkCreate
@@ -13066,6 +13148,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OpportunityLinkRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bulk_delete_opportunity_links_opportunity_links_bulk_delete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpportunityLinkBulkDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpportunityLinkBulkDeleteResult"];
                 };
             };
             /** @description Validation Error */
