@@ -3,11 +3,15 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  ADD_LINK_LAST_STEP,
+  ADD_LINK_STEPS,
   DEFAULT_STATUS,
   EMPTY_ADD_LINK_FORM,
   EMPTY_LINKS_FILTERS,
   LINKS_PAGE_SIZE,
-  SAMPLE_LINKS_FLAG,
+  ROLE_TYPES,
+  ROLE_TYPE_LABELS,
+  ROLE_TYPE_OPTIONS,
   STALE_AFTER_DAYS,
   companyDisplay,
   daysSince,
@@ -19,22 +23,18 @@ import {
   linkTarget,
   linksHref,
   locationDisplay,
+  maxReachableAddLinkStep,
   parseLinksFilters,
   parseLinksOffset,
-  sampleLinksEnabled,
   submittedByDisplay,
   toCreateBody,
   toLinksApiQuery,
   toLinksQs,
   validateAddLink,
+  validateAddLinkStep,
   type LinksFilterState,
   type OpportunityLink,
 } from "@/lib/opportunityLinks";
-import {
-  SAMPLE_ALUMNI_OPTIONS,
-  sampleLinkPage,
-  sampleOpportunityLinks,
-} from "@/lib/opportunityLinks.sample";
 
 // --- from the alum-facing survey-form workstream ---
 import {
@@ -946,143 +946,102 @@ describe("toCreateBody", () => {
 });
 
 /* ==================================================================== *
- * The local-only sample-data gate
+ * Role-type labels — display only
  * ==================================================================== */
 
-describe("sampleLinksEnabled", () => {
-  it("is off in every deployed environment, flag or no flag", () => {
-    // Every Vercel build — dev project and prod project alike — runs with
-    // NODE_ENV=production. This single condition is what makes it impossible
-    // for fabricated rows to appear on dev or prod.
-    expect(
-      sampleLinksEnabled({ NODE_ENV: "production", [SAMPLE_LINKS_FLAG]: "1" }),
-    ).toBe(false);
-    expect(
-      sampleLinksEnabled({ NODE_ENV: "test", [SAMPLE_LINKS_FLAG]: "1" }),
-    ).toBe(false);
-    expect(sampleLinksEnabled({ [SAMPLE_LINKS_FLAG]: "1" })).toBe(false);
+describe("role-type labels", () => {
+  it('spells `both` "Internship & Full-time" for the reader', () => {
+    expect(ROLE_TYPE_LABELS.both).toBe("Internship & Full-time");
+    expect(ROLE_TYPE_LABELS.internship).toBe("Internship");
+    expect(ROLE_TYPE_LABELS.full_time).toBe("Full-time");
   });
 
-  it("is off in local development until it is explicitly asked for", () => {
-    expect(sampleLinksEnabled({ NODE_ENV: "development" })).toBe(false);
+  it("leaves the WIRE values alone — the API and the DB CHECK own those", () => {
+    // The label is cosmetic; `both` is the value the request body carries and
+    // the value the database constraint accepts. Relabelling must never become
+    // a rename.
+    expect(ROLE_TYPES).toEqual(["internship", "full_time", "both"]);
+    expect(Object.keys(ROLE_TYPE_LABELS).sort()).toEqual(
+      ["both", "full_time", "internship"].sort(),
+    );
     expect(
-      sampleLinksEnabled({ NODE_ENV: "development", [SAMPLE_LINKS_FLAG]: "0" }),
-    ).toBe(false);
-    expect(
-      sampleLinksEnabled({
-        NODE_ENV: "development",
-        [SAMPLE_LINKS_FLAG]: "true",
-      }),
-    ).toBe(false);
+      toCreateBody({ ...EMPTY_ADD_LINK_FORM, alumniId: 1, roleType: "both" })
+        .role_type,
+    ).toBe("both");
   });
 
-  it("is on only for the exact local opt-in", () => {
-    expect(
-      sampleLinksEnabled({ NODE_ENV: "development", [SAMPLE_LINKS_FLAG]: "1" }),
-    ).toBe(true);
-  });
-
-  it("is a server-only flag — a NEXT_PUBLIC name would be baked into the bundle", () => {
-    expect(SAMPLE_LINKS_FLAG.startsWith("NEXT_PUBLIC")).toBe(false);
-  });
-});
-
-describe("sample data is structurally incapable of reaching a real environment", () => {
-  it("is only ever loaded behind the gate, via a dynamic import", () => {
-    // A static import would put the fabricated rows in the production bundle
-    // even though they are unreachable. The dynamic form keeps them out of it.
-    const page = read("src/app/(app)/links/page.tsx");
-    expect(page).toContain("sampleLinksEnabled(process.env)");
-    expect(page).toContain('await import("@/lib/opportunityLinks.sample")');
-    expect(page).not.toContain('from "@/lib/opportunityLinks.sample"');
-  });
-
-  it("makes every write path refuse while sample rows are on screen", () => {
-    // Sample ids exist in no database, and NEXT_PUBLIC_API_URL may still point
-    // at a real environment. Approve/Reject/Create must not send anything.
-    const actions = read("src/app/(app)/links/actions.ts");
-    expect(actions).toContain("sampleLinksEnabled(process.env)");
-    for (const fn of ["approveLink", "rejectLink", "createLink"]) {
-      const body = actions.slice(actions.indexOf(`export async function ${fn}`));
-      const upToNextExport = body.slice(0, body.indexOf("\nexport ", 1));
-      expect(upToNextExport).toContain("inSampleMode()");
+  it("is the ONE map — the alum-facing options are derived from it", () => {
+    // A second hand-written list is how the survey form and the staff table
+    // end up calling the same code two different things.
+    expect(ROLE_TYPE_OPTIONS.map((o) => o.value)).toEqual([...ROLE_TYPES]);
+    for (const option of ROLE_TYPE_OPTIONS) {
+      expect(option.label).toBe(ROLE_TYPE_LABELS[option.value]);
     }
   });
 
-  it("carries no filename the repo-hygiene guard would block", () => {
-    // The CI job blocks TEST_* / SCRATCH* / DRAFT_* / *.scratch / *DO_NOT_MERGE*.
-    const blocked = /(^|\/)(TEST_[^/]*|SCRATCH[^/]*|DRAFT_[^/]*|[^/]*\.scratch|[^/]*DO_NOT_MERGE[^/]*)$/;
+  it("is read from the map at every render site, never re-spelled", () => {
     for (const path of [
-      "src/lib/opportunityLinks.ts",
-      "src/lib/opportunityLinks.sample.ts",
-      "src/lib/opportunityLinks.test.ts",
+      "src/components/links/LinksTable.tsx",
+      "src/components/links/LinksToolbar.tsx",
+      "src/components/links/AddLinkForm.tsx",
     ]) {
-      expect(blocked.test(path)).toBe(false);
+      const src = read(path);
+      expect(src).toContain("ROLE_TYPE_LABELS");
+      expect(src).not.toContain(">Both<");
     }
   });
 });
 
-describe("sampleLinkPage", () => {
-  const now = new Date("2026-08-17T09:00:00");
-  const page = (f: Partial<LinksFilterState>, offset = 0) =>
-    sampleLinkPage(
-      { ...EMPTY_LINKS_FILTERS, ...f },
-      { limit: LINKS_PAGE_SIZE, offset, now },
-    );
+/* ==================================================================== *
+ * The staff add form's two steps
+ * ==================================================================== */
 
-  it("provides a dozen rows to look at", () => {
-    expect(sampleOpportunityLinks(now).length).toBeGreaterThanOrEqual(12);
+describe("the Add-link steps", () => {
+  const chosen = { ...EMPTY_ADD_LINK_FORM, alumniId: 7 };
+
+  it("asks who it is from first, then the opportunity", () => {
+    expect(ADD_LINK_STEPS).toEqual(["Who this is from", "The opportunity"]);
+    expect(ADD_LINK_LAST_STEP).toBe(1);
   });
 
-  it("covers every state the real table has to render", () => {
-    const rows = sampleOpportunityLinks(now);
-    const statuses = new Set(rows.map((r) => r.status));
-    expect(statuses).toEqual(new Set(["approved", "pending", "rejected"]));
-    expect(new Set(rows.map((r) => r.role_type))).toEqual(
-      new Set(["internship", "full_time", "both"]),
-    );
-    // The nullable-by-design cases, so the page's dash branches are exercised.
-    expect(
-      rows.some((r) => r.is_own_company && r.company_name === null),
-    ).toBe(true);
-    expect(rows.some((r) => r.location_city === null)).toBe(true);
-    expect(rows.some((r) => r.details === null)).toBe(true);
-    expect(rows.some((r) => isStaleLink(r.submitted_at, now))).toBe(true);
-    expect(
-      rows.some((r) => isDeadlinePassed(r.application_deadline, now)),
-    ).toBe(true);
+  it("keeps step 2 unreachable until an alumnus is chosen", () => {
+    expect(maxReachableAddLinkStep(EMPTY_ADD_LINK_FORM)).toBe(0);
+    expect(maxReachableAddLinkStep(chosen)).toBe(ADD_LINK_LAST_STEP);
   });
 
-  it("every fabricated URL is one the render side will actually link", () => {
-    for (const r of sampleOpportunityLinks(now)) {
-      expect(linkTarget(r.url).href).not.toBeNull();
-    }
+  it("surfaces only the current step's complaints", () => {
+    // Step 1 is the attribution. An empty URL is real but belongs to step 2 —
+    // printing it here would be a message about a field not yet on screen.
+    const step1 = validateAddLinkStep(EMPTY_ADD_LINK_FORM, 0);
+    expect(Object.keys(step1)).toEqual(["alumniId"]);
+
+    const step2 = validateAddLinkStep(chosen, 1);
+    expect(Object.keys(step2).sort()).toEqual(["companyName", "url"]);
+    expect(step2.alumniId).toBeUndefined();
   });
 
-  it("filters the way the endpoint does, so the toolbar is demonstrable", () => {
-    expect(page({ status: "approved" }).items.every((l) => l.status === "approved"))
-      .toBe(true);
-    expect(page({ status: "pending" }).total).toBeGreaterThan(0);
-    expect(
-      page({ role_type: "internship" }).items.every(
-        (l) => l.role_type === "internship",
-      ),
-    ).toBe(true);
-    expect(page({ company: "goldman" }).total).toBe(1);
-    expect(page({ q: "zzzz-no-such-thing" }).total).toBe(0);
+  it("says nothing about a step that does not exist", () => {
+    expect(validateAddLinkStep(EMPTY_ADD_LINK_FORM, 2)).toEqual({});
+    expect(validateAddLinkStep(EMPTY_ADD_LINK_FORM, -1)).toEqual({});
   });
 
-  it("returns the same envelope as the endpoint, paging included", () => {
-    const p = sampleLinkPage(EMPTY_LINKS_FILTERS, { limit: 3, offset: 3, now });
-    expect(p.limit).toBe(3);
-    expect(p.offset).toBe(3);
-    expect(p.items.length).toBeLessThanOrEqual(3);
-    expect(p.total).toBeGreaterThan(p.items.length);
+  it("derives its messages from the whole-form rule, never a second copy", () => {
+    const values = {
+      ...chosen,
+      companyName: "Deloitte",
+      url: "not-a-url",
+    };
+    const all = validateAddLink(values);
+    expect(validateAddLinkStep(values, 1).url).toBe(all.url);
   });
 
-  it("names alumni the picker can find", () => {
-    expect(SAMPLE_ALUMNI_OPTIONS.length).toBeGreaterThan(0);
-    for (const a of SAMPLE_ALUMNI_OPTIONS) expect(a.name.trim()).not.toBe("");
+  it("between them the two steps cover every field the submit path checks", () => {
+    const all = Object.keys(validateAddLink(EMPTY_ADD_LINK_FORM)).sort();
+    const perStep = [
+      ...Object.keys(validateAddLinkStep(EMPTY_ADD_LINK_FORM, 0)),
+      ...Object.keys(validateAddLinkStep(EMPTY_ADD_LINK_FORM, 1)),
+    ].sort();
+    expect(perStep).toEqual(all);
   });
 });
 

@@ -14,7 +14,6 @@ import {
   linksHref,
   parseLinksFilters,
   parseLinksOffset,
-  sampleLinksEnabled,
   toLinksApiQuery,
   type LinksSearchParams,
   type OpportunityLinkPage,
@@ -66,34 +65,18 @@ export default async function LinksPage({
     ? filters
     : { ...filters, status: "approved" as const };
 
-  // Local-only sample data. See `sampleLinksEnabled` — this is impossible on any
-  // deployment (NODE_ENV is "production" on every Vercel build) and additionally
-  // requires an explicit opt-in flag. The import is dynamic so the fabricated
-  // rows stay out of every browser bundle and out of this page's server module
-  // graph; keep it that way.
-  const sampleMode = sampleLinksEnabled(process.env);
-
   let data: OpportunityLinkPage | null = null;
   let error: ApiError | null = null;
 
-  if (sampleMode) {
-    const { sampleLinkPage } = await import("@/lib/opportunityLinks.sample");
-    data = sampleLinkPage(effectiveFilters, {
-      limit: LINKS_PAGE_SIZE,
-      offset,
-    });
-  } else {
-    try {
-      data = await apiGet<OpportunityLinkPage>(
-        `/opportunity-links?${toLinksApiQuery(effectiveFilters, {
-          limit: LINKS_PAGE_SIZE,
-          offset,
-        })}`,
-      );
-    } catch (e) {
-      error =
-        e instanceof ApiError ? e : new ApiError(0, "Failed to load links.");
-    }
+  try {
+    data = await apiGet<OpportunityLinkPage>(
+      `/opportunity-links?${toLinksApiQuery(effectiveFilters, {
+        limit: LINKS_PAGE_SIZE,
+        offset,
+      })}`,
+    );
+  } catch (e) {
+    error = e instanceof ApiError ? e : new ApiError(0, "Failed to load links.");
   }
 
   const rows = data?.items ?? null;
@@ -106,8 +89,6 @@ export default async function LinksPage({
     <>
       <Topbar title="Links" />
       <main className="flex-1 overflow-auto p-4 md:p-6">
-        {sampleMode ? <SampleModeBanner /> : null}
-
         <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
           <p className="max-w-3xl text-sm text-gray-500">
             Internship and full-time opportunities alumni have shared. Nothing
@@ -164,27 +145,6 @@ export default async function LinksPage({
         )}
       </main>
     </>
-  );
-}
-
-/**
- * Unmissable, and worded so nobody can mistake this for real data. It renders
- * only under `sampleLinksEnabled` (see that function for why that is impossible
- * off a developer's own machine).
- */
-function SampleModeBanner() {
-  return (
-    <Card className="mb-4 border-warning-600/40 bg-warning-50 p-4">
-      <p className="text-sm font-semibold text-warning-600">
-        Sample data — local development only
-      </p>
-      <p className="mt-1 text-sm text-gray-700">
-        Every row below is fabricated and lives only in this page render. No
-        request is sent to the API, and Approve, Reject and Add link all refuse
-        while this is on. Restart with <code>npm run dev</code> instead of{" "}
-        <code>npm run dev:sample</code> to use real data.
-      </p>
-    </Card>
   );
 }
 

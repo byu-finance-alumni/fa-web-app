@@ -8,23 +8,12 @@
  * throwing, so the client component can show WHY something failed instead of a
  * generic message. The backend re-checks the caller's permission on every one of
  * these; the UI gates exist only so we never offer a control that 403s on click.
- *
- * SAMPLE-MODE REFUSAL. Every write here begins by refusing outright when local
- * sample mode is on. That is not belt-and-braces politeness — it is load
- * bearing. In sample mode the table is showing fabricated rows whose ids exist
- * in no database, while `NEXT_PUBLIC_API_URL` may still point at a real
- * environment (in this repo the checked-in `.env` value points at PROD). Without
- * this guard, clicking Approve on a fabricated row would send
- * `POST /opportunity-links/900001/approve` at whatever API is configured. So the
- * rule is simple and absolute: while fake data is on screen, no request leaves
- * this process.
  */
 
 import { revalidatePath } from "next/cache";
 import { apiGet, apiPost, ApiError } from "@/lib/api";
 import type { Schema } from "@/types/api";
 import {
-  sampleLinksEnabled,
   toCreateBody,
   validateAddLink,
   type AddLinkFormValues,
@@ -41,16 +30,10 @@ export interface AlumnusOption {
   detail: string;
 }
 
-const SAMPLE_REFUSAL =
-  "Sample data mode is on, so nothing was sent to the API. Restart with `npm run dev` to use real data.";
-
-const inSampleMode = () => sampleLinksEnabled(process.env);
-
 /** Approve a pending link. Requires the surveys-management permission. */
 export async function approveLink(
   opportunityLinkId: number,
 ): Promise<LinkActionResult> {
-  if (inSampleMode()) return { ok: false, error: SAMPLE_REFUSAL };
   try {
     await apiPost(`/opportunity-links/${opportunityLinkId}/approve`, {});
   } catch (e) {
@@ -67,7 +50,6 @@ export async function approveLink(
 export async function rejectLink(
   opportunityLinkId: number,
 ): Promise<LinkActionResult> {
-  if (inSampleMode()) return { ok: false, error: SAMPLE_REFUSAL };
   try {
     await apiPost(`/opportunity-links/${opportunityLinkId}/reject`, {});
   } catch (e) {
@@ -96,8 +78,6 @@ export type CreateLinkResult =
 export async function createLink(
   values: AddLinkFormValues,
 ): Promise<CreateLinkResult> {
-  if (inSampleMode()) return { ok: false, error: SAMPLE_REFUSAL };
-
   const errors = validateAddLink(values);
   const firstError = Object.values(errors)[0];
   if (firstError) return { ok: false, error: firstError };
@@ -124,23 +104,10 @@ export async function createLink(
  * same server-side token and error handling as every other read on this screen —
  * there is no client API helper for authenticated GETs that this would otherwise
  * have to grow.
- *
- * In sample mode this is a READ, so instead of refusing it serves the fabricated
- * roster: the point of sample mode is that the whole screen is demonstrable
- * without a backend, and a picker that returns nothing would make the form
- * untestable.
  */
 export async function searchAlumniForLink(q: string): Promise<AlumnusOption[]> {
   const term = q.trim();
   if (term.length < 2) return [];
-
-  if (inSampleMode()) {
-    const { SAMPLE_ALUMNI_OPTIONS } = await import("@/lib/opportunityLinks.sample");
-    const needle = term.toLowerCase();
-    return SAMPLE_ALUMNI_OPTIONS.filter((a) =>
-      a.name.toLowerCase().includes(needle),
-    );
-  }
 
   try {
     const page = await apiGet<Schema<"AlumniPage">>(

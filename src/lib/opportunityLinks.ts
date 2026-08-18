@@ -69,12 +69,32 @@ export const DETAILS_MAX = 2000;
  */
 export const MAX_LINKS = 10;
 
-/** The role-type options, in the order the alum reads them. */
-export const ROLE_TYPE_OPTIONS: readonly { value: LinkRoleType; label: string }[] = [
-  { value: "internship", label: "Internship" },
-  { value: "full_time", label: "Full-time" },
-  { value: "both", label: "Both" },
-];
+/** Role types in the order the owner listed them (Internship / Full-time / Both). */
+export const ROLE_TYPES = ["internship", "full_time", "both"] as const;
+
+/**
+ * The ONE place a `role_type` gets a human label — the table, the filters, the
+ * staff add form and the alum-facing survey form all read this map, so a
+ * relabel happens here and nowhere else.
+ *
+ * DISPLAY ONLY. The stored values stay the snake_case codes: `both` is the wire
+ * value the API contract and the database CHECK constraint both name, and it is
+ * spelled "Internship & Full-time" on screen purely because "Both" reads as a
+ * riddle out of context. Never let this map leak into a request body.
+ */
+export const ROLE_TYPE_LABELS: Record<LinkRoleType, string> = {
+  internship: "Internship",
+  full_time: "Full-time",
+  both: "Internship & Full-time",
+};
+
+/**
+ * The role-type options, in the order the alum reads them. DERIVED from
+ * {@link ROLE_TYPE_LABELS} rather than restated, so the alum-facing survey form
+ * and the staff screens can never disagree about what a code is called.
+ */
+export const ROLE_TYPE_OPTIONS: readonly { value: LinkRoleType; label: string }[] =
+  ROLE_TYPES.map((value) => ({ value, label: ROLE_TYPE_LABELS[value] }));
 
 /* ------------------------------------------------- character-level rules ---- */
 
@@ -462,15 +482,8 @@ export type LinkStatus = OpportunityLink["status"];
  * Vocabulary
  * ------------------------------------------------------------------ */
 
-/** Role types in the order the owner listed them (Internship / Full-time / Both). */
-export const ROLE_TYPES = ["internship", "full_time", "both"] as const;
-
-/** Display labels for `role_type`. The stored values are snake_case codes. */
-export const ROLE_TYPE_LABELS: Record<LinkRoleType, string> = {
-  internship: "Internship",
-  full_time: "Full-time",
-  both: "Both",
-};
+/* `ROLE_TYPES` / `ROLE_TYPE_LABELS` are defined once, near the top of this file
+   with the rest of the shared vocabulary. */
 
 export const STATUSES = ["approved", "pending", "rejected"] as const;
 
@@ -855,44 +868,64 @@ export function toCreateBody(v: AddLinkFormValues): OpportunityLinkCreate {
 }
 
 /* ------------------------------------------------------------------ *
- * Local-only sample data — the gate
+ * The staff add form's two steps
  * ------------------------------------------------------------------ */
 
 /**
- * The env var that turns on the fabricated sample rows (see
- * `opportunityLinks.sample.ts`). Server-only on purpose: a `NEXT_PUBLIC_` name
- * would be baked into the browser bundle at build time, and this must be a
- * runtime decision made on a developer's own machine.
+ * The Add-link steps, in order. Same shape as `EVENT_STEPS` in
+ * `@/lib/eventWizard` so the two wizards can render the same "Step n of N ·
+ * Label" meter.
  */
-export const SAMPLE_LINKS_FLAG = "SAMPLE_OPPORTUNITY_LINKS";
+export const ADD_LINK_STEPS = ["Who this is from", "The opportunity"] as const;
+
+export type AddLinkStep = (typeof ADD_LINK_STEPS)[number];
+
+/** Index of the last step — the only one that may submit. */
+export const ADD_LINK_LAST_STEP = ADD_LINK_STEPS.length - 1;
 
 /**
- * Whether to serve fabricated sample links instead of calling the API.
- *
- * TWO independent conditions, both required, and each one alone is already
- * enough to keep this off everywhere that matters:
- *
- *  1. `NODE_ENV === "development"`. Every Vercel build — dev project and prod
- *     project alike — builds and runs with `NODE_ENV=production`. There is no
- *     deployment of this app on which this is true.
- *  2. `SAMPLE_OPPORTUNITY_LINKS=1`. An explicit opt-in that exists in no Vercel
- *     project's environment. It is set by the `npm run dev:sample` script and
- *     nowhere else.
- *
- * The sample module is only ever reached through a dynamic `import()` guarded by
- * this function. Verified against a real `next build`: the fabricated rows
- * appear in NO browser bundle at all (they are server-only), and on the server
- * they are emitted as their own lazily-loaded chunk that nothing ever requires,
- * rather than being linked into the page's module graph.
- *
- * And because sample rows carry ids that exist in no database, every write path
- * (create / approve / reject) refuses outright while this is on, rather than
- * sending a request built from fake data at whatever API the environment
- * happens to point to. See `src/app/(app)/links/actions.ts`.
+ * Which fields each step owns. The mapping is the reason a validation message
+ * can never land on a step the reader is not looking at: step 1 is only the
+ * attribution, so a URL complaint belongs to step 2 and vice versa.
  */
-export function sampleLinksEnabled(env: {
-  NODE_ENV?: string;
-  [key: string]: string | undefined;
-}): boolean {
-  return env.NODE_ENV === "development" && env[SAMPLE_LINKS_FLAG] === "1";
+export const ADD_LINK_STEP_FIELDS: readonly (readonly (keyof AddLinkErrors)[])[] = [
+  ["alumniId"],
+  ["companyName", "url"],
+];
+
+/**
+ * The errors for ONE step, filtered out of {@link validateAddLink} rather than
+ * re-derived. Anything else would be a second copy of the rules that could
+ * disagree with the one the submit path runs.
+ *
+ * An out-of-range step yields `{}` — there is nothing to complain about on a
+ * step that does not exist.
+ */
+export function validateAddLinkStep(
+  v: AddLinkFormValues,
+  step: number,
+): AddLinkErrors {
+  const fields = ADD_LINK_STEP_FIELDS[step];
+  if (!fields) return {};
+  const all = validateAddLink(v);
+  const errors: AddLinkErrors = {};
+  for (const field of fields) {
+    const message = all[field];
+    if (message) errors[field] = message;
+  }
+  return errors;
+}
+
+/**
+ * The furthest step these values may be shown on.
+ *
+ * Step 2 asks about an opportunity "from" someone, so it is meaningless — and
+ * unsubmittable — until an alumnus is chosen. Rather than trusting the Next
+ * button to be the only way forward, the form clamps its own step through this,
+ * so a stale step index (a back/forward navigation, a re-render after the
+ * chosen alumnus is cleared) can't strand the user on step 2 with no
+ * attribution.
+ */
+export function maxReachableAddLinkStep(v: AddLinkFormValues): number {
+  return v.alumniId === null ? 0 : ADD_LINK_LAST_STEP;
 }

@@ -6,7 +6,6 @@
     "dev": "next dev",
     "dev:local": "cross-env NEXT_PUBLIC_API_URL=http://localhost:8000 next dev",
     "dev:remote": "cross-env NEXT_PUBLIC_API_URL=https://dev-fa-web-api.vercel.app next dev",
-    "dev:sample": "cross-env SAMPLE_OPPORTUNITY_LINKS=1 next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
