@@ -135,8 +135,11 @@ describe("the profile's Residence Location field", () => {
     expect(src).not.toContain('label: "Residence city & state"');
   });
 
-  it("leaves the employer's own address alone", () => {
-    expect(src).toContain('label="Company country"');
+  it("keeps the employer's ZIP, and folds its country into the location line", () => {
     expect(src).toContain('label="Company ZIP"');
+    // "Company country" was its own row until the employer's city/state/country
+    // became one Employment Location line - keeping both would print the
+    // country twice in the same panel.
+    expect(src).not.toContain('label="Company country"');
   });
 });

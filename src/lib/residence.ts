@@ -52,7 +52,7 @@ export function isUnitedStates(country: string | null | undefined): boolean {
  * render the field with the page's standard em-dash empty state; hiding the row
  * is what made this data invisible last time.
  */
-export function formatResidenceLocation(
+export function formatCityStateCountry(
   city: string | null | undefined,
   state: string | null | undefined,
   country: string | null | undefined,
@@ -63,3 +63,15 @@ export function formatResidenceLocation(
   const line = parts.filter(Boolean).join(", ");
   return line.length ? line : null;
 }
+
+/**
+ * Residence-specific alias of {@link formatCityStateCountry}.
+ *
+ * The same "City, State (+ country when not US)" shape is now used for BOTH a
+ * residence and an employment location, which are genuinely different places -
+ * an alum can work in Manhattan and live in New Jersey. Keeping a named alias
+ * per meaning stops a future reader assuming the two call sites are the same
+ * field, which is exactly the confusion that put residence in the employment
+ * panel in the first place.
+ */
+export const formatResidenceLocation = formatCityStateCountry;

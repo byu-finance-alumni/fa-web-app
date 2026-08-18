@@ -52,7 +52,7 @@ import { designationFullName, splitDesignations } from "@/lib/designations";
 import { blankIfNa } from "@/lib/na";
 import { parseDuplicateOf } from "@/lib/duplicateNotice";
 import { formatPhone } from "@/lib/phone";
-import { formatResidenceLocation } from "@/lib/residence";
+import { formatResidenceLocation, formatCityStateCountry } from "@/lib/residence";
 
 /* ----------------------------------------------------------------- helpers */
 
@@ -558,6 +558,14 @@ export async function AlumniProfileView({
     c?.city,
     c?.state,
     c?.country,
+  );
+  // The EMPLOYER's location - same shape, different place. Kept beside the
+  // residence deliberately: these two look alike and are constantly confused,
+  // and reading them together is the cheapest way to keep them straight.
+  const employmentLocation = formatCityStateCountry(
+    career?.current_city,
+    career?.current_state,
+    career?.current_country,
   );
   const headerPlace = workPlace ?? residencePlace;
 
@@ -1150,20 +1158,17 @@ export async function AlumniProfileView({
                         preferred={c?.preferred_contact_method === "work_email"}
                       />
                     ) : null}
-                    {/* The alum's RESIDENCE, not the office — these are the
-                        contact columns, combined into one line (owner request).
-                        The two fields below it ARE the employer's address and
-                        stay exactly as they were. */}
+                    {/* The EMPLOYER's location. Residence lives in Personal &
+                        family and is a different place entirely - an alum can
+                        work in one city and live in another, so showing the
+                        residence here (as this panel briefly did) put the wrong
+                        address beside the employer's ZIP. */}
                     <Field
-                      label="Residence Location"
-                      value={residenceLocation}
+                      label="Employment Location"
+                      value={employmentLocation}
                     />
                   </div>
                   <div className="space-y-4">
-                    <Field
-                      label="Company country"
-                      value={career?.current_country ?? null}
-                    />
                     <Field label="Company ZIP" value={career?.current_zip ?? null} />
                   </div>
                 </div>
