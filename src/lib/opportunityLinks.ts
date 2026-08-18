@@ -716,18 +716,86 @@ export function linkTarget(raw: string | null | undefined): LinkTarget {
   const safe = safeExternalHref(raw);
   if (safe === null) {
     const shown = (raw ?? "").trim();
-    return { href: null, label: shown === "" ? EM_DASH : truncate(shown) };
+    return {
+      href: null,
+      label: shown === "" ? EM_DASH : ellipsize(shown, LINK_LABEL_MAX),
+    };
   }
   const url = new URL(safe);
   const path = url.pathname === "/" ? "" : url.pathname.replace(/\/$/, "");
   return {
     href: safe,
-    label: truncate(`${url.host}${path}${url.search}`),
+    label: ellipsize(`${url.host}${path}${url.search}`, LINK_LABEL_MAX),
   };
 }
 
-function truncate(s: string): string {
-  return s.length <= LINK_LABEL_MAX ? s : `${s.slice(0, LINK_LABEL_MAX - 1)}…`;
+function ellipsize(s: string, max: number): string {
+  return s.length <= max ? s : `${s.slice(0, max - 1)}…`;
+}
+
+/**
+ * How long the Link cell's label may be in the DENSE list row.
+ *
+ * Shorter than {@link LINK_LABEL_MAX} because the row is one line now: the cell
+ * has a fixed share of the table, and a label that overflows it would either
+ * wrap — which is the row height the owner asked us to get rid of — or be cut by
+ * CSS with nothing to say so. Cutting in JS instead makes the "…" real text, so
+ * it survives a copy-paste and a screen reader.
+ */
+export const SHORT_LINK_LABEL_MAX = 34;
+
+/**
+ * The Link cell's value for the dense row: the same guarded href, a shorter
+ * label.
+ *
+ * SHORTENING IS A DISPLAY TRANSFORM AND NOTHING ELSE. The href handed back is
+ * {@link linkTarget}'s, untouched — the shortened string never becomes a
+ * destination, so a truncated label cannot send a reviewer somewhere other than
+ * where the full URL points. A value the scheme guard rejected still comes back
+ * with `href: null` and must still render as plain text; shortening does not
+ * launder it into something linkable.
+ */
+export function shortLinkTarget(
+  raw: string | null | undefined,
+  max: number = SHORT_LINK_LABEL_MAX,
+): LinkTarget {
+  const target = linkTarget(raw);
+  return { href: target.href, label: ellipsize(target.label, max) };
+}
+
+/** How the Submitted-by cell names where a link came from. */
+export const SOURCE_LABELS: Record<OpportunityLink["source"], string> = {
+  survey: "Survey",
+  staff: "Staff",
+};
+
+/**
+ * What a click on a list row does.
+ *
+ * Three things want the same click and only one of them can have it, so the rule
+ * lives here instead of being spelled out inside an event handler:
+ *
+ *  - `fromControl` — the click landed on the row's own anchor, checkbox or a
+ *    review button. Those own their click and the row must keep its hands off,
+ *    or following a link also pops a dialog over the page you just left, and
+ *    ticking a checkbox toggles it twice (the input's onChange plus the row's)
+ *    and therefore not at all. Those controls also stopPropagation, so this is
+ *    the second of two belts.
+ *  - `selecting` — selection mode is on. The row is a checkbox target now, and
+ *    a detail dialog would land on top of the list someone is triaging.
+ *  - otherwise the row opens its detail dialog, which is what earns the right to
+ *    truncate every cell to one line.
+ */
+export type LinkRowAction = "ignore" | "toggle-selection" | "open-detail";
+
+export function linkRowAction(opts: {
+  /** Selection mode is on — the checkbox column is showing. */
+  selecting: boolean;
+  /** The click originated on a control that handles it itself. */
+  fromControl: boolean;
+}): LinkRowAction {
+  if (opts.fromControl) return "ignore";
+  return opts.selecting ? "toggle-selection" : "open-detail";
 }
 
 /** Who submitted it, or a dash — the backend nulls the name for deleted users. */

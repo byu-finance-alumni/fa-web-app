@@ -34,12 +34,15 @@ import {
   isDeadlinePassed,
   isStaleLink,
   linkAgeLabel,
+  linkRowAction,
   linkTarget,
   linksHref,
   locationDisplay,
   maxReachableAddLinkStep,
   parseLinksFilters,
   parseLinksOffset,
+  SHORT_LINK_LABEL_MAX,
+  shortLinkTarget,
   submittedByDisplay,
   toCreateBody,
   toLinksApiQuery,
@@ -814,12 +817,169 @@ describe("linkTarget", () => {
   });
 });
 
+/* ==================================================================== *
+ * shortLinkTarget — the dense row's Link cell (2026-08-17)
+ * ==================================================================== */
+
+/**
+ * The list is one line per row now, so the Link cell shortens what it PRINTS.
+ * The whole risk in that sentence is the word "prints": a shortened URL that
+ * reached an `href` would send a reviewer to a host that is merely a PREFIX of
+ * the one they read, which is a phishing primitive rather than a layout bug.
+ * Every test below that asserts a label also asserts the href is untouched.
+ */
+describe("shortLinkTarget", () => {
+  const LONG_PATH = `https://careers.example.com/${"a".repeat(200)}`;
+
+  it("drops the scheme and keeps host + path", () => {
+    const t = shortLinkTarget("https://www.qualtrics.com/careers/");
+    expect(t.label).toBe("www.qualtrics.com/careers");
+    expect(t.label).not.toContain("https://");
+  });
+
+  it("cuts a long host/path with a real ellipsis character", () => {
+    const t = shortLinkTarget(LONG_PATH);
+    expect(t.label.length).toBeLessThanOrEqual(SHORT_LINK_LABEL_MAX);
+    expect(t.label.endsWith("…")).toBe(true);
+  });
+
+  it("is shorter than the label linkTarget would have produced", () => {
+    // The point of the helper: the dense row's budget is tighter than the old
+    // one, and a label that outgrows its column stops being one line.
+    const full = linkTarget(LONG_PATH).label;
+    expect(SHORT_LINK_LABEL_MAX).toBeLessThan(full.length);
+    expect(shortLinkTarget(LONG_PATH).label.length).toBeLessThan(full.length);
+  });
+
+  it("leaves a URL that already fits completely alone", () => {
+    const t = shortLinkTarget("https://byu.edu/jobs");
+    expect(t.label).toBe("byu.edu/jobs");
+    expect(t.label).not.toContain("…");
+  });
+
+  it("NEVER shortens the href — the destination is always the full URL", () => {
+    for (const raw of [
+      LONG_PATH,
+      "https://careers.example.com/very/deep/path/that/keeps/going?req=12345&src=alumni",
+      "https://byu.edu/jobs",
+    ]) {
+      const short = shortLinkTarget(raw);
+      expect(short.href).toBe(raw);
+      // And identical to the unshortened call: shortening touches label only.
+      expect(short.href).toBe(linkTarget(raw).href);
+      expect(short.href).not.toContain("…");
+    }
+  });
+
+  it("keeps an unsafe URL as plain text — shortening does not launder it", () => {
+    for (const raw of [
+      "javascript:alert(document.cookie)",
+      "java\nscript:alert(1)",
+      "data:text/html,<script>alert(1)</script>",
+      "vbscript:msgbox(1)",
+      "//evil.example/careers",
+      "not a url at all",
+    ]) {
+      expect(shortLinkTarget(raw).href).toBeNull();
+    }
+    // Still SHOWN, because staff have to read it in order to reject it.
+    expect(shortLinkTarget("javascript:alert(1)").label).toBe(
+      "javascript:alert(1)",
+    );
+  });
+
+  it("dashes an empty value instead of rendering an empty link", () => {
+    expect(shortLinkTarget(null)).toEqual({ href: null, label: "—" });
+    expect(shortLinkTarget("   ")).toEqual({ href: null, label: "—" });
+  });
+
+  it("honours an explicit budget", () => {
+    const t = shortLinkTarget("https://careers.example.com/engineering", 12);
+    expect(t.label.length).toBeLessThanOrEqual(12);
+    expect(t.href).toBe("https://careers.example.com/engineering");
+  });
+});
+
+/* ==================================================================== *
+ * linkRowAction — who owns a click on a row (2026-08-17)
+ * ==================================================================== */
+
+/**
+ * Three features want the same click and the arbitration is the bug surface: a
+ * row that opens its detail dialog while selection mode is on buries the list
+ * someone is triaging, and a row that opens it when the click was really on the
+ * anchor pops a dialog over the page the browser is already leaving.
+ */
+describe("linkRowAction", () => {
+  it("opens the detail panel on a plain row click", () => {
+    expect(linkRowAction({ selecting: false, fromControl: false })).toBe(
+      "open-detail",
+    );
+  });
+
+  it("toggles selection instead, once selection mode is on", () => {
+    expect(linkRowAction({ selecting: true, fromControl: false })).toBe(
+      "toggle-selection",
+    );
+  });
+
+  it("keeps its hands off a click that a control already owns", () => {
+    // Both modes: the anchor, the checkbox and Approve/Reject all outrank the
+    // row, and a checkbox toggled by BOTH the input and the row is a checkbox
+    // that never changes.
+    expect(linkRowAction({ selecting: false, fromControl: true })).toBe(
+      "ignore",
+    );
+    expect(linkRowAction({ selecting: true, fromControl: true })).toBe("ignore");
+  });
+});
+
+describe("the links table wires the click collisions it is supposed to", () => {
+  const table = () => read("src/components/links/LinksTable.tsx");
+
+  it("arbitrates the row click through linkRowAction rather than by hand", () => {
+    expect(table()).toContain("linkRowAction({ selecting, fromControl })");
+  });
+
+  it("stops the anchor, the checkbox and the review cell from bubbling", () => {
+    // Three collisions, three braces — plus the Company button, which opens the
+    // panel itself and must not let the row handler run a second time.
+    const stops = table().match(/stopPropagation\(\)/g) ?? [];
+    expect(stops.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("closes an open panel when selection mode is entered", () => {
+    expect(table()).toContain("if (selecting) setDetail(null);");
+  });
+
+  it("gives the panel Esc-to-close by building it on the shared Dialog", () => {
+    // Radix's Dialog owns Esc, the focus trap and the scroll lock; the visible
+    // way out is a worded button, never an icon (standing no-icons rule).
+    const panel = read("src/components/links/LinkDetailPanel.tsx");
+    expect(panel).toContain('from "@/components/ui/dialog"');
+    expect(panel).toContain("<Dialog");
+    expect(panel).toContain("Close");
+  });
+});
+
 describe("render sites never hand a submitted URL straight to an href", () => {
-  it("the links table routes the url through linkTarget", () => {
+  it("the links table routes the url through the guard before shortening", () => {
     const src = read("src/components/links/LinksTable.tsx");
     expect(src).toContain('from "@/lib/opportunityLinks"');
-    expect(src).toContain("linkTarget(link.url)");
+    // The dense row shortens the LABEL. `shortLinkTarget` is `linkTarget` plus
+    // an ellipsis, so the scheme check still stands between url and href.
+    expect(src).toContain("shortLinkTarget(link.url)");
     // The forms that would be the bug. Their absence is the whole assertion.
+    expect(src).not.toContain("href={link.url}");
+    expect(src).not.toContain("href={link.url ?? undefined}");
+  });
+
+  it("the detail panel routes the url through linkTarget too", () => {
+    // The panel is the one place the FULL url is on screen, which makes it the
+    // one place tempted to print the raw string straight into an href.
+    const src = read("src/components/links/LinkDetailPanel.tsx");
+    expect(src).toContain('from "@/lib/opportunityLinks"');
+    expect(src).toContain("linkTarget(link.url)");
     expect(src).not.toContain("href={link.url}");
     expect(src).not.toContain("href={link.url ?? undefined}");
   });
@@ -832,6 +992,7 @@ describe("render sites never hand a submitted URL straight to an href", () => {
     const rawHtmlProp = /dangerouslySetInnerHTML\s*=/;
     for (const path of [
       "src/components/links/LinksTable.tsx",
+      "src/components/links/LinkDetailPanel.tsx",
       "src/components/links/LinksToolbar.tsx",
       "src/components/links/LinkReviewActions.tsx",
       "src/components/links/AddLinkForm.tsx",

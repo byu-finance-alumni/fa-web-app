@@ -1,24 +1,27 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { LinkDetailPanel } from "@/components/links/LinkDetailPanel";
 import { LinkReviewActions } from "@/components/links/LinkReviewActions";
 import { useLinksSelection } from "@/components/links/LinksSelection";
 import {
   EM_DASH,
-  isLinkSelected,
-  isPageFullySelected,
-  isPagePartiallySelected,
   ROLE_TYPE_LABELS,
+  SOURCE_LABELS,
   STATUS_LABELS,
   companyDisplay,
   formatLinkDate,
   isDeadlinePassed,
+  isLinkSelected,
+  isPageFullySelected,
+  isPagePartiallySelected,
   isStaleLink,
   linkAgeLabel,
-  linkTarget,
+  linkRowAction,
   locationDisplay,
+  shortLinkTarget,
   submittedByDisplay,
   type OpportunityLink,
 } from "@/lib/opportunityLinks";
@@ -26,28 +29,43 @@ import {
 /**
  * The Links list table.
  *
- * TWO THINGS ARE LOAD-BEARING HERE and should survive any redesign:
+ * SHAPE (the owner's ask, 2026-08-17): a spreadsheet. Every field gets its own
+ * column, every cell is ONE line, anything longer is cut with an ellipsis, and
+ * the row you click opens {@link LinkDetailPanel} with the whole record. Nothing
+ * stacks a second line under a cell any more — that stacking is what made the
+ * rows tall, and the panel is what buys the right to throw it away: if a value
+ * is truncated here it is untruncated there, every time. A column added below
+ * has to earn a one-line rendering or it does not belong in the list.
  *
- *  1. `linkTarget()` stands between the stored `url` and the `href`. The value
- *     is public-submitted, so it is never handed to an anchor directly; when the
- *     scheme guard rejects it the row shows the text with NO anchor. There is no
+ * THREE THINGS ARE LOAD-BEARING HERE and should survive any redesign:
+ *
+ *  1. `shortLinkTarget()` — and `linkTarget()` beneath it — stands between the
+ *     stored `url` and the `href`. The value is public-submitted, so it is never
+ *     handed to an anchor directly; when the scheme guard rejects it the row
+ *     shows the text with NO anchor. Shortening is a DISPLAY transform: the href
+ *     is always the full, guarded URL, never the ellipsised label. There is no
  *     `dangerouslySetInnerHTML` anywhere in this feature and there must not be —
  *     `details` is free text an alum typed.
- *  2. The submitted date carries its AGE. Nothing about an opportunity link
- *     expires by design, so the only thing that makes a two-year-old careers
- *     link obvious is having its age on screen; past `STALE_AFTER_DAYS` the row
- *     says so outright.
+ *  2. The Submitted column carries the AGE, not the date. Nothing about an
+ *     opportunity link expires by design, so the only thing that makes a
+ *     two-year-old careers link obvious is having its age on screen; past
+ *     `STALE_AFTER_DAYS` it is coloured as well as worded. The exact date is one
+ *     click away in the panel, and on the cell's tooltip.
+ *  3. Row clicks are arbitrated by `linkRowAction()`, not by whoever wired a
+ *     handler last. Selection mode wins over the panel, and a control inside the
+ *     row (the link, the checkbox, Approve/Reject) wins over both — see that
+ *     function for why each case exists.
  *
- * Text-only throughout (standing project rule): status and staleness read as
- * words in a badge, never as an icon or a bare colour. The one control this
- * table grows is the selection checkbox, which is a form input rather than a
- * glyph and appears ONLY while selection mode is on.
+ * Text-only throughout (standing project rule): status, staleness and source
+ * read as words, never as an icon or a bare colour, and the panel closes on a
+ * button that says "Close". The one control this table grows is the selection
+ * checkbox, which is a form input rather than a glyph and appears ONLY while
+ * selection mode is on.
  *
- * A client component because of that checkbox column: whether the column exists
- * at all is client state (see `LinksSelection`). `now` is therefore passed in by
- * the page rather than defaulted here on both sides of hydration — a server and a
- * browser in different timezones would otherwise disagree about the age label
- * across a day boundary and warn.
+ * A client component because of the checkbox column and the panel. `now` is
+ * passed in by the page rather than defaulted here on both sides of hydration —
+ * a server and a browser in different timezones would otherwise disagree about
+ * the age label across a day boundary and warn.
  */
 export function LinksTable({
   links,
@@ -65,17 +83,68 @@ export function LinksTable({
   const selected = selection?.selected ?? [];
   const pageIds = links.map((l) => l.opportunity_link_id);
 
+  /** The row whose full record is open, or `null`. */
+  const [detail, setDetail] = useState<OpportunityLink | null>(null);
+
+  // Entering selection mode with a panel open would leave a dialog floating over
+  // a list the user has just switched into a different mode.
+  useEffect(() => {
+    if (selecting) setDetail(null);
+  }, [selecting]);
+
+  const handleRowClick = (
+    event: React.MouseEvent<HTMLTableRowElement>,
+    link: OpportunityLink,
+  ) => {
+    // Belt to the controls' own stopPropagation braces: anything that came from
+    // an anchor, a checkbox or a review button has already handled itself.
+    const target = event.target;
+    const fromControl =
+      target instanceof Element &&
+      target.closest("a, button, input, label") !== null;
+
+    switch (linkRowAction({ selecting, fromControl })) {
+      case "toggle-selection":
+        selection?.toggle(link.opportunity_link_id);
+        break;
+      case "open-detail":
+        setDetail(link);
+        break;
+      case "ignore":
+        break;
+    }
+  };
+
   return (
     <Card className="overflow-hidden p-0">
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table
+          className={`w-full table-fixed text-sm ${
+            canReview ? "min-w-[82rem]" : "min-w-[68rem]"
+          }`}
+        >
           <caption className="sr-only">
-            Opportunity links submitted by alumni, newest first.
+            Opportunity links submitted by alumni, newest first. Every cell is
+            shortened to one line — open a row for the full record.
           </caption>
+          {/* Fixed layout + explicit shares: without a definite width a cell
+              cannot ellipsise, and without ellipsising the rows grow back. */}
+          <colgroup>
+            {selecting ? <col className="w-10" /> : null}
+            <col className="w-[14%]" />
+            <col className="w-[8%]" />
+            <col className="w-[10%]" />
+            <col className="w-[15%]" />
+            <col className="w-[21%]" />
+            <col className="w-[12%]" />
+            <col className="w-[9%]" />
+            <col className="w-[11%]" />
+            {canReview ? <col className="w-[13rem]" /> : null}
+          </colgroup>
           <thead>
-            <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-500">
+            <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
               {selecting ? (
-                <th scope="col" className="w-10 px-4 py-3">
+                <th scope="col" className="px-3 py-2">
                   <SelectAllCheckbox
                     pageIds={pageIds}
                     checked={isPageFullySelected(selected, pageIds)}
@@ -84,26 +153,32 @@ export function LinksTable({
                   />
                 </th>
               ) : null}
-              <th scope="col" className="min-w-[16rem] px-4 py-3">
+              <th scope="col" className="px-3 py-2">
                 Company
               </th>
-              <th scope="col" className="w-36 px-4 py-3">
-                Role type
+              <th scope="col" className="px-3 py-2">
+                Role
               </th>
-              <th scope="col" className="w-40 px-4 py-3">
+              <th scope="col" className="px-3 py-2">
                 Location
               </th>
-              <th scope="col" className="min-w-[14rem] px-4 py-3">
+              <th scope="col" className="px-3 py-2">
                 Link
               </th>
-              <th scope="col" className="w-44 px-4 py-3">
+              <th scope="col" className="px-3 py-2">
+                Details
+              </th>
+              <th scope="col" className="px-3 py-2">
                 Submitted by
               </th>
-              <th scope="col" className="w-40 px-4 py-3">
+              <th scope="col" className="px-3 py-2">
                 Submitted
               </th>
+              <th scope="col" className="px-3 py-2">
+                Deadline
+              </th>
               {canReview ? (
-                <th scope="col" className="w-52 px-4 py-3">
+                <th scope="col" className="px-3 py-2">
                   Review
                 </th>
               ) : null}
@@ -112,12 +187,13 @@ export function LinksTable({
           <tbody>
             {links.map((link) => {
               const company = companyDisplay(link);
-              const target = linkTarget(link.url);
+              const target = shortLinkTarget(link.url);
               const stale = isStaleLink(link.submitted_at, now);
               const deadlinePassed = isDeadlinePassed(
                 link.application_deadline,
                 now,
               );
+              const details = link.details?.trim() ?? "";
 
               const rowSelected =
                 selecting && isLinkSelected(selected, link.opportunity_link_id);
@@ -125,79 +201,101 @@ export function LinksTable({
               return (
                 <tr
                   key={link.opportunity_link_id}
-                  className={`border-b border-gray-200 align-top last:border-0 ${
+                  onClick={(e) => handleRowClick(e, link)}
+                  className={`cursor-pointer border-b border-gray-200 last:border-0 ${
                     rowSelected ? "bg-brand-blue-50" : "hover:bg-gray-50"
                   }`}
                 >
                   {selecting ? (
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-1.5">
                       <input
                         type="checkbox"
                         checked={rowSelected}
                         onChange={() =>
                           selection?.toggle(link.opportunity_link_id)
                         }
+                        onClick={(e) => e.stopPropagation()}
                         aria-label={`Select ${company.label} for deletion`}
                         className="h-4 w-4 cursor-pointer accent-brand-blue-600"
                       />
                     </td>
                   ) : null}
 
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="font-semibold text-gray-900">
-                        {company.label}
-                      </span>
+                  <td className="px-3 py-1.5">
+                    <div className="flex items-center gap-1.5">
+                      {/* The keyboard route into the panel. A real button rather
+                          than a tabbable <tr>: it keeps the table a table for a
+                          screen reader, and it is the row's name, so its
+                          accessible name is already the right one. */}
+                      {selecting ? (
+                        <span className="min-w-0 truncate font-semibold text-gray-900">
+                          {company.label}
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDetail(link);
+                          }}
+                          className="min-w-0 truncate rounded-sm text-left font-semibold text-gray-900 hover:text-brand-blue-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500"
+                          title={`${company.label} — open the full record`}
+                        >
+                          {company.label}
+                        </button>
+                      )}
+                      {/* Compact markers, not a badge stack: "no employer on
+                          file" is a gap in OUR data and a reviewer has to be
+                          able to spot it down the column at a glance. */}
                       {company.ownCompany ? (
-                        <Badge variant="tag">Their own company</Badge>
+                        <Badge
+                          variant="tag"
+                          size="sm"
+                          className="shrink-0"
+                          title="Submitted as the alum's own company"
+                        >
+                          Own
+                        </Badge>
                       ) : null}
                       {company.unresolved ? (
-                        <Badge variant="warning">No employer on file</Badge>
+                        <Badge
+                          variant="warning"
+                          size="sm"
+                          className="shrink-0"
+                          title="Own company, but no employer is on file for this alum"
+                        >
+                          No employer
+                        </Badge>
                       ) : null}
                     </div>
-                    {link.details ? (
-                      <p className="mt-1 max-w-md text-xs leading-relaxed text-gray-500">
-                        {link.details}
-                      </p>
-                    ) : null}
                   </td>
 
-                  <td className="px-4 py-3">
-                    <span className="text-gray-700">
-                      {ROLE_TYPE_LABELS[link.role_type]}
-                    </span>
-                    {link.application_deadline ? (
-                      <p
-                        className={`mt-1 text-xs ${
-                          deadlinePassed ? "text-danger-600" : "text-gray-500"
-                        }`}
-                      >
-                        {deadlinePassed ? "Closed " : "Apply by "}
-                        {formatLinkDate(link.application_deadline)}
-                      </p>
-                    ) : null}
+                  <td className="truncate px-3 py-1.5 text-gray-700">
+                    {ROLE_TYPE_LABELS[link.role_type]}
                   </td>
 
-                  <td className="px-4 py-3 text-gray-700">
+                  <td className="truncate px-3 py-1.5 text-gray-700">
                     {locationDisplay(link)}
                   </td>
 
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-1.5">
                     {/* Public-submitted value: only ever an anchor once
-                        `linkTarget` has scheme-checked it. */}
+                        `linkTarget` has scheme-checked it, and the href is
+                        always the FULL url — never the shortened label. */}
                     {target.href ? (
                       <a
                         href={target.href}
                         target="_blank"
                         rel="noopener noreferrer nofollow"
-                        className="break-all font-medium text-brand-blue-600 hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                        className="block truncate font-medium text-brand-blue-600 hover:underline"
                         title={target.href}
                       >
                         {target.label}
                       </a>
                     ) : (
                       <span
-                        className="break-all text-gray-500"
+                        className="block truncate text-gray-500"
                         title="Not a usable http(s) address — shown as text, not a link."
                       >
                         {target.label}
@@ -205,51 +303,71 @@ export function LinksTable({
                     )}
                   </td>
 
-                  <td className="px-4 py-3 text-gray-700">
-                    {submittedByDisplay(link)}
-                    {link.source === "staff" ? (
-                      <p className="mt-1 text-xs text-gray-500">Added by staff</p>
-                    ) : null}
+                  <td
+                    className="truncate px-3 py-1.5 text-gray-500"
+                    title={details || undefined}
+                  >
+                    {details || EM_DASH}
                   </td>
 
-                  <td className="px-4 py-3">
-                    <span className="tabular-nums text-gray-700">
-                      {formatLinkDate(link.submitted_at)}
+                  <td className="truncate px-3 py-1.5 text-gray-700">
+                    {submittedByDisplay(link)}
+                    <span className="text-gray-400">
+                      {" "}
+                      · {SOURCE_LABELS[link.source]}
                     </span>
-                    <p
-                      className={`mt-1 text-xs ${
-                        stale ? "font-medium text-warning-600" : "text-gray-500"
-                      }`}
-                    >
-                      {linkAgeLabel(link.submitted_at, now)}
-                    </p>
+                  </td>
+
+                  <td
+                    className={`truncate px-3 py-1.5 tabular-nums ${
+                      stale ? "font-medium text-warning-600" : "text-gray-700"
+                    }`}
+                    title={`Submitted ${formatLinkDate(link.submitted_at)}`}
+                  >
+                    {linkAgeLabel(link.submitted_at, now)}
+                  </td>
+
+                  <td
+                    className={`truncate px-3 py-1.5 tabular-nums ${
+                      deadlinePassed ? "text-danger-600" : "text-gray-700"
+                    }`}
+                  >
+                    {link.application_deadline
+                      ? `${deadlinePassed ? "Closed " : ""}${formatLinkDate(
+                          link.application_deadline,
+                        )}`
+                      : EM_DASH}
                   </td>
 
                   {canReview ? (
-                    <td className="px-4 py-3">
-                      {link.status === "pending" ? (
-                        <LinkReviewActions
-                          opportunityLinkId={link.opportunity_link_id}
-                          status={link.status}
-                          company={company.label}
-                        />
-                      ) : (
-                        <>
-                          <Badge
-                            variant={
-                              link.status === "approved" ? "success" : "muted"
-                            }
-                          >
-                            {STATUS_LABELS[link.status]}
-                          </Badge>
-                          <p className="mt-1 text-xs text-gray-500">
-                            {link.reviewed_by ?? EM_DASH}
-                            {link.reviewed_at
-                              ? ` · ${formatLinkDate(link.reviewed_at)}`
-                              : ""}
-                          </p>
-                        </>
-                      )}
+                    <td className="px-3 py-1.5">
+                      {/* Approve/Reject act on the row; they must not also open
+                          it. The wrapper catches clicks that miss a button but
+                          still land in the cell. */}
+                      <div onClick={(e) => e.stopPropagation()}>
+                        {link.status === "pending" ? (
+                          <LinkReviewActions
+                            opportunityLinkId={link.opportunity_link_id}
+                            status={link.status}
+                            company={company.label}
+                          />
+                        ) : (
+                          <span className="flex items-center gap-1.5">
+                            <Badge
+                              variant={
+                                link.status === "approved" ? "success" : "muted"
+                              }
+                              size="sm"
+                              className="shrink-0"
+                            >
+                              {STATUS_LABELS[link.status]}
+                            </Badge>
+                            <span className="min-w-0 truncate text-xs text-gray-500">
+                              {link.reviewed_by ?? EM_DASH}
+                            </span>
+                          </span>
+                        )}
+                      </div>
                     </td>
                   ) : null}
                 </tr>
@@ -258,6 +376,14 @@ export function LinksTable({
           </tbody>
         </table>
       </div>
+
+      {/* Outside the <table> on purpose — the dialog portals out anyway, and a
+          <div> is not valid inside a <tbody>. */}
+      <LinkDetailPanel
+        link={detail}
+        now={now}
+        onClose={() => setDetail(null)}
+      />
     </Card>
   );
 }
