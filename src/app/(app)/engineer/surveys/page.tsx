@@ -11,6 +11,7 @@ import { CampaignPauseControl } from "@/components/engineer/CampaignPauseControl
 import { CampaignRemoveControl } from "@/components/engineer/CampaignRemoveControl";
 import { SurveyCampaignReset } from "@/components/engineer/SurveyCampaignReset";
 import { getSurveySchedules, type SurveyScheduleItem } from "./actions";
+import { LoadError } from "@/components/shared/LoadError";
 
 /**
  * The two statuses the daily send cron picks up (`_load_schedules_due`). A
@@ -121,18 +122,16 @@ export default async function EngineerSurveysPage() {
         <h1 className="sr-only">Surveys</h1>
 
         {error ? (
-          <Card className="p-10 text-center">
-            <p className="text-sm font-semibold text-gray-900">
-              {error.status === 403
-                ? "Engineer access required"
-                : "Couldn’t load the survey campaigns"}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              {error.status === 403
+          <LoadError
+            status={error.status}
+            noun="the survey campaigns"
+            title={error.status === 403 ? "Engineer access required" : undefined}
+            message={
+              error.status === 403
                 ? "The survey console is restricted to engineers."
-                : error.message}
-            </p>
-          </Card>
+                : undefined
+            }
+          />
         ) : (
           <>
             {/* Lead with the live count + the blanket switches — the things this

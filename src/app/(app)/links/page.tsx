@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ApiError, apiGet } from "@/lib/api";
-import { getAuthContext } from "@/lib/auth-context";
+import { readAuthContext } from "@/lib/auth-context";
 import { canDeleteLinks, canManageSurveys } from "@/constants/capabilities";
+import { LoadError } from "@/components/shared/LoadError";
 import { Topbar } from "@/components/shell/Topbar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -56,22 +57,26 @@ export default async function LinksPage({
   const filters = parseLinksFilters(sp);
   const offset = parseLinksOffset(sp);
 
-  // Fail closed: an unreadable /auth/context means no review controls, never
-  // "assume they can review". A control that 403s on click is worse than one
-  // that was never offered — and doubly so for the delete control, where the
-  // failure mode of guessing wrong is offering someone a destructive action.
+  // Fail closed on a DENIAL: a 401/403 on /auth/context means no review
+  // controls, never "assume they can review". A control that 403s on click is
+  // worse than one that was never offered — and doubly so for the delete
+  // control, where the failure mode of guessing wrong is offering someone a
+  // destructive action.
+  //
+  // A fault is not a denial though (#688). If the context call 5xx'd or never
+  // landed we do not KNOW what they hold, and rendering the page as a plain
+  // approved-links list would quietly tell a reviewer their queue is gone. That
+  // case falls through to the error state below instead.
   let canReview = false;
   let canDelete = false;
-  try {
-    const { capabilities } = await getAuthContext();
+  const auth = await readAuthContext();
+  if (auth.status === "ok") {
+    const { capabilities } = auth.ctx;
     canReview = canManageSurveys(capabilities);
     // `links.delete` is a SEPARATE capability from `surveys.manage`, not a
     // stronger reading of it: Full Access approves and rejects but does not
     // delete. Never infer one from the other, and never from the role name.
     canDelete = canDeleteLinks(capabilities);
-  } catch {
-    canReview = false;
-    canDelete = false;
   }
 
   // A non-reviewer cannot see anything but approved links, so a deep link
@@ -82,17 +87,24 @@ export default async function LinksPage({
     : { ...filters, status: "approved" as const };
 
   let data: OpportunityLinkPage | null = null;
-  let error: ApiError | null = null;
+  // An unreadable capability list is itself a load failure — surface it with the
+  // same card rather than silently downgrading the page to the read-only view.
+  let error: ApiError | null =
+    auth.status === "unavailable"
+      ? new ApiError(auth.httpStatus ?? 0, "Failed to read your access.")
+      : null;
 
-  try {
-    data = await apiGet<OpportunityLinkPage>(
-      `/opportunity-links?${toLinksApiQuery(effectiveFilters, {
-        limit: LINKS_PAGE_SIZE,
-        offset,
-      })}`,
-    );
-  } catch (e) {
-    error = e instanceof ApiError ? e : new ApiError(0, "Failed to load links.");
+  if (!error) {
+    try {
+      data = await apiGet<OpportunityLinkPage>(
+        `/opportunity-links?${toLinksApiQuery(effectiveFilters, {
+          limit: LINKS_PAGE_SIZE,
+          offset,
+        })}`,
+      );
+    } catch (e) {
+      error = e instanceof ApiError ? e : new ApiError(0, "Failed to load links.");
+    }
   }
 
   const rows = data?.items ?? null;
@@ -131,14 +143,7 @@ export default async function LinksPage({
           <LinksBulkDeleteBar />
 
           {error ? (
-            <Card className="p-10 text-center">
-              <p className="text-sm font-semibold text-gray-900">
-                {error.status === 403
-                  ? "Your account isn't provisioned for this"
-                  : "Couldn't load links"}
-              </p>
-              <p className="mt-1 text-sm text-gray-500">{error.message}</p>
-            </Card>
+            <LoadError status={error.status} noun="links" />
           ) : rows && rows.length === 0 ? (
             <Card className="p-10 text-center text-sm text-gray-500">
               {hasActiveLinkFilters(effectiveFilters)

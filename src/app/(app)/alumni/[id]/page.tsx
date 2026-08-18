@@ -2,11 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CircleAlert, Check } from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
+import { readAuthContext } from "@/lib/auth-context";
 import { fetchHeadshotUrl } from "@/lib/headshots";
 import { safeExternalHref } from "@/lib/urlSafety";
 import type { Contact, Profile } from "@/types/profile";
 import { employerApplies, employerDisplay } from "@/constants/dropdowns";
-import type { UserContext } from "@/types/alumni";
 import { canEditAlumni, isUserAdmin } from "@/constants/roles";
 import {
   canAddInteraction,
@@ -40,6 +40,7 @@ import { ProfileNotes } from "@/components/alumni/ProfileNotes";
 import type { Note } from "@/types/notes";
 import { ExportProfileButton } from "@/components/alumni/ExportProfileButton";
 import { DrawerList } from "@/components/alumni/DrawerList";
+import { LoadError } from "@/components/shared/LoadError";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { ProfileHeadshot } from "@/components/alumni/ProfileHeadshot";
 import { ProfileFab, AddNoteButton } from "@/components/alumni/ProfileFab";
@@ -373,14 +374,19 @@ export async function AlumniProfileView({
   }
 
   // Unified notes (#39): readable by every role; a failure here must not break
-  // the whole profile, so fall back to an empty list.
+  // the whole profile, so the tab degrades on its own. It does NOT fall back to
+  // an empty list any more (#688) — "no notes on this alumnus" and "the notes
+  // endpoint is down" are opposite facts, and a blank tab used to assert the
+  // first when it meant the second.
   let notes: Note[] = [];
+  let notesError: ApiError | null = null;
   try {
     notes = await apiGet<Note[]>(
       `/notes?entity_type=alumni&entity_id=${id}`,
     );
-  } catch {
-    /* notes unavailable — render the card empty rather than 500 the page */
+  } catch (e) {
+    notesError =
+      e instanceof ApiError ? e : new ApiError(0, "Failed to load notes.");
   }
 
   // Possible-duplicate notice (#627): the save that landed here reported that
@@ -455,8 +461,9 @@ export async function AlumniProfileView({
   // viewer couldn't already derive. See the matching note in the backend
   // capabilities registry.
   let canViewCompleteness = false;
-  try {
-    const ctx = await apiGet<UserContext>("/auth/context");
+  const auth = await readAuthContext();
+  if (auth.status === "ok") {
+    const ctx = auth.ctx;
     canEdit = canEditAlumni(ctx.roles);
     canAdd = canAddInteraction(ctx.capabilities);
     canArchive = canArchiveAlumni(ctx.capabilities);
@@ -467,8 +474,17 @@ export async function AlumniProfileView({
     canViewCompleteness = (ctx.capabilities ?? []).includes(
       "profile.completeness",
     );
-  } catch {
-    /* not provisioned → view-only */
+  } else if (auth.status === "unavailable") {
+    // A 401/403 leaves the flags false — that is the backend telling us this
+    // account is view-only, and the reduced profile is correct. A fault is not
+    // that answer (#688): rendering an editor's profile with every control
+    // stripped, and the contact block blanked as if the record had no email,
+    // is a lie about both their access and the data. Hand it to the route error
+    // boundary, which is this file's existing idiom for "cannot render
+    // honestly" (see the profile fetch above).
+    throw auth.httpStatus !== null
+      ? new ApiError(auth.httpStatus, "Failed to read your access.")
+      : new ApiError(0, "Failed to read your access.");
   }
 
   // Contact PII (personal/work email, phone, street address, ZIP) is shown only
@@ -1413,11 +1429,15 @@ export async function AlumniProfileView({
                  writing needs the `notes.manage` capability, re-enforced +
                  audit-logged server-side. ProfileNotes renders its own empty state. */
               <Panel title="Notes">
-                <ProfileNotes
-                  alumniId={aid}
-                  notes={notes}
-                  canWrite={canWriteNotes}
-                />
+                {notesError ? (
+                  <LoadError status={notesError.status} noun="notes" />
+                ) : (
+                  <ProfileNotes
+                    alumniId={aid}
+                    notes={notes}
+                    canWrite={canWriteNotes}
+                  />
+                )}
               </Panel>
             }
             events={

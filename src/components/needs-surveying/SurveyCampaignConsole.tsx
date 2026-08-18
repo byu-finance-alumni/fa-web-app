@@ -319,6 +319,8 @@ export function SurveyCampaignConsole({
   const [years, setYears] = useState<GradYearCount[] | null>(null);
   // Real auto-send schedules, keyed by graduation year (null while loading).
   const [schedules, setSchedules] = useState<SurveyScheduleItem[] | null>(null);
+  /** True when the schedules read failed — NOT the same as "no campaigns". */
+  const [schedulesFailed, setSchedulesFailed] = useState(false);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
 
   // Which tab the operator last chose — "schedule" (Schedule & send, the
@@ -413,8 +415,16 @@ export function SurveyCampaignConsole({
   // Real auto-send schedules (per-year start date, status, per-stage counts).
   const loadSchedules = useCallback(() => {
     clientGet<SurveyScheduleItem[]>("/survey/schedules")
-      .then((s) => setSchedules(s ?? []))
-      .catch(() => setSchedules([]));
+      .then((s) => {
+        setSchedules(s ?? []);
+        setSchedulesFailed(false);
+      })
+      // An empty array here would read as "no campaigns scheduled" (#688), and
+      // on this screen that is the one wrong answer that costs something.
+      .catch(() => {
+        setSchedules([]);
+        setSchedulesFailed(true);
+      });
   }, []);
 
   /**
@@ -1283,7 +1293,10 @@ export function SurveyCampaignConsole({
             with no year selected (#497). Reads the schedules already fetched
             for the picker, so opening this tab costs no request. ── */}
         <TabsContent value="progress">
-          <CampaignProgressTable schedules={schedules} />
+          <CampaignProgressTable
+            schedules={schedules}
+            failed={schedulesFailed}
+          />
         </TabsContent>
       </Tabs>
 

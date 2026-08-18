@@ -16,6 +16,7 @@ import { Topbar } from "@/components/shell/Topbar";
 import { Card } from "@/components/ui/card";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { LoadError } from "@/components/shared/LoadError";
 import {
   AuditToolbar,
   type AuditFilterState,
@@ -230,18 +231,16 @@ export default async function AuditPage({
         />
 
         {error ? (
-          <Card className="p-10 text-center">
-            <p className="text-sm font-semibold text-gray-900">
-              {error.status === 403
-                ? "Super admin access required"
-                : "Couldn't load the audit log"}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              {error.status === 403
-                ? "The audit trail can contain sensitive record history, so it's restricted to super admins."
-                : error.message}
-            </p>
-          </Card>
+          <LoadError
+            status={error.status}
+            noun="the audit log"
+            title={error.status === 403 ? "Super admin access required" : undefined}
+            message={
+              error.status === 403
+                ? "The audit trail can contain sensitive record history, so it’s restricted to super admins."
+                : undefined
+            }
+          />
         ) : rows && rows.length === 0 ? (
           <Card className="p-10 text-center text-sm text-gray-500">
             {qs

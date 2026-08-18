@@ -3,9 +3,9 @@ import { apiGet, ApiError } from "@/lib/api";
 import { getAuthContext } from "@/lib/auth-context";
 import { Topbar } from "@/components/shell/Topbar";
 import { SupportContactsManager } from "@/components/admin/SupportContactsManager";
-import { Card } from "@/components/ui/card";
 import type { SupportContact } from "@/types/support";
 import { isEngineer } from "@/constants/roles";
+import { LoadError } from "@/components/shared/LoadError";
 
 /**
  * Engineer-only editor for the support contacts shown to signed-in users on the
@@ -41,12 +41,7 @@ export default async function SupportContactsPage() {
           shown on the public sign-in page.
         </p>
         {error ? (
-          <Card className="p-10 text-center">
-            <p className="text-sm font-semibold text-gray-900">
-              Couldn’t load contacts
-            </p>
-            <p className="mt-1 text-sm text-gray-500">{error.message}</p>
-          </Card>
+          <LoadError status={error.status} noun="the support contacts" />
         ) : (
           <SupportContactsManager contacts={contacts} />
         )}

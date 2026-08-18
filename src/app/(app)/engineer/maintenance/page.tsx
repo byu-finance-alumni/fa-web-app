@@ -6,6 +6,7 @@ import { Topbar } from "@/components/shell/Topbar";
 import { Card } from "@/components/ui/card";
 import { MaintenanceModeControl } from "@/components/engineer/MaintenanceModeControl";
 import { getMaintenanceState, type MaintenanceState } from "./actions";
+import { LoadError } from "@/components/shared/LoadError";
 
 /**
  * Maintenance mode console — the engineer's site-wide pause switch.
@@ -64,18 +65,16 @@ export default async function EngineerMaintenancePage() {
         <h1 className="sr-only">Maintenance mode</h1>
 
         {error || !state ? (
-          <Card className="p-10 text-center">
-            <p className="text-sm font-semibold text-gray-900">
-              {error?.status === 403
-                ? "Engineer access required"
-                : "Couldn’t load the maintenance state"}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              {error?.status === 403
+          <LoadError
+            status={error?.status ?? 0}
+            noun="the maintenance state"
+            title={error?.status === 403 ? "Engineer access required" : undefined}
+            message={
+              error?.status === 403
                 ? "Maintenance mode is restricted to engineers."
-                : (error?.message ?? "Try again in a moment.")}
-            </p>
-          </Card>
+                : undefined
+            }
+          />
         ) : (
           <>
             <Card

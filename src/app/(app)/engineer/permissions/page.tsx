@@ -6,6 +6,7 @@ import { Topbar } from "@/components/shell/Topbar";
 import { PermissionEditor } from "@/components/engineer/PermissionEditor";
 import { Card } from "@/components/ui/card";
 import type { PermissionMatrix } from "@/types/permissions";
+import { LoadError } from "@/components/shared/LoadError";
 
 /**
  * Engineer → Permissions (#164). The editable role × capability matrix. The
@@ -38,14 +39,11 @@ export default async function PermissionsPage() {
       <main className="min-h-0 flex-1 overflow-auto p-6">
         <h1 className="sr-only">Permissions</h1>
         {error ? (
-          <Card className="p-10 text-center">
-            <p className="text-sm font-semibold text-gray-900">
-              {error.status === 403
-                ? "Engineer access required"
-                : "Couldn't load permissions"}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">{error.message}</p>
-          </Card>
+          <LoadError
+            status={error.status}
+            noun="the permission matrix"
+            title={error.status === 403 ? "Engineer access required" : undefined}
+          />
         ) : (
           <div className="mx-auto max-w-4xl space-y-4">
             <div>

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { redirect } from "next/navigation";
 import { isEngineer } from "@/constants/roles";
 import { getLoginFailures, type LoginFailurePage, type LoginFailureRow } from "./actions";
+import { LoadError } from "@/components/shared/LoadError";
 
 const LIMIT = 50;
 
@@ -99,18 +100,16 @@ export default async function LoginFailuresPage({
         </div>
 
         {error ? (
-          <Card className="p-10 text-center">
-            <p className="text-sm font-semibold text-gray-900">
-              {error.status === 403
-                ? "Engineer access required"
-                : "Couldn’t load the login failures"}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              {error.status === 403
+          <LoadError
+            status={error.status}
+            noun="the login failures"
+            title={error.status === 403 ? "Engineer access required" : undefined}
+            message={
+              error.status === 403
                 ? "The login-failure history is restricted to engineers."
-                : error.message}
-            </p>
-          </Card>
+                : undefined
+            }
+          />
         ) : rows && rows.length === 0 ? (
           <Card className="p-10 text-center text-sm text-gray-500">
             No failed logins recorded. They’ll appear here when a sign-in fails.

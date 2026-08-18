@@ -1,6 +1,5 @@
-import Link from "next/link";
-import { AlertTriangle } from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
+import { LoadError } from "@/components/shared/LoadError";
 import { Topbar } from "@/components/shell/Topbar";
 import { TopbarSearch } from "@/components/shared/TopbarSearch";
 import { UsStateMap } from "@/components/geography/UsStateMap";
@@ -37,7 +36,9 @@ export default async function StateMapPage({
   let summary: GeoSummary | null = null;
   let detail: StateDetail | null = null;
   let notProvisioned = false;
-  let loadError = false;
+  // The error itself, not a flag: the card can then name the failure class
+  // (unreachable / 5xx / timeout) rather than one blanket "something went wrong".
+  let loadError: ApiError | null = null;
   try {
     // States power the whole choropleth; summary supplies the filter dropdown
     // options (same as the 50-state map); detail is this state's drill-down.
@@ -63,7 +64,11 @@ export default async function StateMapPage({
     }
   } catch (e) {
     if (e instanceof ApiError && e.status === 403) notProvisioned = true;
-    else loadError = true;
+    else
+      loadError =
+        e instanceof ApiError
+          ? e
+          : new ApiError(0, "Failed to load this state.");
   }
 
   const counts: Record<string, number> = {};
@@ -94,22 +99,11 @@ export default async function StateMapPage({
             Admin to grant your account a role to see data.
           </Card>
         ) : loadError ? (
-          <div className="mx-auto max-w-5xl rounded-lg border border-danger-600/20 bg-danger-50 p-10 text-center">
-            <AlertTriangle className="mx-auto mb-2 h-6 w-6 text-danger-600" />
-            <p className="text-sm font-semibold text-gray-900">
-              Couldn’t load this state
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              Something went wrong fetching the details.{" "}
-              <Link
-                href={mapHref}
-                className="text-brand-blue-600 hover:text-brand-blue-500"
-              >
-                Back to the map
-              </Link>{" "}
-              and try again.
-            </p>
-          </div>
+          <LoadError
+            status={loadError.status}
+            noun={`the ${stateName} detail`}
+            className="mx-auto max-w-5xl"
+          />
         ) : (
           /* Same layout as the 50-state /map view: dominant map on the left,
              ranking rail on the right — only the map is zoomed to this state. */

@@ -5,9 +5,9 @@ import { getAuthContext } from "@/lib/auth-context";
 import { isEngineer } from "@/constants/roles";
 import { Topbar } from "@/components/shell/Topbar";
 import { PreviewLauncher } from "@/components/engineer/PreviewLauncher";
-import { Card } from "@/components/ui/card";
 import { asPreviewRole, PREVIEW_COOKIE } from "@/lib/preview";
 import type { PermissionMatrix } from "@/types/permissions";
+import { LoadError } from "@/components/shared/LoadError";
 
 /**
  * Engineer → Preview as role (#165). Pick a role and see the app the way that
@@ -51,14 +51,11 @@ export default async function PreviewPage() {
             preview, with a one-click exit.
           </p>
           {error ? (
-            <Card className="p-10 text-center">
-              <p className="text-sm font-semibold text-gray-900">
-                {error.status === 403
-                  ? "Engineer access required"
-                  : "Couldn't load roles"}
-              </p>
-              <p className="mt-1 text-sm text-gray-500">{error.message}</p>
-            </Card>
+            <LoadError
+              status={error.status}
+              noun="the role list"
+              title={error.status === 403 ? "Engineer access required" : undefined}
+            />
           ) : (
             <PreviewLauncher matrix={matrix!} current={current} />
           )}

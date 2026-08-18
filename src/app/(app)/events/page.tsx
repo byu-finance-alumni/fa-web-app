@@ -4,6 +4,7 @@ import { Topbar } from "@/components/shell/Topbar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Fab } from "@/components/shared/Fab";
+import { LoadError } from "@/components/shared/LoadError";
 import { EventsExplorer, type EventRow } from "@/components/events/EventsExplorer";
 import { EventsToolbar } from "@/components/events/EventsToolbar";
 import {
@@ -12,7 +13,7 @@ import {
   canManageEvents as canManageEventsCap,
   canWriteNotes as canWriteNotesCap,
 } from "@/constants/capabilities";
-import type { UserContext } from "@/types/alumni";
+import { readAuthContext } from "@/lib/auth-context";
 
 type SP = {
   q?: string;
@@ -100,21 +101,24 @@ export default async function EventsPage({
   // through (and vice versa). Fetch the caller's context once; default to
   // read-only if the account isn't provisioned. The backend re-enforces every
   // write regardless.
+  //
+  // "Isn't provisioned" is a 401/403 ANSWER, not any failure (#688). A context
+  // call that 5xx'd tells us nothing about this account, and stripping Add
+  // event / Import / the note box on that basis reads to the user as their
+  // access being revoked. That case falls into `error` below and says so.
   let canManageEvents = false;
   let canWriteNotes = false;
   let canCreate = false;
   let canImport = false;
-  try {
-    const ctx = await apiGet<UserContext>("/auth/context");
+  const auth = await readAuthContext();
+  if (auth.status === "ok") {
+    const ctx = auth.ctx;
     canManageEvents = canManageEventsCap(ctx.capabilities);
     canWriteNotes = canWriteNotesCap(ctx.capabilities);
     canCreate = canCreateEvents(ctx.capabilities);
     canImport = canImportEvents(ctx.capabilities);
-  } catch {
-    canManageEvents = false;
-    canWriteNotes = false;
-    canCreate = false;
-    canImport = false;
+  } else if (auth.status === "unavailable" && !error) {
+    error = new ApiError(auth.httpStatus ?? 0, "Failed to read your access.");
   }
 
   // "Add event" ALWAYS means the plain create form (#611). It used to prefer the
@@ -139,14 +143,7 @@ export default async function EventsPage({
         />
 
         {error ? (
-          <Card className="p-10 text-center">
-            <p className="text-sm font-semibold text-gray-900">
-              {error.status === 403
-                ? "Your account isn't provisioned yet"
-                : "Couldn't load events"}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">{error.message}</p>
-          </Card>
+          <LoadError status={error.status} noun="events" />
         ) : events && events.length === 0 ? (
           <Card className="p-10 text-center text-sm text-gray-500">
             No events match your search.

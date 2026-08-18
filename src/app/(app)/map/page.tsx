@@ -3,6 +3,7 @@ import { Topbar } from "@/components/shell/Topbar";
 import { TopbarSearch } from "@/components/shared/TopbarSearch";
 import Link from "next/link";
 import { GeographyExplorer } from "@/components/geography/GeographyExplorer";
+import { LoadError } from "@/components/shared/LoadError";
 import { MapFilters } from "@/components/geography/MapFilters";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -51,6 +52,10 @@ export default async function GeographyPage({
   let summary: GeoSummary | null = null;
   let states: StateCount[] = [];
   let notProvisioned = false;
+  // A failed shading fetch used to render the map unshaded with every filter
+  // dropdown empty — a map of an institution with no alumni anywhere (#688).
+  // 403 stays its own answer; any other failure is stated as one.
+  let shadingError: ApiError | null = null;
   try {
     [summary, states] = await Promise.all([
       apiGet<GeoSummary>(`/geography/summary?${qs}`, {
@@ -64,13 +69,18 @@ export default async function GeographyPage({
     ]);
   } catch (e) {
     if (e instanceof ApiError && e.status === 403) notProvisioned = true;
+    else
+      shadingError =
+        e instanceof ApiError ? e : new ApiError(0, "Failed to load the map.");
   }
 
   // County choropleth (zoomed-in detail). Fetched tolerantly on its own so an
   // API without /geography/counties (e.g. prod before this ships) just disables
-  // county shading rather than blanking the whole map.
+  // county shading rather than blanking the whole map. Tolerable precisely
+  // because the summary/states call above is NOT — an outage is caught there,
+  // so a bare miss here really is "this deployment has no county endpoint".
   let counties: CountyCount[] = [];
-  if (!notProvisioned) {
+  if (!notProvisioned && !shadingError) {
     try {
       counties = await apiGet<CountyCount[]>(`/geography/counties?${qs}`, {
         revalidate: 60,
@@ -85,7 +95,7 @@ export default async function GeographyPage({
   // counties so an API without /geography/countries just disables world shading
   // rather than blanking the map.
   let countries: CountryCount[] = [];
-  if (!notProvisioned) {
+  if (!notProvisioned && !shadingError) {
     try {
       countries = await apiGet<CountryCount[]>(`/geography/countries?${qs}`, {
         revalidate: 60,
@@ -123,7 +133,9 @@ export default async function GeographyPage({
 
   let page: RadiusPage | null = null;
   let forbidden = false;
-  let loadError = false;
+  // Kept as the error, not a boolean, so the rail can say WHICH failure it was
+  // (unreachable / 5xx / timeout) instead of one blanket "something went wrong".
+  let loadError: ApiError | null = null;
 
   if (hasCenter) {
     const p = new URLSearchParams();
@@ -136,7 +148,11 @@ export default async function GeographyPage({
       page = await apiGet<RadiusPage>(`/geography/radius?${p.toString()}`);
     } catch (e) {
       if (e instanceof ApiError && e.status === 403) forbidden = true;
-      else loadError = true;
+      else
+        loadError =
+          e instanceof ApiError
+            ? e
+            : new ApiError(0, "Failed to search near this point.");
     }
   }
 
@@ -191,15 +207,11 @@ export default async function GeographyPage({
           </p>
         </Card>
       ) : loadError ? (
-        <Card className="p-4 text-sm text-gray-700">
-          <p className="font-semibold text-gray-900">
-            Couldn&apos;t load results.
-          </p>
-          <p className="mt-1 text-gray-600">
-            Something went wrong searching near this point. Try adjusting the
-            center or radius.
-          </p>
-        </Card>
+        <LoadError
+          status={loadError.status}
+          noun="the alumni near this point"
+          className="p-6"
+        />
       ) : !hasCenter ? null : (
         <Card className="p-4">
           <div className="flex items-center gap-2">
@@ -239,13 +251,17 @@ export default async function GeographyPage({
               Admin to grant your account a role to see data.
             </Card>
           </div>
+        ) : shadingError ? (
+          <div className="p-6">
+            <LoadError status={shadingError.status} noun="the map" />
+          </div>
         ) : (
           <GeographyExplorer
             counts={counts}
             countyCounts={countyCounts}
             countryCounts={countryCounts}
             stateNames={stateNames}
-            hasCenter={hasCenter || forbidden || loadError}
+            hasCenter={hasCenter || forbidden || !!loadError}
             matchCounties={matchCounties}
             radius={{
               lat,

@@ -31,13 +31,34 @@ const TD = "px-3 py-2 text-sm text-gray-700 tabular-nums";
 
 export function CampaignProgressTable({
   schedules,
+  failed = false,
 }: {
   schedules: SurveyScheduleItem[] | null;
+  /** True when `GET /survey/schedules` failed, as opposed to returning none. */
+  failed?: boolean;
 }) {
   if (schedules === null) {
     return (
       <Card className="p-5">
         <p className="text-sm text-gray-500">Loading campaign progress…</p>
+      </Card>
+    );
+  }
+  if (failed) {
+    // #688. The empty state below used to cover this case too, and on this
+    // screen that conflation is expensive: a year can only be surveyed ONCE and
+    // a duplicate schedule fails silently, so "no campaigns yet" over a failed
+    // read is an invitation to schedule a year that is already running.
+    return (
+      <Card className="border-danger-600/20 bg-danger-50 p-5" role="alert">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+          Campaign progress
+        </h2>
+        <p className="mt-2 text-sm text-gray-700">
+          Couldn&rsquo;t load the campaigns. Nothing was loaded, so this is not
+          &ldquo;no campaigns yet&rdquo; — do not schedule a year from this
+          screen until it reloads.
+        </p>
       </Card>
     );
   }

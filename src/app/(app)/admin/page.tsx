@@ -9,6 +9,7 @@ import { RoleCapabilitiesTable } from "@/components/admin/RoleCapabilitiesTable"
 import { Card } from "@/components/ui/card";
 import type { PermissionMatrix } from "@/types/permissions";
 import { ROLE, isUserAdmin } from "@/constants/roles";
+import { LoadError } from "@/components/shared/LoadError";
 
 type SP = { q?: string };
 
@@ -76,14 +77,11 @@ export default async function AdminPage({
       </Topbar>
       <main className="flex-1 overflow-auto p-6">
         {error ? (
-          <Card className="p-10 text-center">
-            <p className="text-sm font-semibold text-gray-900">
-              {error.status === 403
-                ? "Super Admin access required"
-                : "Couldn't load users"}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">{error.message}</p>
-          </Card>
+          <LoadError
+            status={error.status}
+            noun="the user list"
+            title={error.status === 403 ? "Super Admin access required" : undefined}
+          />
         ) : users && users.length === 0 ? (
           <>
             {capabilities && <RoleCapabilitiesTable matrix={capabilities} />}

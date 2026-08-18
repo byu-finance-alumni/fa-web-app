@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { redirect } from "next/navigation";
 import { PurgeLoginsButton } from "./PurgeLoginsButton";
 import { isEngineer } from "@/constants/roles";
+import { LoadError } from "@/components/shared/LoadError";
 
 interface LoginRow {
   login_event_id: number;
@@ -110,18 +111,16 @@ export default async function LoginsPage({
         </div>
 
         {error ? (
-          <Card className="p-10 text-center">
-            <p className="text-sm font-semibold text-gray-900">
-              {error.status === 403
-                ? "Engineer access required"
-                : "Couldn’t load the login history"}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              {error.status === 403
+          <LoadError
+            status={error.status}
+            noun="the login history"
+            title={error.status === 403 ? "Engineer access required" : undefined}
+            message={
+              error.status === 403
                 ? "The login history is restricted to engineers."
-                : error.message}
-            </p>
-          </Card>
+                : undefined
+            }
+          />
         ) : rows && rows.length === 0 ? (
           <Card className="p-10 text-center text-sm text-gray-500">
             No sign-ins recorded yet. They’ll appear here as users log in.

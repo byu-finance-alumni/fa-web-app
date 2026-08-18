@@ -5,6 +5,7 @@ import { VocabularyManager } from "@/components/admin/VocabularyManager";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import type { UserContext } from "@/types/alumni";
+import { LoadError } from "@/components/shared/LoadError";
 
 export interface VocabTerm {
   term_id: number;
@@ -85,14 +86,15 @@ export default async function VocabularyAdminPage() {
       {/* min-h-0 lets this flex-1 scroll container cap its height and scroll. */}
       <main className="min-h-0 flex-1 overflow-auto p-6">
         {error ? (
-          <Card className="p-10 text-center">
-            <p className="text-sm font-semibold text-gray-900">
-              {error.status === 403
+          <LoadError
+            status={error.status}
+            noun="the vocabulary"
+            title={
+              error.status === 403
                 ? "Vocabulary admin access required"
-                : "Couldn’t load vocabulary"}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">{error.message}</p>
-          </Card>
+                : undefined
+            }
+          />
         ) : (
           <div className="mx-auto max-w-3xl space-y-4">
             <p className="text-sm text-gray-500">
