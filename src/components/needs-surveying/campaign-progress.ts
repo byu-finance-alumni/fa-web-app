@@ -22,6 +22,22 @@ export type CampaignProgressRow = {
   /** Replies sitting in the review queue — the actionable number. */
   toReview: number;
   /**
+   * Alumni whose submission staff ACCEPTED onto the record (#497).
+   *
+   * The pay-off column: how much of what came back was actually usable.
+   */
+  applied: number;
+  /**
+   * Alumni whose submission staff DISCARDED (#497).
+   *
+   * A rejected submission is thrown away, so the alum still owes a reply: the
+   * backend deliberately excludes `rejected` from what counts as a reply, which
+   * means the same person legitimately shows up here AND in `silent` (and later
+   * in `needsFollowUp`). That double-count is the truth, not a bug — but it is
+   * also why these three status columns must never be presented as a partition.
+   */
+  rejected: number;
+  /**
    * Had all three emails and never replied (`non_responders`). A SUBSET of
    * `silent`, and a much stronger claim: these people are done with the
    * automated cadence, so the only thing left is someone picking up the phone.
@@ -46,6 +62,8 @@ export function toProgressRow(item: SurveyScheduleItem): CampaignProgressRow {
     // "still silent" on screen would be a puzzle rather than a report.
     silent: Math.max(0, emailed - replied),
     toReview: item.awaiting_review ?? 0,
+    applied: item.applied ?? 0,
+    rejected: item.rejected ?? 0,
     needsFollowUp: item.non_responders ?? 0,
     responseRate: emailed > 0 ? Math.round((replied / emailed) * 100) : null,
   };
@@ -71,6 +89,13 @@ export type CampaignProgressTotals = Omit<
  * The overall rate is recomputed from the summed counts, NOT averaged from the
  * per-year rates: averaging percentages weights a 4-person cohort the same as a
  * 400-person one and quietly reports a number that is true of no population.
+ *
+ * Every count column sums down its own year column and nothing else. In
+ * particular `toReview`, `applied` and `rejected` are distinct-alumni counts per
+ * outcome, not slices of a whole: one alum who submitted twice with different
+ * outcomes is in two of them, and a rejected alum is also still in `silent`.
+ * Summing ACROSS those columns is meaningless, so this returns no such total and
+ * nothing downstream should invent one.
  */
 export function totalProgress(
   rows: CampaignProgressRow[],
@@ -82,6 +107,8 @@ export function totalProgress(
     replied,
     silent: rows.reduce((n, r) => n + r.silent, 0),
     toReview: rows.reduce((n, r) => n + r.toReview, 0),
+    applied: rows.reduce((n, r) => n + r.applied, 0),
+    rejected: rows.reduce((n, r) => n + r.rejected, 0),
     needsFollowUp: rows.reduce((n, r) => n + r.needsFollowUp, 0),
     responseRate: emailed > 0 ? Math.round((replied / emailed) * 100) : null,
   };

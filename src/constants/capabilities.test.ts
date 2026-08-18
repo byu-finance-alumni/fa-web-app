@@ -12,7 +12,9 @@ import {
   canImportAlumni,
   canImportEvents,
   canManageEvents,
+  canDeleteLinks,
   canManageHeadshots,
+  canManageSurveys,
   canViewDonations,
   canWriteNotes,
   hasCapability,
@@ -241,5 +243,67 @@ describe("screens gate on the #379 capabilities, not roles", () => {
     // ...and must NOT leak the engineer's own capabilities while previewing a
     // lower role, exactly as canVocab already does.
     expect(src).toContain("previewRole ? [] : realCapabilities");
+  });
+});
+
+
+/**
+ * `links.delete` — deleting an opportunity link (fa-web-api, Links tab).
+ *
+ * Its own capability rather than a stronger reading of `surveys.manage`, and
+ * the tests below are mostly about that one fact. Approve and reject are
+ * reversible bookkeeping on a moderation queue; delete destroys the row. Full
+ * Access keeps the first pair and does NOT get the second, so a UI that inferred
+ * delete from review would hand a destructive control to a whole tier the
+ * backend then 403s — the exact "permission toggle looks broken" failure #379
+ * was about, pointing the other way.
+ */
+describe("the links.delete capability", () => {
+  it("matches the code the backend registers", () => {
+    expect(CAPABILITY.LINKS_DELETE).toBe("links.delete");
+  });
+
+  it("reads only its own code", () => {
+    expect(canDeleteLinks(["view", "links.delete"])).toBe(true);
+    expect(canDeleteLinks(["view"])).toBe(false);
+    expect(canDeleteLinks([])).toBe(false);
+    expect(canDeleteLinks(null)).toBe(false);
+    expect(canDeleteLinks(undefined)).toBe(false);
+  });
+
+  it("is not implied by surveys.manage, and does not imply it", () => {
+    // The Full Access shape: reviews links, cannot delete them.
+    expect(canDeleteLinks(["view", "surveys.manage"])).toBe(false);
+    expect(canManageSurveys(["view", "links.delete"])).toBe(false);
+    // Super Admin / Engineer hold both.
+    expect(canDeleteLinks(["view", "surveys.manage", "links.delete"])).toBe(true);
+    expect(canManageSurveys(["view", "surveys.manage", "links.delete"])).toBe(
+      true,
+    );
+  });
+
+  it("is not implied by the retired blanket capability", () => {
+    expect(canDeleteLinks(["view", "alumni.edit", "alumni.full"])).toBe(false);
+  });
+});
+
+describe("the Links tab gates deletion on the capability, not a role", () => {
+  it("the list page reads links.delete and fails closed", () => {
+    const src = read("src/app/(app)/links/page.tsx");
+    expect(src).toContain("canDeleteLinks(capabilities)");
+    expect(src).toMatch(/catch \{[\s\S]*?canDelete = false;[\s\S]*?\}/);
+    expect(src).not.toContain("hasFullAccess");
+    expect(src).not.toContain("super_admin");
+  });
+
+  it("no delete control exists outside a capability check", () => {
+    // The button, the checkboxes and the Delete action all hang off the
+    // selection context, whose `canDelete` is the capability. Nothing may
+    // shortcut it.
+    const src = read("src/components/links/LinksSelection.tsx");
+    expect(src).toContain("canDelete");
+    expect(src).toContain("active: canDelete && active");
+    expect(src).not.toContain("hasFullAccess");
+    expect(src).not.toContain("roles");
   });
 });

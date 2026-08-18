@@ -17,6 +17,8 @@ function item(over: Partial<Item> = {}): Item {
     recipients: 0,
     replied: 0,
     awaiting_review: 0,
+    applied: 0,
+    rejected: 0,
     non_responders: 0,
     ...over,
   } as Item;
@@ -58,6 +60,56 @@ describe("per-year row", () => {
     expect(row.needsFollowUp).toBe(0);
   });
 
+  it("carries the applied and rejected outcomes through untouched", () => {
+    // These are staff decisions, not arithmetic: whatever the backend counted
+    // per graduation year is what the column shows.
+    const row = toProgressRow(
+      item({ recipients: 40, replied: 12, awaiting_review: 3, applied: 8, rejected: 2 }),
+    );
+    expect(row.applied).toBe(8);
+    expect(row.rejected).toBe(2);
+  });
+
+  it("still counts a rejected alumnus as owing a reply", () => {
+    // The one that will look like a bug to whoever reads the table next.
+    // Rejecting a submission DISCARDS it, so the backend does not count it as a
+    // reply — the same person is legitimately in `rejected` AND in `silent`.
+    // If this ever starts subtracting rejections from the silent count, the
+    // follow-up list and this table stop agreeing about who still owes us
+    // something, which is the exact drift #497 warned about.
+    const row = toProgressRow(
+      item({ recipients: 10, replied: 0, rejected: 3 }),
+    );
+    expect(row.rejected).toBe(3);
+    expect(row.silent).toBe(10);
+  });
+
+  it("does not treat the status columns as a partition of the repliers", () => {
+    // An alum who submitted twice — one applied, one rejected — is in both
+    // columns, so to-review + applied + rejected can legitimately EXCEED
+    // `replied`. Nothing may derive a total from summing across them.
+    const row = toProgressRow(
+      item({ recipients: 5, replied: 1, awaiting_review: 1, applied: 1, rejected: 1 }),
+    );
+    expect(row.toReview + row.applied + row.rejected).toBeGreaterThan(
+      row.replied,
+    );
+    // ...and the rate is still replied/emailed, untouched by the outcomes.
+    expect(row.responseRate).toBe(20);
+  });
+
+  it("defaults missing outcome counts to zero", () => {
+    // Older payloads (and the schema defaults) can omit them; a blank cell or
+    // NaN in a numeric column is worse than a 0.
+    const row = toProgressRow({
+      ...item(),
+      applied: undefined,
+      rejected: undefined,
+    } as unknown as Item);
+    expect(row.applied).toBe(0);
+    expect(row.rejected).toBe(0);
+  });
+
   it("orders newest cohort first", () => {
     const rows = toProgressRows([
       item({ graduation_year: 2015 }),
@@ -84,13 +136,37 @@ describe("totals", () => {
 
   it("adds up every column", () => {
     const rows = toProgressRows([
-      item({ graduation_year: 2020, recipients: 10, replied: 3, awaiting_review: 2, non_responders: 1 }),
-      item({ graduation_year: 2019, recipients: 20, replied: 5, awaiting_review: 1, non_responders: 4 }),
+      item({ graduation_year: 2020, recipients: 10, replied: 3, awaiting_review: 2, applied: 1, rejected: 2, non_responders: 1 }),
+      item({ graduation_year: 2019, recipients: 20, replied: 5, awaiting_review: 1, applied: 4, rejected: 3, non_responders: 4 }),
     ]);
     const totals = totalProgress(rows);
     expect(totals.silent).toBe(22);
     expect(totals.toReview).toBe(3);
+    expect(totals.applied).toBe(5);
+    expect(totals.rejected).toBe(5);
     expect(totals.needsFollowUp).toBe(5);
+  });
+
+  it("totals applied and rejected DOWN their own column only", () => {
+    // Each column is summed across years and nothing else. Deliberately the
+    // same arithmetic as every other count — no cross-column derivation, since
+    // the outcomes overlap and any "total submissions" built from them would
+    // double-count anyone who submitted more than once.
+    const rows = toProgressRows([
+      item({ graduation_year: 2021, recipients: 100, replied: 40, applied: 30, rejected: 12 }),
+      item({ graduation_year: 2020, recipients: 50, replied: 10, applied: 6, rejected: 5 }),
+    ]);
+    const totals = totalProgress(rows);
+    expect(totals.applied).toBe(36);
+    expect(totals.rejected).toBe(17);
+    // The headline rate is untouched by outcomes: 50/150, not (40-12+10-5)/150.
+    expect(totals.responseRate).toBe(33);
+  });
+
+  it("is empty-safe for the outcome columns too", () => {
+    const totals = totalProgress([]);
+    expect(totals.applied).toBe(0);
+    expect(totals.rejected).toBe(0);
   });
 
   it("has no rate when nothing has been sent anywhere", () => {

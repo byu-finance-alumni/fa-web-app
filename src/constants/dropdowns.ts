@@ -218,6 +218,48 @@ export function isEmploymentStatusPlaceholder(
 }
 
 /**
+ * Country dropdown options (#525) — United States FIRST, then the rest
+ * alphabetically, with "Other" pinned last.
+ *
+ * Lived inside `components/survey/survey-screens.tsx` while the public survey
+ * was its only consumer. It moved here (#440) when the STAFF edit form regained
+ * the Residence country field: the survey and the staff form ask for the same
+ * column, so they have to offer the same list or the two entry points disagree
+ * about what a country is called. Same treatment `MARITAL_STATUS_OPTIONS` got —
+ * one copy in this module, re-exported from the survey for its existing
+ * importers.
+ *
+ * A SUGGESTION, not a constraint: the column is free text on the backend, so a
+ * stored value outside this list must survive an unrelated edit. Both consumers
+ * guarantee that by prepending the stored value (`withValue` /
+ * `withStoredValue`) rather than dropping it.
+ */
+export const COUNTRY_OPTIONS: readonly string[] = [
+  "United States",
+  "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Argentina",
+  "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain",
+  "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bolivia",
+  "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria",
+  "Burkina Faso", "Cambodia", "Cameroon", "Canada", "Chile", "China",
+  "Colombia", "Costa Rica", "Croatia", "Cyprus", "Czechia", "Denmark",
+  "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Estonia",
+  "Ethiopia", "Fiji", "Finland", "France", "Georgia", "Germany", "Ghana",
+  "Greece", "Guatemala", "Honduras", "Hong Kong", "Hungary", "Iceland",
+  "India", "Indonesia", "Iraq", "Ireland", "Israel", "Italy", "Jamaica",
+  "Japan", "Jordan", "Kazakhstan", "Kenya", "Kuwait", "Latvia", "Lebanon",
+  "Lithuania", "Luxembourg", "Malaysia", "Maldives", "Malta", "Mexico",
+  "Mongolia", "Montenegro", "Morocco", "Mozambique", "Nepal", "Netherlands",
+  "New Zealand", "Nicaragua", "Nigeria", "North Macedonia", "Norway", "Oman",
+  "Pakistan", "Panama", "Paraguay", "Peru", "Philippines", "Poland",
+  "Portugal", "Qatar", "Romania", "Rwanda", "Saudi Arabia", "Senegal",
+  "Serbia", "Singapore", "Slovakia", "Slovenia", "South Africa", "South Korea",
+  "Spain", "Sri Lanka", "Sweden", "Switzerland", "Taiwan", "Tanzania",
+  "Thailand", "Trinidad and Tobago", "Tunisia", "Turkey", "Uganda", "Ukraine",
+  "United Arab Emirates", "United Kingdom", "Uruguay", "Venezuela", "Vietnam",
+  "Zambia", "Zimbabwe", "Other",
+];
+
+/**
  * The six canonical U.S. regions, in display order.
  *
  * FALLBACK ONLY, like `INDUSTRY_OPTIONS` — the live list comes from

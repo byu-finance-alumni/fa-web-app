@@ -76,7 +76,11 @@ export function CampaignProgressTable({
       </div>
 
       <div className="mt-3 overflow-x-auto">
-        <table className="w-full min-w-[46rem] border-collapse">
+        {/* The min-width is what keeps the columns from crushing into each
+            other on a narrow laptop; below it the wrapper pans horizontally
+            rather than wrapping headers. Applied/Rejected (#497) added roughly
+            5rem each on top of the original 46rem. */}
+        <table className="w-full min-w-[56rem] border-collapse">
           <thead>
             <tr className="border-b border-gray-200">
               <th className={TH}>Year</th>
@@ -85,7 +89,12 @@ export function CampaignProgressTable({
               <th className={`${TH} text-right`}>Replied</th>
               <th className={`${TH} text-right`}>Rate</th>
               <th className={`${TH} text-right`}>No reply yet</th>
+              {/* The three submission outcomes sit together: pending review,
+                  accepted, discarded. They are per-outcome distinct-alumni
+                  counts, NOT a partition — see the note under the table. */}
               <th className={`${TH} text-right`}>To review</th>
+              <th className={`${TH} text-right`}>Applied</th>
+              <th className={`${TH} text-right`}>Rejected</th>
               <th className={`${TH} text-right`}>Needs follow-up</th>
             </tr>
           </thead>
@@ -108,9 +117,12 @@ export function CampaignProgressTable({
                 <td className={`${TD} text-right`}>
                   {r.silent.toLocaleString()}
                 </td>
-                {/* The two actionable columns. "To review" is a queue someone
-                    has to work; "Needs follow-up" is the cadence being over
-                    with no answer, i.e. time to call. */}
+                {/* "To review" is the one column that is a to-do list rather
+                    than a report — a queue someone has to work — so it is the
+                    only count emphasised when non-zero. "Applied" and
+                    "Rejected" beside it are what already happened to the rest
+                    of the submissions; "Needs follow-up" at the end is the
+                    cadence being over with no answer, i.e. time to call. */}
                 <td className={`${TD} text-right`}>
                   {r.toReview > 0 ? (
                     <span className="font-semibold text-navy-800">
@@ -119,6 +131,12 @@ export function CampaignProgressTable({
                   ) : (
                     "0"
                   )}
+                </td>
+                <td className={`${TD} text-right`}>
+                  {r.applied.toLocaleString()}
+                </td>
+                <td className={`${TD} text-right`}>
+                  {r.rejected.toLocaleString()}
                 </td>
                 <td className={`${TD} text-right`}>
                   {r.needsFollowUp.toLocaleString()}
@@ -147,6 +165,12 @@ export function CampaignProgressTable({
                 {totals.toReview.toLocaleString()}
               </td>
               <td className={`${TD} text-right font-semibold`}>
+                {totals.applied.toLocaleString()}
+              </td>
+              <td className={`${TD} text-right font-semibold`}>
+                {totals.rejected.toLocaleString()}
+              </td>
+              <td className={`${TD} text-right font-semibold`}>
                 {totals.needsFollowUp.toLocaleString()}
               </td>
             </tr>
@@ -154,12 +178,29 @@ export function CampaignProgressTable({
         </table>
       </div>
 
-      <p className="mt-3 border-t border-gray-200 pt-3 text-xs text-gray-400">
-        A reply counts once it is submitted, whether or not it has been applied
-        yet; a rejected submission does not count, so that alumnus still shows as
-        awaiting a reply. &ldquo;Needs follow-up&rdquo; is the subset who have
-        had all three emails and never answered.
-      </p>
+      <div className="mt-3 space-y-2 border-t border-gray-200 pt-3 text-xs text-gray-400">
+        <p>
+          A reply counts once it is submitted, whether or not it has been applied
+          yet; a rejected submission does not count, so that alumnus still shows
+          as awaiting a reply. &ldquo;Needs follow-up&rdquo; is the subset who
+          have had all three emails and never answered.
+        </p>
+        {/* The two new columns (#497) are easy to misread in exactly two ways,
+            so both are spelled out rather than left to inference. */}
+        <p>
+          &ldquo;To review&rdquo;, &ldquo;Applied&rdquo; and
+          &ldquo;Rejected&rdquo; say what has happened to the submissions that
+          came back. Rejecting one discards it, so that alumnus still owes a
+          reply and is counted under &ldquo;Rejected&rdquo; <em>and</em> under
+          &ldquo;No reply yet&rdquo; — that is deliberate, not a contradiction.
+        </p>
+        <p>
+          Each of those three columns counts alumni, so they do not add up to
+          &ldquo;Replied&rdquo; or to each other: someone who submitted twice and
+          had one applied and one rejected appears in two of them. Read each
+          column on its own rather than adding them together.
+        </p>
+      </div>
     </Card>
   );
 }

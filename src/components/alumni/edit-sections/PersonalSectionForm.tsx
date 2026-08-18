@@ -7,7 +7,10 @@ import {
 } from "@/app/(app)/alumni/actions";
 import { FocusedEditForm } from "@/components/alumni/FocusedEditForm";
 import { PreferredContactPicker } from "@/components/alumni/PreferredContactPicker";
-import { Field } from "@/components/alumni/form-fields";
+import { StateCombobox } from "@/components/alumni/StateCombobox";
+import { Field, SelectField } from "@/components/alumni/form-fields";
+import { COUNTRY_OPTIONS } from "@/constants/dropdowns";
+import { withValue } from "@/hooks/useVocabOptions";
 import { validateName } from "@/lib/nameValidation";
 
 export type PersonalDefaults = {
@@ -30,6 +33,15 @@ export type PersonalDefaults = {
   phone: string;
   /** Stored `contact.preferred_contact_method` ("" for none). */
   preferred_contact_method: string;
+  /** Residence city — `contact.city`. The alum's HOME city, which is what the
+   *  survey writes into this column and what the profile labels it. The
+   *  EMPLOYER's city is `career.current_city`, edited in the Employment
+   *  section. */
+  city: string;
+  /** Residence state — `contact.state`. Full names ("Utah", never "UT"). */
+  state: string;
+  /** Residence country — `contact.country`. */
+  country: string;
   net_id: string;
   /** Combined "First Last" — split on the LAST space on save. */
   spouse_name: string;
@@ -211,7 +223,51 @@ export function PersonalSectionForm({
         defaultValue={defaults.preferred_contact_method}
         error={errors["contact.preferred_contact_method"]}
       />
-      {/* border-t divider marks the end of the contact-method cluster above
+      {/* Residence (#440). Restored after #287's stage 1 stripped it: at that
+          point `contact.city/state/country` only ever held the EMPLOYER address
+          the import wrote, so editing them under a home label was wrong. That is
+          no longer true — the survey asks alumni for their residence and writes
+          these exact three columns, the intake sheet has "Residence city" /
+          "Residence state" columns, and the profile renders `contact.city` as
+          "Residence city". Staff were the only ones left without a way to enter
+          it, which is the gap Amy hit.
+
+          Same controls the survey uses for the same three columns, so the two
+          entry points agree on what a state and a country are called:
+          `StateCombobox` over the 50 states + DC by full name (pick-or-type, so
+          an international province still saves verbatim), and the shared
+          `COUNTRY_OPTIONS` list with the stored value preserved by `withValue`.
+
+          Labelled and headed "Residence" so nobody reads these as the office —
+          the employer's city/state live on `career.current_*` in the Employment
+          section. */}
+      <h3 className="border-t border-gray-100 pt-4 text-xs font-semibold uppercase tracking-wide text-navy-800">
+        Residence
+      </h3>
+      <div className="grid grid-cols-2 gap-4">
+        <Field
+          label="Residence city"
+          name="contact.city"
+          defaultValue={defaults.city}
+          error={errors["contact.city"]}
+        />
+        <StateCombobox
+          label="Residence state"
+          name="contact.state"
+          defaultValue={defaults.state}
+          error={errors["contact.state"]}
+        />
+      </div>
+      <SelectField
+        label="Residence country"
+        name="contact.country"
+        // A country already on file that isn't in the list stays selectable, so
+        // saving an unrelated field in this section can't quietly rewrite it.
+        options={withValue(COUNTRY_OPTIONS, defaults.country)}
+        defaultValue={defaults.country}
+        error={errors["contact.country"]}
+      />
+      {/* border-t divider marks the end of the residence block above
           and the start of the remaining personal fields below (same
           within-card separator idiom as DashboardSearch's action bar and the
           profile page's section dividers). */}
@@ -228,14 +284,12 @@ export function PersonalSectionForm({
           defaultValue={defaults.spouse_name}
           error={errors.spouse_first_name}
         />
-        {/* Citizenship replaces the former "Resident City/State/Country" trio.
-            Those inputs wrote `contact.city/state/country`, which the CSV import
-            populates from the intake sheet's EMPLOYER address block — so they
-            showed work data under a home label, and nothing in the system ever
-            fills those columns as a residence. The employment box already
-            surfaces them correctly as "Current city"/"Current state". The data
-            is untouched; it is simply no longer editable under a wrong label.
-            Citizenship is a top-level alumni field, hence no `contact.` prefix. */}
+        {/* Citizenship — a top-level alumni field, hence no `contact.` prefix,
+            and unrelated to any address. It briefly stood in for the removed
+            "Resident City/State/Country" trio while #287 stage 1 had those
+            columns bound to the employer; the Residence block above owns that
+            job again (#440), and the two now sit side by side because they
+            answer different questions. */}
         <Field
           label="Citizenship"
           name="citizenship"

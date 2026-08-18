@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { SAMPLE_ALUM, SAMPLE_ALUM_NAME } from "@/lib/sampleAlumni";
+import { emptyLinkEntry, type LinkEntry } from "@/lib/opportunityLinks";
 import {
   DEFAULT_SURVEY_CLOSING,
   DEFAULT_SURVEY_MESSAGE,
@@ -89,15 +90,21 @@ export function SurveyPreview() {
             Opening in a new tab keeps the console page — and the campaign the
             staffer was part-way through setting up — exactly where it was.
           */}
-          <a
-            href="/survey/demo?step=edit"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mb-4 inline-block text-sm font-medium text-brand-blue-600 underline underline-offset-2 hover:text-brand-blue-500"
-          >
-            Open the full survey in a new tab — as an alum sees it after &ldquo;I
-            need to make changes&rdquo;
-          </a>
+          {/* Indented to px-5 so its left edge lines up with the blue preview
+              note directly below it, which sits inside PreviewBody's px-5
+              scroll container. Without the wrapper the link is flush to the
+              dialog edge and the two read as belonging to different columns. */}
+          <div className="mb-4 px-5">
+            <a
+              href="/survey/demo?step=edit"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block text-sm font-medium text-brand-blue-600 underline underline-offset-2 hover:text-brand-blue-500"
+            >
+              Open the full survey in a new tab — as an alum sees it after &ldquo;I
+              need to make changes&rdquo;
+            </a>
+          </div>
 
           {/* Remounting on each open resets the walkthrough, so the dialog
               always opens on the review screen rather than wherever the last
@@ -131,6 +138,10 @@ function PreviewBody() {
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [edits, setEdits] = useState<Fields>({});
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  // The "Jobs & internships" screen is part of what an alum meets (#441), so
+  // the preview walks through it too — same component, same rules. Plain local
+  // state that nothing reads: this dialog posts nothing anywhere.
+  const [links, setLinks] = useState<LinkEntry[]>(() => [emptyLinkEntry()]);
 
   // The email copy IS saved (unlike everything else in this dialog) — it's the
   // real message, edited here or in "Edit email message", both reading and
@@ -223,6 +234,8 @@ function PreviewBody() {
           photoPreview={photoPreview}
           setPhotoPreview={setPhotoPreview}
           setPhotoFile={() => {}}
+          links={links}
+          setLinks={setLinks}
           onBack={() => setStatus("review")}
           onSubmit={() => setStatus("submitted")}
           submitting={false}

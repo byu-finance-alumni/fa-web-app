@@ -431,20 +431,34 @@ export async function updatePersonalSection(
   // work_email is also editable in the Employment section; it's here because the
   // preferred-contact picker selects between it and the other two (#449), and a
   // picker whose field can't be filled in place would be a dead end.
+  // contact.city/state/country are the alum's RESIDENCE and are sent from here
+  // again (#440). They were dropped when #287 stage 1 rebound the address block
+  // to the employer, but residence came back afterwards: the survey asks for it
+  // and writes these three columns, the intake sheet has Residence city/state,
+  // and the profile renders `contact.city`. The employer's location is
+  // `career.current_*`, owned by the Employment section — these are not it.
+  //
+  // The backend already accepts all three (ContactCreate carries them), so this
+  // is an addition on a surface the server leads: no schema change, no 422 risk.
+  //
+  // PARTIAL-PATCH DISCIPLINE, unchanged and load-bearing: `buildSection` drops
+  // blanks (`getStr` returns undefined for them), so an empty input omits its
+  // key and leaves the stored value untouched. Never send an explicit null here
+  // — that would wipe whatever the import or the survey landed on every
+  // personal-section save. The consequence staff see is that a residence cannot
+  // be CLEARED from this form, only corrected, which is the same bargain every
+  // other non-clearable field in this section makes.
   const contact = applyPreferredContactClear(
     formData,
     buildSection(formData, "contact", [
       { name: "personal_email" },
       { name: "work_email" },
       { name: "phone" },
+      { name: "city" },
+      { name: "state" },
+      { name: "country" },
     ]),
   );
-  // contact.city/state/country are deliberately NOT sent from this section
-  // anymore: the form no longer edits them (they hold the EMPLOYER address the
-  // import writes, surfaced by the Employment section / profile employment box,
-  // not a residence). Omitting a key from this PARTIAL PATCH leaves the stored
-  // value untouched — never send explicit nulls here or the import's data would
-  // be wiped on every personal-section save.
   const payload: Record<string, unknown> = compact({
     // Names (#626). first/last are sent only when non-blank: they can't be
     // cleared from the UI (the form blocks erasing one that exists), and a

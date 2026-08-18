@@ -43,6 +43,8 @@ export const CAPABILITY = {
   NOTES_MANAGE: "notes.manage",
   /** The survey console: responses review + campaign scheduling/sending. */
   SURVEYS_MANAGE: "surveys.manage",
+  /** Permanently delete opportunity links, singly or in bulk. */
+  LINKS_DELETE: "links.delete",
   /** See Pay It Forward donor records and dollar amounts. */
   DONATIONS_VIEW: "donations.view",
   /** Write to the Pay It Forward donation ledger. */
@@ -137,6 +139,21 @@ export const canWriteNotes = (
 export const canManageSurveys = (
   capabilities: readonly string[] | null | undefined,
 ) => hasCapability(capabilities, CAPABILITY.SURVEYS_MANAGE);
+
+/**
+ * May PERMANENTLY delete opportunity links — the Links tab's Edit/multi-select
+ * mode, and `DELETE /opportunity-links/{id}`.
+ *
+ * Deliberately NOT folded into {@link canManageSurveys}. Approving and rejecting
+ * a link are reversible bookkeeping on a moderation queue; deleting one destroys
+ * the row (the backend keeps an audit snapshot, but the link is gone). The
+ * backend seeds this to super_admin and engineer only and Full Access does not
+ * hold it — but as with every capability in this file, an engineer can move it
+ * in the permissions matrix, so ask for the capability and never for the role.
+ */
+export const canDeleteLinks = (
+  capabilities: readonly string[] | null | undefined,
+) => hasCapability(capabilities, CAPABILITY.LINKS_DELETE);
 
 /** May see Pay It Forward donor records and dollar amounts. */
 export const canViewDonations = (

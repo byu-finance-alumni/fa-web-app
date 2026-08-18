@@ -17,21 +17,42 @@
  * by construction rather than by remembering to edit two files.
  */
 
-import { Fragment, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Check, ChevronRight, ExternalLink, Heart } from "lucide-react";
 
 import { HeadshotCropper } from "@/components/alumni/HeadshotCropper";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { PAY_IT_FORWARD_URL } from "@/types/survey";
 import { STATE_NAMES } from "@/lib/geo/state-field";
 import { validateLinkedinUrl } from "@/lib/urlSafety";
+import {
+  CITY_MAX,
+  COMPANY_NAME_MAX,
+  COUNTRY_MAX,
+  DETAILS_MAX,
+  MAX_LINKS,
+  ROLE_TYPE_OPTIONS,
+  STATE_MAX,
+  URL_MAX,
+  addLinkEntry,
+  removeLinkEntry,
+  settleOpportunityUrl,
+  todayIsoUtc,
+  updateLinkEntry,
+  validateLinkEntries,
+  type LinkEntry,
+  type LinkEntryErrors,
+  type LinkRoleType,
+} from "@/lib/opportunityLinks";
 import {
   joinOtherDesignationSlots,
   splitOtherDesignationSlots,
 } from "@/lib/designations";
 import {
+  COUNTRY_OPTIONS,
   INDUSTRY_OPTIONS,
   MARITAL_STATUS_OPTIONS,
   PRIMARY_INDUSTRY_OPTIONS,
@@ -41,34 +62,13 @@ import {
 
 export type Fields = Record<string, string>;
 
-// Country dropdown options (#525) — United States FIRST, then the rest
-// alphabetically. Kept local to the public survey (its only consumer); the app
-// otherwise stores country as free text, so a stored value outside this list is
-// still preserved by the select (see `SelectControl`).
-const COUNTRY_OPTIONS: readonly string[] = [
-  "United States",
-  "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Argentina",
-  "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain",
-  "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bolivia",
-  "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria",
-  "Burkina Faso", "Cambodia", "Cameroon", "Canada", "Chile", "China",
-  "Colombia", "Costa Rica", "Croatia", "Cyprus", "Czechia", "Denmark",
-  "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Estonia",
-  "Ethiopia", "Fiji", "Finland", "France", "Georgia", "Germany", "Ghana",
-  "Greece", "Guatemala", "Honduras", "Hong Kong", "Hungary", "Iceland",
-  "India", "Indonesia", "Iraq", "Ireland", "Israel", "Italy", "Jamaica",
-  "Japan", "Jordan", "Kazakhstan", "Kenya", "Kuwait", "Latvia", "Lebanon",
-  "Lithuania", "Luxembourg", "Malaysia", "Maldives", "Malta", "Mexico",
-  "Mongolia", "Montenegro", "Morocco", "Mozambique", "Nepal", "Netherlands",
-  "New Zealand", "Nicaragua", "Nigeria", "North Macedonia", "Norway", "Oman",
-  "Pakistan", "Panama", "Paraguay", "Peru", "Philippines", "Poland",
-  "Portugal", "Qatar", "Romania", "Rwanda", "Saudi Arabia", "Senegal",
-  "Serbia", "Singapore", "Slovakia", "Slovenia", "South Africa", "South Korea",
-  "Spain", "Sri Lanka", "Sweden", "Switzerland", "Taiwan", "Tanzania",
-  "Thailand", "Trinidad and Tobago", "Tunisia", "Turkey", "Uganda", "Ukraine",
-  "United Arab Emirates", "United Kingdom", "Uruguay", "Venezuela", "Vietnam",
-  "Zambia", "Zimbabwe", "Other",
-];
+// Country dropdown options (#525) — the list itself moved to
+// `constants/dropdowns.ts` (#440) once the staff Personal edit form regained the
+// Residence country field: both entry points write `contact.country`, so they
+// have to offer the same options. The app stores country as free text, so a
+// stored value outside this list is still preserved by the select (see
+// `SelectControl`). Same arrangement as `MARITAL_STATUS_OPTIONS` below.
+export { COUNTRY_OPTIONS };
 
 // Industry choices for the current-industry dropdown (#525). "Other" is broken
 // out separately so selecting it reveals a free-text input.
@@ -513,6 +513,27 @@ export const ENGAGEMENT_SECTION: Section = {
 
 export const EDIT_SECTIONS: Section[] = [...INFO_SECTIONS, ENGAGEMENT_SECTION];
 
+/**
+ * The opportunity-links screen's id in the section menu (#441).
+ *
+ * A PSEUDO-SECTION, exactly like `"photo"`, and deliberately NOT a member of
+ * `INFO_SECTIONS` / `EDIT_SECTIONS`. Those lists are the survey's FIELD
+ * machinery: every entry is a `table.column` key that `submit_response` stages
+ * and `apply_response` setattrs onto the alum's record, and
+ * `sample-survey-parity.test.ts` binds them to the email's column picker and to
+ * `SAMPLE_ALUM` on exactly that basis.
+ *
+ * An opportunity is not a column on the alum — it is a row in its own table,
+ * several per alum, posted to its own endpoint
+ * (`POST /survey/respond/{token}/links`) with its own moderation queue. Putting
+ * it in those lists would fail the parity test for the right reason and, if
+ * someone "fixed" that by inventing a sample value and an email row, would make
+ * the staff email offer to show an alum "the opportunity link we have on file",
+ * which is not a thing that exists. If you find yourself editing `SURVEY_FIELDS`
+ * or `SAMPLE_ALUM` for this feature, stop: it belongs here instead.
+ */
+export const OPPORTUNITY_LINKS_SECTION_ID = "links";
+
 export function initialsOf(name: string): string {
   return (
     name.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase() ||
@@ -598,6 +619,8 @@ export function EditFlow({
   photoPreview,
   setPhotoPreview,
   setPhotoFile,
+  links,
+  setLinks,
   onBack,
   onSubmit,
   submitting,
@@ -626,13 +649,22 @@ export function EditFlow({
   photoPreview: string | null;
   setPhotoPreview: (v: string | null) => void;
   setPhotoFile: (v: File | null) => void;
+  /**
+   * The opportunity links the alum is offering (#441). Owned by the CALLER, not
+   * by this component, for the same reason the photo file is: they are sent by a
+   * SEPARATE token-gated call (`POST /survey/respond/{token}/links`), so the
+   * screen that collects them must not also be the thing that decides when they
+   * are posted. The staff preview passes plain local state and posts nothing.
+   */
+  links: LinkEntry[];
+  setLinks: (next: LinkEntry[]) => void;
   onBack: () => void;
   onSubmit: () => void;
   submitting: boolean;
   submitError: string | null;
 }) {
   const section =
-    openSection === "photo"
+    openSection === "photo" || openSection === OPPORTUNITY_LINKS_SECTION_ID
       ? null
       : EDIT_SECTIONS.find((s) => s.id === openSection);
 
@@ -652,6 +684,17 @@ export function EditFlow({
   // the re-renders that opening and closing sections cause.
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Set<string>>(() => new Set());
+
+  // Opportunity-link complaints, keyed by entry id then field (#441). Kept
+  // separate from `fieldErrors` because the two are shaped differently — a link
+  // entry has its own set of fields and there can be up to ten of them — and
+  // because they are gated differently: link entries are NOT `touched`-gated.
+  // Nothing is pre-filled here (an alum types every one of these from scratch),
+  // so there is no legacy value to protect and every complaint is about
+  // something typed in this session.
+  const [linkErrors, setLinkErrors] = useState<Record<string, LinkEntryErrors>>(
+    {},
+  );
 
   // Every field writes through here so the marital-status ↔ spouse-name
   // question has somewhere to live. The status change itself is ALWAYS applied
@@ -730,8 +773,22 @@ export function EditFlow({
       }
     }
     setFieldErrors(found);
+    // The links go out as their OWN request, and that request is all-or-nothing
+    // server-side: one bad url 422s the whole batch. Checking here is what turns
+    // "something in your submission was rejected" into a message under the box
+    // that caused it. It is a courtesy, not a gate the backend relies on — see
+    // `lib/opportunityLinks`.
+    const linkFound = validateLinkEntries(links);
+    setLinkErrors(linkFound);
+
     const firstBad = Object.keys(found)[0];
     if (!firstBad) {
+      // Fields are clean; links decide. Opening their section puts the alum on
+      // the entry with the message under it, the same way a bad field does.
+      if (Object.keys(linkFound).length > 0) {
+        openSectionNav(OPPORTUNITY_LINKS_SECTION_ID);
+        return;
+      }
       onSubmit();
       return;
     }
@@ -758,6 +815,32 @@ export function EditFlow({
             photoPreview={photoPreview}
             setPhotoPreview={setPhotoPreview}
             setPhotoFile={setPhotoFile}
+          />
+        ) : openSection === OPPORTUNITY_LINKS_SECTION_ID ? (
+          <OpportunityLinksSection
+            entries={links}
+            setEntries={setLinks}
+            errors={linkErrors}
+            clearError={(entryId, field) =>
+              setLinkErrors((prev) => {
+                const entry = prev[entryId];
+                if (!entry?.[field]) return prev;
+                const nextEntry = { ...entry };
+                delete nextEntry[field];
+                const updated = { ...prev };
+                if (Object.keys(nextEntry).length > 0) updated[entryId] = nextEntry;
+                else delete updated[entryId];
+                return updated;
+              })
+            }
+            // The other half of `clearError`, for the on-blur URL check: a
+            // complaint can now be RAISED between edits, not only at submit.
+            setError={(entryId, field, message) =>
+              setLinkErrors((prev) => ({
+                ...prev,
+                [entryId]: { ...(prev[entryId] ?? {}), [field]: message },
+              }))
+            }
           />
         ) : section ? (
           <>
@@ -843,6 +926,18 @@ export function EditFlow({
             onClick={() => openSectionNav(s.id)}
           />
         ))}
+        {/*
+          Last in the menu, and rendered from this list rather than from
+          `EDIT_SECTIONS`, because it is not a field section (#441) — see
+          `OPPORTUNITY_LINKS_SECTION_ID`. It sits after "Ways to get involved"
+          on purpose: both are optional offers rather than corrections to a
+          record, and the required work is everything above them.
+        */}
+        <SectionRow
+          title="Jobs & internships"
+          blurb="Optional — share an opening students can apply to"
+          onClick={() => openSectionNav(OPPORTUNITY_LINKS_SECTION_ID)}
+        />
       </ul>
 
       <a
@@ -1132,6 +1227,496 @@ function PhotoSection({
   );
 }
 
+/* ------------------------------------------------- opportunity links (#441) - */
+
+/**
+ * "Jobs & internships" — the alum offers openings at their company or anywhere
+ * else, and staff work the resulting list from the Links tab.
+ *
+ * ⚠️ THIS IS THE APP'S ONLY PUBLIC WRITE OF A URL THAT LATER BECOMES A CLICKABLE
+ * LINK ON A STAFF SCREEN. Nothing on this screen is a security control. The
+ * inline rules come from `lib/opportunityLinks`, which mirrors the server's
+ * validators so an alum reads a specific message instead of meeting a 422 that
+ * names none of their ten entries; the backend validates every field again on
+ * the persistence path, and the staff render side scheme-checks the STORED value
+ * before putting it in an `href`. Do not move a rule here from there.
+ *
+ * Deliberately NOT a `Section` (see `OPPORTUNITY_LINKS_SECTION_ID`): these are
+ * rows in their own table posted to their own endpoint, not `table.column`
+ * answers, so they stay out of the survey's field/email/sample three-list
+ * machinery entirely.
+ *
+ * Mobile-first, like the rest of this page — one column of full-width controls,
+ * pairs only splitting at `sm:`, and every tap target a real button rather than
+ * an icon. The alum meeting this screen is on a phone, in an email client's
+ * browser, and will not fight a dense grid.
+ */
+function OpportunityLinksSection({
+  entries,
+  setEntries,
+  errors,
+  clearError,
+  setError,
+}: {
+  entries: LinkEntry[];
+  setEntries: (next: LinkEntry[]) => void;
+  errors: Record<string, LinkEntryErrors>;
+  clearError: (entryId: string, field: keyof LinkEntryErrors) => void;
+  setError: (
+    entryId: string,
+    field: keyof LinkEntryErrors,
+    message: string,
+  ) => void;
+}) {
+  const atCap = entries.length >= MAX_LINKS;
+
+  // Today, for every deadline picker's floor. Resolved once here and after
+  // mount, not during render: this page is client-rendered but Next still
+  // renders it on the server, and a request straddling UTC midnight would
+  // hydrate a `min` that disagrees with the one already in the markup. The rule
+  // does not depend on it — `validateLinkEntries` re-checks against a fresh
+  // clock on submit — so the first frame going without costs nothing.
+  const [minDeadline, setMinDeadline] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    setMinDeadline(todayIsoUtc());
+  }, []);
+
+  return (
+    <>
+      <h1 className="text-3xl font-semibold leading-tight tracking-tight text-navy-800">
+        Jobs &amp; internships
+      </h1>
+      <p className="mt-3 max-w-prose text-base leading-relaxed text-gray-600">
+        Know of an internship or a job our students should see — at your company
+        or anywhere else? Share the link and we&apos;ll pass it on. Everything you
+        add here is reviewed by our team first, and nothing is published
+        automatically.
+      </p>
+
+      <div className="mt-6 space-y-6">
+        {entries.map((entry, index) => (
+          <OpportunityLinkCard
+            key={entry.id}
+            entry={entry}
+            index={index}
+            // The remove control is hidden on a lone untouched row: there is
+            // nothing to remove, and offering it invites the alum to empty a
+            // section they only just opened.
+            canRemove={entries.length > 1}
+            errors={errors[entry.id] ?? {}}
+            minDeadline={minDeadline}
+            onChange={(patch, cleared) => {
+              setEntries(updateLinkEntry(entries, entry.id, patch));
+              if (cleared) clearError(entry.id, cleared);
+            }}
+            onFieldError={(field, message) => {
+              if (message) setError(entry.id, field, message);
+              else clearError(entry.id, field);
+            }}
+            onRemove={() => setEntries(removeLinkEntry(entries, entry.id))}
+          />
+        ))}
+      </div>
+
+      <div className="mt-4">
+        <Button
+          type="button"
+          variant="secondary"
+          className="w-full sm:w-auto"
+          disabled={atCap}
+          onClick={() => setEntries(addLinkEntry(entries))}
+        >
+          Add another opportunity
+        </Button>
+        {atCap ? (
+          <p className="mt-2 text-xs text-gray-500">
+            You can share up to {MAX_LINKS} at a time. Send these first and
+            you&apos;re welcome to tell us about more.
+          </p>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
+/** One opportunity. Its own bordered card, so ten of them stay tellable apart. */
+function OpportunityLinkCard({
+  entry,
+  index,
+  canRemove,
+  errors,
+  minDeadline,
+  onChange,
+  onFieldError,
+  onRemove,
+}: {
+  entry: LinkEntry;
+  index: number;
+  canRemove: boolean;
+  errors: LinkEntryErrors;
+  /** `yyyy-mm-dd` floor for the deadline picker, once the client knows today. */
+  minDeadline?: string;
+  /** `cleared` names the field whose complaint this edit answers, if any. */
+  onChange: (
+    patch: Partial<Omit<LinkEntry, "id">>,
+    cleared?: keyof LinkEntryErrors,
+  ) => void;
+  /** Raise (or, with `null`, drop) one field's complaint between edits. */
+  onFieldError: (field: keyof LinkEntryErrors, message: string | null) => void;
+  onRemove: () => void;
+}) {
+  const base = `survey-link-${entry.id}`;
+
+  /**
+   * The link box, once the alum's finger leaves it.
+   *
+   * NORMALISE, then judge. `jakegunnell.com` is written back as
+   * `https://jakegunnell.com/` — the value that will actually be sent, shown in
+   * the box rather than sprung on anyone later — and a link that cannot be
+   * rescued is named right there instead of surviving to the end of the survey.
+   * On a phone, where this whole page lives, finding out at blur is the
+   * difference between one correction and a scroll back through ten cards.
+   *
+   * A blank box settles silently: an alum who tapped into a row and out again
+   * has not made a mistake yet, and the blank row is dropped on submit anyway.
+   */
+  const settleUrl = () => {
+    if (entry.url.trim() === "") {
+      onFieldError("url", null);
+      return;
+    }
+    const { value, error } = settleOpportunityUrl(entry.url);
+    if (value !== entry.url) onChange({ url: value });
+    onFieldError("url", error);
+  };
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-5 sm:p-6">
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-navy-800">
+          Opportunity {index + 1}
+        </h2>
+        {canRemove ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-danger-600 hover:bg-danger-50 hover:text-danger-600"
+            onClick={onRemove}
+          >
+            Remove
+          </Button>
+        ) : null}
+      </div>
+
+      <div className="mt-4 space-y-5">
+        {/*
+          "This is my company" means "look the name up from my employment
+          record", so the typed-name input is REPLACED rather than disabled: the
+          server refuses a batch that sends both (its `_company_identity`
+          validator), and a greyed-out box beside a ticked one is an invitation
+          to type into it and wonder why the answer vanished. The lookup happens
+          at read time, so the list follows the alum's job changes instead of
+          freezing the name they typed today.
+
+          Anything already typed is KEPT in state rather than cleared —
+          `linksToSubmit` drops it while the box is ticked, so it costs nothing,
+          and an accidental tick doesn't delete a company name the alum then has
+          to type again.
+        */}
+        <label className="flex w-fit cursor-pointer items-center gap-2 rounded-md border border-gray-300 px-4 py-1.5 text-sm text-gray-700 transition-colors hover:border-brand-blue-500 has-[:checked]:border-brand-blue-600 has-[:checked]:bg-brand-blue-50 has-[:checked]:font-medium has-[:checked]:text-navy-800">
+          <input
+            id={`${base}-own`}
+            type="checkbox"
+            checked={entry.isOwnCompany}
+            onChange={(e) =>
+              onChange({ isOwnCompany: e.target.checked }, "companyName")
+            }
+            className="h-4 w-4 rounded border-gray-300 text-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
+          />
+          This opening is at my company
+        </label>
+
+        {entry.isOwnCompany ? (
+          <p className="text-xs leading-relaxed text-gray-500">
+            We&apos;ll list it under the employer on your record, so it stays
+            right if you change jobs.
+          </p>
+        ) : (
+          <LinkField
+            id={`${base}-company`}
+            label="Company"
+            required
+            error={errors.companyName}
+          >
+            {(props) => (
+              <Input
+                {...props}
+                value={entry.companyName}
+                maxLength={COMPANY_NAME_MAX}
+                placeholder="Who is hiring?"
+                onChange={(e) =>
+                  onChange({ companyName: e.target.value }, "companyName")
+                }
+              />
+            )}
+          </LinkField>
+        )}
+
+        {/*
+          `type="url"` for the same reason the LinkedIn field uses it: on a phone
+          it gets a keyboard with "/" and ".com" on it, which is most of why a
+          typed URL comes out malformed. `maxLength` mirrors the column so the
+          box stops rather than the server refusing what was typed.
+        */}
+        <LinkField
+          id={`${base}-url`}
+          label="Link to the posting"
+          required
+          error={errors.url}
+          help="The application page, the job posting, or your company's careers page. A plain address like jakegunnell.com works too."
+        >
+          {(props) => (
+            <Input
+              {...props}
+              type="url"
+              inputMode="url"
+              value={entry.url}
+              maxLength={URL_MAX}
+              placeholder="https://careers.example.com/jobs/1234"
+              onChange={(e) => onChange({ url: e.target.value }, "url")}
+              onBlur={settleUrl}
+            />
+          )}
+        </LinkField>
+
+        <LinkField
+          id={`${base}-role`}
+          label="Internship or full-time?"
+          required
+          error={errors.roleType}
+        >
+          {({ className, ...props }) => (
+            <select
+              {...props}
+              value={entry.roleType}
+              className={className ? `${SELECT_CLASS} ${className}` : SELECT_CLASS}
+              onChange={(e) =>
+                onChange(
+                  { roleType: e.target.value as LinkRoleType | "" },
+                  "roleType",
+                )
+              }
+            >
+              <option value="">Select one</option>
+              {ROLE_TYPE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          )}
+        </LinkField>
+
+        {/*
+          Text-only toggle, like every control on this page. A checkbox rather
+          than two buttons because it is one binary fact about the job.
+
+          FLIPPING IT LOSES NOTHING. The picked state and the typed region are
+          two different slots on the entry, so a state chosen and then abandoned
+          is still there on the way back, and `linksToSubmit` sends only the one
+          belonging to the mode on screen. Same principle as the "at my company"
+          box above: an accidental tap never deletes an answer.
+        */}
+        <label className="flex w-fit cursor-pointer items-center gap-2 rounded-md border border-gray-300 px-4 py-1.5 text-sm text-gray-700 transition-colors hover:border-brand-blue-500 has-[:checked]:border-brand-blue-600 has-[:checked]:bg-brand-blue-50 has-[:checked]:font-medium has-[:checked]:text-navy-800">
+          <input
+            id={`${base}-outside-us`}
+            type="checkbox"
+            checked={entry.isOutsideUS}
+            onChange={(e) => {
+              onChange({ isOutsideUS: e.target.checked }, "state");
+              // The country box comes and goes with this; a message about a
+              // field that just left the screen has nothing to point at.
+              onFieldError("country", null);
+            }}
+            className="h-4 w-4 rounded border-gray-300 text-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
+          />
+          This job is outside the United States
+        </label>
+
+        {/* Stacked on a phone, paired from `sm:` — the same breakpoint the rest
+            of this page splits at. */}
+        <div className="grid gap-5 sm:grid-cols-2">
+          <LinkField id={`${base}-city`} label="City" error={errors.city}>
+            {(props) => (
+              <Input
+                {...props}
+                value={entry.city}
+                maxLength={CITY_MAX}
+                placeholder="Where is the job?"
+                onChange={(e) => onChange({ city: e.target.value }, "city")}
+              />
+            )}
+          </LinkField>
+          {entry.isOutsideUS ? (
+            <LinkField
+              id={`${base}-region`}
+              label="Region or province"
+              error={errors.state}
+            >
+              {(props) => (
+                <Input
+                  {...props}
+                  value={entry.region}
+                  maxLength={STATE_MAX}
+                  placeholder="e.g. Ontario"
+                  onChange={(e) => onChange({ region: e.target.value }, "state")}
+                />
+              )}
+            </LinkField>
+          ) : (
+            <LinkField id={`${base}-state`} label="State" error={errors.state}>
+              {(props) => (
+                // The same state list the Employment section offers, so the two
+                // spellings staff filter on stay one spelling. A dropdown also
+                // takes the free-text character rules out of play here entirely.
+                <SelectControl
+                  {...props}
+                  value={entry.state}
+                  options={STATE_NAMES}
+                  placeholder="Select a state"
+                  onChange={(v) => onChange({ state: v }, "state")}
+                />
+              )}
+            </LinkField>
+          )}
+        </div>
+
+        {entry.isOutsideUS ? (
+          <LinkField
+            id={`${base}-country`}
+            label="Country"
+            error={errors.country}
+          >
+            {(props) => (
+              <Input
+                {...props}
+                value={entry.country}
+                maxLength={COUNTRY_MAX}
+                placeholder="e.g. Canada"
+                onChange={(e) => onChange({ country: e.target.value }, "country")}
+              />
+            )}
+          </LinkField>
+        ) : null}
+
+        <LinkField
+          id={`${base}-deadline`}
+          label="Application deadline"
+          help="Optional — leave blank if it's open until filled."
+          error={errors.deadline}
+        >
+          {(props) => (
+            <Input
+              {...props}
+              type="date"
+              value={entry.deadline}
+              // Discourages a past date in the picker itself. The rule is
+              // enforced by `validateLinkEntries` on submit, mirroring the
+              // server: today is accepted, only earlier is refused.
+              min={minDeadline}
+              onChange={(e) => onChange({ deadline: e.target.value }, "deadline")}
+            />
+          )}
+        </LinkField>
+
+        <LinkField
+          id={`${base}-details`}
+          label="Anything else students should know"
+          error={errors.details}
+          help="Optional — timing, the team, who to mention, how to apply."
+        >
+          {(props) => (
+            <Textarea
+              {...props}
+              value={entry.details}
+              maxLength={DETAILS_MAX}
+              rows={3}
+              placeholder="Summer 2027 analyst program, applications open now…"
+              onChange={(e) => onChange({ details: e.target.value }, "details")}
+            />
+          )}
+        </LinkField>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Label + control + inline message for one opportunity field.
+ *
+ * Deliberately NOT `FieldControl`: that one is driven by an `EditField` with a
+ * `table.column` key and a `FieldKind`, and giving these inputs fake field keys
+ * to borrow its markup is how a non-column value ends up looking like a column
+ * to the next reader. This renders the same label/help/error markup over a
+ * render-prop child, which is a few lines and keeps the two models apart.
+ */
+function LinkField({
+  id,
+  label,
+  required,
+  help,
+  error,
+  children,
+}: {
+  id: string;
+  label: string;
+  required?: boolean;
+  help?: string;
+  error?: string;
+  children: (props: {
+    id: string;
+    "aria-invalid"?: true;
+    "aria-describedby"?: string;
+    className?: string;
+  }) => React.ReactNode;
+}) {
+  const helpId = help ? `${id}-help` : undefined;
+  const errorId = error ? `${id}-error` : undefined;
+  return (
+    <div>
+      <Label htmlFor={id} className="text-sm font-medium text-gray-900">
+        {label}
+        {required ? (
+          <span className="ml-1 text-danger-600" aria-hidden="true">
+            *
+          </span>
+        ) : null}
+      </Label>
+      {help ? (
+        <p id={helpId} className="mt-0.5 text-xs leading-relaxed text-gray-500">
+          {help}
+        </p>
+      ) : null}
+      <div className="mt-1.5">
+        {children({
+          id,
+          "aria-invalid": error ? true : undefined,
+          "aria-describedby": errorId ?? helpId,
+          className: error
+            ? "border-danger-600 focus-visible:ring-danger-600"
+            : undefined,
+        })}
+      </div>
+      {error ? (
+        <p id={errorId} className="mt-1 text-xs text-danger-600">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 /* -------------------------------------------------------------- info panels - */
 
 export function TrustNote() {
@@ -1197,12 +1782,18 @@ function SelectControl({
   options,
   placeholder,
   onChange,
+  className,
+  ...aria
 }: {
   id: string;
   value: string;
   options: readonly string[];
   placeholder: string;
   onChange: (v: string) => void;
+  /** Appended to the shared select styling — the error border, in practice. */
+  className?: string;
+  "aria-invalid"?: true;
+  "aria-describedby"?: string;
 }) {
   const opts = withStoredValue(options, value);
   return (
@@ -1210,7 +1801,8 @@ function SelectControl({
       id={id}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className={SELECT_CLASS}
+      className={className ? `${SELECT_CLASS} ${className}` : SELECT_CLASS}
+      {...aria}
     >
       <option value="">{placeholder}</option>
       {opts.map((o) => (

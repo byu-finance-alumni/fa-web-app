@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
+import { APP_HOME, isReturnablePath } from "@/lib/urlSafety";
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
@@ -12,8 +14,9 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 // from the maintenance pause and sign in through it to turn maintenance off.
 const PUBLIC_PATHS = ["/", "/login", "/maintenance"];
 
-// Where authenticated users land (and where `/login` redirects them).
-const APP_HOME = "/dashboard";
+// Where authenticated users land (and where `/login` redirects them) is
+// APP_HOME, imported from @/lib/urlSafety — the same constant the login action
+// falls back to when a `?next=` can't be honoured, so the two can't drift.
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.includes(pathname);
@@ -115,7 +118,11 @@ export const updateSession = async (
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.search = "";
-    loginUrl.searchParams.set("next", pathname);
+    // `pathname` came off a parsed NextURL so it is already a real path, but it
+    // still goes through the shared gate: the login action honours `next` only
+    // when isReturnablePath agrees, so emitting one it would drop would put a
+    // promise in the address bar that the other end silently breaks.
+    if (isReturnablePath(pathname)) loginUrl.searchParams.set("next", pathname);
     return withCsp(withCookies(supabaseResponse, NextResponse.redirect(loginUrl)));
   }
 
