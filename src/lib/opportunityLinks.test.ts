@@ -1224,11 +1224,32 @@ describe("the Add-link steps", () => {
  * Nav registration
  * ==================================================================== */
 
-describe("the Links nav entry", () => {
+describe("the Internship Links nav entry", () => {
   it("sits alongside the other top-level sections and is capability-gated", () => {
     const src = read("src/components/shell/nav.ts");
-    expect(src).toContain(
-      '{ href: "/links", label: "Links", capability: CAPABILITY.SURVEYS_MANAGE }',
+    // Same route, same gate, same position — only the wording changed (the
+    // owner renamed the sidebar entry to "Internship Links"). Asserted piecewise
+    // because the entry no longer fits on one line.
+    const entry = src.slice(
+      src.indexOf('href: "/links"'),
+      src.indexOf('href: "/map"'),
+    );
+    expect(entry).toContain('href: "/links"');
+    expect(entry).toContain('label: "Internship Links"');
+    expect(entry).toContain("capability: CAPABILITY.SURVEYS_MANAGE");
+    expect(src).not.toContain('label: "Links"');
+  });
+
+  it("is echoed by the page itself, so the nav and the heading agree", () => {
+    expect(read("src/app/(app)/links/page.tsx")).toContain(
+      '<Topbar title="Internship Links" />',
+    );
+    expect(read("src/app/(app)/links/loading.tsx")).toContain(
+      '<Topbar title="Internship Links" />',
+    );
+    // The Add-link screen breadcrumbs back to the list under the same name.
+    expect(read("src/app/(app)/links/new/page.tsx")).toContain(
+      '{ label: "Internship Links", href: "/links" }',
     );
   });
 

@@ -108,7 +108,7 @@ export default async function LinksPage({
 
   return (
     <>
-      <Topbar title="Links" />
+      <Topbar title="Internship Links" />
       <main className="flex-1 overflow-auto p-4 md:p-6">
         <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
           <p className="max-w-3xl text-sm text-gray-500">

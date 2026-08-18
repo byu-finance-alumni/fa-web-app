@@ -32,7 +32,12 @@ export default async function NewLinkPage() {
 
   return (
     <>
-      <Topbar breadcrumb={[{ label: "Links", href: "/links" }, { label: "Add link" }]} />
+      <Topbar
+        breadcrumb={[
+          { label: "Internship Links", href: "/links" },
+          { label: "Add link" },
+        ]}
+      />
       <main className="flex-1 overflow-auto p-4 md:p-6">
         <AddLinkForm />
       </main>
