@@ -7440,6 +7440,8 @@ export interface components {
             location_city?: string | null;
             /** Location State */
             location_state?: string | null;
+            /** Location Country */
+            location_country?: string | null;
             /**
              * Role Type
              * @enum {string}
@@ -7494,6 +7496,8 @@ export interface components {
             location_city: string | null;
             /** Location State */
             location_state: string | null;
+            /** Location Country */
+            location_country: string | null;
             /**
              * Role Type
              * @enum {string}
@@ -7556,6 +7560,23 @@ export interface components {
          *
          *     ``model_fields_set`` is what distinguishes "not sent" from "sent as null", so
          *     clearing a deadline is expressible and omitting it is not a clear.
+         *
+         *     ⚠️ NOTE THE ABSENCE of an ``application_deadline`` validator here, unlike
+         *     ``OpportunityLinkBase``. It is missing ON PURPOSE and must stay missing.
+         *
+         *     "Not in the past" is a rule about a NEW deadline, and this schema cannot tell
+         *     a new one from the one already on the row — it never sees the stored value. A
+         *     validator here would refuse two things it must not:
+         *
+         *       * a reviewer fixing a typo in the details of a posting whose deadline has
+         *         already passed (the row must stay editable — an expired posting with a
+         *         wrong URL is worse than an expired posting), and
+         *       * any client that PATCHes the whole object back, deadline included,
+         *         unchanged.
+         *
+         *     So the rule is enforced in ``services.opportunity_links.update_link``, which
+         *     holds both the submitted value and the stored one and applies it only when the
+         *     two differ. A past deadline that is genuinely BEING SET is still refused there.
          */
         OpportunityLinkUpdate: {
             /** Is Own Company */
@@ -7568,6 +7589,8 @@ export interface components {
             location_city?: string | null;
             /** Location State */
             location_state?: string | null;
+            /** Location Country */
+            location_country?: string | null;
             /** Role Type */
             role_type?: ("internship" | "full_time" | "both") | null;
             /** Application Deadline */
@@ -7597,6 +7620,8 @@ export interface components {
             location_city: string | null;
             /** Location State */
             location_state: string | null;
+            /** Location Country */
+            location_country: string | null;
             /**
              * Role Type
              * @enum {string}
