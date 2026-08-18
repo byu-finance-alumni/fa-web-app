@@ -85,6 +85,23 @@ export function firstWords(text: string, count: number): string {
   return words.slice(0, count).join(" ") + "…";
 }
 
+/**
+ * The destination host, for the Link column: `https://careers.adobe.com/x` ->
+ * `careers.adobe.com`. Shows a reviewer WHERE a public-submitted link goes
+ * before they click it, which a generic "Link" label cannot.
+ *
+ * Only ever called with an href `linkTarget` already scheme-checked, so the
+ * parse cannot throw on anything we would render; the catch is belt-and-braces
+ * and falls back to the full value rather than showing nothing.
+ */
+export function linkDomain(href: string): string {
+  try {
+    return new URL(href).hostname.replace(/^www./i, "");
+  } catch {
+    return href;
+  }
+}
+
 /** How many words of `details` the column shows before the ellipsis. */
 export const DETAILS_PREVIEW_WORDS = 3;
 
@@ -152,14 +169,14 @@ export function LinksTable({
               cannot ellipsise, and without ellipsising the rows grow back. */}
           <colgroup>
             {selecting ? <col className="w-10" /> : null}
-            <col className="w-[21%]" />
-            <col className="w-[12%]" />
-            <col className="w-[15%]" />
-            <col className="w-[6%]" />
+            <col className="w-[19%]" />
+            <col className="w-[11%]" />
             <col className="w-[14%]" />
+            <col className="w-[13%]" />
+            <col className="w-[12%]" />
             <col className="w-[12%]" />
             <col className="w-[8%]" />
-            <col className="w-[12%]" />
+            <col className="w-[11%]" />
             {canReview ? <col className="w-[13rem]" /> : null}
           </colgroup>
           <thead>
@@ -310,10 +327,10 @@ export function LinksTable({
                         target="_blank"
                         rel="noopener noreferrer nofollow"
                         onClick={(e) => e.stopPropagation()}
-                        className="font-medium text-brand-blue-600 hover:underline"
+                        className="block truncate font-medium text-brand-blue-600 hover:underline"
                         title={target.href}
                       >
-                        Link
+                        {linkDomain(target.href)}
                       </a>
                     ) : (
                       <span
