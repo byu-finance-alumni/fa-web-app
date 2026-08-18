@@ -1,3 +1,4 @@
+import { colWidths } from "@/components/links/LinksTable";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -1569,5 +1570,33 @@ describe("the engineer console picks links.delete up on its own", () => {
     expect(src).toContain("matrix.capabilities.filter((c) => c.assignable)");
     expect(src).not.toContain("links.delete");
     expect(src).not.toContain("CAPABILITY");
+  });
+});
+
+// --- column shares always fill the table ---
+
+describe("colWidths", () => {
+  const sum = (ws: string[]) =>
+    ws.reduce((a, w) => a + Number.parseFloat(w), 0);
+
+  it("totals 100% in every combination of optional columns", () => {
+    for (const selecting of [false, true]) {
+      for (const canReview of [false, true]) {
+        const ws = colWidths(selecting, canReview);
+        expect(sum(ws)).toBeCloseTo(100, 2);
+      }
+    }
+  });
+
+  it("renders one width per column actually shown", () => {
+    expect(colWidths(false, false)).toHaveLength(8);
+    expect(colWidths(true, false)).toHaveLength(9);
+    expect(colWidths(false, true)).toHaveLength(9);
+    expect(colWidths(true, true)).toHaveLength(10);
+  });
+
+  it("keeps the checkbox column the narrowest when present", () => {
+    const ws = colWidths(true, true).map((w) => Number.parseFloat(w));
+    expect(Math.min(...ws)).toBe(ws[0]);
   });
 });

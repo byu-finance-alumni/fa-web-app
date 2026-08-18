@@ -86,6 +86,22 @@ export function firstWords(text: string, count: number): string {
 }
 
 /**
+ * Column shares for the table, always summing to 100% for exactly the columns
+ * being rendered. The checkbox and Review columns come and go, so the shares
+ * are computed rather than written down: a hard-coded set that assumed one
+ * combination is what produced unused width at the right edge.
+ */
+export function colWidths(selecting: boolean, canReview: boolean): string[] {
+  // Relative weights, in render order: company, role, location, link,
+  // details, submitted by, submitted, deadline.
+  const weights = [19, 11, 14, 13, 12, 12, 8, 11];
+  if (selecting) weights.unshift(3);
+  if (canReview) weights.push(14);
+  const total = weights.reduce((a, b) => a + b, 0);
+  return weights.map((w) => `${((w / total) * 100).toFixed(4)}%`);
+}
+
+/**
  * The destination host, for the Link column: `https://careers.adobe.com/x` ->
  * `careers.adobe.com`. Shows a reviewer WHERE a public-submitted link goes
  * before they click it, which a generic "Link" label cannot.
@@ -167,17 +183,15 @@ export function LinksTable({
           </caption>
           {/* Fixed layout + explicit shares: without a definite width a cell
               cannot ellipsise, and without ellipsising the rows grow back. */}
+          {/* Shares, not fixed widths, and they always total 100 for the
+              columns actually rendered. Mixing a rem-width column into a
+              percentage colgroup is what left dead space past the last
+              column: the fixed ones are laid out first and the percentages
+              then resolve against the whole table, not the remainder. */}
           <colgroup>
-            {selecting ? <col className="w-10" /> : null}
-            <col className="w-[19%]" />
-            <col className="w-[11%]" />
-            <col className="w-[14%]" />
-            <col className="w-[13%]" />
-            <col className="w-[12%]" />
-            <col className="w-[12%]" />
-            <col className="w-[8%]" />
-            <col className="w-[11%]" />
-            {canReview ? <col className="w-[13rem]" /> : null}
+            {colWidths(selecting, canReview).map((w, i) => (
+              <col key={i} style={{ width: w }} />
+            ))}
           </colgroup>
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
