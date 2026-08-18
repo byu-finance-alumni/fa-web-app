@@ -241,7 +241,10 @@ export function EmploymentSectionForm({
         {/* Pick-or-type: this column is free text on the backend, so the full
             21-option list is a suggestion, not a constraint (#452). */}
         <SecondaryIndustryCombobox
-          label="Secondary Industry"
+          // Sentence case (#683) to match the add-alumni form, the profile
+          // field, the search facet, and the survey — "Secondary industry" is
+          // the spelling everywhere else in the app.
+          label="Secondary industry"
           name="career.current_industry_secondary"
           value={secondaryIndustry}
           onChange={(v) => {

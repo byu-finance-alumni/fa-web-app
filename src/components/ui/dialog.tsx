@@ -47,6 +47,14 @@ function Dialog({
   );
 }
 const DialogTrigger = DialogPrimitive.Trigger;
+/**
+ * The dialog's accessible title. Exported so a caller can build its OWN header
+ * instead of passing `title` to <DialogContent>: that built-in header ships an
+ * icon close button, and screens bound by the project's text-only rule need a
+ * worded "Close" and therefore a hand-rolled header. Radix still needs a Title
+ * somewhere inside the content or it warns and the dialog goes unnamed.
+ */
+const DialogTitle = DialogPrimitive.Title;
 const DialogClose = DialogPrimitive.Close;
 const DialogPortal = DialogPrimitive.Portal;
 
@@ -143,6 +151,7 @@ function DialogFooter({
 export {
   Dialog,
   DialogTrigger,
+  DialogTitle,
   DialogClose,
   DialogContent,
   DialogBody,

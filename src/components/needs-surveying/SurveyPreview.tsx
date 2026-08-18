@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { SAMPLE_ALUM, SAMPLE_ALUM_NAME } from "@/lib/sampleAlumni";
+import { emptyLinkEntry, type LinkEntry } from "@/lib/opportunityLinks";
 import {
   DEFAULT_SURVEY_CLOSING,
   DEFAULT_SURVEY_MESSAGE,
@@ -131,6 +132,10 @@ function PreviewBody() {
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [edits, setEdits] = useState<Fields>({});
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  // The "Jobs & internships" screen is part of what an alum meets (#441), so
+  // the preview walks through it too — same component, same rules. Plain local
+  // state that nothing reads: this dialog posts nothing anywhere.
+  const [links, setLinks] = useState<LinkEntry[]>(() => [emptyLinkEntry()]);
 
   // The email copy IS saved (unlike everything else in this dialog) — it's the
   // real message, edited here or in "Edit email message", both reading and
@@ -223,6 +228,8 @@ function PreviewBody() {
           photoPreview={photoPreview}
           setPhotoPreview={setPhotoPreview}
           setPhotoFile={() => {}}
+          links={links}
+          setLinks={setLinks}
           onBack={() => setStatus("review")}
           onSubmit={() => setStatus("submitted")}
           submitting={false}

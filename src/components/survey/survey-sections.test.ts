@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   EDIT_SECTIONS,
   INFO_SECTIONS,
+  OPPORTUNITY_LINKS_SECTION_ID,
   type Section,
 } from "./survey-screens";
 
@@ -143,5 +144,44 @@ describe("the section list as a whole", () => {
     for (const key of EDIT_SECTIONS.flatMap(keysOf)) {
       expect(key).toMatch(/^[a-z]+\.[a-z0-9_]+$/);
     }
+  });
+});
+
+describe("opportunity links stay out of the field machinery (#441)", () => {
+  /**
+   * The three-list parity rule (`sample-survey-parity.test.ts`) binds
+   * `INFO_SECTIONS`, `SURVEY_FIELDS` and `SAMPLE_ALUM` together because every
+   * entry in them is one `table.column` the response pipeline stages and
+   * applies. Opportunity links are rows in their OWN table, several per alum,
+   * posted to their own endpoint with their own moderation queue — so they are a
+   * pseudo-section (like `"photo"`) and must never appear in those lists.
+   *
+   * Pinned because the failure mode is quiet and the fix is tempting: adding the
+   * screen to `EDIT_SECTIONS` would fail the parity test, and "fixing" THAT by
+   * inventing a sample value and an email row would make the staff email offer
+   * to show an alum "the opportunity link we have on file", which does not
+   * exist.
+   */
+  it("is not a member of either section list", () => {
+    for (const list of [INFO_SECTIONS, EDIT_SECTIONS]) {
+      expect(list.map((s) => s.id)).not.toContain(OPPORTUNITY_LINKS_SECTION_ID);
+    }
+  });
+
+  it("contributes no field keys at all", () => {
+    const keys = EDIT_SECTIONS.flatMap(keysOf);
+    for (const key of keys) {
+      expect(key).not.toMatch(/opportunit|link_url|job_link/);
+    }
+    // The only `link`-ish key in the survey is the LinkedIn column, which IS a
+    // real column and stays where #649 put it.
+    expect(keys.filter((k) => k.includes("link"))).toEqual([
+      "profile.linkedin_url",
+    ]);
+  });
+
+  it("keeps its own id, distinct from the photo pseudo-section", () => {
+    expect(OPPORTUNITY_LINKS_SECTION_ID).toBe("links");
+    expect(OPPORTUNITY_LINKS_SECTION_ID).not.toBe("photo");
   });
 });

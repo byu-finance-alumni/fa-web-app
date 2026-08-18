@@ -52,6 +52,7 @@ import { designationFullName, splitDesignations } from "@/lib/designations";
 import { blankIfNa } from "@/lib/na";
 import { parseDuplicateOf } from "@/lib/duplicateNotice";
 import { formatPhone } from "@/lib/phone";
+import { formatResidenceLocation, formatCityStateCountry } from "@/lib/residence";
 
 /* ----------------------------------------------------------------- helpers */
 
@@ -543,6 +544,29 @@ export async function AlumniProfileView({
   // entered by hand.
   const residencePlace = place(c?.city, c?.state);
   const workPlace = place(career?.current_city, career?.current_state);
+  // Residence Location (owner request): the residence is only ever a city and a
+  // state, so `contact.city` / `contact.state` / `contact.country` render as ONE
+  // line — "Provo, Utah" — instead of a field each. The country is appended only
+  // when it is not the US, so an international alum still reads correctly
+  // ("Toronto, Ontario, Canada") without every domestic record gaining a
+  // redundant ", United States". `null` means nothing is on file and the field
+  // STILL renders, showing the page's em-dash: a residence that vanishes when
+  // empty is exactly the bug that got reported here before.
+  // NOTE: `a.home_country` is the country of ORIGIN — a different column from
+  // `c?.country` — and is deliberately NOT part of this line.
+  const residenceLocation = formatResidenceLocation(
+    c?.city,
+    c?.state,
+    c?.country,
+  );
+  // The EMPLOYER's location - same shape, different place. Kept beside the
+  // residence deliberately: these two look alike and are constantly confused,
+  // and reading them together is the cheapest way to keep them straight.
+  const employmentLocation = formatCityStateCountry(
+    career?.current_city,
+    career?.current_state,
+    career?.current_country,
+  );
   const headerPlace = workPlace ?? residencePlace;
 
   // Personal & family card (#531): home country and citizenship are collapsed
@@ -633,14 +657,22 @@ export async function AlumniProfileView({
     },
     { label: "Email", ok: Boolean(c?.personal_email || c?.work_email) },
     { label: "Cell phone", ok: Boolean(c?.phone) },
-    // These read contact.city/state/zip, which hold the EMPLOYER's address (the
-    // import binds the sheet's work-address block to the contact row). Labelled
-    // "Company …" so they say what they measure — "Mailing ZIP code" implied a
-    // residence this system has never stored. Relabelled rather than removed:
-    // the underlying data is real and wanted, and dropping the checks would
-    // shrink the denominator and silently move every alum's completeness score.
-    { label: "Company city & state", ok: Boolean(c?.city && c?.state) },
-    { label: "Company ZIP code", ok: Boolean(c?.zip) },
+    // These read contact.city/state/zip — the alum's RESIDENCE (#440). They
+    // were briefly labelled "Company …" because #287 stage 1 rebound the
+    // address block to the employer, but residence came back: the survey asks
+    // for it and writes contact.city/state/country, the intake sheet has
+    // Residence city/state, this page renders those columns as the combined
+    // "Residence Location" field below, and staff can now enter them in the
+    // Personal edit section. The "Company …" labels contradicted that within one
+    // page, so they say residence like everything else that reads these columns.
+    // The check keeps the SAME wording as the field it measures. The employer's
+    // location is `career.current_*` and is measured nowhere in this list.
+    //
+    // Relabelled rather than removed: the underlying data is real and wanted,
+    // and dropping the checks would shrink the denominator and silently move
+    // every alum's completeness score.
+    { label: "Residence Location", ok: Boolean(c?.city && c?.state) },
+    { label: "Residence ZIP code", ok: Boolean(c?.zip) },
     { label: "LinkedIn", ok: Boolean(a.linkedin_url) },
     { label: "Graduation year", ok: Boolean(a.graduation_year) },
     { label: "Current industry", ok: Boolean(career?.current_industry) },
@@ -1077,18 +1109,44 @@ export async function AlumniProfileView({
 
               {/* RIGHT column, row 1 — Current employment contact information
                   (#366, #399: swapped to the right, keeps its 2-col width). Work
-                  email is contact PII (editor-gated); LinkedIn and directory-like
-                  company location stay visible to every role. */}
+                  email is contact PII (editor-gated); LinkedIn, directory-like
+                  company location, and the industry pair (#683) stay visible to
+                  every role — industry is already non-sensitive in the KPI
+                  strip, which every role sees. */}
               <Panel
                 title="Current employment contact information"
                 action={canEdit ? <EditLink id={aid} /> : undefined}
                 className="lg:col-span-2"
               >
-                {/* Split into two columns (#profile tweak): work email + city on
-                    the left, state + country + ZIP on the right. LinkedIn moved
-                    to Personal & family. The left column lost its Company
-                    address row when that field was retired (#287) — it was never
-                    fed by the intake sheet and was empty for every alum. */}
+                {/* Industry pair (#683) — the only industry surface on the whole
+                    profile used to be the KPI tile, and that tile printed the
+                    words "Secondary industry" ONLY when the value was non-empty.
+                    On a record with a blank secondary there was no on-screen
+                    evidence the field existed, which is exactly how it got
+                    reported as missing. Both fields now render unconditionally
+                    with the page's standard em-dash empty state, paired
+                    side-by-side in the same order as the Employment edit form,
+                    so a blank reads as "empty — click Edit" rather than "no such
+                    field". This also gives the profile its first *labelled*
+                    primary industry. Deliberately NOT done in the KPI strip: it
+                    is `hidden md:grid` (invisible on a narrow window) and its
+                    laptop layout was reworked in #676. */}
+                <div className="mb-4 grid grid-cols-1 gap-x-6 gap-y-4 border-b border-gray-100 pb-4 sm:grid-cols-2">
+                  <Field
+                    label="Industry"
+                    value={career?.current_industry ?? null}
+                  />
+                  <Field
+                    label="Secondary industry"
+                    value={career?.current_industry_secondary ?? null}
+                  />
+                </div>
+                {/* Split into two columns (#profile tweak): work email + the
+                    combined Residence Location on the left, the employer's
+                    country + ZIP on the right. LinkedIn moved to Personal &
+                    family. The left column lost its Company address row when
+                    that field was retired (#287) — it was never fed by the
+                    intake sheet and was empty for every alum. */}
                 <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
                   <div className="space-y-4">
                     {canViewContactDetails ? (
@@ -1100,20 +1158,17 @@ export async function AlumniProfileView({
                         preferred={c?.preferred_contact_method === "work_email"}
                       />
                     ) : null}
+                    {/* The EMPLOYER's location. Residence lives in Personal &
+                        family and is a different place entirely - an alum can
+                        work in one city and live in another, so showing the
+                        residence here (as this panel briefly did) put the wrong
+                        address beside the employer's ZIP. */}
                     <Field
-                      label="Current city"
-                      value={c?.city ?? null}
+                      label="Employment Location"
+                      value={employmentLocation}
                     />
                   </div>
                   <div className="space-y-4">
-                    <Field
-                      label="Current state"
-                      value={c?.state ?? null}
-                    />
-                    <Field
-                      label="Company country"
-                      value={career?.current_country ?? null}
-                    />
                     <Field label="Company ZIP" value={career?.current_zip ?? null} />
                   </div>
                 </div>
@@ -1232,14 +1287,21 @@ export async function AlumniProfileView({
                     <Field label="Spouse" value={blankIfNa(a.spouse_first_name) || null} />
                     <Field label="Birthday" value={fmtDate(a.birth_date)} />
                   </div>
-                  {/* Col 3: net id · resident city · home country/citizenship.
-                      Home country and citizenship are combined into one field
-                      (#531) — shown once when equal, "{home} / {citizenship}"
-                      when they differ — and the freed slot shows the alum's
-                      resident (contact) city instead. */}
+                  {/* Col 3: net id · residence location · home country /
+                      citizenship. Home country and citizenship are combined into
+                      one field (#531) — shown once when equal,
+                      "{home} / {citizenship}" when they differ — and the freed
+                      slot shows the alum's residence instead, as the same single
+                      "Residence Location" line used above and in the
+                      completeness checklist (#440). Home country is ORIGIN and
+                      stays its own field; it is never folded into the
+                      residence. */}
                   <div className="space-y-4">
                     <Field label="BYU Net ID" value={a.net_id} />
-                    <Field label="Resident city" value={c?.city ?? null} />
+                    <Field
+                      label="Residence Location"
+                      value={residenceLocation}
+                    />
                     <Field
                       label="Home country / Citizenship"
                       value={homeCountryCitizenship}
