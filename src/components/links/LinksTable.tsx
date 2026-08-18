@@ -68,24 +68,6 @@ import {
  * the age label across a day boundary and warn.
  */
 /**
- * First `count` words of `text`, with an ellipsis when anything was dropped.
- *
- * The Details column is a scanning aid, not the content: the owner asked for
- * roughly three words so the column stays narrow and the eye can run down it.
- * The full text is one row-click away in the detail panel and is also on the
- * cell as a `title`, so nothing is hidden, only deferred.
- *
- * Deliberately local to this table rather than in `lib/opportunityLinks`: it is
- * a presentation choice for this one column, not part of the link model.
- */
-export function firstWords(text: string, count: number): string {
-  const words = text.trim().split(/s+/).filter(Boolean);
-  if (words.length === 0) return "";
-  if (words.length <= count) return words.join(" ");
-  return words.slice(0, count).join(" ") + "…";
-}
-
-/**
  * Column shares for the table, always summing to 100% for exactly the columns
  * being rendered. The checkbox and Review columns come and go, so the shares
  * are computed rather than written down: a hard-coded set that assumed one
@@ -94,7 +76,7 @@ export function firstWords(text: string, count: number): string {
 export function colWidths(selecting: boolean, canReview: boolean): string[] {
   // Relative weights, in render order: company, role, location, link,
   // details, submitted by, submitted, deadline.
-  const weights = [19, 11, 14, 13, 12, 12, 8, 11];
+  const weights = [18, 10, 13, 18, 9, 11, 8, 13];
   if (selecting) weights.unshift(3);
   if (canReview) weights.push(14);
   const total = weights.reduce((a, b) => a + b, 0);
@@ -117,9 +99,6 @@ export function linkDomain(href: string): string {
     return href;
   }
 }
-
-/** How many words of `details` the column shows before the ellipsis. */
-export const DETAILS_PREVIEW_WORDS = 3;
 
 export function LinksTable({
   links,
@@ -246,7 +225,6 @@ export function LinksTable({
                 now,
               );
               const details = link.details?.trim() ?? "";
-              const detailsPreview = firstWords(details, DETAILS_PREVIEW_WORDS);
 
               const rowSelected =
                 selecting && isLinkSelected(selected, link.opportunity_link_id);
@@ -341,7 +319,7 @@ export function LinksTable({
                         target="_blank"
                         rel="noopener noreferrer nofollow"
                         onClick={(e) => e.stopPropagation()}
-                        className="block truncate font-medium text-brand-blue-600 hover:underline"
+                        className="font-medium text-brand-blue-600 hover:underline"
                         title={target.href}
                       >
                         {linkDomain(target.href)}
@@ -356,11 +334,22 @@ export function LinksTable({
                     )}
                   </td>
 
-                  <td
-                    className="truncate px-3 py-2.5 text-gray-500"
-                    title={details || undefined}
-                  >
-                    {detailsPreview || EM_DASH}
+                  <td className="px-3 py-2.5 text-gray-500">
+                    {details ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDetail(link);
+                        }}
+                        className="rounded-sm text-left text-brand-blue-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500"
+                        title={details}
+                      >
+                        See details
+                      </button>
+                    ) : (
+                      EM_DASH
+                    )}
                   </td>
 
                   <td className="truncate px-3 py-2.5 text-gray-700">
