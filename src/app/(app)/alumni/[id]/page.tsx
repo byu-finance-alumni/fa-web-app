@@ -52,6 +52,7 @@ import { designationFullName, splitDesignations } from "@/lib/designations";
 import { blankIfNa } from "@/lib/na";
 import { parseDuplicateOf } from "@/lib/duplicateNotice";
 import { formatPhone } from "@/lib/phone";
+import { formatResidenceLocation } from "@/lib/residence";
 
 /* ----------------------------------------------------------------- helpers */
 
@@ -543,6 +544,21 @@ export async function AlumniProfileView({
   // entered by hand.
   const residencePlace = place(c?.city, c?.state);
   const workPlace = place(career?.current_city, career?.current_state);
+  // Residence Location (owner request): the residence is only ever a city and a
+  // state, so `contact.city` / `contact.state` / `contact.country` render as ONE
+  // line — "Provo, Utah" — instead of a field each. The country is appended only
+  // when it is not the US, so an international alum still reads correctly
+  // ("Toronto, Ontario, Canada") without every domestic record gaining a
+  // redundant ", United States". `null` means nothing is on file and the field
+  // STILL renders, showing the page's em-dash: a residence that vanishes when
+  // empty is exactly the bug that got reported here before.
+  // NOTE: `a.home_country` is the country of ORIGIN — a different column from
+  // `c?.country` — and is deliberately NOT part of this line.
+  const residenceLocation = formatResidenceLocation(
+    c?.city,
+    c?.state,
+    c?.country,
+  );
   const headerPlace = workPlace ?? residencePlace;
 
   // Personal & family card (#531): home country and citizenship are collapsed
@@ -637,16 +653,17 @@ export async function AlumniProfileView({
     // were briefly labelled "Company …" because #287 stage 1 rebound the
     // address block to the employer, but residence came back: the survey asks
     // for it and writes contact.city/state/country, the intake sheet has
-    // Residence city/state, this page renders `c?.city` as "Resident city"
-    // below, and staff can now enter it in the Personal edit section. The
-    // "Company …" labels contradicted that within one page, so they say
-    // residence like everything else that reads these columns. The employer's
+    // Residence city/state, this page renders those columns as the combined
+    // "Residence Location" field below, and staff can now enter them in the
+    // Personal edit section. The "Company …" labels contradicted that within one
+    // page, so they say residence like everything else that reads these columns.
+    // The check keeps the SAME wording as the field it measures. The employer's
     // location is `career.current_*` and is measured nowhere in this list.
     //
     // Relabelled rather than removed: the underlying data is real and wanted,
     // and dropping the checks would shrink the denominator and silently move
     // every alum's completeness score.
-    { label: "Residence city & state", ok: Boolean(c?.city && c?.state) },
+    { label: "Residence Location", ok: Boolean(c?.city && c?.state) },
     { label: "Residence ZIP code", ok: Boolean(c?.zip) },
     { label: "LinkedIn", ok: Boolean(a.linkedin_url) },
     { label: "Graduation year", ok: Boolean(a.graduation_year) },
@@ -1116,11 +1133,12 @@ export async function AlumniProfileView({
                     value={career?.current_industry_secondary ?? null}
                   />
                 </div>
-                {/* Split into two columns (#profile tweak): work email + city on
-                    the left, state + country + ZIP on the right. LinkedIn moved
-                    to Personal & family. The left column lost its Company
-                    address row when that field was retired (#287) — it was never
-                    fed by the intake sheet and was empty for every alum. */}
+                {/* Split into two columns (#profile tweak): work email + the
+                    combined Residence Location on the left, the employer's
+                    country + ZIP on the right. LinkedIn moved to Personal &
+                    family. The left column lost its Company address row when
+                    that field was retired (#287) — it was never fed by the
+                    intake sheet and was empty for every alum. */}
                 <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
                   <div className="space-y-4">
                     {canViewContactDetails ? (
@@ -1132,16 +1150,16 @@ export async function AlumniProfileView({
                         preferred={c?.preferred_contact_method === "work_email"}
                       />
                     ) : null}
+                    {/* The alum's RESIDENCE, not the office — these are the
+                        contact columns, combined into one line (owner request).
+                        The two fields below it ARE the employer's address and
+                        stay exactly as they were. */}
                     <Field
-                      label="Current city"
-                      value={c?.city ?? null}
+                      label="Residence Location"
+                      value={residenceLocation}
                     />
                   </div>
                   <div className="space-y-4">
-                    <Field
-                      label="Current state"
-                      value={c?.state ?? null}
-                    />
                     <Field
                       label="Company country"
                       value={career?.current_country ?? null}
@@ -1264,16 +1282,21 @@ export async function AlumniProfileView({
                     <Field label="Spouse" value={blankIfNa(a.spouse_first_name) || null} />
                     <Field label="Birthday" value={fmtDate(a.birth_date)} />
                   </div>
-                  {/* Col 3: net id · residence city · home country/citizenship.
-                      Home country and citizenship are combined into one field
-                      (#531) — shown once when equal, "{home} / {citizenship}"
-                      when they differ — and the freed slot shows the alum's
-                      residence (contact) city instead. "Residence city", not
-                      the old "Resident city", so this matches the completeness
-                      checklist above and the Personal edit form (#440). */}
+                  {/* Col 3: net id · residence location · home country /
+                      citizenship. Home country and citizenship are combined into
+                      one field (#531) — shown once when equal,
+                      "{home} / {citizenship}" when they differ — and the freed
+                      slot shows the alum's residence instead, as the same single
+                      "Residence Location" line used above and in the
+                      completeness checklist (#440). Home country is ORIGIN and
+                      stays its own field; it is never folded into the
+                      residence. */}
                   <div className="space-y-4">
                     <Field label="BYU Net ID" value={a.net_id} />
-                    <Field label="Residence city" value={c?.city ?? null} />
+                    <Field
+                      label="Residence Location"
+                      value={residenceLocation}
+                    />
                     <Field
                       label="Home country / Citizenship"
                       value={homeCountryCitizenship}

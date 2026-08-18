@@ -42,7 +42,11 @@ export const NAV: NavItem[] = [
   // IS the moderation queue for a public-submitted field, so it carries the same
   // capability the backend requires for `status=pending|rejected` and for every
   // write. Same gate as Needs Surveying, which is the other survey-review screen.
-  { href: "/links", label: "Links", capability: CAPABILITY.SURVEYS_MANAGE },
+  {
+    href: "/links",
+    label: "Internship Links",
+    capability: CAPABILITY.SURVEYS_MANAGE,
+  },
   { href: "/map", label: "Map" },
   { href: "/statistics", label: "Statistics" },
   {
