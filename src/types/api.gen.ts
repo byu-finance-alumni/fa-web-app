@@ -549,14 +549,34 @@ export interface paths {
          *     (the attribution for the attempt is already on the mint's
          *     ``upload_headshot_started`` row).
          *
+         *     THE OBJECT IS RE-ENCODED, NOT JUST INSPECTED. The cheap checks below (type,
+         *     size, magic bytes) run first because they refuse an obviously wrong object
+         *     without pulling up to 20 MiB across the wire; what actually decides the
+         *     outcome is :func:`_normalise_stored_headshot`, which downloads the whole
+         *     object, decodes it, and writes OUR JPEG back over the same key. A 16-byte
+         *     check is a check on a PREFIX: a JPEG magic number followed by an HTML payload
+         *     passes it, and every byte of EXIF — GPS included — survives it. Re-encoding
+         *     is the only thing that removes what the prefix check cannot see, and it is
+         *     what makes the client-side cropper enforced rather than merely hoped for.
+         *
+         *     ⚠️ KNOWN WINDOW, stated rather than hidden: the browser PUTs to the
+         *     alumnus's LIVE object key, so between that PUT landing and the re-upload
+         *     here, the raw uploaded bytes ARE the alumnus's headshot and any view-role
+         *     user loading the profile would be served them. If the browser never reaches
+         *     confirm (closed tab, dropped connection) they stay that way — the same gap
+         *     the ``upload_headshot_started`` audit exists to make visible. Closing it
+         *     needs a staging key the confirm promotes from, which changes the mint
+         *     contract and the frontend; it is not this change.
+         *
          *     Defense-in-depth: the bucket's own allow-list/size-limit is the primary guard
          *     on the direct PUT, but we re-check the object's type + size here AND sniff its
          *     real leading bytes, deleting anything outside the contract, so a bucket
-         *     misconfig can't silently let a bad file through. The probe FAILS OPEN — if it
-         *     can't read the object we fall back to a plain existence check rather than
-         *     reject a legitimate upload.
+         *     misconfig can't silently let a bad file through. The PROBE fails open — a
+         *     hiccup reading 16 bytes falls back to a plain existence check rather than
+         *     rejecting a legitimate upload — but the normalisation read that follows does
+         *     NOT, because that one is the control and not a redundant re-check.
          *
-         *     The byte sniff is the load-bearing half (#419). Nothing about the object here
+         *     The byte sniff was the load-bearing half (#419). Nothing about the object here
          *     was chosen by us: the browser PUT it straight to storage and picked its own
          *     ``Content-Type``, exactly like the multipart header on the single-request
          *     upload above. This path used to check only that declared type, so anyone with
@@ -564,7 +584,9 @@ export interface paths {
          *     arbitrary bytes labelled ``image/jpeg`` and have them audited
          *     ``upload_headshot`` and served back as a verified headshot. The bulk-import
          *     sibling (:func:`_verify_landed_headshot`) always sniffed; this one had drifted,
-         *     and the two now do the same thing for the same reason.
+         *     and the two still share :func:`_sniffed_head_error` so they cannot drift again.
+         *     Bulk deliberately stops at the sniff — see ``_normalise_stored_headshot`` for
+         *     why 100 objects cannot be re-encoded in one invocation.
          */
         post: operations["confirm_headshot_upload_alumni__alumni_id__headshot_confirm_post"];
         delete?: never;
@@ -3374,8 +3396,15 @@ export interface paths {
          * @description PUBLIC (token-gated): attach a NEW profile photo to a just-staged response.
          *
          *     A separate step from the JSON field-submit so the field submit is unaffected.
-         *     The signed token gates it (no login); the same JPEG/PNG/WebP + size validation
-         *     as the headshot upload runs here before the image is staged for admin review.
+         *     The signed token gates it (no login).
+         *
+         *     ⚠️ THIS IS THE ONLY GENUINELY UNTRUSTED UPLOADER IN THE SYSTEM — a stranger
+         *     holding a mailed link, with no account and no staff review before the bytes
+         *     land. So the image is NORMALISED here (decoded and re-encoded as our own
+         *     JPEG) rather than merely inspected, and what reaches the bucket is our
+         *     output. `apply_response` normalises again when it promotes the photo onto the
+         *     real profile; that repetition is deliberate — see the comment there.
+         *
          *     The photo only becomes the alum's headshot if an admin applies the response.
          */
         post: operations["survey_submit_photo_survey_respond__token__photo_post"];
@@ -3423,6 +3452,11 @@ export interface paths {
          *     the same fuzzy first + last + graduation-year check the staff rename path
          *     runs (#627). It NEVER blocks: the write has already happened by the time this
          *     returns, exactly as on that path.
+         *
+         *     `photo_dropped` says a staged photo could not be decoded and was discarded
+         *     while the field changes went through. The UI MUST show it: otherwise the
+         *     reviewer approves a submission that plainly carried a photo and never learns
+         *     the profile still has the old one.
          *
          *     Was a bodyless 204 before #646.
          */
@@ -8151,6 +8185,11 @@ export interface components {
              * @default []
              */
             duplicate_warnings: components["schemas"]["DuplicateWarning"][];
+            /**
+             * Photo Dropped
+             * @default false
+             */
+            photo_dropped: boolean;
         };
         /**
          * SurveyChange
