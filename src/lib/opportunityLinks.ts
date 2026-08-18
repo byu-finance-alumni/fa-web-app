@@ -59,6 +59,8 @@ export const URL_MAX = 2048;
 export const COMPANY_NAME_MAX = 255;
 export const CITY_MAX = 100;
 export const STATE_MAX = 100;
+/** Mirrors `location_country`'s `String(100)` on all four link schemas. */
+export const COUNTRY_MAX = 100;
 export const DETAILS_MAX = 2000;
 
 /**
@@ -200,6 +202,155 @@ export function validateOpportunityUrl(raw: string): string | null {
   return null;
 }
 
+/* --------------------------------------------- bare-domain normalisation --- */
+
+/**
+ * An RFC-3986 scheme sitting at the very front of the value: an ASCII letter
+ * followed by letters/digits/`+`/`-`/`.`, then a colon.
+ *
+ * DELIBERATELY GENEROUS. Its job is not to decide which schemes are allowed —
+ * {@link validateOpportunityUrl} does that, and it allows exactly two. Its job
+ * is to answer "might this value already be carrying a scheme?", and on that
+ * question a false POSITIVE is harmless (we leave the value alone and it faces
+ * the same door it always did) while a false NEGATIVE is the bug: it would let
+ * `https://` be glued onto something that already means something else.
+ *
+ * A consequence worth knowing: `example.com:8080/jobs` reads as scheme
+ * `example.com`, so it is left alone and then refused for having an unknown
+ * scheme. That is the conservative side of the trade, and it is the side to be
+ * on — someone who wants a port can type `https://` themselves.
+ */
+const SCHEME_RE = /^[A-Za-z][A-Za-z0-9+.-]*:/;
+
+/**
+ * Canonicalise what a human typed into the value we actually store (#441).
+ *
+ * THE RULE, in one line: trim; prefix `https://` **only** when the value
+ * carries no scheme and does not start with `/` or `\`; then run the FULL
+ * {@link validateOpportunityUrl} on the result and hand back the WHATWG
+ * parser's canonical form — or, if anything at all fails, the trimmed input
+ * exactly as typed.
+ *
+ * Every clause of that is load-bearing:
+ *
+ *  - **Only when there is no scheme.** `javascript:alert(1)`, `data:…`,
+ *    `file:///etc/passwd` and `mailto:…` all carry one, so none of them is ever
+ *    prefixed into looking like a web address. Concatenation must never turn a
+ *    refused value into an accepted one — the only thing it is allowed to
+ *    rescue is a bare hostname.
+ *  - **Not `/` or `\`.** `//evil.example` is protocol-relative and `\\host` is
+ *    the backslash differential; gluing a scheme onto either would manufacture
+ *    an authority the typist never wrote. Both stay untouched and both are
+ *    refused downstream.
+ *  - **Then the full door.** The prefixed candidate is not trusted for having
+ *    been built here: it goes through the same scheme gate, the same
+ *    backslash / `%5C` / whitespace / control / invisible-character checks, the
+ *    same embedded-credential refusal and the same length cap as anything
+ *    pasted in whole. Normalisation is an input convenience in FRONT of the
+ *    rules, never a way around them.
+ *  - **The cap is checked AFTER prefixing**, because prefixing adds eight
+ *    characters and the value that has to fit the column is the one we send.
+ *  - **Canonical form on success.** What comes back is `new URL(...).href`, so
+ *    the string stored is byte-for-byte the string the staff table will hand to
+ *    an `href`. That is why `jakegunnell.com` settles as
+ *    `https://jakegunnell.com/` and not `https://jakegunnell.com`.
+ *  - **Untouched on failure.** A value that cannot be rescued comes back as the
+ *    user typed it (trimmed), so the message they read is about what they can
+ *    see in the box, and nothing half-rewritten is ever stored.
+ *
+ * NONE OF THIS IS A SECURITY CONTROL, and the backend still refuses a bare
+ * hostname on purpose. That is exactly why the normalisation lives here: the
+ * server keeps its stricter rule as defence in depth, and the client sends it a
+ * complete, schemed URL so the two never have to argue.
+ */
+export function normalizeOpportunityUrl(raw: string): string {
+  const typed = raw.trim();
+  if (typed === "") return "";
+
+  const alreadyAddressed =
+    SCHEME_RE.test(typed) || typed.startsWith("/") || typed.startsWith("\\");
+  const candidate = alreadyAddressed ? typed : `https://${typed}`;
+
+  // The prefixed candidate earns nothing for having been built here.
+  if (validateOpportunityUrl(candidate) !== null) return typed;
+
+  // Safe: the value just passed the scheme gate, which parses before it judges.
+  const canonical = new URL(candidate).href;
+  // Canonicalising can only lengthen (a trailing "/" on a bare host), so the
+  // cap is re-checked rather than assumed. On the boundary we keep the
+  // candidate, which has already passed everything.
+  return validateOpportunityUrl(canonical) === null ? canonical : candidate;
+}
+
+/** What one URL field looks like once focus leaves it. */
+export interface OpportunityUrlSettlement {
+  /** The value to write back into the field and, later, to submit. */
+  value: string;
+  /** The message to show, or `null` when there is nothing to say. */
+  error: string | null;
+}
+
+/**
+ * The on-blur rule for a URL field: normalise, then judge the normalised value.
+ *
+ * Used by both forms so "what happens when you click away" has one definition,
+ * and used on the SUBMIT path too — a value typed and submitted with Enter,
+ * never blurred, must reach the same verdict as one the user tabbed out of.
+ *
+ * An empty field settles SILENTLY. Blur is a convenience, and "A link is
+ * required" shouted at a row someone tabbed through without filling in is the
+ * form nagging rather than helping; the submit path still requires it (see
+ * {@link validateLinkEntry} and {@link validateAddLink}, which run this and do
+ * not exempt the empty case).
+ */
+export function settleOpportunityUrl(raw: string): OpportunityUrlSettlement {
+  const value = normalizeOpportunityUrl(raw);
+  if (value === "") return { value: "", error: null };
+  return { value, error: validateOpportunityUrl(value) };
+}
+
+/* ------------------------------------------------ the deadline, in future --- */
+
+/** Today as `yyyy-mm-dd` in UTC — the `min` a date picker should offer. */
+export function todayIsoUtc(now: Date = new Date()): string {
+  return now.toISOString().slice(0, 10);
+}
+
+const DEADLINE_PAST_MESSAGE =
+  "The application deadline can't be in the past. Leave it blank if it's open until filled.";
+
+/** A `yyyy-mm-dd` value from a native date input, and nothing else. */
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Validate an application deadline. Returns a message, or `null`.
+ *
+ * MIRRORS THE SERVER EXACTLY, and the exactness is the point: **today is
+ * accepted; only a strictly earlier date is refused; the comparison is between
+ * DATES in UTC.** A client rule stricter than the server's silently refuses
+ * submissions the server would have taken, which is the worse of the two
+ * failures — so "not before today" here, never "after today".
+ *
+ * The comparison is a string comparison on purpose. `yyyy-mm-dd` sorts
+ * lexicographically in date order, and {@link todayIsoUtc} is already UTC, so
+ * there is no `Date` arithmetic to drift by a timezone offset — which is the
+ * one way this could quietly start disagreeing with the server for someone
+ * sitting west of Greenwich near midnight.
+ *
+ * Anything that is not a `yyyy-mm-dd` string passes: the native date input can
+ * only produce one or the empty string, and being LAXER than the server on a
+ * shape we do not understand is the safe direction.
+ */
+export function validateApplicationDeadline(
+  raw: string,
+  now: Date = new Date(),
+): string | null {
+  const v = raw.trim();
+  if (!v) return null;
+  if (!ISO_DATE_RE.test(v)) return null;
+  return v < todayIsoUtc(now) ? DEADLINE_PAST_MESSAGE : null;
+}
+
 /**
  * The free-text rule for company / city / state, mirroring
  * `_validate_short_text`. Returns a message, or `null`.
@@ -256,7 +407,31 @@ export type LinkEntry = {
   companyName: string;
   url: string;
   city: string;
+  /**
+   * The US state, picked from the dropdown. Only meaningful while
+   * {@link LinkEntry.isOutsideUS} is false.
+   */
   state: string;
+  /**
+   * The job is somewhere other than the United States — the US dropdown is
+   * swapped for {@link LinkEntry.region} plus {@link LinkEntry.country}.
+   */
+  isOutsideUS: boolean;
+  /**
+   * The free-text region / province, for an out-of-US opportunity. Only
+   * meaningful while {@link LinkEntry.isOutsideUS} is true.
+   *
+   * SEPARATE FROM `state` ON PURPOSE, and this is the whole answer to "what
+   * happens to what I already typed when I flip the toggle": nothing. The two
+   * modes keep their own slot, so a picked state survives a trip to out-of-US
+   * mode and back, and a typed province survives the trip the other way.
+   * Whichever slot the current mode does not use is simply not submitted (see
+   * {@link linksToSubmit}), so an abandoned value costs nothing and a
+   * mis-click destroys nothing.
+   */
+  region: string;
+  /** Free-text country, for an out-of-US opportunity. US mode implies it. */
+  country: string;
   /** `""` until the alum picks one — the server requires a real value. */
   roleType: LinkRoleType | "";
   /** `yyyy-mm-dd` from a native date input, or `""`. */
@@ -264,9 +439,25 @@ export type LinkEntry = {
   details: string;
 };
 
-/** Which fields of an entry can carry an error message. */
+/**
+ * Which fields of an entry can carry an error message.
+ *
+ * `state` covers BOTH location controls — the US dropdown and the out-of-US
+ * region box occupy the same slot on screen and only one of them is ever
+ * visible, so one message key is one message position.
+ */
 export type LinkEntryErrors = Partial<
-  Record<"companyName" | "url" | "city" | "state" | "roleType" | "details", string>
+  Record<
+    | "companyName"
+    | "url"
+    | "city"
+    | "state"
+    | "country"
+    | "roleType"
+    | "deadline"
+    | "details",
+    string
+  >
 >;
 
 let entryCounter = 0;
@@ -281,6 +472,9 @@ export function emptyLinkEntry(): LinkEntry {
     url: "",
     city: "",
     state: "",
+    isOutsideUS: false,
+    region: "",
+    country: "",
     roleType: "",
     deadline: "",
     details: "",
@@ -302,6 +496,9 @@ export function isBlankLinkEntry(entry: LinkEntry): boolean {
     !entry.url.trim() &&
     !entry.city.trim() &&
     !entry.state.trim() &&
+    !entry.isOutsideUS &&
+    !entry.region.trim() &&
+    !entry.country.trim() &&
     entry.roleType === "" &&
     !entry.deadline &&
     !entry.details.trim()
@@ -352,7 +549,10 @@ export function updateLinkEntry(
  * is ticked, and `linksToSubmit` drops the value regardless — but the rule is
  * restated here so the two can't drift into disagreeing.
  */
-export function validateLinkEntry(entry: LinkEntry): LinkEntryErrors {
+export function validateLinkEntry(
+  entry: LinkEntry,
+  now: Date = new Date(),
+): LinkEntryErrors {
   if (isBlankLinkEntry(entry)) return {};
   const errors: LinkEntryErrors = {};
 
@@ -365,20 +565,42 @@ export function validateLinkEntry(entry: LinkEntry): LinkEntryErrors {
     if (msg) errors.companyName = msg;
   }
 
-  const urlMsg = validateOpportunityUrl(entry.url);
+  // The NORMALISED url, not the raw one — a bare `jakegunnell.com` typed and
+  // submitted with Enter (never blurred) must reach the same verdict as one the
+  // alum tabbed out of, and it is the normalised value that gets sent.
+  const urlMsg = validateOpportunityUrl(normalizeOpportunityUrl(entry.url));
   if (urlMsg) errors.url = urlMsg;
 
   const cityMsg = validateShortText(entry.city, { field: "City", max: CITY_MAX });
   if (cityMsg) errors.city = cityMsg;
 
-  const stateMsg = validateShortText(entry.state, {
-    field: "State",
-    max: STATE_MAX,
-  });
-  if (stateMsg) errors.state = stateMsg;
+  // Only the location control the alum can actually see is judged. The other
+  // mode's slot is retained purely so toggling back finds it — it is never
+  // submitted, so complaining about it would be a message with no box.
+  if (entry.isOutsideUS) {
+    const regionMsg = validateShortText(entry.region, {
+      field: "Region",
+      max: STATE_MAX,
+    });
+    if (regionMsg) errors.state = regionMsg;
+    const countryMsg = validateShortText(entry.country, {
+      field: "Country",
+      max: COUNTRY_MAX,
+    });
+    if (countryMsg) errors.country = countryMsg;
+  } else {
+    const stateMsg = validateShortText(entry.state, {
+      field: "State",
+      max: STATE_MAX,
+    });
+    if (stateMsg) errors.state = stateMsg;
+  }
 
   if (entry.roleType === "")
     errors.roleType = "Choose whether this is an internship, full-time, or both.";
+
+  const deadlineMsg = validateApplicationDeadline(entry.deadline, now);
+  if (deadlineMsg) errors.deadline = deadlineMsg;
 
   const detailsMsg = validateDetails(entry.details);
   if (detailsMsg) errors.details = detailsMsg;
@@ -393,10 +615,11 @@ export function validateLinkEntry(entry: LinkEntry): LinkEntryErrors {
  */
 export function validateLinkEntries(
   entries: readonly LinkEntry[],
+  now: Date = new Date(),
 ): Record<string, LinkEntryErrors> {
   const all: Record<string, LinkEntryErrors> = {};
   for (const entry of entries) {
-    const errors = validateLinkEntry(entry);
+    const errors = validateLinkEntry(entry, now);
     if (Object.keys(errors).length > 0) all[entry.id] = errors;
   }
   return all;
@@ -423,9 +646,18 @@ export function linksToSubmit(entries: readonly LinkEntry[]): LinkSubmit[] {
     .map((e) => ({
       is_own_company: e.isOwnCompany,
       company_name: e.isOwnCompany ? null : trimmedOrNull(e.companyName),
-      url: e.url.trim(),
+      // The NORMALISED url — `jakegunnell.com` is stored as
+      // `https://jakegunnell.com/`, so what the backend validates and what the
+      // staff table later hands to an `href` are the same absolute string.
+      url: normalizeOpportunityUrl(e.url),
       location_city: trimmedOrNull(e.city),
-      location_state: trimmedOrNull(e.state),
+      // Whichever location slot the current mode owns. The other one is kept in
+      // component state so a toggle is reversible, and dropped here so a value
+      // the alum can no longer see is never quietly submitted.
+      location_state: trimmedOrNull(e.isOutsideUS ? e.region : e.state),
+      // US mode implies the country and never asks, so it sends nothing rather
+      // than inventing an answer the submitter did not give.
+      location_country: e.isOutsideUS ? trimmedOrNull(e.country) : null,
       // Never reached with `""` — `validateLinkEntry` gates on it and the submit
       // path validates before mapping. The cast keeps the wire type honest
       // rather than widening it to include a value the API would reject.
@@ -674,14 +906,27 @@ export function companyDisplay(
   };
 }
 
-/** "Provo, UT" / "Provo" / "UT" / "—" from the two nullable location columns. */
+/**
+ * "Provo, UT" / "Toronto, Ontario, Canada" / "Berlin, Germany" / "—" from the
+ * three nullable location columns.
+ *
+ * `location_country` is only ever set for an out-of-US opportunity (US mode
+ * implies the country and stores nothing), so printing it whenever it is
+ * present is exactly the extra fact a reader needs and never noise on a
+ * domestic row.
+ */
 export function locationDisplay(
-  link: Pick<OpportunityLink, "location_city" | "location_state">,
+  link: Pick<
+    OpportunityLink,
+    "location_city" | "location_state" | "location_country"
+  >,
 ): string {
-  const city = (link.location_city ?? "").trim();
-  const state = (link.location_state ?? "").trim();
-  if (city && state) return `${city}, ${state}`;
-  return city || state || EM_DASH;
+  const parts = [
+    (link.location_city ?? "").trim(),
+    (link.location_state ?? "").trim(),
+    (link.location_country ?? "").trim(),
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(", ") : EM_DASH;
 }
 
 export interface LinkTarget {
@@ -880,7 +1125,21 @@ export interface AddLinkFormValues {
   companyName: string;
   url: string;
   locationCity: string;
+  /** The US state, picked from the dropdown. Used while `isOutsideUS` is false. */
   locationState: string;
+  /** The job is somewhere other than the United States. */
+  isOutsideUS: boolean;
+  /**
+   * Free-text region / province, used while `isOutsideUS` is true.
+   *
+   * A SEPARATE slot from `locationState` for the same reason
+   * {@link LinkEntry.region} is: flipping the toggle must not strand what was
+   * already entered. Each mode keeps its own value and only the active one is
+   * submitted.
+   */
+  locationRegion: string;
+  /** Free-text country, used while `isOutsideUS` is true. */
+  locationCountry: string;
   roleType: LinkRoleType;
   applicationDeadline: string;
   details: string;
@@ -893,22 +1152,43 @@ export const EMPTY_ADD_LINK_FORM: AddLinkFormValues = {
   url: "",
   locationCity: "",
   locationState: "",
+  isOutsideUS: false,
+  locationRegion: "",
+  locationCountry: "",
   roleType: "internship",
   applicationDeadline: "",
   details: "",
 };
 
-/** Field-keyed validation errors for {@link AddLinkFormValues}. */
+/**
+ * Field-keyed validation errors for {@link AddLinkFormValues}.
+ *
+ * `locationState` carries the out-of-US region's message too — the dropdown and
+ * the region box share one position on screen, so they share one message slot.
+ */
 export type AddLinkErrors = Partial<
-  Record<"alumniId" | "companyName" | "url", string>
+  Record<
+    | "alumniId"
+    | "companyName"
+    | "url"
+    | "locationState"
+    | "locationCountry"
+    | "applicationDeadline",
+    string
+  >
 >;
 
 /**
- * Client-side validation for the staff add form. Only the three fields that can
- * be *wrong* rather than merely empty are checked here; everything else is
+ * Client-side validation for the staff add form. Only the fields that can be
+ * *wrong* rather than merely empty are checked here; everything else is
  * optional on the backend model. As always this is UX, not enforcement.
+ *
+ * `now` is injectable so the deadline rule is testable without freezing a clock.
  */
-export function validateAddLink(v: AddLinkFormValues): AddLinkErrors {
+export function validateAddLink(
+  v: AddLinkFormValues,
+  now: Date = new Date(),
+): AddLinkErrors {
   const errors: AddLinkErrors = {};
   if (v.alumniId === null) errors.alumniId = "Choose the alumnus this link is from.";
   // The checkbox and the typed name are alternatives, not both: ticking "their
@@ -916,8 +1196,26 @@ export function validateAddLink(v: AddLinkFormValues): AddLinkErrors {
   // so a typed name alongside it would be dead data.
   if (!v.isOwnCompany && v.companyName.trim() === "")
     errors.companyName = "Enter the company name, or tick their own company.";
-  const urlError = validateOpportunityUrl(v.url);
+  // The NORMALISED url — the staff form accepts `jakegunnell.com` and stores it
+  // as `https://jakegunnell.com/`, so the value judged is the value sent.
+  const urlError = validateOpportunityUrl(normalizeOpportunityUrl(v.url));
   if (urlError) errors.url = urlError;
+  // Only the location control on screen. The US dropdown cannot produce a bad
+  // value; the out-of-US pair is free text, so it faces the short-text rule.
+  if (v.isOutsideUS) {
+    const regionError = validateShortText(v.locationRegion, {
+      field: "Region",
+      max: STATE_MAX,
+    });
+    if (regionError) errors.locationState = regionError;
+    const countryError = validateShortText(v.locationCountry, {
+      field: "Country",
+      max: COUNTRY_MAX,
+    });
+    if (countryError) errors.locationCountry = countryError;
+  }
+  const deadlineError = validateApplicationDeadline(v.applicationDeadline, now);
+  if (deadlineError) errors.applicationDeadline = deadlineError;
   return errors;
 }
 
@@ -930,9 +1228,12 @@ export function toCreateBody(v: AddLinkFormValues): OpportunityLinkCreate {
     // Ticking the checkbox means the name is resolved from the employer record,
     // so we send nothing rather than a stale copy of it.
     company_name: v.isOwnCompany ? null : trimmedOrNull(v.companyName),
-    url: v.url.trim(),
+    url: normalizeOpportunityUrl(v.url),
     location_city: trimmedOrNull(v.locationCity),
-    location_state: trimmedOrNull(v.locationState),
+    location_state: trimmedOrNull(
+      v.isOutsideUS ? v.locationRegion : v.locationState,
+    ),
+    location_country: v.isOutsideUS ? trimmedOrNull(v.locationCountry) : null,
     role_type: v.roleType,
     application_deadline: trimmedOrNull(v.applicationDeadline),
     details: trimmedOrNull(v.details),
@@ -962,7 +1263,13 @@ export const ADD_LINK_LAST_STEP = ADD_LINK_STEPS.length - 1;
  */
 export const ADD_LINK_STEP_FIELDS: readonly (readonly (keyof AddLinkErrors)[])[] = [
   ["alumniId"],
-  ["companyName", "url"],
+  [
+    "companyName",
+    "url",
+    "locationState",
+    "locationCountry",
+    "applicationDeadline",
+  ],
 ];
 
 /**
@@ -976,10 +1283,11 @@ export const ADD_LINK_STEP_FIELDS: readonly (readonly (keyof AddLinkErrors)[])[]
 export function validateAddLinkStep(
   v: AddLinkFormValues,
   step: number,
+  now: Date = new Date(),
 ): AddLinkErrors {
   const fields = ADD_LINK_STEP_FIELDS[step];
   if (!fields) return {};
-  const all = validateAddLink(v);
+  const all = validateAddLink(v, now);
   const errors: AddLinkErrors = {};
   for (const field of fields) {
     const message = all[field];

@@ -9,14 +9,19 @@ import { Label } from "@/components/ui/label";
 import { Section } from "@/components/shared/form-fields";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { StateCombobox } from "@/components/alumni/StateCombobox";
 import {
   ADD_LINK_LAST_STEP,
   ADD_LINK_STEPS,
+  COUNTRY_MAX,
   EMPTY_ADD_LINK_FORM,
+  STATE_MAX,
   URL_MAX,
   ROLE_TYPES,
   ROLE_TYPE_LABELS,
   maxReachableAddLinkStep,
+  settleOpportunityUrl,
+  todayIsoUtc,
   validateAddLink,
   validateAddLinkStep,
   type AddLinkErrors,
@@ -74,6 +79,17 @@ export function AddLinkForm() {
   const [requestedStep, setRequestedStep] = useState(0);
   const ids = useId();
 
+  // Today, for the deadline picker's floor. Set after mount rather than during
+  // render: this is a client component that Next also renders on the server, and
+  // a request that straddles UTC midnight would otherwise hydrate with a `min`
+  // that disagrees with the one the server printed. The rule itself does not
+  // depend on this — `validateAddLink` re-checks against a fresh clock — so a
+  // frame without it costs nothing.
+  const [minDeadline, setMinDeadline] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    setMinDeadline(todayIsoUtc());
+  }, []);
+
   // The step actually rendered. Clamped rather than trusted: clearing the
   // chosen alumnus from step 2 must not leave the reader on a step whose whole
   // premise ("their own company") no longer has an antecedent.
@@ -84,9 +100,16 @@ export function AddLinkForm() {
   // empty, so a per-step complaint puts the cursor where the fix goes.
   const fieldRefs = useRef<Record<string, HTMLElement | null>>({});
   const focusFirstError = (found: AddLinkErrors) => {
-    const first = (["alumniId", "companyName", "url"] as const).find(
-      (f) => found[f],
-    );
+    const first = (
+      [
+        "alumniId",
+        "companyName",
+        "url",
+        "locationState",
+        "locationCountry",
+        "applicationDeadline",
+      ] as const
+    ).find((f) => found[f]);
     if (first) fieldRefs.current[first]?.focus();
   };
 
@@ -99,6 +122,32 @@ export function AddLinkForm() {
     // Next/submit, so leaving a stale message under a corrected field reads as a
     // bug.
     setErrors((prev) => ({ ...prev, [key]: undefined }));
+  };
+
+  /**
+   * The URL field, once focus leaves it.
+   *
+   * Two things happen here and both are the point. The value is NORMALISED —
+   * `jakegunnell.com` becomes `https://jakegunnell.com/`, written straight back
+   * into the box so what will be saved is what is on screen rather than a
+   * surprise discovered later in the table. And it is VALIDATED, so a bad link
+   * is named the moment the user moves on instead of surviving until Save.
+   *
+   * Blur is a convenience, not the gate: `validateAddLink` runs the identical
+   * rule on submit (and again in the server action), so a value that never lost
+   * focus is judged just the same.
+   *
+   * An empty box settles silently — "A link is required" belongs to Save, not to
+   * tabbing past a field on the way to the one below it.
+   */
+  const settleUrl = () => {
+    if (values.url.trim() === "") {
+      setErrors((prev) => ({ ...prev, url: undefined }));
+      return;
+    }
+    const { value, error } = settleOpportunityUrl(values.url);
+    setValues((prev) => (prev.url === value ? prev : { ...prev, url: value }));
+    setErrors((prev) => ({ ...prev, url: error ?? undefined }));
   };
 
   const goNext = () => {
@@ -273,6 +322,7 @@ export function AddLinkForm() {
                 }}
                 value={values.url}
                 onChange={(e) => set("url", e.target.value)}
+                onBlur={settleUrl}
                 placeholder="https://example.com/careers"
                 inputMode="url"
                 maxLength={URL_MAX}
@@ -280,34 +330,126 @@ export function AddLinkForm() {
               />
               <FieldError message={errors.url} />
               <p className="mt-1 text-xs text-gray-500">
-                Must be a full http:// or https:// address. A careers page
-                outlasts a single posting.
+                A bare domain is fine — type <code>jakegunnell.com</code> and
+                it&apos;s saved as <code>https://jakegunnell.com/</code>. A
+                careers page outlasts a single posting.
               </p>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
-              <div>
-                <Label className="mb-1.5" htmlFor={`${ids}-city`}>
-                  City
-                </Label>
-                <Input
-                  id={`${ids}-city`}
-                  value={values.locationCity}
-                  onChange={(e) => set("locationCity", e.target.value)}
-                  placeholder="e.g. Provo"
+            <fieldset className="rounded-md border border-gray-200 p-3">
+              <legend className="px-1 text-xs font-medium text-gray-700">
+                Location
+              </legend>
+              {/*
+                Text-only toggle (standing project rule), and a checkbox rather
+                than a pair of buttons because it is one binary fact about the
+                job, not a choice between two destinations.
+
+                NOTHING IS LOST EITHER WAY. The picked state and the typed
+                region live in two different slots, so flipping this back and
+                forth restores whichever one the mode owns and `toCreateBody`
+                sends only the one on screen.
+              */}
+              <label className="flex w-fit cursor-pointer items-center gap-2 text-sm text-gray-900">
+                <input
+                  type="checkbox"
+                  checked={values.isOutsideUS}
+                  onChange={(e) => {
+                    set("isOutsideUS", e.target.checked);
+                    // The controls under this changed; a message about the one
+                    // that just left the screen would have nothing to point at.
+                    setErrors((prev) => ({
+                      ...prev,
+                      locationState: undefined,
+                      locationCountry: undefined,
+                    }));
+                  }}
+                  className="h-4 w-4 rounded border-gray-300 text-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
                 />
+                Outside the United States
+              </label>
+
+              <div className="mt-3 grid gap-4 md:grid-cols-2">
+                <div>
+                  <Label className="mb-1.5" htmlFor={`${ids}-city`}>
+                    City
+                  </Label>
+                  <Input
+                    id={`${ids}-city`}
+                    value={values.locationCity}
+                    onChange={(e) => set("locationCity", e.target.value)}
+                    placeholder={
+                      values.isOutsideUS ? "e.g. Toronto" : "e.g. Provo"
+                    }
+                  />
+                </div>
+                {values.isOutsideUS ? (
+                  <div>
+                    <Label className="mb-1.5" htmlFor={`${ids}-region`}>
+                      Region or province
+                    </Label>
+                    <Input
+                      id={`${ids}-region`}
+                      ref={(el) => {
+                        fieldRefs.current.locationState = el;
+                      }}
+                      value={values.locationRegion}
+                      onChange={(e) => {
+                        set("locationRegion", e.target.value);
+                        // The region's message lives in the `locationState`
+                        // slot (the two share a position), so `set`'s
+                        // clear-on-touch would miss it.
+                        setErrors((prev) => ({
+                          ...prev,
+                          locationState: undefined,
+                        }));
+                      }}
+                      maxLength={STATE_MAX}
+                      placeholder="e.g. Ontario"
+                      aria-invalid={errors.locationState ? true : undefined}
+                    />
+                    <FieldError message={errors.locationState} />
+                  </div>
+                ) : (
+                  // The same states list the alumni Employment and Personal
+                  // forms use, so the spelling staff filter on stays one
+                  // spelling — and a dropdown takes the free-text character
+                  // rules out of play here entirely. Remounted from the stored
+                  // value on every toggle, which is what makes the round trip
+                  // lossless.
+                  <StateCombobox
+                    label="State"
+                    name={`${ids}-state`}
+                    defaultValue={values.locationState}
+                    error={errors.locationState}
+                    onType={(raw) => set("locationState", raw)}
+                    onSettle={(v) => set("locationState", v)}
+                  />
+                )}
               </div>
-              <div>
-                <Label className="mb-1.5" htmlFor={`${ids}-state`}>
-                  State
-                </Label>
-                <Input
-                  id={`${ids}-state`}
-                  value={values.locationState}
-                  onChange={(e) => set("locationState", e.target.value)}
-                  placeholder="e.g. UT"
-                />
-              </div>
+
+              {values.isOutsideUS ? (
+                <div className="mt-4 md:max-w-xs">
+                  <Label className="mb-1.5" htmlFor={`${ids}-country`}>
+                    Country
+                  </Label>
+                  <Input
+                    id={`${ids}-country`}
+                    ref={(el) => {
+                      fieldRefs.current.locationCountry = el;
+                    }}
+                    value={values.locationCountry}
+                    onChange={(e) => set("locationCountry", e.target.value)}
+                    maxLength={COUNTRY_MAX}
+                    placeholder="e.g. Canada"
+                    aria-invalid={errors.locationCountry ? true : undefined}
+                  />
+                  <FieldError message={errors.locationCountry} />
+                </div>
+              ) : null}
+            </fieldset>
+
+            <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <Label className="mb-1.5" htmlFor={`${ids}-role`}>
                   Role type
@@ -327,19 +469,27 @@ export function AddLinkForm() {
                   ))}
                 </Select>
               </div>
-            </div>
-
-            <div className="md:max-w-xs">
-              <Label className="mb-1.5" htmlFor={`${ids}-deadline`}>
-                Application deadline (optional)
-              </Label>
-              <Input
-                id={`${ids}-deadline`}
-                type="date"
-                value={values.applicationDeadline}
-                onChange={(e) => set("applicationDeadline", e.target.value)}
-                style={{ colorScheme: "light" }}
-              />
+              <div>
+                <Label className="mb-1.5" htmlFor={`${ids}-deadline`}>
+                  Application deadline (optional)
+                </Label>
+                <Input
+                  id={`${ids}-deadline`}
+                  ref={(el) => {
+                    fieldRefs.current.applicationDeadline = el;
+                  }}
+                  type="date"
+                  value={values.applicationDeadline}
+                  // Discourages a past date in the picker itself. The rule is
+                  // enforced by `validateAddLink`, which mirrors the server:
+                  // today is fine, only earlier is refused.
+                  min={minDeadline}
+                  onChange={(e) => set("applicationDeadline", e.target.value)}
+                  style={{ colorScheme: "light" }}
+                  aria-invalid={errors.applicationDeadline ? true : undefined}
+                />
+                <FieldError message={errors.applicationDeadline} />
+              </div>
             </div>
 
             <div>

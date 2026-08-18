@@ -74,6 +74,16 @@ import {
   type LinkEntry,
 } from "./opportunityLinks";
 
+// --- from the owner's four form changes (#441 follow-up) ---
+import {
+  COUNTRY_MAX,
+  STATE_MAX,
+  normalizeOpportunityUrl,
+  settleOpportunityUrl,
+  todayIsoUtc,
+  validateApplicationDeadline,
+} from "./opportunityLinks";
+
 
 /**
  * The alum-facing opportunity-link form (#441).
@@ -437,6 +447,8 @@ describe("linksToSubmit", () => {
         url: "https://careers.example.com/jobs/1",
         location_city: "Provo",
         location_state: "Utah",
+        // US mode implies the country and never asks, so nothing is invented.
+        location_country: null,
         role_type: "both",
         application_deadline: "2027-01-15",
         details: "Summer analyst",
@@ -526,6 +538,7 @@ function link(overrides: Partial<OpportunityLink> = {}): OpportunityLink {
     url: "https://example.com/careers",
     location_city: "Provo",
     location_state: "UT",
+    location_country: null,
     role_type: "internship",
     application_deadline: null,
     details: null,
@@ -1548,5 +1561,639 @@ describe("the engineer console picks links.delete up on its own", () => {
     expect(src).toContain("matrix.capabilities.filter((c) => c.assignable)");
     expect(src).not.toContain("links.delete");
     expect(src).not.toContain("CAPABILITY");
+  });
+});
+
+/* ==================================================================== *
+ * The owner's four form changes (#441 follow-up)
+ *
+ * Ordered by how much damage getting them wrong would do:
+ *
+ *  1. `normalizeOpportunityUrl` — the only one of the four that touches the
+ *     value we STORE, and therefore the only one with a security story. It
+ *     exists so a bare `jakegunnell.com` reaches the backend as a complete
+ *     `https://` URL, because the backend still refuses bare hostnames on
+ *     purpose and we are not relaxing it. Everything below is about the one
+ *     thing that must never happen: concatenation turning a value the rules
+ *     REFUSE into a value they ACCEPT. A bare hostname is the single exception,
+ *     and it is the exception the owner asked for.
+ *  2. The deadline rule, which must mirror the server EXACTLY — today accepted,
+ *     strictly earlier refused, compared as dates in UTC. Stricter than the
+ *     server is the worse failure: it silently refuses what the server would
+ *     have taken.
+ *  3. The two-slot location model, whose whole job is that flipping the
+ *     out-of-US toggle strands nothing.
+ * ==================================================================== */
+
+describe("normalizeOpportunityUrl: the bare-domain rescue", () => {
+  it("prefixes a bare domain and hands back the canonical form", () => {
+    // The owner's example, verbatim.
+    expect(normalizeOpportunityUrl("jakegunnell.com")).toBe(
+      "https://jakegunnell.com/",
+    );
+  });
+
+  it("keeps the path, query and fragment of a bare domain", () => {
+    expect(normalizeOpportunityUrl("jakegunnell.com/careers")).toBe(
+      "https://jakegunnell.com/careers",
+    );
+    expect(normalizeOpportunityUrl("careers.example.com/jobs/1234?src=alum")).toBe(
+      "https://careers.example.com/jobs/1234?src=alum",
+    );
+    expect(normalizeOpportunityUrl("example.com/a#apply")).toBe(
+      "https://example.com/a#apply",
+    );
+  });
+
+  it("trims, and normalises host casing the way the browser will", () => {
+    expect(normalizeOpportunityUrl("  JakeGunnell.COM/Careers  ")).toBe(
+      "https://jakegunnell.com/Careers",
+    );
+  });
+
+  it("leaves an already-schemed http(s) URL addressed as it was", () => {
+    expect(normalizeOpportunityUrl("https://careers.example.com/jobs/1")).toBe(
+      "https://careers.example.com/jobs/1",
+    );
+    expect(normalizeOpportunityUrl("http://jobs.example.org/apply")).toBe(
+      "http://jobs.example.org/apply",
+    );
+    // Canonicalising a bare host adds the empty path — the browser's own form.
+    expect(normalizeOpportunityUrl("https://example.com")).toBe(
+      "https://example.com/",
+    );
+  });
+
+  it("is idempotent — settling a settled value changes nothing", () => {
+    const once = normalizeOpportunityUrl("jakegunnell.com");
+    expect(normalizeOpportunityUrl(once)).toBe(once);
+  });
+
+  it("returns an empty string for an empty or whitespace-only value", () => {
+    expect(normalizeOpportunityUrl("")).toBe("");
+    expect(normalizeOpportunityUrl("   ")).toBe("");
+  });
+
+  /* ---- the part that must not be got wrong ---- */
+
+  it("NEVER prefixes a value that already carries a scheme", () => {
+    // Each of these is refused today. Prefixing any of them would dress it up
+    // as a web address; the rule is that concatenation may only ever rescue a
+    // bare hostname.
+    for (const bad of [
+      "javascript:alert(1)",
+      "JaVaScRiPt:alert(1)",
+      "data:text/html,<script>alert(1)</script>",
+      "DATA:text/html;base64,PHNjcmlwdD4=",
+      "file:///etc/passwd",
+      "vbscript:msgbox(1)",
+      "mailto:jobs@example.com",
+      "tel:+18015551234",
+      "blob:https://example.com/1234",
+    ]) {
+      expect(normalizeOpportunityUrl(bad), bad).toBe(bad);
+      expect(
+        validateOpportunityUrl(normalizeOpportunityUrl(bad)),
+        bad,
+      ).not.toBeNull();
+    }
+  });
+
+  it("does not launder a scheme that only LOOKS broken", () => {
+    // `java\nscript:` has no scheme as far as the regex is concerned, so it IS
+    // prefixed — and then refused for the raw newline, which is the whole point
+    // of running the full rule on the result instead of trusting the prefix.
+    expect(
+      validateOpportunityUrl(normalizeOpportunityUrl("java\nscript:alert(1)")),
+    ).not.toBeNull();
+    expect(
+      validateOpportunityUrl(
+        normalizeOpportunityUrl("javascript:alert(1)"),
+      ),
+    ).not.toBeNull();
+  });
+
+  it("refuses to prefix a protocol-relative or slash-led value", () => {
+    // Not academic: `https://` + `//evil.example` parses to
+    // `https://evil.example/` in a WHATWG parser, so gluing would MANUFACTURE
+    // an authority out of a value that is refused today. Same for backslashes.
+    expect(new URL("https:////evil.example").href).toBe("https://evil.example/");
+    for (const bad of [
+      "//evil.example/jobs",
+      "/jobs/1234",
+      "\\\\evil.example\\share",
+      "\\evil.example",
+    ]) {
+      expect(normalizeOpportunityUrl(bad), bad).toBe(bad);
+      expect(
+        validateOpportunityUrl(normalizeOpportunityUrl(bad)),
+        bad,
+      ).not.toBeNull();
+    }
+  });
+
+  it("still refuses backslashes and %5C once prefixed", () => {
+    for (const bad of [
+      "evil.example\\@acme.example/jobs",
+      "evil.example%5C@acme.example/jobs",
+      "evil.example%5c@acme.example/jobs",
+    ]) {
+      expect(
+        validateOpportunityUrl(normalizeOpportunityUrl(bad)),
+        bad,
+      ).not.toBeNull();
+    }
+  });
+
+  it("still refuses whitespace, control and invisible characters once prefixed", () => {
+    for (const bad of [
+      "example .com/jobs",
+      "example.com/jobs 1234",
+      "example.com/jobs\t1",
+      "exa​mple.com",
+      "example.com/‮jobs",
+      "example.com/",
+    ]) {
+      expect(
+        validateOpportunityUrl(normalizeOpportunityUrl(bad)),
+        bad,
+      ).not.toBeNull();
+    }
+  });
+
+  it("still refuses embedded credentials once prefixed", () => {
+    // Reads as acme.example to a staff member scanning the queue, resolves at
+    // evil.example. Bare-domain shape, so it IS prefixed — and then refused.
+    for (const bad of [
+      "acme.example@evil.example/jobs",
+      "www.acme.example@evil.example/jobs",
+    ]) {
+      expect(
+        validateOpportunityUrl(normalizeOpportunityUrl(bad)),
+        bad,
+      ).not.toBeNull();
+    }
+    // With a colon it reads as a scheme (`user:`), so it is not prefixed at all
+    // — and is refused for the unknown scheme instead. Either door, same answer.
+    expect(normalizeOpportunityUrl("user:pw@evil.example/jobs")).toBe(
+      "user:pw@evil.example/jobs",
+    );
+    expect(
+      validateOpportunityUrl(
+        normalizeOpportunityUrl("user:pw@evil.example/jobs"),
+      ),
+    ).not.toBeNull();
+  });
+
+  it("still refuses a bare label with no dot in it", () => {
+    for (const bad of ["localhost", "intranet", "localhost/jobs"]) {
+      expect(normalizeOpportunityUrl(bad), bad).toBe(bad);
+      expect(
+        validateOpportunityUrl(normalizeOpportunityUrl(bad)),
+        bad,
+      ).not.toBeNull();
+    }
+  });
+
+  it("checks the length cap against the FINAL string, not the typed one", () => {
+    // Prefixing adds eight characters, so a value that fits before it can stop
+    // fitting after it. The column is what has to hold the result.
+    const underBefore = `e.com/${"a".repeat(URL_MAX - 6)}`;
+    expect(underBefore).toHaveLength(URL_MAX);
+    // Prefixed it busts the column, so the rescue is declined...
+    expect(validateOpportunityUrl(`https://${underBefore}`)).toBe(
+      `Must be ${URL_MAX} characters or fewer.`,
+    );
+    // ...and the value comes back exactly as typed, still refused.
+    expect(normalizeOpportunityUrl(underBefore)).toBe(underBefore);
+    expect(
+      validateOpportunityUrl(normalizeOpportunityUrl(underBefore)),
+    ).not.toBeNull();
+
+    // One that lands exactly on the cap after prefixing is accepted.
+    const exact = `e.com/${"a".repeat(URL_MAX - 8 - 6)}`;
+    const normalised = normalizeOpportunityUrl(exact);
+    expect(normalised).toHaveLength(URL_MAX);
+    expect(validateOpportunityUrl(normalised)).toBeNull();
+  });
+
+  it("does not let CANONICALISING push a value over the cap", () => {
+    // A bare host has no path, so `new URL(...).href` adds a "/" and grows the
+    // string by one. On the boundary that would produce something the server
+    // refuses, so the pre-canonical form — which already passed everything —
+    // is what comes back.
+    const host = `${"a".repeat(60)}.`.repeat(33) + `${"a".repeat(23)}.com`;
+    const candidate = `https://${host}`;
+    expect(candidate).toHaveLength(URL_MAX);
+    expect(new URL(candidate).href).toHaveLength(URL_MAX + 1);
+
+    const normalised = normalizeOpportunityUrl(host);
+    expect(normalised).toBe(candidate);
+    expect(validateOpportunityUrl(normalised)).toBeNull();
+  });
+
+  it("the invariant, stated once: it either changes nothing or produces something valid", () => {
+    // The single property that makes this safe to run over arbitrary input.
+    // Anything it REWRITES has been through the whole door; anything it could
+    // not rescue comes back exactly as typed (trimmed), so the message the user
+    // reads is about the text still in their box.
+    for (const raw of [
+      "jakegunnell.com",
+      "jakegunnell.com/careers?x=1",
+      "https://example.com",
+      "http://example.com/a",
+      "javascript:alert(1)",
+      "data:text/html,x",
+      "//evil.example",
+      "\\evil.example",
+      "acme.example@evil.example/jobs",
+      "localhost",
+      "example .com",
+      "",
+      "   ",
+      "not a url at all",
+      "?",
+      "...",
+      "https://",
+    ]) {
+      const out = normalizeOpportunityUrl(raw);
+      if (out === raw.trim()) continue;
+      expect(validateOpportunityUrl(out), raw).toBeNull();
+    }
+  });
+
+  it("what is stored is exactly what becomes the href", () => {
+    // The reason canonicalisation happens at all: the staff table runs
+    // `linkTarget` over the STORED string, and a stored value that differs from
+    // its own href is a value we validated in one form and rendered in another.
+    for (const raw of [
+      "jakegunnell.com",
+      "jakegunnell.com/careers",
+      "JakeGunnell.com",
+      "https://example.com",
+      "https://careers.example.com/jobs/1?a=b#c",
+      "http://jobs.example.org/apply",
+    ]) {
+      const stored = normalizeOpportunityUrl(raw);
+      expect(validateOpportunityUrl(stored), raw).toBeNull();
+      expect(linkTarget(stored).href, raw).toBe(stored);
+    }
+  });
+});
+
+describe("settleOpportunityUrl: what blur does", () => {
+  it("hands back the normalised value and no complaint for a bare domain", () => {
+    expect(settleOpportunityUrl("jakegunnell.com")).toEqual({
+      value: "https://jakegunnell.com/",
+      error: null,
+    });
+  });
+
+  it("says nothing about an empty box", () => {
+    // Blur is a convenience. "A link is required" belongs to submit, not to
+    // tabbing past a row on the way to the one below it.
+    expect(settleOpportunityUrl("")).toEqual({ value: "", error: null });
+    expect(settleOpportunityUrl("   ")).toEqual({ value: "", error: null });
+  });
+
+  it("complains about a value it could not rescue, leaving the text alone", () => {
+    const settled = settleOpportunityUrl("javascript:alert(1)");
+    expect(settled.value).toBe("javascript:alert(1)");
+    expect(settled.error).toBe(validateOpportunityUrl("javascript:alert(1)"));
+  });
+
+  it("agrees with the submit path, always", () => {
+    // Blur validation is a convenience layered ON the submit check, never a
+    // replacement — so the two must never reach different verdicts.
+    for (const raw of [
+      "jakegunnell.com",
+      "https://example.com/jobs",
+      "javascript:alert(1)",
+      "localhost",
+      "acme.example@evil.example/jobs",
+    ]) {
+      const settled = settleOpportunityUrl(raw);
+      const onSubmit = validateLinkEntry(entry({ url: raw })).url ?? null;
+      expect(settled.error, raw).toBe(onSubmit);
+    }
+  });
+});
+
+describe("the application deadline must not be in the past", () => {
+  // Mid-UTC-day so the fixture itself is never the ambiguous part.
+  const now = new Date("2026-08-17T12:00:00Z");
+
+  it("accepts TODAY — the server does, and stricter is the worse failure", () => {
+    expect(validateApplicationDeadline("2026-08-17", now)).toBeNull();
+  });
+
+  it("refuses a strictly earlier date", () => {
+    expect(validateApplicationDeadline("2026-08-16", now)).toBeTruthy();
+    expect(validateApplicationDeadline("2019-01-01", now)).toBeTruthy();
+  });
+
+  it("accepts a future date", () => {
+    expect(validateApplicationDeadline("2026-08-18", now)).toBeNull();
+    expect(validateApplicationDeadline("2030-12-31", now)).toBeNull();
+  });
+
+  it("treats a blank deadline as fine — the field is optional", () => {
+    expect(validateApplicationDeadline("", now)).toBeNull();
+    expect(validateApplicationDeadline("   ", now)).toBeNull();
+  });
+
+  it("stays LAXER than the server on a shape it does not understand", () => {
+    // The native date input can only produce yyyy-mm-dd or "". Anything else
+    // arrived some other way; refusing it here could block a value the server
+    // would have taken, so it is passed through for the server to judge.
+    expect(validateApplicationDeadline("not a date", now)).toBeNull();
+    expect(validateApplicationDeadline("08/16/2026", now)).toBeNull();
+  });
+
+  it("compares dates in UTC, with no timezone arithmetic to drift", () => {
+    // Late-UTC-evening "now": the boundary a Date-based comparison gets wrong
+    // for anyone west of Greenwich. Today is still today.
+    const lateUtc = new Date("2026-08-17T23:59:59Z");
+    expect(todayIsoUtc(lateUtc)).toBe("2026-08-17");
+    expect(validateApplicationDeadline("2026-08-17", lateUtc)).toBeNull();
+    expect(validateApplicationDeadline("2026-08-16", lateUtc)).toBeTruthy();
+
+    const earlyUtc = new Date("2026-08-17T00:00:00Z");
+    expect(todayIsoUtc(earlyUtc)).toBe("2026-08-17");
+    expect(validateApplicationDeadline("2026-08-17", earlyUtc)).toBeNull();
+  });
+
+  it("is enforced on both forms, from the one rule", () => {
+    expect(
+      validateLinkEntry(entry({ deadline: "2026-08-16" }), now).deadline,
+    ).toBe(validateApplicationDeadline("2026-08-16", now));
+    expect(
+      validateLinkEntry(entry({ deadline: "2026-08-17" }), now).deadline,
+    ).toBeUndefined();
+
+    const staff = {
+      ...EMPTY_ADD_LINK_FORM,
+      alumniId: 42,
+      companyName: "Zions Bancorporation",
+      url: "https://example.com/careers",
+    };
+    expect(
+      validateAddLink({ ...staff, applicationDeadline: "2026-08-16" }, now)
+        .applicationDeadline,
+    ).toBeTruthy();
+    expect(
+      validateAddLink({ ...staff, applicationDeadline: "2026-08-17" }, now)
+        .applicationDeadline,
+    ).toBeUndefined();
+  });
+
+  it("belongs to step 2 of the staff wizard, where the field is", () => {
+    const values = {
+      ...EMPTY_ADD_LINK_FORM,
+      alumniId: 42,
+      companyName: "Zions Bancorporation",
+      url: "https://example.com/careers",
+      applicationDeadline: "2026-08-16",
+    };
+    expect(validateAddLinkStep(values, 0, now)).toEqual({});
+    expect(validateAddLinkStep(values, 1, now).applicationDeadline).toBeTruthy();
+  });
+});
+
+describe("both forms accept a bare domain, and store the schemed one", () => {
+  it("the alum-facing form validates the NORMALISED url", () => {
+    // Typed and submitted with Enter, never blurred: the verdict must be the
+    // same one blur would have reached.
+    expect(
+      validateLinkEntry(entry({ url: "jakegunnell.com" })).url,
+    ).toBeUndefined();
+    expect(
+      validateLinkEntry(entry({ url: "javascript:alert(1)" })).url,
+    ).toBeTruthy();
+    expect(validateLinkEntry(entry({ url: "" })).url).toBe("A link is required.");
+  });
+
+  it("the staff form validates the NORMALISED url", () => {
+    const staff = {
+      ...EMPTY_ADD_LINK_FORM,
+      alumniId: 42,
+      companyName: "Zions Bancorporation",
+    };
+    expect(
+      validateAddLink({ ...staff, url: "jakegunnell.com" }).url,
+    ).toBeUndefined();
+    expect(
+      validateAddLink({ ...staff, url: "javascript:alert(1)" }).url,
+    ).toBeTruthy();
+  });
+
+  it("both wire mappers send the schemed value, never the typed one", () => {
+    const [wire] = linksToSubmit([entry({ url: "  jakegunnell.com  " })]);
+    expect(wire.url).toBe("https://jakegunnell.com/");
+
+    const body = toCreateBody({
+      ...EMPTY_ADD_LINK_FORM,
+      alumniId: 42,
+      url: "jakegunnell.com/careers",
+    });
+    expect(body.url).toBe("https://jakegunnell.com/careers");
+  });
+});
+
+describe("the out-of-US location toggle strands nothing", () => {
+  const usEntry = entry({ state: "Utah", city: "Provo" });
+
+  it("submits the US state while the toggle is off", () => {
+    const [wire] = linksToSubmit([usEntry]);
+    expect(wire.location_state).toBe("Utah");
+    expect(wire.location_country).toBeNull();
+  });
+
+  it("keeps the picked state when the toggle goes on, and restores it", () => {
+    // The two modes own two different slots, so this is a round trip, not a
+    // rewrite: nothing was overwritten on the way out and nothing needs
+    // reconstructing on the way back.
+    const abroad: LinkEntry = {
+      ...usEntry,
+      isOutsideUS: true,
+      region: "Ontario",
+      country: "Canada",
+    };
+    expect(abroad.state).toBe("Utah");
+
+    const [wire] = linksToSubmit([abroad]);
+    expect(wire.location_state).toBe("Ontario");
+    expect(wire.location_country).toBe("Canada");
+
+    const [back] = linksToSubmit([{ ...abroad, isOutsideUS: false }]);
+    expect(back.location_state).toBe("Utah");
+    expect(back.location_country).toBeNull();
+  });
+
+  it("does the same on the staff form", () => {
+    const base = {
+      ...EMPTY_ADD_LINK_FORM,
+      alumniId: 42,
+      companyName: "Acme",
+      url: "https://example.com/careers",
+      locationState: "Utah",
+      locationRegion: "Bavaria",
+      locationCountry: "Germany",
+    };
+    expect(toCreateBody(base)).toMatchObject({
+      location_state: "Utah",
+      location_country: null,
+    });
+    expect(toCreateBody({ ...base, isOutsideUS: true })).toMatchObject({
+      location_state: "Bavaria",
+      location_country: "Germany",
+    });
+  });
+
+  it("only complains about the control that is on screen", () => {
+    // A message about a box the user cannot see is a message they cannot act on.
+    const bad = "=cmd|'/c calc'!A1";
+    expect(
+      validateLinkEntry(entry({ isOutsideUS: false, region: bad, country: bad })),
+    ).toMatchObject({});
+    const abroad = validateLinkEntry(
+      entry({ isOutsideUS: true, region: bad, country: bad }),
+    );
+    expect(abroad.state).toBeTruthy();
+    expect(abroad.country).toBeTruthy();
+  });
+
+  it("caps the region and country at the column widths", () => {
+    expect(STATE_MAX).toBe(100);
+    expect(COUNTRY_MAX).toBe(100);
+    const long = "a".repeat(COUNTRY_MAX + 1);
+    expect(
+      validateLinkEntry(entry({ isOutsideUS: true, country: long })).country,
+    ).toBe(`Must be ${COUNTRY_MAX} characters or fewer.`);
+    expect(
+      validateAddLink({
+        ...EMPTY_ADD_LINK_FORM,
+        alumniId: 1,
+        companyName: "Acme",
+        url: "https://example.com/a",
+        isOutsideUS: true,
+        locationCountry: long,
+      }).locationCountry,
+    ).toBeTruthy();
+  });
+
+  it("a row carrying only out-of-US answers is not 'blank'", () => {
+    // A blank row is DROPPED unvalidated. If the new fields were left out of
+    // that check, someone who filled in nothing but a country would have their
+    // entry silently discarded.
+    expect(isBlankLinkEntry({ ...emptyLinkEntry(), country: "Canada" })).toBe(
+      false,
+    );
+    expect(isBlankLinkEntry({ ...emptyLinkEntry(), region: "Ontario" })).toBe(
+      false,
+    );
+    expect(isBlankLinkEntry({ ...emptyLinkEntry(), isOutsideUS: true })).toBe(
+      false,
+    );
+    expect(isBlankLinkEntry(emptyLinkEntry())).toBe(true);
+  });
+
+  it("the staff list prints the country when there is one", () => {
+    expect(
+      locationDisplay(
+        link({
+          location_city: "Toronto",
+          location_state: "Ontario",
+          location_country: "Canada",
+        }),
+      ),
+    ).toBe("Toronto, Ontario, Canada");
+    expect(
+      locationDisplay(
+        link({
+          location_city: null,
+          location_state: null,
+          location_country: "Japan",
+        }),
+      ),
+    ).toBe("Japan");
+    // A domestic row is unchanged — US mode stores no country, so there is
+    // nothing extra to print.
+    expect(locationDisplay(link())).toBe("Provo, UT");
+  });
+});
+
+describe("the two forms wire the same rules to the same controls", () => {
+  it("both import the one normalisation helper rather than re-deriving it", () => {
+    for (const path of [
+      "src/components/links/AddLinkForm.tsx",
+      "src/components/survey/survey-screens.tsx",
+    ]) {
+      const src = read(path);
+      expect(src, path).toContain("settleOpportunityUrl");
+      expect(src, path).toContain('from "@/lib/opportunityLinks"');
+      // The rule itself must never be re-spelled inside a component.
+      expect(src, path).not.toContain('"https://" +');
+      expect(src, path).not.toContain("`https://${");
+    }
+  });
+
+  it("both validate the URL on blur, not only on save", () => {
+    expect(read("src/components/links/AddLinkForm.tsx")).toContain(
+      "onBlur={settleUrl}",
+    );
+    expect(read("src/components/survey/survey-screens.tsx")).toContain(
+      "onBlur={settleUrl}",
+    );
+  });
+
+  it("both floor the deadline picker at today", () => {
+    for (const path of [
+      "src/components/links/AddLinkForm.tsx",
+      "src/components/survey/survey-screens.tsx",
+    ]) {
+      const src = read(path);
+      expect(src, path).toContain("todayIsoUtc");
+      expect(src, path).toContain("min={minDeadline}");
+    }
+  });
+
+  it("the staff form reuses the shared states control, not a new list", () => {
+    const src = read("src/components/links/AddLinkForm.tsx");
+    expect(src).toContain('from "@/components/alumni/StateCombobox"');
+    expect(src).toContain("<StateCombobox");
+  });
+
+  it("the survey keeps its native state dropdown over the shared list", () => {
+    const src = read("src/components/survey/survey-screens.tsx");
+    expect(src).toContain('from "@/lib/geo/state-field"');
+    expect(src).toContain("options={STATE_NAMES}");
+  });
+
+  it("the out-of-US toggle is text, on both forms", () => {
+    for (const path of [
+      "src/components/links/AddLinkForm.tsx",
+      "src/components/survey/survey-screens.tsx",
+    ]) {
+      expect(read(path), path).toMatch(/outside the United States/i);
+    }
+    // The staff form has no icon set at all — the standing project rule.
+    const staff = read("src/components/links/AddLinkForm.tsx");
+    expect(staff).not.toContain("lucide-react");
+    expect(staff).not.toMatch(/<svg/);
+  });
+});
+
+describe("opportunity links stay OUT of the survey's three-list machinery", () => {
+  it("the new fields introduce no `table.column` survey field", () => {
+    // The parity suite binds the form list, the email picker and the sample
+    // record together on `table.column` keys. Links are rows in their own table
+    // posted to their own endpoint, so a location country here must never
+    // become a survey field — that is what would make the staff email offer
+    // "the opportunity link we have on file", which is not a thing that exists.
+    const src = read("src/components/survey/survey-screens.tsx");
+    expect(src).not.toContain('"links.location_country"');
+    expect(src).not.toContain('"links.state"');
+    expect(read("src/lib/sampleAlumni.ts")).not.toContain("location_country");
   });
 });
