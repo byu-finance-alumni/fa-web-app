@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import type {
   DonationImportPreview,
   DonationImportResult,
@@ -18,9 +18,12 @@ import {
   FAILED_ROWS_UNAVAILABLE,
   FAILED_ROWS_UNREADABLE,
   REASON_COLUMN_NOTE,
+  REASON_COLUMN_NOTE_PREVIEW,
   buildFailedRowsCsv,
+  previewRejects,
   unmatchedNote,
 } from "@/lib/importFailures";
+import type { ImportRejectLike } from "@/lib/importFailures";
 
 type Step = "upload" | "review" | "result";
 
@@ -73,6 +76,18 @@ export function DonationsImportWizard() {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  /** The preview rows that will NOT import, in reject shape (#693). */
+  const previewSkips = useMemo<ImportRejectLike[]>(
+    () => (preview ? previewRejects(preview.rows) : []),
+    [preview],
+  );
+
+  /** Clear any note/error left over from the other step's download. */
+  const clearFailedRowsFeedback = () => {
+    setFailedRowsError(null);
+    setFailedRowsNote(null);
+  };
+
   const pickFile = (next: File | null) => {
     setPreview(null);
     setPreviewError(null);
@@ -97,6 +112,7 @@ export function DonationsImportWizard() {
   const onCheck = () => {
     if (!file) return;
     setPreviewError(null);
+    clearFailedRowsFeedback();
     startChecking(async () => {
       const res = await previewDonationsImport(fileForm(file));
       if (res.ok) {
@@ -111,6 +127,7 @@ export function DonationsImportWizard() {
   const onImport = () => {
     if (!file) return;
     setImportError(null);
+    clearFailedRowsFeedback();
     startImporting(async () => {
       const res = await commitDonationsImport(fileForm(file));
       if (res.ok) {
@@ -132,29 +149,47 @@ export function DonationsImportWizard() {
   };
 
   /**
-   * Download ONLY the skipped rows, in the shape the donations importer will
-   * read back (#693). Rebuilt in the browser from `file`, because the commit
-   * result carries a row number and a reason but not the row's values.
+   * Download ONLY the rows that will not import, in the shape the donations
+   * importer will read back (#693). Rebuilt in the browser from `file`, because
+   * neither the commit result nor the preview report carries the row's values.
+   *
+   * Shared by the review and result steps so the two downloads cannot drift.
    */
-  const onDownloadFailedRows = async () => {
-    if (!result || result.rejects.length === 0 || !file) return;
+  const downloadFailedRows = async (
+    rejects: readonly ImportRejectLike[],
+    filename: string,
+  ) => {
+    if (rejects.length === 0 || !file) return;
     setFailedRowsError(null);
     setFailedRowsNote(null);
     setBuildingFailedRows(true);
     try {
-      const built = buildFailedRowsCsv(await file.text(), result.rejects);
+      const built = buildFailedRowsCsv(await file.text(), rejects);
       if (!built.csv) {
         setFailedRowsError(FAILED_ROWS_UNAVAILABLE);
         return;
       }
       setFailedRowsNote(unmatchedNote(built));
-      downloadCsvFile("donations-import-failed-rows.csv", built.csv);
+      downloadCsvFile(filename, built.csv);
     } catch {
       // Generic on purpose — nothing the File API threw belongs on screen.
       setFailedRowsError(FAILED_ROWS_UNREADABLE);
     } finally {
       setBuildingFailedRows(false);
     }
+  };
+
+  /** The same download at the REVIEW step, before anything has been written. */
+  const onDownloadPreviewFailedRows = () => {
+    void downloadFailedRows(previewSkips, "donations-import-rows-to-fix.csv");
+  };
+
+  const onDownloadFailedRows = () => {
+    if (!result) return;
+    void downloadFailedRows(
+      result.rejects,
+      "donations-import-failed-rows.csv",
+    );
   };
 
   return (
@@ -341,6 +376,56 @@ export function DonationsImportWizard() {
                 </tbody>
               </table>
             </Card>
+          )}
+
+          {/*
+            The failed-row download, offered BEFORE the import runs (#693).
+            Future tense on purpose: these rows have not been skipped yet.
+          */}
+          {preview.columns_ok && previewSkips.length > 0 && (
+            <div className="rounded-lg border border-warning-600/30 bg-warning-50 p-4">
+              <p className="text-sm font-semibold text-warning-600">
+                {previewSkips.length} row
+                {previewSkips.length === 1 ? "" : "s"} will be skipped if you
+                import now
+              </p>
+              <p className="mt-1 text-sm text-gray-700">
+                Nothing has been imported yet. Download just these rows, fix
+                them, and upload that file — or import the{" "}
+                {preview.summary.importable} good row
+                {preview.summary.importable === 1 ? "" : "s"} now and come back
+                to the rest.
+              </p>
+              <div className="mt-4">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={onDownloadPreviewFailedRows}
+                  disabled={file === null || buildingFailedRows}
+                >
+                  {buildingFailedRows
+                    ? "Preparing…"
+                    : `Download the ${previewSkips.length} row${
+                        previewSkips.length === 1 ? "" : "s"
+                      } that will be skipped (CSV)`}
+                </Button>
+                <p className="mt-2 max-w-2xl text-xs text-gray-600">
+                  {file !== null
+                    ? REASON_COLUMN_NOTE_PREVIEW
+                    : "The uploaded file is no longer in this page, so those rows can't be rebuilt. The reasons in the table above list every one."}
+                </p>
+                {failedRowsNote && (
+                  <p className="mt-1 max-w-2xl text-xs text-gray-700">
+                    {failedRowsNote}
+                  </p>
+                )}
+                {failedRowsError && (
+                  <p className="mt-1 max-w-2xl text-xs text-danger-600">
+                    {failedRowsError}
+                  </p>
+                )}
+              </div>
+            </div>
           )}
 
           {importError && (

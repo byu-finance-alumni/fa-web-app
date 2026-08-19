@@ -6,6 +6,7 @@ import {
   buildFailedRowsCsv,
   buildPhotoFailuresCsv,
   photoFailureRows,
+  previewRejects,
   unmatchedNote,
 } from "@/lib/importFailures";
 import type { HeadshotBulkItem, SkippedFile } from "@/lib/photoImport";
@@ -163,6 +164,133 @@ describe("buildFailedRowsCsv", () => {
       const csv = buildFailedRowsCsv("A\r\n-5", [{ row: 2, reason: "x" }]).csv!;
       expect(parseCsv(csv)[1][0].trim()).toBe("-5");
     });
+  });
+});
+
+/* --------------------------------------------------------- preview adapter --- */
+
+describe("previewRejects", () => {
+  it("keeps only the rows that will not import", () => {
+    expect(
+      previewRejects([
+        { row: 2, name: "Jane Smith", status: "importable" },
+        {
+          row: 3,
+          name: "Bob Jones",
+          status: "rejected",
+          blockers: [{ message: "Duplicate BYU ID" }],
+        },
+      ]),
+    ).toEqual([{ row: 3, name: "Bob Jones", reason: "Duplicate BYU ID" }]);
+  });
+
+  it("EXCLUDES a warning-only row, which still imports", () => {
+    // The whole trap: warnings never change `status`
+    // (`status = "rejected" if blockers else "importable"`), so a warned row
+    // imports fine and must not appear in a "fix these" download.
+    expect(
+      previewRejects([
+        {
+          row: 2,
+          name: "Jane Smith",
+          status: "importable",
+          warnings: [{ message: "Possible duplicate of #41" }],
+        },
+        {
+          row: 3,
+          name: "Cara Wong",
+          status: "importable",
+          blockers: [],
+          error: null,
+        },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("treats ANY status that is not `importable` as a row that will not import", () => {
+    // The commit loops decide with `if evaluated["status"] != "importable"`,
+    // so a status the backend adds later must land in the download rather than
+    // slipping through a `status === "rejected"` test.
+    const out = previewRejects([
+      { row: 2, status: "rejected", blockers: [{ message: "Bad year" }] },
+      { row: 3, status: "some_future_status" },
+      { row: 4, status: "importable" },
+    ]);
+    expect(out.map((r) => r.row)).toEqual([2, 3]);
+  });
+
+  it("prefers the row's error over its first blocker, mirroring the backend", () => {
+    expect(
+      previewRejects([
+        {
+          row: 2,
+          status: "rejected",
+          error: "Grad Year: not a number.",
+          blockers: [{ message: "Grad Year is required." }],
+        },
+      ])[0].reason,
+    ).toBe("Grad Year: not a number.");
+  });
+
+  it("falls back to the first blocker when there is no error field at all", () => {
+    // The donations preview row has no `error` key — reason comes from blockers.
+    expect(
+      previewRejects([
+        {
+          row: 5,
+          name: "Bob Jones",
+          status: "rejected",
+          blockers: [
+            { message: "No alumnus matches MSTID 12345." },
+            { message: "Amount is not a number." },
+          ],
+        },
+      ])[0].reason,
+    ).toBe("No alumnus matches MSTID 12345.");
+  });
+
+  it("never emits an empty reason", () => {
+    expect(
+      previewRejects([
+        { row: 2, status: "rejected", error: "   ", blockers: [] },
+        { row: 3, status: "rejected" },
+      ]).map((r) => r.reason),
+    ).toEqual(["Rejected.", "Rejected."]);
+  });
+
+  it("normalises a missing name to null rather than undefined", () => {
+    expect(previewRejects([{ row: 2, status: "rejected" }])[0].name).toBeNull();
+  });
+
+  it("feeds buildFailedRowsCsv straight through", () => {
+    const out = buildFailedRowsCsv(
+      FILE,
+      previewRejects([
+        { row: 2, name: "Jane Smith", status: "importable" },
+        {
+          row: 3,
+          name: "Bob Jones",
+          status: "rejected",
+          blockers: [{ message: "Duplicate BYU ID" }],
+        },
+        { row: 4, name: "Cara Wong", status: "rejected", error: "Bad year" },
+      ]),
+    );
+    const rows = parseCsv(out.csv!);
+    expect(out.exported).toBe(2);
+    expect(rows[1]).toEqual(["bjones", "Bob", "Jones", "Globex", "Duplicate BYU ID"]);
+    expect(rows[2]).toEqual(["cwong", "Cara", "Wong", "Initech", "Bad year"]);
+    // The importable row is nowhere in the download.
+    expect(out.csv).not.toContain("jsmith");
+  });
+
+  it("returns nothing for a clean preview", () => {
+    expect(
+      previewRejects([
+        { row: 2, status: "importable" },
+        { row: 3, status: "importable" },
+      ]),
+    ).toEqual([]);
   });
 });
 
