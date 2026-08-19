@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -26,9 +26,12 @@ import {
   FAILED_ROWS_UNAVAILABLE,
   FAILED_ROWS_UNREADABLE,
   REASON_COLUMN_NOTE,
+  REASON_COLUMN_NOTE_PREVIEW,
   buildFailedRowsCsv,
+  previewRejects,
   unmatchedNote,
 } from "@/lib/importFailures";
+import type { ImportRejectLike } from "@/lib/importFailures";
 import { ImportReviewTable } from "./ImportReviewTable";
 
 type Step = "upload" | "review" | "result";
@@ -79,6 +82,24 @@ export function ImportWizard({ kind = "alumni" }: { kind?: ImportKind }) {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  /**
+   * The rows the preview says will NOT import, in reject shape (#693).
+   *
+   * The preview reports a status per row rather than a list of rejects, so the
+   * adapter in `importFailures` decides which rows those are — one place, and
+   * one that a test pins, rather than a `status === "rejected"` guess inline.
+   */
+  const previewSkips = useMemo<ImportRejectLike[]>(
+    () => (preview ? previewRejects(preview.rows) : []),
+    [preview],
+  );
+
+  /** Clear any note/error left over from the other step's download. */
+  const clearFailedRowsFeedback = () => {
+    setFailedRowsError(null);
+    setFailedRowsNote(null);
+  };
+
   const pickFile = (next: File | null) => {
     setPreview(null);
     setPreviewError(null);
@@ -103,6 +124,7 @@ export function ImportWizard({ kind = "alumni" }: { kind?: ImportKind }) {
   const onCheck = () => {
     if (!file) return;
     setPreviewError(null);
+    clearFailedRowsFeedback();
     startChecking(async () => {
       const res = await previewImport(fileForm(file), kind);
       if (res.ok) {
@@ -117,6 +139,7 @@ export function ImportWizard({ kind = "alumni" }: { kind?: ImportKind }) {
   const onImport = () => {
     if (!file) return;
     setImportError(null);
+    clearFailedRowsFeedback();
     startImporting(async () => {
       const res = await commitImport(fileForm(file), kind);
       if (res.ok) {
@@ -141,27 +164,33 @@ export function ImportWizard({ kind = "alumni" }: { kind?: ImportKind }) {
   };
 
   /**
-   * Download ONLY the rows the import skipped, in the shape they arrived in
+   * Download ONLY the rows that will not import, in the shape they arrived in
    * (#693).
    *
    * Built from `file` — the CSV still sitting in this component's state — not
-   * from the API, because `ImportReject` carries a row number and a reason but
-   * none of the row's values. `file` survives to this step: `pickFile(null)`
-   * only runs when the operator starts another import.
+   * from the API, because neither the reject list nor the preview report
+   * carries the row's values. `file` survives both steps: `pickFile(null)` only
+   * runs when the operator starts another import.
+   *
+   * Shared by the review and result steps so the two downloads can never drift
+   * in format; only the rejects and the file name differ.
    */
-  const onDownloadFailedRows = async () => {
-    if (!result || result.rejects.length === 0 || !file) return;
+  const downloadFailedRows = async (
+    rejects: readonly ImportRejectLike[],
+    filename: string,
+  ) => {
+    if (rejects.length === 0 || !file) return;
     setFailedRowsError(null);
     setFailedRowsNote(null);
     setBuildingFailedRows(true);
     try {
-      const built = buildFailedRowsCsv(await file.text(), result.rejects);
+      const built = buildFailedRowsCsv(await file.text(), rejects);
       if (!built.csv) {
         setFailedRowsError(FAILED_ROWS_UNAVAILABLE);
         return;
       }
       setFailedRowsNote(unmatchedNote(built));
-      downloadCsvFile(`${noun}-import-failed-rows.csv`, built.csv);
+      downloadCsvFile(filename, built.csv);
     } catch {
       // Deliberately generic: whatever the File API threw is of no use to the
       // operator and must not reach the screen.
@@ -171,10 +200,27 @@ export function ImportWizard({ kind = "alumni" }: { kind?: ImportKind }) {
     }
   };
 
+  /**
+   * The same download at the REVIEW step — before anything has been imported,
+   * which is where the operator actually finds out these rows are a problem.
+   */
+  const onDownloadPreviewFailedRows = () => {
+    void downloadFailedRows(previewSkips, `${noun}-import-rows-to-fix.csv`);
+  };
+
+  const onDownloadFailedRows = () => {
+    if (!result) return;
+    void downloadFailedRows(
+      result.rejects,
+      `${noun}-import-failed-rows.csv`,
+    );
+  };
+
   const resetToUpload = () => {
     setStep("upload");
     setPreview(null);
     setPreviewError(null);
+    clearFailedRowsFeedback();
   };
 
   return (
@@ -205,6 +251,12 @@ export function ImportWizard({ kind = "alumni" }: { kind?: ImportKind }) {
           preview={preview}
           importing={importing}
           importError={importError}
+          skipCount={previewSkips.length}
+          canDownloadFailedRows={file !== null}
+          buildingFailedRows={buildingFailedRows}
+          failedRowsError={failedRowsError}
+          failedRowsNote={failedRowsNote}
+          onDownloadFailedRows={onDownloadPreviewFailedRows}
           onBack={resetToUpload}
           onImport={onImport}
         />
@@ -463,17 +515,30 @@ function ReviewStep({
   preview,
   importing,
   importError,
+  skipCount,
+  canDownloadFailedRows,
+  buildingFailedRows,
+  failedRowsError,
+  failedRowsNote,
+  onDownloadFailedRows,
   onBack,
   onImport,
 }: {
   preview: ImportPreview;
   importing: boolean;
   importError: string | null;
+  skipCount: number;
+  canDownloadFailedRows: boolean;
+  buildingFailedRows: boolean;
+  failedRowsError: string | null;
+  failedRowsNote: string | null;
+  onDownloadFailedRows: () => void;
   onBack: () => void;
   onImport: () => void;
 }) {
   const { summary, columns_ok, header_errors, rows } = preview;
   const canImport = columns_ok && summary.importable > 0;
+  const plural = skipCount === 1 ? "" : "s";
 
   return (
     <div className="space-y-4">
@@ -518,6 +583,52 @@ function ReviewStep({
 
       {columns_ok && (
         <ImportReviewTable rows={rows} />
+      )}
+
+      {/*
+        The same "just the broken ones" download as the result step, offered
+        BEFORE the import runs (#693). This is where the operator first learns
+        which rows are a problem, so the copy is future tense throughout: these
+        rows WILL be skipped, they have not been.
+      */}
+      {columns_ok && skipCount > 0 && (
+        <div className="rounded-lg border border-warning-600/30 bg-warning-50 p-4">
+          <p className="text-sm font-semibold text-warning-600">
+            {skipCount} row{plural} will be skipped if you import now
+          </p>
+          <p className="mt-1 text-sm text-gray-700">
+            Nothing has been imported yet. Download just these rows, fix them,
+            and upload that file — or import the {summary.importable} good row
+            {summary.importable === 1 ? "" : "s"} now and come back to the rest.
+          </p>
+          <div className="mt-4">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={onDownloadFailedRows}
+              disabled={!canDownloadFailedRows || buildingFailedRows}
+            >
+              {buildingFailedRows
+                ? "Preparing…"
+                : `Download the ${skipCount} row${plural} that will be skipped (CSV)`}
+            </Button>
+            <p className="mt-2 max-w-2xl text-xs text-gray-600">
+              {canDownloadFailedRows
+                ? REASON_COLUMN_NOTE_PREVIEW
+                : "The uploaded file is no longer in this page, so those rows can't be rebuilt. The reasons in the table above list every one."}
+            </p>
+            {failedRowsNote && (
+              <p className="mt-1 max-w-2xl text-xs text-gray-700">
+                {failedRowsNote}
+              </p>
+            )}
+            {failedRowsError && (
+              <p className="mt-1 max-w-2xl text-xs text-danger-600">
+                {failedRowsError}
+              </p>
+            )}
+          </div>
+        </div>
       )}
 
       {importError && (

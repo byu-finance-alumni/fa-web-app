@@ -125,6 +125,97 @@ export function buildFailedRowsCsv(
   };
 }
 
+/* ------------------------------------------------- preview (dry-run) rows --- */
+
+/**
+ * One row of an import PREVIEW, in the shape both dry-run reports share.
+ *
+ * The preview and the commit describe the same rows in different words: the
+ * commit returns `ImportReject` (`row`/`name`/`reason`), while the preview
+ * returns a per-row report carrying a `status` plus the findings that produced
+ * it. Only the fields this adapter reads are declared, and every one but
+ * `row`/`status` is optional, so this covers `AlumniImportRowReport` (which has
+ * `error`) and `DonationImportRowReport` (which does not) with one type.
+ *
+ * `status` is deliberately a plain `string`, not the `"importable" | "rejected"`
+ * union the hand-written frontend types use: the backend schemas type it as a
+ * bare `str`, so a status added there must land in the "will not import" half
+ * rather than failing to type-check here.
+ */
+export interface ImportPreviewRowLike {
+  row: number;
+  name?: string | null;
+  status: string;
+  error?: string | null;
+  blockers?: readonly { message: string }[] | null;
+  /**
+   * Declared, and deliberately never read. A warned row is still IMPORTABLE —
+   * warnings are advisory ("possible duplicate of #41", "missing employer") and
+   * never move `status` — so including one here would hand the operator a
+   * "fix these" file full of rows that were about to import correctly. Spelled
+   * out in the type so the omission reads as a decision, not an oversight.
+   */
+  warnings?: readonly { message: string }[] | null;
+}
+
+/**
+ * The one status that means "this row WILL be imported".
+ *
+ * The predicate is `status !== "importable"`, NOT `status === "rejected"`, and
+ * that is the whole point of this adapter. Both commit loops in fa-web-api
+ * (`import_csv.commit` and `import_donations.commit`) decide with exactly
+ * `if evaluated["status"] != "importable": skip`, so anything that is not this
+ * literal is a row the operator will not get — including any status a later
+ * backend change introduces. Testing for `"rejected"` would silently drop such
+ * a row from the download while the wizard still refused to import it.
+ *
+ * A row with WARNINGS is untouched by this: warnings never change `status`
+ * (`status = "rejected" if blockers else "importable"`), so a warned row stays
+ * importable and stays out of the download — it is going to import fine.
+ */
+const IMPORTABLE_STATUS = "importable";
+
+/**
+ * Reason text for a preview row, mirroring `_reject_reason` in fa-web-api so a
+ * row reads the same whether it was downloaded before the import or after it.
+ *
+ * Order matters: a mapping/validation `error` is the most specific thing we
+ * know, then the first blocker, then a bare fallback. Blockers do most of the
+ * work in practice — a duplicate BYU ID sets a blocker and leaves `error` null,
+ * and the donations preview has no `error` field at all.
+ */
+function previewRejectReason(row: ImportPreviewRowLike): string {
+  const error = row.error?.trim();
+  if (error) return error;
+  const blocker = row.blockers?.[0]?.message?.trim();
+  if (blocker) return blocker;
+  return "Rejected.";
+}
+
+/**
+ * Adapt a PREVIEW report's rows to the reject shape `buildFailedRowsCsv` takes,
+ * keeping only the rows that will not import.
+ *
+ * This exists because the download matters MOST at the preview step — that is
+ * where the operator finds out, before anything has been written — but the
+ * preview speaks in statuses and findings while the export speaks in rejects.
+ * Row order is preserved; `buildFailedRowsCsv` re-sorts into file order anyway.
+ */
+export function previewRejects(
+  rows: readonly ImportPreviewRowLike[],
+): ImportRejectLike[] {
+  const out: ImportRejectLike[] = [];
+  for (const row of rows) {
+    if (row.status === IMPORTABLE_STATUS) continue;
+    out.push({
+      row: row.row,
+      name: row.name ?? null,
+      reason: previewRejectReason(row),
+    });
+  }
+  return out;
+}
+
 /* ----------------------------------------------------------- photo import --- */
 
 /**
@@ -259,6 +350,15 @@ export const FAILED_ROWS_UNREADABLE =
 /** The one-line explanation of the trailing unnamed column, for the UI. */
 export const REASON_COLUMN_NOTE =
   "You get the original columns with only the skipped rows, plus a last, unnamed column holding the reason each was skipped. Fix the rows and upload the file as it is — the importer ignores that extra column.";
+
+/**
+ * The same explanation for the PREVIEW step, where nothing has been imported
+ * yet. The result screen's copy is past tense ("were skipped"), which would
+ * tell the operator the opposite of what is true here — the rows have not been
+ * skipped, they WILL be if the import runs as it stands.
+ */
+export const REASON_COLUMN_NOTE_PREVIEW =
+  "You get the original columns with only the rows that won't import, plus a last, unnamed column holding the reason each will be skipped. Fix the rows and upload the file as it is — the importer ignores that extra column.";
 
 /** "3 of 12 skipped rows" style note when some rejects have no row to export. */
 export function unmatchedNote(result: FailedRowsExport): string | null {
