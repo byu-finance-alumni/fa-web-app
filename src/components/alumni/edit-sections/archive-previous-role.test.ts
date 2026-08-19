@@ -3,12 +3,12 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * Source-invariant guards for the "archive the outgoing role" checkbox
- * (api #446).
+ * Source-invariant guards for the "Archive current role" checkbox (api #446).
  *
- * Three things about this control are contracts rather than preferences, and
- * all three break QUIETLY — a wrong payload shape 422s only once someone tries
- * a real save, and a sticky checkbox silently writes fake job history:
+ * Four things about this control are contracts rather than preferences, and all
+ * four break QUIETLY — a wrong payload shape 422s only once someone tries a
+ * real save, and a sticky checkbox or a pre-filled "new role" silently writes
+ * fake job history:
  *
  *  1. It DEFAULTS OFF on every load. Archiving is never inferred from the
  *     employer string changing, because a typo correction would then
@@ -20,6 +20,10 @@ import { describe, expect, it } from "vitest";
  *     `career.archive_previous_role` input name would 422 the whole save.
  *  3. It is EDIT-ONLY. The create schema has no such field, so sending it from
  *     "Add alumni" would 422 that form instead.
+ *  4. Ticked, the Company / Job Title inputs are a BLANK slot for the NEW role,
+ *     never the stored values. Pre-filling them is the overwrite-in-place
+ *     behaviour this control was reworked to replace: the stored role would be
+ *     filed to history AND re-created as current, in one save.
  *
  * These read source text rather than executing the Next runtime, matching the
  * other structural guards in this repo (see `src/lib/session-invariants.test.ts`).
@@ -65,6 +69,32 @@ describe("archive_previous_role checkbox (#446)", () => {
     const box = element(read(FORM), "<Checkbox");
     expect(box).not.toContain("defaultChecked");
     expect(box).not.toContain("checked");
+  });
+
+  it("puts the control above the fields it acts on", () => {
+    // It decides what Company / Job Title ARE — an in-place editor or a blank
+    // slot for a new role — so it cannot sit below them.
+    const src = read(FORM);
+    expect(src.indexOf('name="archive_previous_role"')).toBeLessThan(
+      src.indexOf('name="career.current_employer"'),
+    );
+  });
+
+  it("blanks Company / Job Title while archiving, never pre-fills them", () => {
+    const src = read(FORM);
+    for (const field of ["career.current_employer", "career.current_title"]) {
+      const el = src.slice(src.indexOf(`name="${field}"`));
+      const value = el.slice(el.indexOf("defaultValue="), el.indexOf("error="));
+      // Guarded by the archiving flag, and empty on that side of it.
+      expect(value).toContain("archiving");
+      expect(value).toContain('""');
+    }
+  });
+
+  it("offers nothing to archive when no role is on file", () => {
+    // A disabled input is not serialised, so the flag cannot reach the server
+    // for a record with no current employer or title.
+    expect(element(read(FORM), "<Checkbox")).toContain("disabled=");
   });
 
   it("keeps the flag out of the section's stored defaults", () => {

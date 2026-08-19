@@ -178,29 +178,50 @@ export function Checkbox({
   label,
   name,
   defaultChecked,
+  disabled,
+  onChange,
   hint,
 }: {
   label: string;
   name: string;
   defaultChecked?: boolean;
+  /**
+   * Greys the box out and drops it from the submitted FormData — a disabled
+   * input is never serialised. Use it for an option that has nothing to act on
+   * (see the #446 archive box with no employer on file), and say why in `hint`.
+   */
+  disabled?: boolean;
+  /**
+   * Fires with the box's new state. The input stays UNCONTROLLED — this is a
+   * notification for callers that reveal or swap fields when the box moves, not
+   * a value binding, so nothing here can seed a tick.
+   */
+  onChange?: (next: boolean) => void;
   /** Optional muted helper line shown under the box (matches Field). */
   hint?: string;
 }) {
   const hintId = hint ? `${name}-hint` : undefined;
   const box = (
-    <label className="flex items-center gap-2 text-sm text-gray-700">
+    <label
+      className={cn(
+        "flex items-center gap-2 text-sm",
+        disabled ? "text-gray-500" : "text-gray-700",
+      )}
+    >
       <input
         type="checkbox"
         name={name}
         value="true"
         defaultChecked={defaultChecked}
+        disabled={disabled}
+        onChange={onChange ? (e) => onChange(e.target.checked) : undefined}
         // Same `autoComplete="off"` Field carries. Every box here is seeded
         // from the record the server rendered (or, for #446, from nothing at
         // all) — a browser restoring a tick from the previous visit would be
         // showing a state nobody chose on this load.
         autoComplete="off"
         aria-describedby={hintId}
-        className="h-4 w-4 rounded border-gray-300 text-brand-blue-600 focus:ring-brand-blue-500"
+        className="h-4 w-4 rounded border-gray-300 text-brand-blue-600 focus:ring-brand-blue-500 disabled:cursor-not-allowed"
       />
       {label}
     </label>
