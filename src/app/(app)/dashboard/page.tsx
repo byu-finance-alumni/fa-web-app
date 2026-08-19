@@ -17,10 +17,10 @@ import {
   canImportEvents,
   canWriteNotes,
 } from "@/constants/capabilities";
-import { DATA_VIZ_PALETTE, CHART_MUTED_COLOR } from "@/constants/chart";
 import type { UserContext } from "@/types/alumni";
 import type { FilterOptions } from "@/types/filters";
 import { EMPTY_FILTER_OPTIONS } from "@/lib/emptyFilterOptions";
+import { sortIndustryRows } from "@/lib/industryBreakdown";
 
 /**
  * Hand-written shape for `/dashboard/summary` — keep it in sync with the API
@@ -79,17 +79,6 @@ interface Summary {
   };
 }
 
-/**
- * Danger red for the "Unknown" (no industry on file) bucket, so it reads as a
- * gap in the data to fix — distinct from the grey "Other" catch-all and from the
- * brand-blue data-viz accents. Signals "needs attention", not a real category.
- */
-const CHART_UNKNOWN_COLOR = "#B42318"; // danger-600
-// Graduate Student (#294): its own counted bar, split out of "Other" by the
-// backend. A teal accent so it reads as a distinct (non-finance) category,
-// separate from the gray "Other" and red "Unknown".
-const CHART_GRAD_STUDENT_COLOR = "#0E7490"; // teal accent
-
 /* ------------------------------------------------------------- date helpers -- */
 
 /** A clean first name from the auth context, or null if there's nothing usable.
@@ -108,21 +97,25 @@ function resolveFirstName(ctx: UserContext | null): string | null {
 
 /* -------------------------------------------------------------- presentation -- */
 
-/** Navy welcome band across the top of the dashboard content area — the page's
- *  masthead, and the only navy surface on the page besides the sidebar. It is
- *  deliberately full-bleed (the page's horizontal padding starts BELOW it) so it
- *  reads as a band rather than another card, and it is the one place the page
- *  title runs at the 24–30px UX-UI.md page-title size (the shared top bar can't
- *  — see the typography "Known gap"). */
-function WelcomeBand({ greeting }: { greeting: string }) {
+/** Welcome heading at the top of the dashboard content area — the page's
+ *  masthead. It sits on the page's own white surface (the owner asked for no
+ *  banner), so the sidebar stays the only navy surface. It carries its own top
+ *  padding because the page's padding starts on the block BELOW it, and it is
+ *  the one place a real page title is set at all (the shared top bar can't —
+ *  see the typography "Known gap"). */
+function WelcomeHeading({ greeting }: { greeting: string }) {
   return (
-    <div className="shrink-0 bg-navy-800 px-4 py-6 md:px-6 md:py-7">
-      <h1 className="text-2xl font-semibold tracking-tight text-white md:text-3xl">
+    <div className="shrink-0 px-4 pt-6 md:px-6 md:pt-7">
+      {/* `text-4xl` (36px) — one step ABOVE the 24–30px page-title band in
+          UX-UI.md's type scale, because this greeting is the dashboard's
+          masthead rather than a section title, and the scale has no rung
+          between 30px and 36px. */}
+      <h1 className="text-3xl font-bold tracking-tight text-navy-800 md:text-4xl">
         {greeting}
       </h1>
-      {/* brand-blue-300 on navy is the same pairing the sidebar uses for its
-          non-active items — never on a light surface (UX-UI.md accessibility). */}
-      <p className="mt-1.5 text-sm text-brand-blue-300">
+      {/* Light surface, so the muted body grey — brand-blue-300 is a navy-only
+          pairing and fails contrast on white (UX-UI.md accessibility). */}
+      <p className="mt-2 text-base font-normal text-gray-600">
         Here&rsquo;s what&rsquo;s happening across the BYU Finance alumni network
         today.
       </p>
@@ -144,11 +137,14 @@ function Panel({
 }) {
   return (
     <Card className={`flex flex-col ${className ?? ""}`}>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
+      {/* Panel titles run at the 18–20px section-heading size from UX-UI.md's
+          type scale — CardTitle's own 14px is sized for the dense in-page cards
+          elsewhere, not for a top-level dashboard panel. */}
+      <CardHeader className="px-6 pt-6">
+        <CardTitle className="text-xl">{title}</CardTitle>
         {action}
       </CardHeader>
-      <CardContent className="flex min-h-0 flex-1 flex-col">
+      <CardContent className="flex min-h-0 flex-1 flex-col px-6 pb-6">
         {children}
       </CardContent>
     </Card>
@@ -159,13 +155,19 @@ function Panel({
  *  PER INDUSTRY — name, bar and count on a single line (#375 replaced the old
  *  donut wheel so long industry names are legible; the name moved from above the
  *  bar to beside it on 2026-08-11 so the full list fits a laptop — see the
- *  layout note in the body). Real finance industries are listed alphabetically
- *  (A→Z); the "Other" and "Unknown" catch-all buckets always sort LAST since
- *  they aren't part of the A→Z category list. Each row carries its own `color`
- *  (resolved by the caller from the UX-UI.md data-viz palette) so every bar is a
- *  different colour — deliberately distinct from the single-blue Top Employers
- *  bars beneath it. Zero-count industries are still listed, shown muted (grey);
- *  each row links to the filtered alumni list. */
+ *  layout note in the body). Rows run BIGGEST FIRST, descending by count, ties
+ *  broken on the label A→Z — including the "Other", "Unknown" and "Graduate
+ *  Student" buckets, which are no longer pinned to the end: the panel answers
+ *  "who do we have the most of", and a bucket that outranks a real industry
+ *  should say so. Zero-count industries land at the bottom by that same rule
+ *  and are never filtered out (#397).
+ *
+ *  Every bar is the SAME brand blue on the same grey track (2026-08-19 mockup):
+ *  the length is the datum, and one colour per industry was decoration that
+ *  invited the reader to look for meaning in a hue that carried none. The
+ *  semantic tones that DO mean something stay on the text — the "Unknown"
+ *  data-gap row in danger red, zero-count rows muted grey. Each row links to
+ *  the filtered alumni list. */
 function IndustryBarList({
   rows,
   emptyLabel,
@@ -173,7 +175,6 @@ function IndustryBarList({
   rows: {
     label: string;
     count: number;
-    color: string;
     href?: string;
   }[];
   emptyLabel: string;
@@ -181,19 +182,13 @@ function IndustryBarList({
   if (rows.length === 0)
     return <p className="py-4 text-sm text-gray-400">{emptyLabel}</p>;
 
-  // Real finance industries sort alphabetically; the three special buckets are
-  // pinned to the end in a fixed order — the "Other" catch-all, then the
-  // "Unknown" data-gap bucket, then "Graduate Student" last. (Named exactly by
-  // the caller, so no real category collides with them.)
-  const PINNED = ["Other", "Unknown", "Graduate Student"];
-  const ordered = [
-    ...rows
-      .filter((r) => !PINNED.includes(r.label))
-      .sort((a, b) => a.label.localeCompare(b.label)),
-    ...PINNED.map((label) => rows.find((r) => r.label === label)).filter(
-      (r): r is (typeof rows)[number] => Boolean(r),
-    ),
-  ];
+  // Biggest first, always — see `sortIndustryRows`. The order is decided HERE
+  // and not taken from the API response, so it holds whatever order the backend
+  // happens to send. Zero-count industries fall to the bottom by the same rule
+  // rather than being filtered out.
+  const ordered = sortIndustryRows(rows);
+  // Bars are proportional to the largest count in the list, read off the data —
+  // so re-ordering can never desynchronise the fills from the numbers.
   const max = Math.max(1, ...ordered.map((r) => r.count));
 
   // ONE ROW PER INDUSTRY, single column (Jake, 2026-08-11): name, bar and count
@@ -241,14 +236,13 @@ function IndustryBarList({
             </span>
             {/* Fixed-height horizontal track — it no longer grows with the row,
                 which is exactly what frees the vertical space. A zero-count row
-                draws no fill but keeps its muted label + 0. */}
+                draws no fill but keeps its muted label + 0. Only the WIDTH is
+                inline (it's a per-row percentage); the track and fill colours
+                are tokens. */}
             <span className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-100">
               <span
-                className="block h-full rounded-full"
-                style={{
-                  width: `${Math.round((r.count / max) * 100)}%`,
-                  backgroundColor: r.color,
-                }}
+                className="block h-full rounded-full bg-brand-blue-600"
+                style={{ width: `${Math.round((r.count / max) * 100)}%` }}
               />
             </span>
             <span
@@ -375,12 +369,11 @@ export default async function DashboardPage() {
   // Industry breakdown (#351/#352/#353, listed per #375): the backend returns
   // EVERY canonical finance industry (incl. zero-count) plus separate "Other"
   // (catch-all value) and "Unknown" (no industry on file) buckets. The list
-  // shows them all (zero-count ones muted). Colors are stable per row: finance
-  // industries cycle the data-viz palette, "Other" is muted grey, and "Unknown"
-  // gets its own amber tone so it reads as distinct from "Other". Each row is
-  // clickable — finance industries deep-link to `?industry=<name>`, "Other" to
-  // `?industry_group=other`, and "Unknown" to `?industry_group=unknown` so staff
-  // can open and fix the profiles that are missing an industry.
+  // shows them all (zero-count ones muted). Every bar is the same brand blue —
+  // see IndustryBarList. Each row is clickable — finance industries deep-link to
+  // `?industry=<name>`, "Other" to `?industry_group=other`, and "Unknown" to
+  // `?industry_group=unknown` so staff can open and fix the profiles that are
+  // missing an industry.
   //
   // #397 ("Financial Services" as its own bar): this list is intentionally
   // backend-driven — it renders exactly the industries the API surfaces in
@@ -398,43 +391,37 @@ export default async function DashboardPage() {
   // genuinely absent today (it exists only as the "Financial Services
   // Conference" event type, never as an industry vocab value).
   const breakdown = s?.industry_breakdown;
-  let financeIdx = 0;
   const industryRows: {
     label: string;
     count: number;
-    color: string;
     href?: string;
   }[] = breakdown
     ? [
         ...breakdown.industries.map((i) => ({
           label: i.industry,
           count: i.count,
-          color: DATA_VIZ_PALETTE[financeIdx++ % DATA_VIZ_PALETTE.length],
           href: `/alumni?industry=${encodeURIComponent(i.industry)}`,
         })),
         {
           label: "Other",
           count: breakdown.other,
-          color: CHART_MUTED_COLOR,
           href: `/alumni?industry_group=other`,
         },
         // Unknown = alumni with no industry on file: a "needs fixing" bucket,
-        // pinned LAST (below "Other") and drawn in danger red so the data gap is
-        // impossible to miss. Always shown, even at 0.
+        // labelled in danger red so the data gap is impossible to miss wherever
+        // its count lands it in the list. Always shown, even at 0.
         {
           label: "Unknown",
           count: breakdown.unknown,
-          color: CHART_UNKNOWN_COLOR,
           href: `/alumni?industry_group=unknown`,
         },
         // Graduate Student (#294): its own counted bar, split out of the "Other"
-        // bucket by the backend. Pinned just above Other/Unknown by
-        // IndustryBarList and deep-links via the same `?industry=<name>`
-        // mechanism the finance bars use.
+        // bucket by the backend. Ranked by its count like every other row, and
+        // deep-links via the same `?industry=<name>` mechanism the finance bars
+        // use.
         {
           label: "Graduate Student",
           count: breakdown.graduate_student,
-          color: CHART_GRAD_STUDENT_COLOR,
           href: `/alumni?industry=${encodeURIComponent("Graduate Student")}`,
         },
       ]
@@ -467,10 +454,10 @@ export default async function DashboardPage() {
   return (
     <>
       <Topbar title="Dashboard" />
-      {/* The page padding moved OFF `main` and onto the block below it so the
-          navy welcome band can run edge to edge across the content area. */}
+      {/* The page padding sits on the block below rather than on `main`, so the
+          welcome heading owns its own top padding and the two stay independent. */}
       <main className="flex-1 overflow-auto">
-        <WelcomeBand greeting={greeting} />
+        <WelcomeHeading greeting={greeting} />
         <div className="p-4 md:p-6">
           {notProvisioned ? (
             <Card className="p-4 text-sm text-gray-700">
@@ -491,9 +478,10 @@ export default async function DashboardPage() {
               {/* KPI strip. Desktop only: on a phone the dashboard is
                   search-first, so the KPIs and the Industry breakdown are
                   dropped rather than stacked into a long scroll. */}
-              <div className="hidden grid-cols-1 gap-4 sm:grid-cols-3 lg:grid">
+              <div className="hidden grid-cols-1 gap-4 sm:grid-cols-3 lg:grid lg:gap-5">
                 <MetricCard
                   size="lg"
+                  raised
                   label="Total alumni"
                   value={s?.total_alumni ?? "—"}
                   sub={
@@ -522,9 +510,15 @@ export default async function DashboardPage() {
                     same most-recently-edited list, whose "Last updated" column
                     makes either count checkable. Each sub-line restates its own
                     count as a share of the roster, so the two windows can be
-                    compared without doing the arithmetic. */}
+                    compared without doing the arithmetic.
+
+                    The MONTH's share is the one set in the design system's
+                    success green (`subTone`): it's the figure that reads as
+                    this-month's progress. The year's stays muted — it's a
+                    running total, not a target being met. */}
                 <MetricCard
                   size="lg"
+                  raised
                   label="Edited this month"
                   value={s?.alumni_edited_this_month ?? "—"}
                   sub={
@@ -532,11 +526,13 @@ export default async function DashboardPage() {
                       ? null
                       : `${editedMonthShare}% of all records`
                   }
+                  subTone="success"
                   href="/alumni?sort=updated"
                   linkLabel="View alumni edited this month, sorted by most recently edited"
                 />
                 <MetricCard
                   size="lg"
+                  raised
                   label="Edited this year"
                   value={s?.alumni_edited_this_year ?? "—"}
                   sub={
@@ -549,14 +545,17 @@ export default async function DashboardPage() {
                 />
               </div>
 
-              {/* The two working panels. Equal columns on lg, and the grid's
-                  default `items-stretch` is what pins the search card's action
-                  bar to the same line in BOTH tabs (#594): the row's height is
-                  set by the Industry panel's natural height, and the search
-                  card fills it. */}
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
+              {/* The two working panels, on a 12-column grid split 5:7 — the
+                  search card is a column of paired fields and needs less width
+                  than the breakdown's name-bar-count rows, which spend theirs
+                  on bar length. The grid's default `items-stretch` is what pins
+                  the search card's action bar to the same line in BOTH tabs
+                  (#594): the row's height is set by the Industry panel's
+                  natural height, and the search card fills it. */}
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-5">
                 <DashboardSearch
                   options={filterOptions ?? EMPTY_FILTER_OPTIONS}
+                  className="lg:col-span-5"
                 />
                 {/* Industry breakdown at its NATURAL height (#354/#375) — the
                     panel is no longer squeezed into whatever is left of the
@@ -565,11 +564,11 @@ export default async function DashboardPage() {
                 <Panel
                   title="Industry breakdown"
                   action={
-                    <span className="text-xs font-medium text-gray-500">
+                    <span className="text-sm font-medium text-brand-blue-600">
                       Click to filter
                     </span>
                   }
-                  className="hidden lg:flex lg:self-start"
+                  className="hidden lg:col-span-7 lg:flex lg:self-start"
                 >
                   {/* `overflow-y-auto`, NOT `overflow-hidden`: nothing bounds
                       this list today, but if something ever does, the honest

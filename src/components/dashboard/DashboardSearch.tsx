@@ -10,6 +10,7 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { MultiSelect } from "@/components/alumni/MultiSelect";
 import { facetOptions, type AlumniFilterState } from "@/lib/alumniFilterParams";
+import { cn } from "@/lib/utils";
 import type { FilterOptions } from "@/types/filters";
 
 /**
@@ -50,6 +51,14 @@ const EMPTY_IDENTITY: Identity = {
  * Net ID under Last name. Email was dropped: staff search people by name, and
  * the free-text `q` box on the alumni list already matches on email.
  */
+/**
+ * One field-label style for every control in this panel — small, bold, and in
+ * the `gray-700` UX-UI.md label colour. The grad-year and gender labels used to
+ * be uppercase + tracked while the identity fields were sentence case, which
+ * read as two different forms sharing a card.
+ */
+const FIELD_LABEL = "text-xs font-semibold text-gray-700";
+
 const IDENTITY_FIELDS: { key: keyof Identity; label: string }[] = [
   { key: "first_name", label: "First name" },
   { key: "last_name", label: "Last name" },
@@ -147,7 +156,9 @@ function IdentityGrid({
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       {IDENTITY_FIELDS.map((f) => (
         <Label key={f.key} className="flex flex-col gap-1">
-          <span>{f.label}</span>
+          {/* The weight sits on the span, not the Label: a `font-*` on the
+              wrapper would be inherited by the Input it also wraps. */}
+          <span className={FIELD_LABEL}>{f.label}</span>
           <Input
             value={value[f.key]}
             onChange={(e) => onChange({ ...value, [f.key]: e.target.value })}
@@ -194,9 +205,11 @@ function GradYearRange({
 }) {
   return (
     <div>
-      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
-        Graduation year
-      </p>
+      <p className={`mb-1 ${FIELD_LABEL}`}>Graduation year</p>
+      {/* From/To share one cell and split it evenly, so the pair lines up with
+          whatever single control sits in the cell beside it. `min-w-0` because
+          a number input's default intrinsic width would otherwise stop the
+          flex items shrinking into a narrow column. */}
       <div className="flex items-center gap-2">
         <Input
           type="number"
@@ -207,7 +220,7 @@ function GradYearRange({
           placeholder="From"
           aria-label="Graduation year from"
           aria-invalid={error ? true : undefined}
-          className="h-9 w-24 tabular-nums"
+          className="h-9 min-w-0 flex-1 tabular-nums"
         />
         <span className="text-sm text-gray-500">–</span>
         <Input
@@ -219,7 +232,7 @@ function GradYearRange({
           placeholder="To"
           aria-label="Graduation year to"
           aria-invalid={error ? true : undefined}
-          className="h-9 w-24 tabular-nums"
+          className="h-9 min-w-0 flex-1 tabular-nums"
         />
       </div>
       {error ? (
@@ -258,13 +271,10 @@ function GenderPicker({
   onChange: (next: Gender) => void;
 }) {
   return (
-    // Sized to its longest option rather than stretched: it shares a wrapping
-    // row with the fixed-width grad-year inputs, and a fluid select would make
-    // that row's break point depend on nothing in particular.
-    <div className="w-40">
-      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
-        Gender
-      </p>
+    // Fills its grid cell — it sits opposite the grad-year pair in a 2-up row,
+    // so the two cells have to be the same width for the row to read as one.
+    <div>
+      <p className={`mb-1 ${FIELD_LABEL}`}>Gender</p>
       <Select
         value={value}
         onChange={(e) => onChange(e.target.value as Gender)}
@@ -350,7 +360,15 @@ export function quickSearchHref(
   return qs ? `${base}?${qs}` : base;
 }
 
-export function DashboardSearch({ options }: { options: FilterOptions }) {
+export function DashboardSearch({
+  options,
+  className,
+}: {
+  options: FilterOptions;
+  /** Grid placement from the dashboard (e.g. its column span). Layout only —
+   *  the card's own surface classes are set here. */
+  className?: string;
+}) {
   const router = useRouter();
 
   // --- Quick search ----------------------------------------------------------
@@ -410,11 +428,26 @@ export function DashboardSearch({ options }: { options: FilterOptions }) {
   }
 
   return (
-    <Card className="flex flex-col p-4 md:p-5 lg:min-h-0 lg:flex-1">
+    <Card className={cn("flex flex-col p-4 md:p-6 lg:min-h-0", className)}>
       <Tabs defaultValue="quick" className="flex flex-col lg:min-h-0 lg:flex-1">
+        {/* `w-full` so the tab strip's bottom rule runs the whole panel width
+            and the two triggers sit ON it. The active trigger's underline is
+            stepped up to 4px here (the shared Tabs primitive stays at 2px for
+            the profile/event tab strips) — on this panel the underline is the
+            only thing marking the active tool. */}
         <TabsList className="w-full">
-          <TabsTrigger value="quick">Quick search</TabsTrigger>
-          <TabsTrigger value="advanced">Advanced search</TabsTrigger>
+          <TabsTrigger
+            value="quick"
+            className="data-[state=active]:border-b-4"
+          >
+            Quick search
+          </TabsTrigger>
+          <TabsTrigger
+            value="advanced"
+            className="data-[state=active]:border-b-4"
+          >
+            Advanced search
+          </TabsTrigger>
         </TabsList>
 
         {/* ---------------------------------------------------------- Quick -- */}
@@ -432,13 +465,16 @@ export function DashboardSearch({ options }: { options: FilterOptions }) {
               Quick must stay scroll-free at desktop height. */}
           <div className="space-y-4 lg:flex-1">
             <IdentityGrid value={quick} onChange={setQuick} />
-            {/* The narrowers, sharing one baseline-aligned row: they answer
-                "which of these people", where the grid above answers "who". Not
-                the 2-up GRID the identity fields use — the year inputs are a
-                fixed 224px pair, and a half-width grid cell is only ~150px in
-                this column at 1024px wide, so they'd overflow it. flex-wrap
-                lets the row reflow instead. */}
-            <div className="flex flex-wrap items-end gap-4">
+            {/* The narrowers — they answer "which of these people", where the
+                grid above answers "who". Same 2-up grid as the identity fields
+                so all six controls share two columns: Graduation year (its
+                From/To pair splitting the left cell) beside Gender.
+                `xl:` and not `sm:` like the identity grid: this card is the
+                narrow 5/12 column, and a half-cell of it is ~114px at 1024 —
+                which splits again into two ~44px year boxes that can't show
+                four digits. Below xl the two stack and each gets the full
+                column. */}
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
               <GradYearRange
                 ymin={quickYear.ymin}
                 ymax={quickYear.ymax}
@@ -449,8 +485,10 @@ export function DashboardSearch({ options }: { options: FilterOptions }) {
                 error={quickYearError}
               />
               <GenderPicker value={quickGender} onChange={setQuickGender} />
-              <FriendsToggle checked={quickFriends} onChange={setQuickFriends} />
             </div>
+            {/* Its own row under the grid: it scopes the whole search to a
+                different roster, so it isn't a third field in that row. */}
+            <FriendsToggle checked={quickFriends} onChange={setQuickFriends} />
           </div>
           {/* Compact action buttons on mobile (h-9) to match the slim search
               bar; desktop keeps its default h-9 too, so it's unchanged. Same
@@ -491,15 +529,20 @@ export function DashboardSearch({ options }: { options: FilterOptions }) {
               stay aligned with the Quick tab (no shift on tab switch). */}
           <div className="space-y-4 lg:-mx-2 lg:max-h-[28rem] lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:px-2">
             <IdentityGrid value={adv} onChange={setAdv} />
-            <GradYearRange
-              ymin={advYear.ymin}
-              ymax={advYear.ymax}
-              onChange={(next) => {
-                setAdvYear(next);
-                if (advYearError) setAdvYearError(null);
-              }}
-              error={advYearError}
-            />
+            {/* Same 2-up grid as everything above and below it, so the From/To
+                pair keeps the half-width cell it has on the Quick tab rather
+                than stretching across the whole panel. */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <GradYearRange
+                ymin={advYear.ymin}
+                ymax={advYear.ymax}
+                onChange={(next) => {
+                  setAdvYear(next);
+                  if (advYearError) setAdvYearError(null);
+                }}
+                error={advYearError}
+              />
+            </div>
             {/* Single column on mobile, so the pairings above collapse to the
                 same top-to-bottom reading order. `wide` facets span both columns
                 on sm+ and are simply full-width on mobile like everything else. */}

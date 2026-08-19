@@ -15,14 +15,20 @@ import { cn } from "@/lib/utils";
  * redesign brought it back, and no other call site passes it, so nothing else
  * changes shape.
  *
- * `icon` and `subTone` are still accepted for backward compatibility but are
- * NOT rendered — this product's tiles are text-only (no icons anywhere).
+ * `subTone` recolours that line off the semantic tokens. Same story as `sub`:
+ * only the dashboard passes it today, so every other tile keeps the muted grey
+ * default and nothing else changes shape.
+ *
+ * `icon` is still accepted for backward compatibility but is NOT rendered —
+ * this product's tiles are text-only (no icons anywhere).
  */
 export function MetricCard({
   label,
   value,
   sub,
+  subTone = "muted",
   size = "sm",
+  raised = false,
   href,
   linkLabel,
   onClick,
@@ -38,10 +44,17 @@ export function MetricCard({
    *  pass null when the figure it would describe isn't available — never a
    *  guessed one. */
   sub?: string | null;
-  /** @deprecated no longer rendered. */
+  /** Semantic colour for `sub`. Defaults to the muted grey every existing tile
+   *  already renders, so this is opt-in exactly like `raised`. */
   subTone?: "muted" | "success" | "warning" | "danger";
   /** "lg" = bigger value + padding, matching the 08 Dashboard tiles. */
   size?: "sm" | "lg";
+  /** Dashboard-only "raised" treatment: left-aligned text and a deeper shadow so
+   *  the tiles read as floating above the page, per the 2026-08-19 mockup.
+   *  OPT-IN because MetricCard is shared by the alumni profile, data-quality,
+   *  Pay It Forward, the KPI drawers and the donations panel — every one of
+   *  those stays centered and on the standard `shadow-card`. */
+  raised?: boolean;
   /** When set, the whole card becomes a link with a hover affordance. */
   href?: string;
   /** Accessible label for the link/button target (e.g. "View in alumni list"). */
@@ -51,27 +64,61 @@ export function MetricCard({
 }) {
   const lg = size === "lg";
   const base = cn(
-    "flex h-full flex-col rounded-lg border border-gray-200 bg-white shadow-card",
-    lg ? "p-5" : "p-4",
+    "flex h-full flex-col rounded-lg border border-gray-200 bg-white",
+    // `shadow-card` is the design system's single subtle card elevation. The
+    // raised variant steps up one level (the popover tier) rather than inventing
+    // a new shadow, so the hierarchy in UX-UI.md still holds.
+    raised ? "shadow-md" : "shadow-card",
+    // The raised tiles carry the mockup's generous 24px inset; every other call
+    // site keeps the dense CRM padding it has today.
+    raised ? "p-6" : lg ? "p-5" : "p-4",
   );
+  // Semantic sub-line tones, all straight off the UX-UI.md status tokens.
+  const subToneClass = {
+    muted: "text-gray-500",
+    success: "text-success-600",
+    warning: "text-warning-600",
+    danger: "text-danger-600",
+  }[subTone];
   const inner = (
     <>
       {/* Title — uniform min-height so every card's title lines up across the
           top, whether it wraps to one line or two. */}
-      <span className="block min-h-8 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
+      <span
+        className={cn(
+          "block min-h-8 text-xs font-semibold uppercase tracking-wide text-gray-500",
+          raised ? "text-left" : "text-center",
+        )}
+      >
         {label}
       </span>
-      <div className="flex flex-1 flex-col items-center justify-center">
+      <div
+        className={cn(
+          "flex flex-1 flex-col justify-center",
+          raised ? "items-start" : "items-center",
+        )}
+      >
         <p
           className={cn(
-            "text-center font-semibold tracking-tight tabular-nums text-gray-900",
-            lg ? "text-3xl" : "text-xl",
+            "tracking-tight tabular-nums text-gray-900",
+            raised ? "text-left font-bold" : "text-center font-semibold",
+            // Raised tiles run one step up the scale (36px) — the dashboard is
+            // the only screen where the number is the headline.
+            lg ? (raised ? "text-4xl" : "text-3xl") : "text-xl",
           )}
         >
           {value ?? "—"}
         </p>
         {sub ? (
-          <p className="mt-1 text-center text-xs text-gray-500">{sub}</p>
+          <p
+            className={cn(
+              "mt-1 text-xs",
+              subToneClass,
+              raised ? "text-left" : "text-center",
+            )}
+          >
+            {sub}
+          </p>
         ) : null}
       </div>
     </>

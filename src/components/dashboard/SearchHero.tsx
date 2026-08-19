@@ -21,9 +21,9 @@ import { Button } from "@/components/ui/button";
  * truth for results.
  *
  * Presented as a card in its own right (2026-08-19 redesign) so the field is the
- * widest, tallest control on the dashboard — it sits directly under the navy
- * welcome band and above the KPI strip. The greeting itself moved OUT of here
- * and into that band; this component is now purely the search control.
+ * widest, tallest control on the dashboard — it sits directly under the welcome
+ * heading and above the KPI strip. The greeting itself moved OUT of here and
+ * into that heading; this component is now purely the search control.
  */
 export function SearchHero() {
   const router = useRouter();
@@ -35,7 +35,7 @@ export function SearchHero() {
   };
 
   return (
-    <Card className="p-4 md:p-5">
+    <Card className="p-4 md:p-6">
       <form
         onSubmit={submit}
         action="/alumni"
@@ -44,7 +44,13 @@ export function SearchHero() {
         aria-label="Search alumni"
         className="flex items-center gap-3"
       >
-        {/* The field carries its own border/ring rather than the form wrapper:
+        {/* A FILLED field, not an outlined one: on a white card the search box
+            has to read as the one thing to type into, and a `gray-100` fill
+            does that where a `gray-300` hairline doesn't. The border is kept
+            but transparent so the blue focus border swaps in without the 1px
+            reflow an added border would cause.
+
+            The field carries its own border/ring rather than the form wrapper:
             it spans the whole card, so the focus affordance has to land on the
             input itself and not on a row that also contains the button. */}
         <input
@@ -54,18 +60,21 @@ export function SearchHero() {
           placeholder="Search alumni by name, employer, title, location, or industry"
           aria-label="Search alumni by name, employer, title, location, or industry"
           autoComplete="off"
-          className="h-11 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3.5 text-base text-gray-900 transition placeholder:text-gray-400 focus:border-brand-blue-600 focus:outline-none focus:ring-2 focus:ring-brand-blue-500 focus:ring-offset-1 md:h-10 md:text-sm"
+          className="h-11 min-w-0 flex-1 rounded-md border border-transparent bg-gray-100 px-4 text-base text-gray-900 transition placeholder:text-gray-500 focus:border-brand-blue-600 focus:outline-none focus:ring-2 focus:ring-brand-blue-500 focus:ring-offset-1 md:h-12"
         />
-        <Button type="submit" size="lg">
+        {/* Height pinned to the field's at BOTH breakpoints: `size="lg"` is
+            `h-11 md:h-10`, so overriding only `h-*` would leave the button
+            2px short of the field from `md` up. */}
+        <Button type="submit" size="lg" className="h-11 px-6 md:h-12">
           Search
         </Button>
       </form>
       {/* The worked example is the whole point of the hint — staff have to see
-          that a sentence is allowed, so it's set in bold rather than left as
-          quiet grey text alongside the lead-in. */}
-      <p className="mt-2.5 text-xs text-gray-500">
+          that a sentence is allowed, so it's set in bold near-black rather than
+          left as quiet grey text alongside the lead-in. */}
+      <p className="mt-3 text-xs text-gray-500">
         Try plain English — e.g.{" "}
-        <span className="font-semibold text-gray-700">
+        <span className="font-semibold text-gray-900">
           “Find me all alumni in investment banking near Seattle”
         </span>
       </p>
