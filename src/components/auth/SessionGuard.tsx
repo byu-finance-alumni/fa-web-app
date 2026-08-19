@@ -4,7 +4,6 @@ import { useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { clientGet } from "@/lib/api-client";
-import { clearLastActivity, getActivityStorage } from "@/lib/idleSession";
 import { loginPathWithNext } from "@/lib/urlSafety";
 
 // How often to ask the backend "is this still the account's active session?".
@@ -50,9 +49,6 @@ export function SessionGuard() {
         if (active || cancelled || kicked.current) return;
         // Superseded: sign out locally and bounce to login with the reason.
         kicked.current = true;
-        // Same as every other sign-out path: drop the persisted idle timestamp
-        // (#684) so the next login starts a clean window.
-        clearLastActivity(getActivityStorage());
         try {
           await createClient().auth.signOut();
         } catch {

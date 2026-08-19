@@ -4,14 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { loginPathWithNext } from "@/lib/urlSafety";
-import {
-  clearLastActivity,
-  decideIdleOnMount,
-  getActivityStorage,
-  persistActivity,
-  readLastActivity,
-  writeLastActivity,
-} from "@/lib/idleSession";
 import { Button } from "@/components/ui/button";
 
 const ACTIVITY_EVENTS = [
@@ -39,15 +31,6 @@ const ACTIVITY_EVENTS = [
  * way the middleware does for a cold navigation, so "put me back where I was"
  * works however the session ended (#682). Each tab carries ITS OWN path, which
  * is what you want when the sign-out arrives over the channel from another tab.
- *
- * The last-activity timestamp is ALSO persisted to `localStorage` (#684), so the
- * idle window survives a reload, a new tab, and a browser or machine restart —
- * previously every one of those reset the clock to zero, which made the timeout
- * trivially bypassable by closing the lid. On mount we read that timestamp and
- * sign out immediately if the window has already elapsed. See
- * `@/lib/idleSession` for the decision rules and for why this is an honesty fix
- * (the app now behaves the way it says it does) rather than a hardening one
- * (localStorage is clearable by whoever owns the browser).
  *
  * Mounted once in the authenticated app layout, so it only runs for signed-in
  * users.
@@ -84,13 +67,6 @@ export function SessionTimeout({
     let tick: ReturnType<typeof setInterval> | undefined;
     let lastActivity = 0;
     let goodbye = false;
-    // `localStorage` (or null when it's unavailable — private mode, disabled by
-    // policy). Everything below degrades to the old in-memory-only behaviour
-    // when it's null; a browser without storage must still be usable.
-    const storage = getActivityStorage();
-    // Epoch-ms of the most recent ACTUAL write, for the write throttle. 0 = not
-    // yet written in this mount.
-    let lastPersistedAt = 0;
     const channel =
       typeof BroadcastChannel !== "undefined"
         ? new BroadcastChannel("fa-session")
@@ -105,22 +81,11 @@ export function SessionTimeout({
       tick = undefined;
     };
 
-    // Record activity as "now" and stamp the persistence throttle, for the
-    // moments we want written through immediately rather than throttled (mount
-    // with nothing usable stored, and "stay signed in").
-    const markActiveNow = (now: number) => {
-      writeLastActivity(storage, now);
-      lastPersistedAt = now;
-    };
-
     const signOut = async () => {
       if (goodbye) return;
       goodbye = true;
       clearIdle();
       clearTick();
-      // Drop the stored timestamp so the NEXT login starts clean instead of
-      // inheriting this session's idle age and being bounced straight back out.
-      clearLastActivity(storage);
       channel?.postMessage({ t: "logout" });
       try {
         await createClient().auth.signOut();
@@ -162,10 +127,6 @@ export function SessionTimeout({
       phase = "active";
       clearTick();
       setWarning(false);
-      // "Stay signed in" is explicit activity, so write it through rather than
-      // waiting on the throttle — otherwise a reload seconds later would still
-      // read a stale, nearly-expired timestamp and sign the user out.
-      markActiveNow(Date.now());
       armIdle();
       if (broadcast) channel?.postMessage({ t: "resume" });
     };
@@ -187,11 +148,6 @@ export function SessionTimeout({
       if (now - lastActivity < 1000) return; // throttle to at most one reset/sec
       lastActivity = now;
       armIdle();
-      // Persist on its OWN, much coarser throttle (see
-      // ACTIVITY_PERSIST_INTERVAL_MS). mousemove/scroll fire dozens of times a
-      // second; even the 1/sec gate above would mean a synchronous storage
-      // write every second for as long as someone is working.
-      lastPersistedAt = persistActivity(storage, now, lastPersistedAt);
       channel?.postMessage({ t: "active" });
     };
 
@@ -208,10 +164,6 @@ export function SessionTimeout({
           goodbye = true;
           clearIdle();
           clearTick();
-          // The tab that initiated the sign-out already cleared this, but it
-          // may have been torn down mid-flight; clearing again is idempotent
-          // and guarantees the next login starts clean.
-          clearLastActivity(storage);
           router.replace(
             loginPathWithNext(pathRef.current, { reason: "timeout" }),
           );
@@ -226,45 +178,7 @@ export function SessionTimeout({
     ACTIVITY_EVENTS.forEach((ev) =>
       window.addEventListener(ev, onActivity, { passive: true }),
     );
-
-    // ---- Mount: pick up where the last page load left off (#684) ------------
-    // This replaces a bare `armIdle()`, which handed every fresh page load a
-    // full, untouched idle window — the bug: reload, new tab, browser restart
-    // or machine restart all reset the timeout to zero.
-    //
-    //   expired  -> sign out NOW. If the stored timestamp says the window has
-    //               already elapsed, the session ends. No grace dialog: the
-    //               grace period is a warning to someone who is AT the screen,
-    //               and by definition nobody was.
-    //   fresh    -> arm for the REMAINING window, not a full one. Mounting is
-    //               not itself activity (a restored tab needs no interaction),
-    //               so we must not silently top the clock back up — that would
-    //               reintroduce the bypass one reload at a time. The stored
-    //               value is left alone; the first real event rewrites it.
-    //   missing /
-    //   corrupt /
-    //   future   -> start a normal full window and write a good timestamp, so
-    //               the entry self-heals. Never a sign-out: an unreadable value
-    //               must not be able to lock anyone out.
-    const mountedAt = Date.now();
-    const decision = decideIdleOnMount({
-      stored: readLastActivity(storage),
-      now: mountedAt,
-      idleMs,
-    });
-    if (decision.action === "sign-out") {
-      void signOut();
-    } else if (decision.action === "arm") {
-      // Keep the throttle honest: treat the stored write as the last one, so
-      // the next real activity persists promptly instead of waiting out a fresh
-      // interval from mount.
-      lastPersistedAt = mountedAt - decision.elapsedMs;
-      clearIdle();
-      idleTimer = setTimeout(() => openWarning(), decision.remainingMs);
-    } else {
-      markActiveNow(mountedAt);
-      armIdle();
-    }
+    armIdle();
 
     return () => {
       ACTIVITY_EVENTS.forEach((ev) =>

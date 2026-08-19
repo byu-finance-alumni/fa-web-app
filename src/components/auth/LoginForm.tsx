@@ -7,7 +7,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { signIn } from "@/app/login/actions";
-import { getActivityStorage, writeLastActivity } from "@/lib/idleSession";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,15 +35,6 @@ export function LoginForm() {
 
   async function onSubmit(values: LoginValues) {
     setFormError(null);
-    // Stamp the persisted idle clock BEFORE handing off (#684). On success the
-    // server action redirects and control never comes back here, so this is the
-    // last client-side moment we have. Without it, a browser still holding a
-    // stale timestamp from a session that ended without a clean sign-out (the
-    // laptop was just closed) would mount SessionTimeout on the destination
-    // page, read a timestamp older than the idle window, and bounce the user
-    // straight back to /login. Writing it on a login that then FAILS is
-    // harmless: no session exists, and the next successful login overwrites it.
-    writeLastActivity(getActivityStorage(), Date.now());
     // Sign in via a Server Action so the auth cookie is set on the response and
     // the destination renders with a session on the first load (no empty-page-
     // until-refresh race). On success the action redirects and control never
