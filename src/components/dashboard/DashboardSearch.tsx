@@ -515,18 +515,35 @@ export function DashboardSearch({
             its own content height to that row, so ~900px of facets here would
             grow the row and the whole page would jump on every tab switch.
 
-            The fix is that this tab declares NO height of its own — no min-h,
-            no max-h. `min-h-0` lets the flex child shrink below its content,
-            `flex-1` fills whatever the row gives it, and `overflow-y-auto`
-            takes the remainder as an inner scroll. So the fields scroll and the
-            card stays exactly the size the Quick tab left it (which is also
-            what keeps Search/Reset on the bottom edge in both tabs, #594).
+            The fix is `lg:max-h-60` on the field block below, plus `min-h-0`
+            (which lets a flex child shrink below its content), `flex-1` and
+            `overflow-y-auto` so the remainder becomes an inner scroll. The
+            fields scroll and the card stays exactly the size the Quick tab left
+            it — measured at 488px in both tabs.
 
-            Mobile drops the bound and the inner scroll entirely — the fields
-            flow and the whole page scrolls, the native pattern. */}
+            That cap has a consequence this tab has to answer for: once the
+            field block can no longer GROW, the leftover height is free space,
+            and with the default `flex-start` packing it collects at the bottom —
+            which floated the action bar up off the card's bottom edge, ~90px
+            higher than the Quick tab's (#594 said the bar sat on the bottom edge
+            in both tabs; between the cap landing and this, it briefly didn't).
+            `lg:mt-auto` on the action bar absorbs that free space instead, so
+            the buttons are pushed back down to the edge without the field block
+            growing and without the card changing height. Auto margins resolve
+            AFTER flex-grow, which is why the cap still wins.
+
+            `gap-4` rather than `space-y-4` on this container for the same
+            reason: `space-y-*` compiles to a `> * ~ *` margin-top rule whose
+            specificity beats a plain `mt-auto` utility, so the auto margin would
+            never apply. `gap` gives the identical 16px rhythm and leaves
+            margin-top free.
+
+            Mobile drops the bound, the inner scroll and the auto margin
+            entirely — the fields flow and the whole page scrolls, the native
+            pattern. */}
         <TabsContent
           value="advanced"
-          className="flex flex-col space-y-4 lg:min-h-0 lg:flex-1"
+          className="flex flex-col gap-4 lg:min-h-0 lg:flex-1"
         >
           {/* overflow-y:auto forces overflow-x to compute to auto too, which
               clips a focused field's ring/offset at the flush left edge (the
@@ -593,7 +610,10 @@ export function DashboardSearch({
               </div>
             </div>
           </div>
-          <div className="flex gap-2 border-t border-gray-100 pt-3">
+          {/* `lg:mt-auto` — see the block comment above: it eats the free
+              height the capped field block leaves, which is what puts these
+              buttons on the same line as the Quick tab's. */}
+          <div className="flex gap-2 border-t border-gray-100 pt-3 lg:mt-auto">
             <Button type="button" onClick={runAdvanced} className="h-9">
               Search
             </Button>

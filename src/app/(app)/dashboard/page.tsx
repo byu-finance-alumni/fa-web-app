@@ -4,6 +4,10 @@ import { getAuthContext } from "@/lib/auth-context";
 import { Topbar } from "@/components/shell/Topbar";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { SearchHero } from "@/components/dashboard/SearchHero";
+import {
+  DashboardHero,
+  HERO_OVERLAP_CLASS,
+} from "@/components/dashboard/DashboardHero";
 import { DashboardSearch } from "@/components/dashboard/DashboardSearch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -96,32 +100,6 @@ function resolveFirstName(ctx: UserContext | null): string | null {
 }
 
 /* -------------------------------------------------------------- presentation -- */
-
-/** Welcome heading at the top of the dashboard content area — the page's
- *  masthead. It sits on the page's own white surface (the owner asked for no
- *  banner), so the sidebar stays the only navy surface. It carries its own top
- *  padding because the page's padding starts on the block BELOW it, and it is
- *  the one place a real page title is set at all (the shared top bar can't —
- *  see the typography "Known gap"). */
-function WelcomeHeading({ greeting }: { greeting: string }) {
-  return (
-    <div className="shrink-0 px-4 pt-6 md:px-6 md:pt-7">
-      {/* `text-4xl` (36px) — one step ABOVE the 24–30px page-title band in
-          UX-UI.md's type scale, because this greeting is the dashboard's
-          masthead rather than a section title, and the scale has no rung
-          between 30px and 36px. */}
-      <h1 className="text-3xl font-bold tracking-tight text-navy-800 md:text-4xl">
-        {greeting}
-      </h1>
-      {/* Light surface, so the muted body grey — brand-blue-300 is a navy-only
-          pairing and fails contrast on white (UX-UI.md accessibility). */}
-      <p className="mt-2 text-base font-normal text-gray-600">
-        Here&rsquo;s what&rsquo;s happening across the BYU Finance alumni network
-        today.
-      </p>
-    </div>
-  );
-}
 
 function Panel({
   title,
@@ -453,32 +431,55 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <Topbar title="Dashboard" />
+      {/* No title (Jake, 2026-08-19): the hero band below IS the page's
+          identity, so "Dashboard" in the bar was saying it twice. The bar itself
+          stays — it still carries Sign out — and every other screen keeps its
+          own title or breadcrumb. */}
+      <Topbar />
       {/* The page padding sits on the block below rather than on `main`, so the
-          welcome heading owns its own top padding and the two stay independent. */}
+          hero band can run edge to edge under the top bar. */}
       <main className="flex-1 overflow-auto">
-        <WelcomeHeading greeting={greeting} />
-        <div className="p-4 md:p-6">
+        <DashboardHero greeting={greeting} />
+        {/* Top padding is on the BRANCHES, not here: the happy path zeroes it
+            from `lg` up so the KPI strip's negative margin is measured straight
+            off the band's bottom edge (see HERO_OVERLAP_CLASS), while the two
+            fallback states — which have no KPI strip to overlap — keep it and
+            clear the band normally. */}
+        <div className="px-4 pb-4 md:px-6 md:pb-6">
           {notProvisioned ? (
-            <Card className="p-4 text-sm text-gray-700">
+            <Card className="mt-4 p-4 text-sm text-gray-700 md:mt-6">
               Your account is authenticated but not yet provisioned. Ask a Super
               Admin to grant your account a role to see data.
             </Card>
           ) : error ? (
-            <LoadError status={error.status} noun="the dashboard" />
+            <LoadError
+              status={error.status}
+              noun="the dashboard"
+              className="mt-4 md:mt-6"
+            />
           ) : (
-            /* Top to bottom: the search card, the KPI strip, then the two
+            /* Top to bottom (Jake, 2026-08-19): the KPI strip straddling the
+               hero band's bottom edge, THEN the search card, then the two
                working panels side by side. The page scrolls naturally rather
                than pinning itself to the viewport height — that's what keeps
                the Industry breakdown at its NATURAL height (see the panel
                below), which is the only shape it can't be clipped in. */
-            <div className="flex flex-col gap-4 lg:gap-5">
-              <SearchHero />
+            <div className="flex flex-col gap-4 pt-4 md:pt-6 lg:gap-5 lg:pt-0">
+              {/* KPI strip, pulled up so the tiles sit half on the photo and
+                  half off it — see HERO_OVERLAP_CLASS for the geometry and why
+                  it's a margin. `relative` (no z-index needed — it is a later
+                  sibling) puts the tiles and their shadows OVER the band; the
+                  shadows are never clipped because this block lives outside the
+                  band's `overflow-hidden`.
 
-              {/* KPI strip. Desktop only: on a phone the dashboard is
-                  search-first, so the KPIs and the Industry breakdown are
-                  dropped rather than stacked into a long scroll. */}
-              <div className="hidden grid-cols-1 gap-4 sm:grid-cols-3 lg:grid lg:gap-5">
+                  Desktop only: on a phone the dashboard is search-first, so the
+                  KPIs and the Industry breakdown are dropped rather than
+                  stacked into a long scroll — which also means there is no
+                  overlap to reason about once the grid would collapse to one
+                  column. */}
+              <div
+                className={`relative hidden grid-cols-1 gap-4 sm:grid-cols-3 lg:grid lg:gap-5 ${HERO_OVERLAP_CLASS}`}
+              >
                 <MetricCard
                   size="lg"
                   raised
@@ -544,6 +545,11 @@ export default async function DashboardPage() {
                   linkLabel="View alumni edited this year, sorted by most recently edited"
                 />
               </div>
+
+              {/* The big search field sits UNDER the KPI tiles (Jake,
+                  2026-08-19), not above them — the band and the tiles are the
+                  masthead, and this is the first thing you act on below it. */}
+              <SearchHero />
 
               {/* The two working panels, on a 12-column grid split 5:7 — the
                   search card is a column of paired fields and needs less width
