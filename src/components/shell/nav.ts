@@ -114,6 +114,15 @@ export const NAV: NavItem[] = [
         label: "Login failures",
         engineerOnly: true,
       },
+      // The site-wide pause. It was reachable only from the /engineer console
+      // page or by typing the URL, which is the wrong place for a kill switch:
+      // it is wanted during an incident, when nobody is browsing a card grid.
+      // Ordered to match the console page's own card order.
+      {
+        href: "/engineer/maintenance",
+        label: "Maintenance mode",
+        engineerOnly: true,
+      },
       {
         href: "/engineer/support-contacts",
         label: "Support contacts",
