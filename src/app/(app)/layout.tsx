@@ -7,7 +7,8 @@ import { SessionTimeout } from "@/components/auth/SessionTimeout";
 import { SessionGuard } from "@/components/auth/SessionGuard";
 import { PointerEventsGuard } from "@/components/shell/PointerEventsGuard";
 import { PreviewBanner } from "@/components/engineer/PreviewBanner";
-import { getAuthContext } from "@/lib/auth-context";
+import { LoadError } from "@/components/shared/LoadError";
+import { readAuthContext } from "@/lib/auth-context";
 import { getMaintenanceStatus } from "@/lib/maintenance";
 import { highestRole, isEngineer, roleLabel } from "@/constants/roles";
 import { asPreviewRole, PREVIEW_COOKIE } from "@/lib/preview";
@@ -44,8 +45,28 @@ export default async function AppLayout({
   let canVocabReal = false;
   let realCapabilities: readonly string[] = [];
   let userName = "";
-  try {
-    const ctx = await getAuthContext();
+  // "The sidebar has no Manage or Engineer dropdown and no data is showing" —
+  // the 2026-08-18 incident report (#688). It was not a nav bug: /auth/context
+  // was erroring, the catch here left every flag at its default, and a Super
+  // Admin got rendered as an account with no capabilities. A 401/403 IS that
+  // answer and still degrades below; anything else means we could not ask, and
+  // a shell built on a guess is worse than no shell at all.
+  const auth = await readAuthContext();
+  if (auth.status === "unavailable") {
+    return (
+      <div className="flex h-full items-center justify-center bg-canvas p-6">
+        <LoadError
+          status={auth.httpStatus}
+          noun="your access"
+          title="We couldn’t check what your account can do"
+          message="The service that resolves your roles and permissions isn’t responding, so the app won’t show you a menu that would be wrong. Your access hasn’t changed — try again in a moment."
+          className="max-w-xl"
+        />
+      </div>
+    );
+  }
+  if (auth.status === "ok") {
+    const ctx = auth.ctx;
     mustChangePassword = ctx.must_change_password === true;
     // Resolve the user's single highest role for role-aware nav (engineer is
     // the top of the ladder). See @/constants/roles.
@@ -61,9 +82,10 @@ export default async function AppLayout({
     realCapabilities = ctx.capabilities ?? [];
     // Display name for the sidebar footer (falls back to email if unset).
     userName = [ctx.first_name, ctx.last_name].filter(Boolean).join(" ");
-  } catch {
-    // 403 = authenticated but not yet provisioned in the users table.
   }
+  // Falling through with the defaults above means `auth.status === "denied"`:
+  // 403 = authenticated but not yet provisioned in the users table, 401 = the
+  // session is gone. Both are real answers, so the reduced shell is accurate.
 
   // Maintenance mode: while the engineer's site-wide pause is on, every
   // non-engineer gets the maintenance page instead of the app shell. The backend

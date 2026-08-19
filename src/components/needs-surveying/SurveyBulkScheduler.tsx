@@ -74,15 +74,27 @@ export function SurveyBulkScheduler() {
   const [bulkDates, setBulkDates] = useState<Record<number, string>>({});
   const [applyAll, setApplyAll] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  /** True when either read above failed — kept apart from "no years found". */
+  const [loadFailed, setLoadFailed] = useState(false);
 
   // Load graduation years + existing schedules, then seed each row's date from
   // the year's current schedule (blank for years that have no schedule yet).
   const load = useCallback(() => {
     setYears(null);
     setSchedules(null);
+    setLoadFailed(false);
     Promise.all([
-      clientGet<GradYearCount[]>("/survey/graduation-years").catch(() => []),
-      clientGet<SurveyScheduleItem[]>("/survey/schedules").catch(() => []),
+      // NOT `.catch(() => [])` any more (#688): an empty year list meant "this
+      // database has no graduation years", which is never true and would have
+      // read as nothing to schedule rather than a dead endpoint.
+      clientGet<GradYearCount[]>("/survey/graduation-years").catch(() => {
+        setLoadFailed(true);
+        return [];
+      }),
+      clientGet<SurveyScheduleItem[]>("/survey/schedules").catch(() => {
+        setLoadFailed(true);
+        return [];
+      }),
     ]).then(([yearList, scheduleList]) => {
       const ys = yearList ?? [];
       const scheds = scheduleList ?? [];
@@ -199,6 +211,12 @@ export function SurveyBulkScheduler() {
               {years === null ? (
                 <p className="px-4 py-6 text-sm text-gray-500">
                   Loading graduation years…
+                </p>
+              ) : loadFailed ? (
+                <p className="bg-danger-50 px-4 py-6 text-sm text-gray-700">
+                  Couldn&rsquo;t load the graduation years. Nothing was loaded,
+                  so this is not an empty list — close this and try again in a
+                  moment.
                 </p>
               ) : years.length === 0 ? (
                 <p className="px-4 py-6 text-sm text-gray-500">

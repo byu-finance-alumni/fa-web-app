@@ -4959,6 +4959,11 @@ export interface components {
             career: components["schemas"]["CareerCreate"] | null;
             education: components["schemas"]["app__schemas__alumni__EducationCreate"] | null;
             engagement: components["schemas"]["EngagementCreate"] | null;
+            /**
+             * Archive Previous Role
+             * @default false
+             */
+            archive_previous_role: boolean;
         };
         /**
          * AlumniUpdateManualEditWarning

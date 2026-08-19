@@ -1,9 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 import { Topbar } from "@/components/shell/Topbar";
 import { AttendeeMatchWizard } from "@/components/events/import/AttendeeMatchWizard";
+import { AccessCheckError } from "@/components/shared/AccessCheckError";
 import { apiGet, ApiError } from "@/lib/api";
+import { readAuthContext } from "@/lib/auth-context";
 import { canManageEvents as canManageEventsCap } from "@/constants/capabilities";
-import type { UserContext } from "@/types/alumni";
 
 interface EventDetail {
   event_id: number;
@@ -20,9 +21,12 @@ interface EventDetail {
  *
  * full_access, mirroring the backend guard on every leg of the flow. view_only
  * users who land here directly go back to the events list rather than see
- * controls the backend would 403 on. The redirect happens OUTSIDE the catch —
- * redirect() throws a control-flow signal a catch would swallow (same pattern
- * as /events/[id]/edit).
+ * controls the backend would 403 on — but ONLY when the backend actually said
+ * so. An unreadable context renders the error here instead (#688): this screen
+ * writes attendance rows against alumni records, so "we could not check" must
+ * never resolve to "let them in", and it must not resolve to a bounce either,
+ * which hides the outage behind a URL change. redirect() runs outside every
+ * branch that could swallow its control-flow signal.
  */
 export default async function ImportEventAttendeesPage({
   params,
@@ -32,11 +36,21 @@ export default async function ImportEventAttendeesPage({
   const { id } = await params;
 
   let canManageEvents = false;
-  try {
-    const ctx = await apiGet<UserContext>("/auth/context");
+  const auth = await readAuthContext();
+  if (auth.status === "ok") {
+    const ctx = auth.ctx;
     canManageEvents = canManageEventsCap(ctx.capabilities);
-  } catch {
-    /* not provisioned / context error -> treat as no manage access */
+  }
+  if (auth.status === "unavailable") {
+    return (
+      <AccessCheckError
+        status={auth.httpStatus}
+        breadcrumb={[
+          { label: "Events", href: "/events" },
+          { label: "Match attendees" },
+        ]}
+      />
+    );
   }
   if (!canManageEvents) redirect("/events");
 

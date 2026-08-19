@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { ApiError } from "@/lib/api";
-import { getAuthContext } from "@/lib/auth-context";
+import { readAuthContext } from "@/lib/auth-context";
+import { AccessCheckError } from "@/components/shared/AccessCheckError";
 import { isEngineer } from "@/constants/roles";
 import { Topbar } from "@/components/shell/Topbar";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +12,7 @@ import { CampaignPauseControl } from "@/components/engineer/CampaignPauseControl
 import { CampaignRemoveControl } from "@/components/engineer/CampaignRemoveControl";
 import { SurveyCampaignReset } from "@/components/engineer/SurveyCampaignReset";
 import { getSurveySchedules, type SurveyScheduleItem } from "./actions";
+import { LoadError } from "@/components/shared/LoadError";
 
 /**
  * The two statuses the daily send cron picks up (`_load_schedules_due`). A
@@ -89,9 +91,29 @@ function statusVariant(
  */
 export default async function EngineerSurveysPage() {
   // Role gate (defense-in-depth): redirect non-engineers — and any authed-but-
-  // unprovisioned user (getAuthContext throws → null) — to the dashboard rather
+  // unprovisioned user (a real 401/403) — to the dashboard rather
   // than rendering a dead-end shell.
-  const gate = await getAuthContext().catch(() => null);
+  // Split the two failures apart (#688). A 401/403 — or a successful read that
+  // simply lacks the role — is the backend's answer, and the redirect below is
+  // correct. An unreadable context (5xx, timeout, unreachable) is not an answer
+  // at all: bouncing then strands a legitimate user on a dashboard that is
+  // failing for the same reason, under a URL they never asked for, and the
+  // report comes back as "the console vanished" instead of "the API is down".
+  // `gate` stays null on anything but a verified-success read, so the page can
+  // only render for someone we positively confirmed.
+  const auth = await readAuthContext();
+  if (auth.status === "unavailable") {
+    return (
+      <AccessCheckError
+        status={auth.httpStatus}
+        breadcrumb={[
+          { label: "Engineer", href: "/engineer" },
+          { label: "Surveys" },
+        ]}
+      />
+    );
+  }
+  const gate = auth.status === "ok" ? auth.ctx : null;
   if (!gate || !isEngineer(gate.roles)) redirect("/dashboard");
 
   let schedules: SurveyScheduleItem[] | null = null;
@@ -121,18 +143,16 @@ export default async function EngineerSurveysPage() {
         <h1 className="sr-only">Surveys</h1>
 
         {error ? (
-          <Card className="p-10 text-center">
-            <p className="text-sm font-semibold text-gray-900">
-              {error.status === 403
-                ? "Engineer access required"
-                : "Couldn’t load the survey campaigns"}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              {error.status === 403
+          <LoadError
+            status={error.status}
+            noun="the survey campaigns"
+            title={error.status === 403 ? "Engineer access required" : undefined}
+            message={
+              error.status === 403
                 ? "The survey console is restricted to engineers."
-                : error.message}
-            </p>
-          </Card>
+                : undefined
+            }
+          />
         ) : (
           <>
             {/* Lead with the live count + the blanket switches — the things this

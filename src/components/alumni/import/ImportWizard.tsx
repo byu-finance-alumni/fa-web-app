@@ -21,6 +21,14 @@ import {
 } from "@/app/(app)/alumni/actions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { downloadCsvFile } from "@/lib/csv";
+import {
+  FAILED_ROWS_UNAVAILABLE,
+  FAILED_ROWS_UNREADABLE,
+  REASON_COLUMN_NOTE,
+  buildFailedRowsCsv,
+  unmatchedNote,
+} from "@/lib/importFailures";
 import { ImportReviewTable } from "./ImportReviewTable";
 
 type Step = "upload" | "review" | "result";
@@ -30,19 +38,6 @@ function fileForm(file: File): FormData {
   const fd = new FormData();
   fd.append("file", file, file.name);
   return fd;
-}
-
-/** Trigger a browser download of `text` as `filename` (client-side Blob). */
-function downloadCsv(filename: string, text: string) {
-  const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
 }
 
 const isCsv = (file: File) =>
@@ -77,6 +72,10 @@ export function ImportWizard({ kind = "alumni" }: { kind?: ImportKind }) {
   const [templateError, setTemplateError] = useState<string | null>(null);
   const [downloadingTemplate, startTemplate] = useTransition();
 
+  const [failedRowsError, setFailedRowsError] = useState<string | null>(null);
+  const [failedRowsNote, setFailedRowsNote] = useState<string | null>(null);
+  const [buildingFailedRows, setBuildingFailedRows] = useState(false);
+
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -85,6 +84,8 @@ export function ImportWizard({ kind = "alumni" }: { kind?: ImportKind }) {
     setPreviewError(null);
     setResult(null);
     setImportError(null);
+    setFailedRowsError(null);
+    setFailedRowsNote(null);
     if (!next) {
       setFile(null);
       setFileError(null);
@@ -132,28 +133,42 @@ export function ImportWizard({ kind = "alumni" }: { kind?: ImportKind }) {
     startTemplate(async () => {
       const res = await downloadImportTemplate(kind);
       if (res.ok) {
-        downloadCsv(`${noun}-import-template.csv`, res.csv);
+        downloadCsvFile(`${noun}-import-template.csv`, res.csv);
       } else {
         setTemplateError(res.error);
       }
     });
   };
 
-  const onDownloadRejects = () => {
-    if (!result || result.rejects.length === 0) return;
-    // Strip leading formula characters (= + - @ tab CR) before quoting so a
-    // crafted name/reason can't execute as a formula when the rejects file is
-    // opened in Excel/Sheets (CSV injection). Sanitize on OUTPUT only — stored
-    // data keeps its real value (e.g. a "+1 555…" phone in a reason string).
-    const esc = (v: string) =>
-      `"${String(v).replace(/^[=+\-@\t\r]+/, "").replace(/"/g, '""')}"`;
-    const lines = [
-      "row,name,reason",
-      ...result.rejects.map((r) =>
-        [esc(String(r.row)), esc(r.name), esc(r.reason)].join(","),
-      ),
-    ];
-    downloadCsv(`${noun}-import-rejects.csv`, lines.join("\r\n"));
+  /**
+   * Download ONLY the rows the import skipped, in the shape they arrived in
+   * (#693).
+   *
+   * Built from `file` — the CSV still sitting in this component's state — not
+   * from the API, because `ImportReject` carries a row number and a reason but
+   * none of the row's values. `file` survives to this step: `pickFile(null)`
+   * only runs when the operator starts another import.
+   */
+  const onDownloadFailedRows = async () => {
+    if (!result || result.rejects.length === 0 || !file) return;
+    setFailedRowsError(null);
+    setFailedRowsNote(null);
+    setBuildingFailedRows(true);
+    try {
+      const built = buildFailedRowsCsv(await file.text(), result.rejects);
+      if (!built.csv) {
+        setFailedRowsError(FAILED_ROWS_UNAVAILABLE);
+        return;
+      }
+      setFailedRowsNote(unmatchedNote(built));
+      downloadCsvFile(`${noun}-import-failed-rows.csv`, built.csv);
+    } catch {
+      // Deliberately generic: whatever the File API threw is of no use to the
+      // operator and must not reach the screen.
+      setFailedRowsError(FAILED_ROWS_UNREADABLE);
+    } finally {
+      setBuildingFailedRows(false);
+    }
   };
 
   const resetToUpload = () => {
@@ -201,7 +216,11 @@ export function ImportWizard({ kind = "alumni" }: { kind?: ImportKind }) {
           listPath={listPath}
           listLabel={listLabel}
           result={result}
-          onDownloadRejects={onDownloadRejects}
+          canDownloadFailedRows={file !== null}
+          buildingFailedRows={buildingFailedRows}
+          failedRowsError={failedRowsError}
+          failedRowsNote={failedRowsNote}
+          onDownloadFailedRows={onDownloadFailedRows}
           onImportAnother={() => {
             pickFile(null);
             setStep("upload");
@@ -576,14 +595,22 @@ function ResultStep({
   listPath,
   listLabel,
   result,
-  onDownloadRejects,
+  canDownloadFailedRows,
+  buildingFailedRows,
+  failedRowsError,
+  failedRowsNote,
+  onDownloadFailedRows,
   onImportAnother,
 }: {
   noun: string;
   listPath: string;
   listLabel: string;
   result: ImportResult;
-  onDownloadRejects: () => void;
+  canDownloadFailedRows: boolean;
+  buildingFailedRows: boolean;
+  failedRowsError: string | null;
+  failedRowsNote: string | null;
+  onDownloadFailedRows: () => void;
   onImportAnother: () => void;
 }) {
   const hasRejects = result.rejects.length > 0;
@@ -626,7 +653,12 @@ function ResultStep({
               {result.rejects.length === 1 ? " was" : "s were"} skipped
             </p>
             <p className="mt-1 text-sm text-gray-700">
-              Download the skipped rows, fix the reasons below, and re-upload.
+              Download just these rows, fix them, and upload that file.
+              {result.imported > 0
+                ? ` The ${result.imported} row${
+                    result.imported === 1 ? "" : "s"
+                  } that already imported stay untouched.`
+                : ""}
             </p>
             <ul className="mt-3 max-h-48 space-y-1 overflow-auto text-sm">
               {result.rejects.map((r) => (
@@ -642,14 +674,35 @@ function ResultStep({
                 </li>
               ))}
             </ul>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={onDownloadRejects}
-              className="mt-4"
-            >
-              <Download className="h-4 w-4" /> Download rejects (CSV)
-            </Button>
+            <div className="mt-4">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={onDownloadFailedRows}
+                disabled={!canDownloadFailedRows || buildingFailedRows}
+              >
+                {buildingFailedRows
+                  ? "Preparing…"
+                  : `Download the ${result.rejects.length} skipped row${
+                      result.rejects.length === 1 ? "" : "s"
+                    } (CSV)`}
+              </Button>
+              <p className="mt-2 max-w-2xl text-xs text-gray-600">
+                {canDownloadFailedRows
+                  ? REASON_COLUMN_NOTE
+                  : "The uploaded file is no longer in this page, so the skipped rows can't be rebuilt. The reasons above list every one."}
+              </p>
+              {failedRowsNote && (
+                <p className="mt-1 max-w-2xl text-xs text-gray-700">
+                  {failedRowsNote}
+                </p>
+              )}
+              {failedRowsError && (
+                <p className="mt-1 max-w-2xl text-xs text-danger-600">
+                  {failedRowsError}
+                </p>
+              )}
+            </div>
           </div>
         )}
       </Card>

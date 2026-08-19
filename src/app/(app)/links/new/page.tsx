@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { Topbar } from "@/components/shell/Topbar";
 import { AddLinkForm } from "@/components/links/AddLinkForm";
-import { getAuthContext } from "@/lib/auth-context";
+import { AccessCheckError } from "@/components/shared/AccessCheckError";
+import { readAuthContext } from "@/lib/auth-context";
 import { canManageSurveys } from "@/constants/capabilities";
 
 /**
@@ -18,16 +19,31 @@ import { canManageSurveys } from "@/constants/capabilities";
  * list rather than shown a form that 403s on submit. Read the CAPABILITY, never
  * the role: an engineer can grant it to a narrower role from the permission
  * editor and a role check would bounce someone the backend would accept (#379).
+ *
+ * The bounce belongs to a 401/403 and to nothing else (#688). When the context
+ * cannot be read at all we neither open the form nor move the user: the flag
+ * stays false and the fault is named on this URL, which is the one a reload
+ * retries.
  */
 export default async function NewLinkPage() {
   let canCreate = false;
-  try {
-    canCreate = canManageSurveys((await getAuthContext()).capabilities);
-  } catch {
-    /* not provisioned / context error → treat as no access */
+  const auth = await readAuthContext();
+  if (auth.status === "ok") {
+    canCreate = canManageSurveys(auth.ctx.capabilities);
   }
-  // Outside the try/catch: redirect() throws a control-flow signal that a catch
-  // would swallow.
+  if (auth.status === "unavailable") {
+    return (
+      <AccessCheckError
+        status={auth.httpStatus}
+        breadcrumb={[
+          { label: "Internship Links", href: "/links" },
+          { label: "Add link" },
+        ]}
+      />
+    );
+  }
+  // Outside every branch that could swallow it: redirect() throws a
+  // control-flow signal.
   if (!canCreate) redirect("/links");
 
   return (

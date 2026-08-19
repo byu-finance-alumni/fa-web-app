@@ -291,7 +291,12 @@ describe("the Links tab gates deletion on the capability, not a role", () => {
   it("the list page reads links.delete and fails closed", () => {
     const src = read("src/app/(app)/links/page.tsx");
     expect(src).toContain("canDeleteLinks(capabilities)");
-    expect(src).toMatch(/catch \{[\s\S]*?canDelete = false;[\s\S]*?\}/);
+    // Fail closed: both flags start false and are only raised on a SUCCESSFUL
+    // context read. (#688 replaced the old `catch { canDelete = false }` — a
+    // catch could not tell a denial from an outage, so an API blip silently
+    // turned a reviewer into a read-only viewer. The default is still false.)
+    expect(src).toMatch(/let canDelete = false;/);
+    expect(src).toMatch(/if \(auth\.status === "ok"\) \{/);
     expect(src).not.toContain("hasFullAccess");
     expect(src).not.toContain("super_admin");
   });

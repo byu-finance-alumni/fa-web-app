@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { apiGet, ApiError } from "@/lib/api";
-import { getAuthContext } from "@/lib/auth-context";
+import { readAuthContext } from "@/lib/auth-context";
+import { AccessCheckError } from "@/components/shared/AccessCheckError";
 import { Topbar } from "@/components/shell/Topbar";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { redirect } from "next/navigation";
 import { PurgeLoginsButton } from "./PurgeLoginsButton";
 import { isEngineer } from "@/constants/roles";
+import { LoadError } from "@/components/shared/LoadError";
 
 interface LoginRow {
   login_event_id: number;
@@ -68,10 +70,30 @@ export default async function LoginsPage({
   // Role gate (defense-in-depth): logins are engineer-only. The /engineer/*
   // route group is already gated in engineer/layout.tsx; this page-level check
   // is belt-and-suspenders. Redirect non-engineers — and any authed-but-
-  // unprovisioned user (getAuthContext throws → null) — to the dashboard rather
+  // unprovisioned user (a real 401/403) — to the dashboard rather
   // than rendering a dead-end "access required" shell. The backend re-enforces
   // RequireEngineer on GET /admin/logins.
-  const gate = await getAuthContext().catch(() => null);
+  // Split the two failures apart (#688). A 401/403 — or a successful read that
+  // simply lacks the role — is the backend's answer, and the redirect below is
+  // correct. An unreadable context (5xx, timeout, unreachable) is not an answer
+  // at all: bouncing then strands a legitimate user on a dashboard that is
+  // failing for the same reason, under a URL they never asked for, and the
+  // report comes back as "the console vanished" instead of "the API is down".
+  // `gate` stays null on anything but a verified-success read, so the page can
+  // only render for someone we positively confirmed.
+  const auth = await readAuthContext();
+  if (auth.status === "unavailable") {
+    return (
+      <AccessCheckError
+        status={auth.httpStatus}
+        breadcrumb={[
+          { label: "Engineer", href: "/engineer" },
+          { label: "Logins" },
+        ]}
+      />
+    );
+  }
+  const gate = auth.status === "ok" ? auth.ctx : null;
   if (!gate || !isEngineer(gate.roles)) redirect("/dashboard");
   const meId: number | null = gate.user_id;
 
@@ -110,18 +132,16 @@ export default async function LoginsPage({
         </div>
 
         {error ? (
-          <Card className="p-10 text-center">
-            <p className="text-sm font-semibold text-gray-900">
-              {error.status === 403
-                ? "Engineer access required"
-                : "Couldn’t load the login history"}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              {error.status === 403
+          <LoadError
+            status={error.status}
+            noun="the login history"
+            title={error.status === 403 ? "Engineer access required" : undefined}
+            message={
+              error.status === 403
                 ? "The login history is restricted to engineers."
-                : error.message}
-            </p>
-          </Card>
+                : undefined
+            }
+          />
         ) : rows && rows.length === 0 ? (
           <Card className="p-10 text-center text-sm text-gray-500">
             No sign-ins recorded yet. They’ll appear here as users log in.

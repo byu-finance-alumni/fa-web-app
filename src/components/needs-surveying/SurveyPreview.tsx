@@ -21,7 +21,7 @@ import {
 import {
   EditFlow,
   INFO_SECTIONS,
-  ReviewGroup,
+  ReviewSections,
   SuccessPanel,
   TrustNote,
   initialsOf,
@@ -273,11 +273,7 @@ function PreviewBody() {
                 Your information
               </h3>
             </div>
-            <div className="grid gap-x-8 gap-y-5 px-5 py-5 sm:grid-cols-2">
-              {INFO_SECTIONS.map((s) => (
-                <ReviewGroup key={s.id} section={s} fields={fields} />
-              ))}
-            </div>
+            <ReviewSections sections={INFO_SECTIONS} fields={fields} />
           </section>
 
           <div className="mt-6">

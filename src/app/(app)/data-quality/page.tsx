@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { LoadError } from "@/components/shared/LoadError";
 
 interface DataQuality {
   total_alumni: number;
@@ -113,20 +114,7 @@ export default async function DataQualityPage() {
       </Topbar>
       <main className="flex-1 overflow-auto p-6">
         {error ? (
-          <Card className="p-10 text-center">
-            <p className="text-sm font-semibold text-gray-900">
-              {error.status === 403
-                ? "Your account isn't provisioned yet"
-                : error.status === 401
-                  ? "Please sign in again"
-                  : "Couldn't load data quality"}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              {error.status === 403
-                ? "Ask a Super Admin to grant your account a role."
-                : error.message}
-            </p>
-          </Card>
+          <LoadError status={error.status} noun="the data-quality report" />
         ) : (
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

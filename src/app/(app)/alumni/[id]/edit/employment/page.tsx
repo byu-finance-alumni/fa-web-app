@@ -1,6 +1,7 @@
 import { Topbar } from "@/components/shell/Topbar";
 import { EmploymentSectionForm } from "@/components/alumni/edit-sections/EmploymentSectionForm";
 import { loadEditableProfile, s } from "../load-profile";
+import { AccessCheckError } from "@/components/shared/AccessCheckError";
 
 export default async function EmploymentEditPage({
   params,
@@ -8,7 +9,25 @@ export default async function EmploymentEditPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const p = await loadEditableProfile(id);
+  const gate = await loadEditableProfile(id);
+  // An unreadable /auth/context is not a denial (#688). Staying on this URL and
+  // naming the fault beats both alternatives: bouncing to the read-only profile
+  // reads as "my edit access was revoked", and rendering the form anyway would
+  // open an editor over alumni records we never confirmed this account may
+  // touch. A real 401/403 never reaches here — the guard redirects on that.
+  if (gate.status !== "ok") {
+    return (
+      <AccessCheckError
+        status={gate.httpStatus}
+        breadcrumb={[
+          { label: "Alumni", href: "/alumni" },
+          { label: "Edit", href: `/alumni/${id}/edit` },
+          { label: "Employment" },
+        ]}
+      />
+    );
+  }
+  const p = gate.profile;
   const a = p.alumni;
   const c = p.contact;
   const career = p.current_career;

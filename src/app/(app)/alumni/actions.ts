@@ -411,6 +411,12 @@ export async function updateEmploymentSection(
     { name: "work_email" },
     { name: "region" },
   ]);
+  // Unchecked checkboxes are absent from FormData; presence => true. Sent only
+  // when ticked so an ordinary save carries nothing new — `false` is the
+  // server-side default anyway, and the flag doesn't exist on the CREATE
+  // schema, so keeping it out of a payload it isn't wanted in is the safe shape.
+  const archivePreviousRole =
+    formData.get("archive_previous_role") !== null ? true : undefined;
   return saveSection(
     id,
     compact({
@@ -418,6 +424,10 @@ export async function updateEmploymentSection(
       linkedin_url: getStr(formData, "linkedin_url"),
       career,
       contact,
+      // TOP LEVEL, never inside `career` (api #446). CareerCreate is
+      // extra="forbid" and its dump is fed straight to a column upsert, so the
+      // flag riding along in there is a 422, not a no-op.
+      archive_previous_role: archivePreviousRole,
     }),
   );
 }
