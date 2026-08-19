@@ -82,6 +82,13 @@ function monthDay(iso: string | null): { mon: string; day: string } | null {
 const place = (...parts: (string | null | undefined)[]) =>
   parts.filter(Boolean).join(", ") || null;
 
+/** How many past roles the Overview's Career history panel lists (#691 review).
+ *  The panel is a one-column summary sitting beside the two-column current-
+ *  employment box, so an uncapped list stretched it well past its neighbour on a
+ *  long career. The complete, uncapped history lives on the Employment tab, one
+ *  click away via the panel's "View full employment history" link. */
+const OVERVIEW_CAREER_HISTORY_LIMIT = 3;
+
 /** Whole-dollar USD (no cents), matching the Pay It Forward panel. `null` (a
  *  withheld/absent amount) renders as an em-dash rather than "$0". */
 function money(value: number | null): string {
@@ -609,15 +616,21 @@ export async function AlumniProfileView({
   // Career history employment (#367, #691): PAST roles only, most recent first.
   // The current role used to lead this list; it was dropped because it already
   // has two other homes on the page — Current employment contact information
-  // beside it, and the Employment tab — and the panel is now explicitly a
-  // history. Deliberately uncapped (it used to show the two most recent): the
-  // panel IS the history now, so truncating it would silently hide roles.
+  // beside it (which now names the employer and title outright), and the
+  // Employment tab — and the panel is now explicitly a history.
   const previousJobs = [...profile.employment_history]
     .filter((e) => !e.is_current)
     .sort(
       (x, y) =>
         (y.end_year ?? y.start_year ?? 0) - (x.end_year ?? x.start_year ?? 0),
     );
+  // The Overview panel shows only the most recent few (#691 review); the
+  // Employment tab is the uncapped list. `hasMorePreviousJobs` is what decides
+  // whether the panel offers a link onward — with 3 or fewer the list IS the
+  // whole history, so pointing at "the full history" would promise nothing new.
+  const overviewJobs = previousJobs.slice(0, OVERVIEW_CAREER_HISTORY_LIMIT);
+  const hasMorePreviousJobs =
+    previousJobs.length > OVERVIEW_CAREER_HISTORY_LIMIT;
 
   // Graduate degrees & designations box (#399/#405): graduate degree/school from
   // the alumni record, plus held certifications from program engagement (a
@@ -1043,16 +1056,18 @@ export async function AlumniProfileView({
                   "Career snapshot" and dropped the current role from it). PAST
                   roles only, most recent first, drawn from employment history —
                   the panel title now says what the list is, so the old inner
-                  "Previous employment" sub-heading went with the current role. */}
+                  "Previous employment" sub-heading went with the current role.
+                  Capped at the OVERVIEW_CAREER_HISTORY_LIMIT most recent (#691
+                  review); the Employment tab holds the uncapped list. */}
               <Panel
                 title="Career history"
                 action={canEdit ? <EditLink id={aid} /> : undefined}
                 className="lg:col-span-1"
               >
                 <div className="flex h-full flex-col">
-                  {previousJobs.length ? (
+                  {overviewJobs.length ? (
                     <div className="space-y-3">
-                      {previousJobs.map((e) => (
+                      {overviewJobs.map((e) => (
                         <div key={e.employment_history_id}>
                           <div className="flex items-start justify-between gap-2">
                             <p className="text-sm font-semibold text-gray-900">
@@ -1081,13 +1096,21 @@ export async function AlumniProfileView({
                       No previous roles on file yet.
                     </p>
                   )}
-                  {/* Persistent link to the full Employment tab. */}
-                  <Link
-                    href="?tab=employment"
-                    className="mt-auto pt-4 text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
-                  >
-                    View full employment history →
-                  </Link>
+                  {/* Link to the full Employment tab, shown only when the cap
+                      is actually hiding roles (#691 review) — otherwise the
+                      list above IS the whole history and the link would send
+                      staff to a tab holding nothing they cannot already see.
+                      Deliberately carries NO count: the panel is a summary, and
+                      a "View all 5" that has to be recomputed every time a role
+                      is added is noise the owner asked us to drop. */}
+                  {hasMorePreviousJobs ? (
+                    <Link
+                      href="?tab=employment"
+                      className="mt-auto pt-4 text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
+                    >
+                      View full employment history →
+                    </Link>
+                  ) : null}
                 </div>
               </Panel>
 
@@ -1102,6 +1125,23 @@ export async function AlumniProfileView({
                 action={canEdit ? <EditLink id={aid} /> : undefined}
                 className="lg:col-span-2"
               >
+                {/* Employer + job title (#691 review). #691 pulled the current
+                    role out of Career history next door, which left the two
+                    facts staff look for first — who the alum works for and what
+                    they do — with NO home on the Overview tab at all; they only
+                    survived on the Employment tab and in the KPI strip, which is
+                    `hidden md:grid`. They lead this panel because everything
+                    below is contact detail ABOUT this employer, and they use the
+                    same Field row as the rest of it, so a blank reads as the
+                    page's standard em-dash. `employerLabel` (not the raw column)
+                    keeps the #608 "Military/Air Force" rendering. */}
+                <div className="mb-4 grid grid-cols-1 gap-x-6 gap-y-4 border-b border-gray-100 pb-4 sm:grid-cols-2">
+                  <Field label="Employer" value={employerLabel} />
+                  <Field
+                    label="Job title"
+                    value={career?.current_title ?? null}
+                  />
+                </div>
                 {/* Industry pair (#683) — the only industry surface on the whole
                     profile used to be the KPI tile, and that tile printed the
                     words "Secondary industry" ONLY when the value was non-empty.
@@ -1653,21 +1693,20 @@ export async function AlumniProfileView({
                     `tag` (blue), not `success` (green): UX-UI.md puts the whole
                     tag family on blue-50/navy-800 and says never green. The
                     Education tab's "Current" badge is a different meaning (still
-                    attending) and deliberately stays green. */}
+                    attending) and deliberately stays green.
+
+                    The list is a plain <ol>, not a DrawerList (#691 review):
+                    this tab IS the full employment history, so collapsing it to
+                    3 rows behind a "View all N" drawer hid the very thing the
+                    reader navigated here for — and offered a way to "view all"
+                    to someone already looking at all of it. The Overview panel
+                    keeps the summary-and-link job; this one just lists. */}
                 <Panel
                   title="Employment history"
                   action={canEdit ? <AddRoleButton alumniId={aid} /> : undefined}
                 >
                   {career || profile.employment_history.length ? (
-                    <DrawerList
-                      title="Employment history"
-                      ordered
-                      collapsed={3}
-                      listClassName="space-y-1"
-                      action={
-                        canEdit ? <AddRoleButton alumniId={aid} /> : undefined
-                      }
-                    >
+                    <ol className="space-y-1">
                       {/* Current role lives in current-employment (not history),
                           so surface it here so the tab lists the current job. */}
                       {career ? (
@@ -1727,7 +1766,7 @@ export async function AlumniProfileView({
                           </p>
                         </li>
                       ))}
-                    </DrawerList>
+                    </ol>
                   ) : (
                     <p className="py-6 text-center text-sm text-gray-500">
                       No employment history recorded yet.
