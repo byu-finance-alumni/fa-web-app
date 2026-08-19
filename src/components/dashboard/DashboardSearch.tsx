@@ -509,25 +509,31 @@ export function DashboardSearch({
         </TabsContent>
 
         {/* ------------------------------------------------------- Advanced -- */}
-        {/* Desktop bounds the field block (`max-h` below) and scrolls inside it,
-            rather than letting ~900px of facets set the card's height: the card
-            shares a dashboard grid row with the Industry breakdown panel, and an
-            unbounded Advanced tab would stretch that row every time the tab is
-            switched. The cap is the height, the flex-1 is what makes the tab
-            FILL the card when the row is taller than the fields — that's what
-            keeps Search/Reset on the card's bottom edge in both tabs (#594).
+        {/* ⚠️ THE CARD MUST NOT CHANGE HEIGHT WHEN THIS TAB IS SELECTED. It
+            shares a dashboard grid row with the Industry breakdown panel, whose
+            NATURAL height sets the row; a stretched grid item still contributes
+            its own content height to that row, so ~900px of facets here would
+            grow the row and the whole page would jump on every tab switch.
+
+            The fix is that this tab declares NO height of its own — no min-h,
+            no max-h. `min-h-0` lets the flex child shrink below its content,
+            `flex-1` fills whatever the row gives it, and `overflow-y-auto`
+            takes the remainder as an inner scroll. So the fields scroll and the
+            card stays exactly the size the Quick tab left it (which is also
+            what keeps Search/Reset on the bottom edge in both tabs, #594).
+
             Mobile drops the bound and the inner scroll entirely — the fields
             flow and the whole page scrolls, the native pattern. */}
         <TabsContent
           value="advanced"
-          className="flex flex-col space-y-4 lg:min-h-[20rem] lg:flex-1"
+          className="flex flex-col space-y-4 lg:min-h-0 lg:flex-1"
         >
           {/* overflow-y:auto forces overflow-x to compute to auto too, which
               clips a focused field's ring/offset at the flush left edge (the
               scroll-free Quick tab doesn't clip). Give the scroll box inline
               padding so the ring has room, and cancel it with -mx so the fields
               stay aligned with the Quick tab (no shift on tab switch). */}
-          <div className="space-y-4 lg:-mx-2 lg:max-h-[28rem] lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:px-2">
+          <div className="space-y-4 lg:-mx-2 lg:max-h-60 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:px-2">
             <IdentityGrid value={adv} onChange={setAdv} />
             {/* Same 2-up grid as everything above and below it, so the From/To
                 pair keeps the half-width cell it has on the Quick tab rather
