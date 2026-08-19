@@ -29,6 +29,8 @@ import {
 } from "@/app/(app)/alumni/actions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { downloadCsvFile } from "@/lib/csv";
+import { buildPhotoFailuresCsv, photoFailureRows } from "@/lib/importFailures";
 
 // Publishable (browser-safe) key, sent on the direct-to-storage PUT — the same
 // header the single-headshot upload uses.
@@ -276,6 +278,24 @@ export function PhotoImportWizard() {
     });
   };
 
+  /**
+   * Download every photo that did NOT land on a profile, as a worklist (#693).
+   *
+   * Not a round trip — the payload is images, so there is nothing to correct in
+   * a file and re-upload. What it saves is the transcribing: the table on this
+   * page is the only record of which of 400 photos failed and why, and it is
+   * gone the moment the operator navigates away.
+   *
+   * Covers BOTH halves of the flow: the API's per-file report and the files the
+   * browser refused before the upload started (which the table above omits).
+   */
+  const onDownloadFailures = () => {
+    if (!result) return;
+    const built = buildPhotoFailuresCsv(result.items, skipped);
+    if (!built.csv) return;
+    downloadCsvFile("photo-import-failures.csv", built.csv);
+  };
+
   const reset = () => {
     setFiles([]);
     setSkipped([]);
@@ -287,6 +307,9 @@ export function PhotoImportWizard() {
 
   // --- Results view ---------------------------------------------------------
   if (result) {
+    // Everything that did not end up on a profile, from both the API's report
+    // and the pre-upload skips — the count the download offers.
+    const failureCount = photoFailureRows(result.items, skipped).length;
     return (
       <div className="space-y-4">
         <Card className="p-6">
@@ -350,13 +373,31 @@ export function PhotoImportWizard() {
           </Card>
         )}
 
-        <div className="flex items-center justify-end gap-3">
-          <Button variant="secondary" onClick={reset}>
-            Import more photos
-          </Button>
-          <Button asChild variant="primary">
-            <Link href="/alumni">Go to alumni list</Link>
-          </Button>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            {failureCount > 0 && (
+              <>
+                <Button variant="secondary" onClick={onDownloadFailures}>
+                  {`Download the ${failureCount.toLocaleString()} photo${
+                    failureCount === 1 ? "" : "s"
+                  } that didn't land (CSV)`}
+                </Button>
+                <p className="mt-2 max-w-xl text-xs text-gray-600">
+                  File name, net ID, what went wrong, and what to do about it —
+                  a net ID nobody holds is a roster problem, a failed upload is
+                  worth simply dragging in again.
+                </p>
+              </>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-3">
+            <Button variant="secondary" onClick={reset}>
+              Import more photos
+            </Button>
+            <Button asChild variant="primary">
+              <Link href="/alumni">Go to alumni list</Link>
+            </Button>
+          </div>
         </div>
       </div>
     );
