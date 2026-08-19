@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import { useRouter } from "next/navigation";
 import { parseAlumniQuery } from "@/lib/alumniQueryParser";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -19,9 +20,12 @@ import { Button } from "@/components/ui/button";
  * + client navigation when hydrated. The alumni list stays the single source of
  * truth for results.
  *
- * The optional `greeting` renders as the page's lead-in above the field.
+ * Presented as a card in its own right (2026-08-19 redesign) so the field is the
+ * widest, tallest control on the dashboard — it sits directly under the navy
+ * welcome band and above the KPI strip. The greeting itself moved OUT of here
+ * and into that band; this component is now purely the search control.
  */
-export function SearchHero({ greeting }: { greeting?: string }) {
+export function SearchHero() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -31,20 +35,18 @@ export function SearchHero({ greeting }: { greeting?: string }) {
   };
 
   return (
-    <div>
-      {greeting ? (
-        <h1 className="mb-2 text-lg font-semibold tracking-tight text-gray-900 md:mb-3 md:text-xl">
-          {greeting}
-        </h1>
-      ) : null}
+    <Card className="p-4 md:p-5">
       <form
         onSubmit={submit}
         action="/alumni"
         method="get"
         role="search"
         aria-label="Search alumni"
-        className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white py-0.5 pl-3 pr-0.5 shadow-card transition focus-within:border-brand-blue-600 focus-within:ring-2 focus-within:ring-brand-blue-500 focus-within:ring-offset-1 md:py-1.5 md:pl-4 md:pr-1.5"
+        className="flex items-center gap-3"
       >
+        {/* The field carries its own border/ring rather than the form wrapper:
+            it spans the whole card, so the focus affordance has to land on the
+            input itself and not on a row that also contains the button. */}
         <input
           ref={inputRef}
           name="q"
@@ -52,20 +54,21 @@ export function SearchHero({ greeting }: { greeting?: string }) {
           placeholder="Search alumni by name, employer, title, location, or industry"
           aria-label="Search alumni by name, employer, title, location, or industry"
           autoComplete="off"
-          className="min-w-0 flex-1 bg-transparent text-base text-gray-900 placeholder:text-gray-400 focus:outline-none md:text-sm"
+          className="h-11 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3.5 text-base text-gray-900 transition placeholder:text-gray-400 focus:border-brand-blue-600 focus:outline-none focus:ring-2 focus:ring-brand-blue-500 focus:ring-offset-1 md:h-10 md:text-sm"
         />
-        {/* h-8 keeps the whole bar compact (~36px) on mobile; desktop restores
-            the default h-9. */}
-        <Button type="submit" className="h-8 md:h-9">
+        <Button type="submit" size="lg">
           Search
         </Button>
       </form>
-      <p className="mt-2 px-1 text-xs text-gray-500">
+      {/* The worked example is the whole point of the hint — staff have to see
+          that a sentence is allowed, so it's set in bold rather than left as
+          quiet grey text alongside the lead-in. */}
+      <p className="mt-2.5 text-xs text-gray-500">
         Try plain English — e.g.{" "}
-        <span className="text-gray-700">
+        <span className="font-semibold text-gray-700">
           “Find me all alumni in investment banking near Seattle”
         </span>
       </p>
-    </div>
+    </Card>
   );
 }

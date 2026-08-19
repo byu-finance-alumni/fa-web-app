@@ -108,6 +108,28 @@ function resolveFirstName(ctx: UserContext | null): string | null {
 
 /* -------------------------------------------------------------- presentation -- */
 
+/** Navy welcome band across the top of the dashboard content area — the page's
+ *  masthead, and the only navy surface on the page besides the sidebar. It is
+ *  deliberately full-bleed (the page's horizontal padding starts BELOW it) so it
+ *  reads as a band rather than another card, and it is the one place the page
+ *  title runs at the 24–30px UX-UI.md page-title size (the shared top bar can't
+ *  — see the typography "Known gap"). */
+function WelcomeBand({ greeting }: { greeting: string }) {
+  return (
+    <div className="shrink-0 bg-navy-800 px-4 py-6 md:px-6 md:py-7">
+      <h1 className="text-2xl font-semibold tracking-tight text-white md:text-3xl">
+        {greeting}
+      </h1>
+      {/* brand-blue-300 on navy is the same pairing the sidebar uses for its
+          non-active items — never on a light surface (UX-UI.md accessibility). */}
+      <p className="mt-1.5 text-sm text-brand-blue-300">
+        Here&rsquo;s what&rsquo;s happening across the BYU Finance alumni network
+        today.
+      </p>
+    </div>
+  );
+}
+
 function Panel({
   title,
   action,
@@ -325,11 +347,11 @@ export default async function DashboardPage() {
     }
   }
 
-  // "Welcome, Marcus" — name from the auth context (or a first name derived from
-  // the email), with a no-name fallback. A static greeting avoids the wrong
+  // "Welcome back, Marcus" — name from the auth context (or a first name derived
+  // from the email), with a no-name fallback. A static greeting avoids the wrong
   // time-of-day (the server renders in UTC, not the viewer's local hour).
   const firstName = resolveFirstName(ctx);
-  const greeting = firstName ? `Welcome, ${firstName}` : "Welcome";
+  const greeting = firstName ? `Welcome back, ${firstName}` : "Welcome back";
 
   // Quick-add FAB (mobile) gating. Each shortcut asks for the capability its
   // destination actually needs (fa-web-api #379 replaced the one blanket
@@ -418,40 +440,71 @@ export default async function DashboardPage() {
       ]
     : [];
 
-  
+  /* ----------------------------------------------------------- KPI sub-lines --
+     Every sub-line is DERIVED from a figure `/dashboard/summary` already
+     returns — none of them is a stand-in for one it doesn't. When the number a
+     line would describe is missing (an older backend omits the two edit counts)
+     or would be meaningless (a share of an unknown/zero roster), the line is
+     simply absent. A tile with no context beats a tile with invented context. */
+
+  // "Across N industries" — the canonical finance industries that actually have
+  // someone in them. Zero-count industries are still LISTED in the breakdown
+  // panel below; they just aren't something the roster spans.
+  const industriesWithAlumni = breakdown
+    ? breakdown.industries.filter((i) => i.count > 0).length
+    : null;
+  const totalAlumni = s?.total_alumni ?? null;
+  /** `n` as a whole-percent share of the active roster, or null when either side
+   *  is missing — a share of an unknown total isn't a number we can show. */
+  const shareOfRoster = (n: number | undefined) =>
+    n === undefined || !totalAlumni ? null : Math.round((n / totalAlumni) * 100);
+  const editedMonthShare = shareOfRoster(s?.alumni_edited_this_month);
+  const editedYearShare = shareOfRoster(s?.alumni_edited_this_year);
+  // Both edit counts are UTC calendar windows off `updated_at` (see Summary), so
+  // the year the coverage line names is the UTC one, not the viewer's local one.
+  const currentYear = new Date().getUTCFullYear();
+
   return (
     <>
       <Topbar title="Dashboard" />
-      <main className="flex-1 overflow-auto p-4 md:p-6">
-        {notProvisioned ? (
-          <Card className="p-4 text-sm text-gray-700">
-            Your account is authenticated but not yet provisioned. Ask a Super
-            Admin to grant your account a role to see data.
-          </Card>
-        ) : error ? (
-          <LoadError status={error.status} noun="the dashboard" />
-        ) : (
-          /* Desktop: two columns that stretch to fill the viewport (quick-search
-             on the left, KPIs + chart on the right). Mobile/tablet: a natural,
-             scrollable single-column stack — the fill-height behavior is gated
-             to lg so the columns never stretch or collapse on a phone. */
-          <div className="flex flex-col gap-4 lg:h-full lg:flex-row lg:items-stretch lg:gap-5">
-            {/* LEFT — natural-language search bar, then the tabbed search
-                workspace (quick / advanced) below it */}
-            <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:gap-5">
-              <SearchHero greeting={greeting} />
-              <DashboardSearch options={filterOptions ?? EMPTY_FILTER_OPTIONS} />
-            </div>
+      {/* The page padding moved OFF `main` and onto the block below it so the
+          navy welcome band can run edge to edge across the content area. */}
+      <main className="flex-1 overflow-auto">
+        <WelcomeBand greeting={greeting} />
+        <div className="p-4 md:p-6">
+          {notProvisioned ? (
+            <Card className="p-4 text-sm text-gray-700">
+              Your account is authenticated but not yet provisioned. Ask a Super
+              Admin to grant your account a role to see data.
+            </Card>
+          ) : error ? (
+            <LoadError status={error.status} noun="the dashboard" />
+          ) : (
+            /* Top to bottom: the search card, the KPI strip, then the two
+               working panels side by side. The page scrolls naturally rather
+               than pinning itself to the viewport height — that's what keeps
+               the Industry breakdown at its NATURAL height (see the panel
+               below), which is the only shape it can't be clipped in. */
+            <div className="flex flex-col gap-4 lg:gap-5">
+              <SearchHero />
 
-            {/* RIGHT — KPI strip + the chart. Desktop only: on a phone the
-                dashboard is search-first, so the KPIs and Industry breakdown are
-                dropped and this whole column is hidden below lg. */}
-            <div className="hidden flex-col gap-4 lg:flex lg:min-h-0 lg:flex-1 lg:gap-5">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {/* KPI strip. Desktop only: on a phone the dashboard is
+                  search-first, so the KPIs and the Industry breakdown are
+                  dropped rather than stacked into a long scroll. */}
+              <div className="hidden grid-cols-1 gap-4 sm:grid-cols-3 lg:grid">
                 <MetricCard
                   size="lg"
                   label="Total alumni"
                   value={s?.total_alumni ?? "—"}
+                  sub={
+                    industriesWithAlumni === null
+                      ? null
+                      : `Across ${industriesWithAlumni} ${
+                          industriesWithAlumni === 1
+                            ? "industry"
+                            : "industries"
+                        }`
+                  }
                   href="/alumni"
                   linkLabel="View all alumni"
                 />
@@ -460,8 +513,6 @@ export default async function DashboardPage() {
                     stacked inside ONE split card (#645) because a fourth tile
                     would have orphaned the three-across strip — dropping
                     Contacted frees that slot, so each figure gets a full card.
-                    That also makes the strip shorter, which gives the Industry
-                    panel below it back the height it was starved of.
 
                     Both are CALENDAR windows off the alumni table's
                     `updated_at` — the month resets on the 1st, the year on Jan 1
@@ -469,52 +520,72 @@ export default async function DashboardPage() {
                     zero every January by design). They count alumni ROWS, not
                     edits: ten changes to one person is one. Both land on the
                     same most-recently-edited list, whose "Last updated" column
-                    makes either count checkable. */}
+                    makes either count checkable. Each sub-line restates its own
+                    count as a share of the roster, so the two windows can be
+                    compared without doing the arithmetic. */}
                 <MetricCard
                   size="lg"
-                  label="Alumni edited this month"
+                  label="Edited this month"
                   value={s?.alumni_edited_this_month ?? "—"}
+                  sub={
+                    editedMonthShare === null
+                      ? null
+                      : `${editedMonthShare}% of all records`
+                  }
                   href="/alumni?sort=updated"
                   linkLabel="View alumni edited this month, sorted by most recently edited"
                 />
                 <MetricCard
                   size="lg"
-                  label="Alumni edited this year"
+                  label="Edited this year"
                   value={s?.alumni_edited_this_year ?? "—"}
+                  sub={
+                    editedYearShare === null
+                      ? null
+                      : `${editedYearShare}% coverage in ${currentYear}`
+                  }
                   href="/alumni?sort=updated"
                   linkLabel="View alumni edited this year, sorted by most recently edited"
                 />
               </div>
-              {/* Industry breakdown fills the entire leftover column space
-                  beneath the KPI strip (#354/#375). Every industry fits without
-                  a scrollbar at laptop height and up — the rows distribute
-                  evenly to fill whatever height is left. That claim is what the
-                  one-line row shape buys; it was NOT true of the older stacked
-                  rows, which quietly overflowed on anything shorter than a
-                  desktop monitor. */}
-              <Panel
-                title="Industry breakdown"
-                action={
-                  <span className="text-xs font-medium text-gray-500">
-                    Click to filter
-                  </span>
-                }
-                className="lg:min-h-0 lg:flex-1"
-              >
-                {/* `overflow-y-auto`, NOT `overflow-hidden`: the list is sized
-                    to fit (two columns, see IndustryBarList), but on a very
-                    short viewport the honest failure is a scrollbar, not rows
-                    that vanish with nothing on screen saying so. */}
-                <div className="flex w-full flex-col lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
-                  <IndustryBarList
-                    rows={industryRows}
-                    emptyLabel="No industry data yet."
-                  />
-                </div>
-              </Panel>
+
+              {/* The two working panels. Equal columns on lg, and the grid's
+                  default `items-stretch` is what pins the search card's action
+                  bar to the same line in BOTH tabs (#594): the row's height is
+                  set by the Industry panel's natural height, and the search
+                  card fills it. */}
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
+                <DashboardSearch
+                  options={filterOptions ?? EMPTY_FILTER_OPTIONS}
+                />
+                {/* Industry breakdown at its NATURAL height (#354/#375) — the
+                    panel is no longer squeezed into whatever is left of the
+                    viewport, so every industry is on screen and the list has no
+                    reason to scroll at all. Desktop only, like the KPI strip. */}
+                <Panel
+                  title="Industry breakdown"
+                  action={
+                    <span className="text-xs font-medium text-gray-500">
+                      Click to filter
+                    </span>
+                  }
+                  className="hidden lg:flex lg:self-start"
+                >
+                  {/* `overflow-y-auto`, NOT `overflow-hidden`: nothing bounds
+                      this list today, but if something ever does, the honest
+                      failure is a scrollbar — not rows that vanish with nothing
+                      on screen saying so. */}
+                  <div className="flex w-full flex-col lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+                    <IndustryBarList
+                      rows={industryRows}
+                      emptyLabel="No industry data yet."
+                    />
+                  </div>
+                </Panel>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Home quick-add FAB (mobile). Log interaction / Add note open an
             alumnus search first, then land on that profile's form. */}

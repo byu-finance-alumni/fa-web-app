@@ -471,23 +471,25 @@ export function DashboardSearch({ options }: { options: FilterOptions }) {
         </TabsContent>
 
         {/* ------------------------------------------------------- Advanced -- */}
-        {/* Definite height = the box (matches the flex-1 card), so the inner
-            scroll resolves a height and the fields fill from the TOP. The card
-            itself stays flex-1, so the right-column graphs are unaffected. */}
-        {/* Desktop bounds the tab to the viewport and scrolls the fields inside
-            it (so the right-column charts stay put). Mobile drops the fixed
-            height and inner scroll entirely — the fields flow and the whole page
-            scrolls, the native pattern. */}
+        {/* Desktop bounds the field block (`max-h` below) and scrolls inside it,
+            rather than letting ~900px of facets set the card's height: the card
+            shares a dashboard grid row with the Industry breakdown panel, and an
+            unbounded Advanced tab would stretch that row every time the tab is
+            switched. The cap is the height, the flex-1 is what makes the tab
+            FILL the card when the row is taller than the fields — that's what
+            keeps Search/Reset on the card's bottom edge in both tabs (#594).
+            Mobile drops the bound and the inner scroll entirely — the fields
+            flow and the whole page scrolls, the native pattern. */}
         <TabsContent
           value="advanced"
-          className="flex flex-col space-y-4 lg:h-[calc(100dvh-22rem)] lg:min-h-[20rem]"
+          className="flex flex-col space-y-4 lg:min-h-[20rem] lg:flex-1"
         >
           {/* overflow-y:auto forces overflow-x to compute to auto too, which
               clips a focused field's ring/offset at the flush left edge (the
               scroll-free Quick tab doesn't clip). Give the scroll box inline
               padding so the ring has room, and cancel it with -mx so the fields
               stay aligned with the Quick tab (no shift on tab switch). */}
-          <div className="space-y-4 lg:-mx-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:px-2">
+          <div className="space-y-4 lg:-mx-2 lg:max-h-[28rem] lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:px-2">
             <IdentityGrid value={adv} onChange={setAdv} />
             <GradYearRange
               ymin={advYear.ymin}

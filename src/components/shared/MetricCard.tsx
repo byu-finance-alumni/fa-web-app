@@ -9,12 +9,19 @@ import { cn } from "@/lib/utils";
  * subtle `shadow-card`) so it matches Card everywhere it's used — the Dashboard,
  * data-quality, and the alumni profile KPI strips.
  *
- * `icon`, `sub`, and `subTone` are accepted for backward compatibility but no
- * longer rendered (kept so existing call sites compile without edits).
+ * `sub` renders a single muted line UNDER the value — the context a bare number
+ * can't carry on its own ("Across 18 industries", "6% of all records"). It was
+ * dormant for a while (accepted but not rendered); the 2026-08-19 dashboard
+ * redesign brought it back, and no other call site passes it, so nothing else
+ * changes shape.
+ *
+ * `icon` and `subTone` are still accepted for backward compatibility but are
+ * NOT rendered — this product's tiles are text-only (no icons anywhere).
  */
 export function MetricCard({
   label,
   value,
+  sub,
   size = "sm",
   href,
   linkLabel,
@@ -25,9 +32,11 @@ export function MetricCard({
   value: React.ReactNode;
   /** Native hover tooltip on the tile (e.g. who last updated the record). */
   title?: string;
-  /** @deprecated no longer rendered. */
+  /** @deprecated no longer rendered — tiles in this app are text-only. */
   icon?: LucideIcon;
-  /** @deprecated no longer rendered. */
+  /** Muted context line under the value (e.g. "Across 18 industries"). Omit or
+   *  pass null when the figure it would describe isn't available — never a
+   *  guessed one. */
   sub?: string | null;
   /** @deprecated no longer rendered. */
   subTone?: "muted" | "success" | "warning" | "danger";
@@ -52,7 +61,7 @@ export function MetricCard({
       <span className="block min-h-8 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
         {label}
       </span>
-      <div className="flex flex-1 items-center justify-center">
+      <div className="flex flex-1 flex-col items-center justify-center">
         <p
           className={cn(
             "text-center font-semibold tracking-tight tabular-nums text-gray-900",
@@ -61,6 +70,9 @@ export function MetricCard({
         >
           {value ?? "—"}
         </p>
+        {sub ? (
+          <p className="mt-1 text-center text-xs text-gray-500">{sub}</p>
+        ) : null}
       </div>
     </>
   );
