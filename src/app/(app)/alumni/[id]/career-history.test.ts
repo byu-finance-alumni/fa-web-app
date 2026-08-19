@@ -17,6 +17,11 @@ import { describe, expect, it } from "vitest";
  *  3. the Employment tab lists everything with no "view all" affordance — the
  *     reader is already at the destination.
  *
+ * A later pass on the same panel added a fourth: the capped list spreads through
+ * the height of the box instead of bunching at the top, and the onward link sits
+ * on the bottom edge. That one is pure layout, so it is guarded by the classes
+ * that carry it — see "Career history fills its box".
+ *
  * The panels are pure JSX in an async Server Component that fetches on render,
  * so there is nothing to mount in this Node-environment vitest setup and nothing
  * exported to call. They are asserted against the source text instead, at the
@@ -34,6 +39,13 @@ const flat = src.replace(/\s+/g, " ");
 const employmentTab = flat.slice(
   flat.indexOf("employment={"),
   flat.indexOf("education={"),
+);
+
+/** The Overview's Career history panel, sliced out the same way — it ends where
+ *  the current-employment panel beside it begins. */
+const careerPanel = flat.slice(
+  flat.indexOf('title="Career history"'),
+  flat.indexOf('title="Current employment contact information"'),
 );
 
 describe("Overview — current employer and job title", () => {
@@ -101,7 +113,45 @@ describe("Overview — Career history cap", () => {
   });
 });
 
+describe("Overview — Career history fills its box", () => {
+  // The owner's second review asked for the panel to use the whole height of
+  // its box (the current-employment panel next door is taller and sets the row
+  // height) with the onward link on the bottom edge. Every piece below is load
+  // bearing: drop any one of them and the content silently bunches back at the
+  // top, which is indistinguishable from the version he rejected.
+  it("stretches the card and makes its body a flex column", () => {
+    // Without BOTH of these the inner `flex-1`/`mt-auto` have no resolved
+    // height to work against and do nothing at all.
+    expect(careerPanel).toContain(
+      'className="flex h-full flex-col lg:col-span-1"',
+    );
+    expect(careerPanel).toContain('contentClassName="flex flex-1 flex-col"');
+  });
+
+  it("lets the roles share the leftover height", () => {
+    expect(careerPanel).toContain('<ol className="flex flex-1 flex-col">');
+    expect(careerPanel).toContain("flex-1");
+  });
+
+  it("caps a role's share and keeps the first one top-aligned", () => {
+    // The cap is what stops one or two roles being stretched across a tall box;
+    // `first:justify-start` keeps the top role level with the panel beside it.
+    expect(careerPanel).toContain("max-h-32");
+    expect(careerPanel).toContain("first:justify-start");
+  });
+
+  it("centres the empty state instead of pinning it to the top", () => {
+    expect(careerPanel).toContain("flex flex-1 items-center justify-center");
+  });
+});
+
 describe("Overview — the onward link", () => {
+  it("sits on the bottom edge of the panel", () => {
+    // `mt-auto` on the last flex child is what pins it there. It must stay a
+    // sibling of the list (not inside it) for that to hold.
+    expect(careerPanel).toContain('className="mt-auto pt-4');
+  });
+
   it("shows the link only when the cap is hiding roles", () => {
     expect(flat).toContain(
       "const hasMorePreviousJobs = previousJobs.length > OVERVIEW_CAREER_HISTORY_LIMIT;",

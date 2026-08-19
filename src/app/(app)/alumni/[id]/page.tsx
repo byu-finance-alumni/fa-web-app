@@ -1059,59 +1059,87 @@ export async function AlumniProfileView({
                   "Previous employment" sub-heading went with the current role.
                   Capped at the OVERVIEW_CAREER_HISTORY_LIMIT most recent (#691
                   review); the Employment tab holds the uncapped list. */}
+              {/* The panel is the SHORT half of its grid row — the current
+                  employment panel next door sets the height — so its content
+                  used to bunch at the top over ~80px of dead white (#691
+                  review). It is now a flex column (like the dashboard's Quick
+                  search card, #594): the roles list takes the leftover height
+                  and the onward link is pushed to the bottom edge. */}
               <Panel
                 title="Career history"
                 action={canEdit ? <EditLink id={aid} /> : undefined}
-                className="lg:col-span-1"
+                className="flex h-full flex-col lg:col-span-1"
+                contentClassName="flex flex-1 flex-col"
               >
-                <div className="flex h-full flex-col">
-                  {overviewJobs.length ? (
-                    <div className="space-y-3">
-                      {overviewJobs.map((e) => (
-                        <div key={e.employment_history_id}>
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm font-semibold text-gray-900">
-                              {e.employment_title ?? "—"}
-                            </p>
-                            <span className="shrink-0 text-xs tabular-nums text-gray-500">
-                              {e.start_year ?? "—"} – {e.end_year ?? "—"}
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-600">
-                            {e.employer_name ?? "—"}
+                {overviewJobs.length ? (
+                  /* Each role takes an equal share of the leftover height
+                     rather than the list distributing it as one big gap: the
+                     rows read as bands, divided by the same hairline the panel
+                     next door uses between its field groups. The share is
+                     CAPPED (max-h-32) and the first row stays top-aligned, so
+                     the fill degrades sensibly as the list shrinks — see the
+                     row classes below. Growth never clips a long wrapped title:
+                     a flex item's automatic minimum size is its content, which
+                     wins over max-height. */
+                  <ol className="flex flex-1 flex-col">
+                    {overviewJobs.map((e) => (
+                      /* justify-center centres a role in its band so the rhythm
+                         stays even, but `first:justify-start` pins the top role
+                         where it has always sat, level with the neighbouring
+                         panel's first row. With ONE role that combination is
+                         the whole point: there is no gap to distribute, so it
+                         stays put instead of floating in a tall empty box. */
+                      <li
+                        key={e.employment_history_id}
+                        className="flex max-h-32 flex-1 flex-col justify-center border-b border-gray-100 py-3 first:justify-start first:pt-0 last:border-0 last:pb-0"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm font-semibold text-gray-900">
+                            {e.employment_title ?? "—"}
                           </p>
-                          {place(e.city, e.state) ? (
-                            <p className="mt-0.5 text-xs text-gray-500">
-                              {place(e.city, e.state)}
-                            </p>
-                          ) : null}
+                          <span className="shrink-0 text-xs tabular-nums text-gray-500">
+                            {e.start_year ?? "—"} – {e.end_year ?? "—"}
+                          </span>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    /* Without the current role on top this panel can now be
-                       genuinely empty, so it needs its own empty state rather
-                       than a blank box. */
-                    <p className="py-6 text-center text-sm text-gray-500">
-                      No previous roles on file yet.
-                    </p>
-                  )}
-                  {/* Link to the full Employment tab, shown only when the cap
-                      is actually hiding roles (#691 review) — otherwise the
-                      list above IS the whole history and the link would send
-                      staff to a tab holding nothing they cannot already see.
-                      Deliberately carries NO count: the panel is a summary, and
-                      a "View all 5" that has to be recomputed every time a role
-                      is added is noise the owner asked us to drop. */}
-                  {hasMorePreviousJobs ? (
-                    <Link
-                      href="?tab=employment"
-                      className="mt-auto pt-4 text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
-                    >
-                      View full employment history →
-                    </Link>
-                  ) : null}
-                </div>
+                        <p className="text-sm text-gray-600">
+                          {e.employer_name ?? "—"}
+                        </p>
+                        {place(e.city, e.state) ? (
+                          <p className="mt-0.5 text-xs text-gray-500">
+                            {place(e.city, e.state)}
+                          </p>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  /* Without the current role on top this panel can now be
+                     genuinely empty, so it needs its own empty state rather
+                     than a blank box. It centres in the tall box (flex-1) —
+                     one short line pinned to the top of all that white was the
+                     most obviously broken version of the dead space. */
+                  <p className="flex flex-1 items-center justify-center py-6 text-center text-sm text-gray-500">
+                    No previous roles on file yet.
+                  </p>
+                )}
+                {/* Link to the full Employment tab, shown only when the cap
+                    is actually hiding roles (#691 review) — otherwise the
+                    list above IS the whole history and the link would send
+                    staff to a tab holding nothing they cannot already see.
+                    Deliberately carries NO count: the panel is a summary, and
+                    a "View all 5" that has to be recomputed every time a role
+                    is added is noise the owner asked us to drop. `mt-auto`
+                    keeps it on the bottom edge of the box (#691 review) — it
+                    only bites now that the column above it is a flex column
+                    with a resolved height. */}
+                {hasMorePreviousJobs ? (
+                  <Link
+                    href="?tab=employment"
+                    className="mt-auto pt-4 text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
+                  >
+                    View full employment history →
+                  </Link>
+                ) : null}
               </Panel>
 
               {/* RIGHT column, row 1 — Current employment contact information
