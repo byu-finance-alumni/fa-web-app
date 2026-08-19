@@ -165,6 +165,45 @@ export function EmploymentSectionForm({
   const [industrySuggested, setIndustrySuggested] = useState(false);
   const [secondarySuggested, setSecondarySuggested] = useState(false);
 
+  // --- Add a new role, archive the old one (api #446) ----------------------
+  // Reworked from the first cut, which asked the user to overwrite Company and
+  // Job Title in place while a checkbox further down the form quietly decided
+  // whether the outgoing values were kept. Jake asked for the LinkedIn shape
+  // instead: you ADD a position and the one you had becomes a past role.
+  //
+  // So the box sits at the TOP of the section, above the two fields it acts on,
+  // and ticking it changes what those fields ARE:
+  //
+  //  - OFF (the default, and the common case): they are the normal current-role
+  //    fields, pre-filled from the record, and saving overwrites in place. This
+  //    is the typo-correction path and it must stay untouched.
+  //  - ON: the stored company and title become a read-only summary of the role
+  //    being filed away, and the inputs below them are a BLANK pair for the new
+  //    role. Blank on purpose — pre-filling them would be the overwrite-in-place
+  //    behaviour this replaces, dressed up as something else.
+  //
+  // The `key` on the wrapper is what makes "blank" true: without a remount React
+  // keeps the DOM node (same element type, same position) and an uncontrolled
+  // input ignores the changed `defaultValue`, so the old company would still be
+  // sitting in the box.
+  //
+  // Only Company and Job Title swap. The rest of the career fields (industry,
+  // location, work email) stay pre-filled and editable either way: the backend
+  // drops blanks from a partial patch, so emptying them would carry the old
+  // values onto the new role regardless — an empty input there would promise
+  // something it can't deliver.
+  const [archiveCurrentRole, setArchiveCurrentRole] = useState(false);
+  // Nothing to archive with no employer AND no title on file. The box is
+  // DISABLED rather than hidden — same treatment `PreferredContactPicker` gives
+  // an option whose field is empty — so the control keeps a fixed place in the
+  // section and says why it can't be used, instead of appearing and vanishing
+  // between records. A disabled input is also never serialised, so the flag
+  // cannot reach the server on a record with no role to file away.
+  const hasCurrentRole = Boolean(
+    defaults.current_employer || defaults.current_title,
+  );
+  const archiving = archiveCurrentRole && hasCurrentRole;
+
   function onStatusChange(next: string) {
     setStatus(next);
     const slot = suggestMilitaryIndustry(next, industry, secondaryIndustry);
@@ -202,22 +241,9 @@ export function EmploymentSectionForm({
         onChange={onStatusChange}
         error={errors.employment_status}
       />
-      <div className="grid grid-cols-2 gap-4">
-        <Field
-          label="Company"
-          name="career.current_employer"
-          defaultValue={defaults.current_employer}
-          error={errors["career.current_employer"]}
-        />
-        <Field
-          label="Job Title"
-          name="career.current_title"
-          defaultValue={defaults.current_title}
-          error={errors["career.current_title"]}
-        />
-      </div>
-      {/* Archive the outgoing role (api #446). Sits under Company/Job Title
-          because those are the two fields it acts on.
+      {/* Archive the outgoing role (api #446). Sits ABOVE Company/Job Title
+          because it decides what those two fields are — an editor for the
+          current role, or a blank slot for a new one.
 
           NO `defaultChecked` and nothing in `EmploymentDefaults` feeds it: this
           box is deliberately not stored state, so it starts OFF on every load
@@ -228,10 +254,67 @@ export function EmploymentSectionForm({
           Ticking it alone changes nothing; the backend only archives when the
           save actually alters the career fields. */}
       <Checkbox
-        label="Move the current role into employment history"
+        label="Archive current role"
         name="archive_previous_role"
-        hint="Files the stored company and title as a past role instead of overwriting them. Leave it off when you're only correcting a typo."
+        disabled={!hasCurrentRole}
+        onChange={setArchiveCurrentRole}
+        hint={
+          hasCurrentRole
+            ? "Files the stored company and title in employment history, then records the new role you enter below as the current one. Leave it off when you're only correcting a typo."
+            : "No current role on file, so there is nothing to file away. Enter the company and job title below to record this alum's first role."
+        }
       />
+      <div
+        // Remounts the pair when the box moves, so the new-role inputs really
+        // do come up empty rather than keeping the value React left in the DOM.
+        key={archiving ? "new-role" : "current-role"}
+        className="space-y-4"
+      >
+        {archiving ? (
+          <div className="rounded-md border border-gray-300 bg-gray-50 p-3">
+            <p className="text-xs font-medium text-gray-700">
+              Moving to employment history
+            </p>
+            <dl className="mt-2 grid grid-cols-2 gap-4">
+              <div>
+                <dt className="text-xs text-gray-500">Company</dt>
+                <dd className="text-sm text-gray-900">
+                  {defaults.current_employer || "—"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-gray-500">Job Title</dt>
+                <dd className="text-sm text-gray-900">
+                  {defaults.current_title || "—"}
+                </dd>
+              </div>
+            </dl>
+          </div>
+        ) : null}
+        {/* `space-y-1.5` matches FieldLabel's `mb-1.5`, so "New role" sits on
+            the pair the way a field label sits on its input. */}
+        <div className="space-y-1.5">
+          {archiving ? (
+            <p className="text-xs font-medium text-gray-700">New role</p>
+          ) : null}
+          <div className="grid grid-cols-2 gap-4">
+            <Field
+            label="Company"
+              name="career.current_employer"
+              // Blank under the new-role heading; the stored value only ever
+              // pre-fills the in-place editor.
+              defaultValue={archiving ? "" : defaults.current_employer}
+              error={errors["career.current_employer"]}
+            />
+            <Field
+              label="Job Title"
+              name="career.current_title"
+              defaultValue={archiving ? "" : defaults.current_title}
+              error={errors["career.current_title"]}
+            />
+          </div>
+        </div>
+      </div>
       <div className="grid grid-cols-2 gap-4">
         <SelectField
           label="Industry"

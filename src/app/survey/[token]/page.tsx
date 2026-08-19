@@ -14,7 +14,7 @@ import {
   EditFlow,
   INFO_SECTIONS,
   InvalidPanel,
-  ReviewGroup,
+  ReviewSections,
   SuccessPanel,
   TrustNote,
   initialsOf,
@@ -356,11 +356,11 @@ export default function SurveyConfirmPage({
                   Your information
                 </h2>
               </div>
-              <div className="grid gap-x-8 gap-y-5 px-5 py-5 sm:grid-cols-2 sm:px-6">
-                {INFO_SECTIONS.map((s) => (
-                  <ReviewGroup key={s.id} section={s} fields={fields} />
-                ))}
-              </div>
+              <ReviewSections
+                sections={INFO_SECTIONS}
+                fields={fields}
+                className="sm:px-6"
+              />
             </section>
 
             <div className="mt-8">
