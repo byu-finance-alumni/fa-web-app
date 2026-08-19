@@ -27,6 +27,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { PAY_IT_FORWARD_URL } from "@/types/survey";
 import { STATE_NAMES } from "@/lib/geo/state-field";
+import { cn } from "@/lib/utils";
 import { validateLinkedinUrl } from "@/lib/urlSafety";
 import {
   CITY_MAX,
@@ -542,6 +543,79 @@ export function initialsOf(name: string): string {
 }
 
 /* ------------------------------------------------------------ review group -- */
+
+/**
+ * The review panel's sections, laid out as TWO INDEPENDENT STACKS (#689).
+ *
+ * It used to be a two-column grid, and a grid lays its items out in ROWS: every
+ * row is as tall as its taller cell, so Employment (ten rows) sitting beside
+ * Personal (twenty-one) left the left column blank from LinkedIn all the way
+ * down to where Graduate school began. Two stacks share no rows, so a short
+ * section is always followed immediately by the next one — the hole cannot come
+ * back the next time a section grows or shrinks, and nothing is special-cased by
+ * name.
+ *
+ * Which stack a section lands in is decided by WEIGHT, not by name: each section
+ * goes to whichever column is shorter so far, so the two stay close to level as
+ * fields come and go. The weight is only an estimate in review-panel rows, and
+ * it does not need to be exact — a bad guess leaves one column a little longer
+ * than the other, never a gap in the middle of one.
+ *
+ * `INFO_SECTIONS` itself is untouched: the section menu and the walkthrough
+ * still read it in its own order, and below `sm:` this is one column again.
+ */
+export function reviewColumns(sections: Section[]): [Section[], Section[]] {
+  const columns: [Section[], Section[]] = [[], []];
+  const filled = [0, 0];
+  for (const section of sections) {
+    // One line for the section title, one per row `ReviewGroup` renders (spouse
+    // first/last collapse into a single "Spouse name" row, so the last name does
+    // not count), and one for each `groupLabel` subheading inside the section.
+    const weight =
+      1 +
+      section.fields.filter((f) => f.key !== SPOUSE_LAST_NAME_KEY).length +
+      section.fields.filter((f) => f.groupLabel).length;
+    const target = filled[0] <= filled[1] ? 0 : 1;
+    columns[target].push(section);
+    filled[target] += weight;
+  }
+  return columns;
+}
+
+/**
+ * The read-only "Your information" body, shared by the alum's review screen and
+ * the staff Sample survey dialog so the two cannot drift (they render the same
+ * component for the same reason this whole file exists).
+ *
+ * `className` is for the caller's own padding only — the real page has room for
+ * `sm:px-6`, the preview dialog does not.
+ */
+export function ReviewSections({
+  sections,
+  fields,
+  className,
+}: {
+  sections: Section[];
+  fields: Fields;
+  className?: string;
+}) {
+  const [left, right] = reviewColumns(sections);
+  return (
+    <div className={cn("grid gap-x-8 gap-y-5 px-5 py-5 sm:grid-cols-2", className)}>
+      <div className="space-y-5">
+        {left.map((s) => (
+          <ReviewGroup key={s.id} section={s} fields={fields} />
+        ))}
+      </div>
+      <div className="space-y-5">
+        {right.map((s) => (
+          <ReviewGroup key={s.id} section={s} fields={fields} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 
 export function ReviewGroup({ section, fields }: { section: Section; fields: Fields }) {
   // Fields split into their `groupLabel` runs (#649). The read view has the same
@@ -1287,10 +1361,8 @@ function OpportunityLinksSection({
         Jobs &amp; internships
       </h1>
       <p className="mt-3 max-w-prose text-base leading-relaxed text-gray-600">
-        Know of an internship or a job our students should see — at your company
-        or anywhere else? Share the link and we&apos;ll pass it on. Everything you
-        add here is reviewed by our team first, and nothing is published
-        automatically.
+        Know of a job or internship our students should see? Share the link — our
+        team reviews everything before it&apos;s shared.
       </p>
 
       <div className="mt-6 space-y-6">

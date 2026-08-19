@@ -4,6 +4,7 @@ import {
   EDIT_SECTIONS,
   INFO_SECTIONS,
   OPPORTUNITY_LINKS_SECTION_ID,
+  reviewColumns,
   type Section,
 } from "./survey-screens";
 
@@ -183,5 +184,40 @@ describe("opportunity links stay out of the field machinery (#441)", () => {
   it("keeps its own id, distinct from the photo pseudo-section", () => {
     expect(OPPORTUNITY_LINKS_SECTION_ID).toBe("links");
     expect(OPPORTUNITY_LINKS_SECTION_ID).not.toBe("photo");
+  });
+});
+
+describe("review panel columns (#689)", () => {
+  /**
+   * The review panel used to be a two-column GRID, so each row was as tall as
+   * its taller cell and Employment sitting beside Personal left the left column
+   * blank from LinkedIn down to Graduate school. `reviewColumns` splits the list
+   * into two independent stacks instead.
+   *
+   * What is pinned here is the PROPERTY, not the arrangement: every section is
+   * placed exactly once, and neither column is left carrying so much more than
+   * the other that the panel reads lopsided again. Nothing asserts that Graduate
+   * school lands second on the left — that falls out of the weights, and it is
+   * meant to keep falling out of them when the field list changes.
+   */
+  it("places every section exactly once", () => {
+    const [left, right] = reviewColumns(INFO_SECTIONS);
+    expect([...left, ...right].map((s) => s.id).sort()).toEqual(
+      INFO_SECTIONS.map((s) => s.id).sort(),
+    );
+  });
+
+  it("does not strand a section list in one column", () => {
+    const [left, right] = reviewColumns(INFO_SECTIONS);
+    expect(left.length).toBeGreaterThan(0);
+    expect(right.length).toBeGreaterThan(0);
+  });
+
+  it("keeps each column in INFO_SECTIONS order", () => {
+    const order = INFO_SECTIONS.map((s) => s.id);
+    for (const column of reviewColumns(INFO_SECTIONS)) {
+      const positions = column.map((s) => order.indexOf(s.id));
+      expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    }
   });
 });
