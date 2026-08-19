@@ -6,7 +6,7 @@ import {
   type FormState,
 } from "@/app/(app)/alumni/actions";
 import { FocusedEditForm } from "@/components/alumni/FocusedEditForm";
-import { Field, SelectField } from "@/components/alumni/form-fields";
+import { Checkbox, Field, SelectField } from "@/components/alumni/form-fields";
 import { RegionSelect } from "@/components/alumni/RegionSelect";
 import { SecondaryIndustryCombobox } from "@/components/alumni/SecondaryIndustryCombobox";
 import { StateCombobox } from "@/components/alumni/StateCombobox";
@@ -216,6 +216,22 @@ export function EmploymentSectionForm({
           error={errors["career.current_title"]}
         />
       </div>
+      {/* Archive the outgoing role (api #446). Sits under Company/Job Title
+          because those are the two fields it acts on.
+
+          NO `defaultChecked` and nothing in `EmploymentDefaults` feeds it: this
+          box is deliberately not stored state, so it starts OFF on every load
+          of every record. Archiving is never inferred from the employer string
+          changing — a typo correction would then manufacture a job the alum
+          never left — so the person editing has to say so each time.
+
+          Ticking it alone changes nothing; the backend only archives when the
+          save actually alters the career fields. */}
+      <Checkbox
+        label="Move the current role into employment history"
+        name="archive_previous_role"
+        hint="Files the stored company and title as a past role instead of overwriting them. Leave it off when you're only correcting a typo."
+      />
       <div className="grid grid-cols-2 gap-4">
         <SelectField
           label="Industry"

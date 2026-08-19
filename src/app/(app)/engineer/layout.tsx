@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
-import { apiGet, ApiError } from "@/lib/api";
+import { AccessCheckError } from "@/components/shared/AccessCheckError";
+import { readAuthContext } from "@/lib/auth-context";
 import { isEngineer } from "@/constants/roles";
-import type { UserContext } from "@/types/alumni";
 
 /**
  * Engineer Console gate (#162). Every `/engineer/*` route is engineer-only, so
@@ -9,28 +9,37 @@ import type { UserContext } from "@/types/alumni";
  * the dashboard rather than rendering any console tool. The backend re-enforces
  * the engineer capability on every underlying endpoint — this is UX only.
  *
- * Fail SAFE on a transient `/auth/context` failure: a network blip / API 5xx
- * must NOT be misread as "not an engineer" and bounce a real engineer. We only
- * redirect when the backend DEFINITIVELY says this user isn't an engineer (we
- * read their roles and they lack engineer, or it returned 401/403). On any
- * other error we render — the engineer-only endpoints still 403 a non-engineer,
- * so access can't leak. Mirrors the gate that used to live on each moved page.
+ * THREE OUTCOMES, NOT TWO (#688). This gate used to have only two branches, and
+ * the wrong one caught the outage case: on any error that was not a 401/403 it
+ * fell through and RENDERED the console, on the reasoning that the
+ * engineer-only endpoints 403 a non-engineer anyway so nothing could leak. That
+ * is fail-OPEN. The endpoints are the security boundary and they do hold, but
+ * the console is not a neutral shell — it carries maintenance mode, the
+ * permission editor, and the survey kill switch, and handing those controls to
+ * an account whose roles we could not read is a door opened on a guess. It also
+ * produced the worst possible outage screen: a full console whose every panel
+ * failed, with nothing saying why.
+ *
+ *   ok + engineer      → render the console.
+ *   ok + not engineer  → redirect. A read succeeded and the answer was no.
+ *   denied (401/403)   → redirect. Also a real answer.
+ *   unavailable        → render the error. We could not ask, so we do not open.
+ *
+ * `redirect()` runs outside every branch that could swallow its control-flow
+ * signal.
  */
 export default async function EngineerLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  let deniedByBackend = false;
-  try {
-    const ctx = await apiGet<UserContext>("/auth/context");
-    deniedByBackend = !isEngineer(ctx.roles);
-  } catch (e) {
-    if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
-      deniedByBackend = true;
-    }
+  const auth = await readAuthContext();
+  if (auth.status === "unavailable") {
+    return <AccessCheckError status={auth.httpStatus} title="Engineer Console" />;
   }
-  if (deniedByBackend) redirect("/dashboard");
+  // False unless a successful read positively showed the engineer role.
+  const isConfirmedEngineer = auth.status === "ok" && isEngineer(auth.ctx.roles);
+  if (!isConfirmedEngineer) redirect("/dashboard");
 
   return <>{children}</>;
 }

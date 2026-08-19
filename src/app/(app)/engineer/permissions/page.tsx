@@ -1,11 +1,13 @@
 import { redirect } from "next/navigation";
 import { apiGet, ApiError } from "@/lib/api";
-import { getAuthContext } from "@/lib/auth-context";
+import { readAuthContext } from "@/lib/auth-context";
+import { AccessCheckError } from "@/components/shared/AccessCheckError";
 import { isEngineer } from "@/constants/roles";
 import { Topbar } from "@/components/shell/Topbar";
 import { PermissionEditor } from "@/components/engineer/PermissionEditor";
 import { Card } from "@/components/ui/card";
 import type { PermissionMatrix } from "@/types/permissions";
+import { LoadError } from "@/components/shared/LoadError";
 
 /**
  * Engineer → Permissions (#164). The editable role × capability matrix. The
@@ -16,9 +18,29 @@ export default async function PermissionsPage() {
   // Role gate (defense-in-depth): the permission editor is engineer-only. The
   // /engineer/* route group is already gated in engineer/layout.tsx; this
   // page-level check is belt-and-suspenders. Redirect non-engineers — and any
-  // authed-but-unprovisioned user (getAuthContext throws → null) — to the
+  // authed-but-unprovisioned user (a real 401/403) — to the
   // dashboard rather than rendering the editor. The backend re-enforces it too.
-  const gate = await getAuthContext().catch(() => null);
+  // Split the two failures apart (#688). A 401/403 — or a successful read that
+  // simply lacks the role — is the backend's answer, and the redirect below is
+  // correct. An unreadable context (5xx, timeout, unreachable) is not an answer
+  // at all: bouncing then strands a legitimate user on a dashboard that is
+  // failing for the same reason, under a URL they never asked for, and the
+  // report comes back as "the console vanished" instead of "the API is down".
+  // `gate` stays null on anything but a verified-success read, so the page can
+  // only render for someone we positively confirmed.
+  const auth = await readAuthContext();
+  if (auth.status === "unavailable") {
+    return (
+      <AccessCheckError
+        status={auth.httpStatus}
+        breadcrumb={[
+          { label: "Engineer", href: "/engineer" },
+          { label: "Permissions" },
+        ]}
+      />
+    );
+  }
+  const gate = auth.status === "ok" ? auth.ctx : null;
   if (!gate || !isEngineer(gate.roles)) redirect("/dashboard");
 
   let matrix: PermissionMatrix | null = null;
@@ -38,14 +60,11 @@ export default async function PermissionsPage() {
       <main className="min-h-0 flex-1 overflow-auto p-6">
         <h1 className="sr-only">Permissions</h1>
         {error ? (
-          <Card className="p-10 text-center">
-            <p className="text-sm font-semibold text-gray-900">
-              {error.status === 403
-                ? "Engineer access required"
-                : "Couldn't load permissions"}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">{error.message}</p>
-          </Card>
+          <LoadError
+            status={error.status}
+            noun="the permission matrix"
+            title={error.status === 403 ? "Engineer access required" : undefined}
+          />
         ) : (
           <div className="mx-auto max-w-4xl space-y-4">
             <div>

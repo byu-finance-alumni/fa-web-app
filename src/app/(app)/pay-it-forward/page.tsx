@@ -2,11 +2,12 @@ import Link from "next/link";
 import { Topbar } from "@/components/shell/Topbar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { LoadError } from "@/components/shared/LoadError";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { apiGet, ApiError } from "@/lib/api";
+import { readAuthContext } from "@/lib/auth-context";
 import { isUserAdmin } from "@/constants/roles";
 import { canViewDonations } from "@/constants/capabilities";
-import type { UserContext } from "@/types/alumni";
 import type { Donor, DonorsResponse, DonationsSummary } from "@/types/donations";
 import { DonorTable } from "@/components/donations/DonorTable";
 import { QuickAddDonation } from "@/components/donations/QuickAddDonation";
@@ -38,20 +39,24 @@ function amountValue(text: string, showAmounts: boolean) {
  * every gate.
  */
 export default async function PayItForwardPage() {
+  // Withholding the dollar figures is the right answer to a 401/403 — but only
+  // to a 401/403 (#688). If the context call itself faulted we cannot tell a
+  // full-access reader from a view-only one, and quietly dashing out every
+  // amount would look like their access had been cut. Surface it instead.
   let showAmounts = false;
   let canManage = false;
-  try {
-    const ctx = await apiGet<UserContext>("/auth/context");
+  let error: ApiError | null = null;
+  const auth = await readAuthContext();
+  if (auth.status === "ok") {
+    const ctx = auth.ctx;
     showAmounts = canViewDonations(ctx.capabilities);
     canManage = isUserAdmin(ctx.roles);
-  } catch {
-    showAmounts = false;
-    canManage = false;
+  } else if (auth.status === "unavailable") {
+    error = new ApiError(auth.httpStatus ?? 0, "Failed to read your access.");
   }
 
   let donors: Donor[] = [];
   let summary: DonationsSummary | null = null;
-  let error: ApiError | null = null;
   const [donorsRes, summaryRes] = await Promise.allSettled([
     // GET /donations/donors now returns a paginated envelope
     // ({ items, total, limit, offset }), not a bare array (#173 follow-up).
@@ -63,11 +68,20 @@ export default async function PayItForwardPage() {
   ]);
   if (donorsRes.status === "fulfilled")
     donors = Array.isArray(donorsRes.value.items) ? donorsRes.value.items : [];
-  else {
+  else if (!error) {
     const e = donorsRes.reason;
     error = e instanceof ApiError ? e : new ApiError(0, "Failed to load donors.");
   }
   if (summaryRes.status === "fulfilled") summary = summaryRes.value;
+  else if (!error) {
+    // Without the summary the four tiles above have nothing to show. They used
+    // to fall back to a literal 0, which reads as "this fund has no donors and
+    // has raised nothing" — the exact confusion #688 is about. Record it as a
+    // failure and let the tiles show an em dash instead.
+    const e = summaryRes.reason;
+    error =
+      e instanceof ApiError ? e : new ApiError(0, "Failed to load the fund.");
+  }
 
   const thisYear = summary?.per_year[0];
 
@@ -99,10 +113,10 @@ export default async function PayItForwardPage() {
 
           {/* Fund summary */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <MetricCard label="Donors" value={summary?.donor_count ?? 0} />
+            <MetricCard label="Donors" value={summary?.donor_count ?? "—"} />
             <MetricCard
               label="Donations"
-              value={summary?.donation_count ?? 0}
+              value={summary?.donation_count ?? "—"}
             />
             <MetricCard
               label="Total raised"
@@ -131,18 +145,17 @@ export default async function PayItForwardPage() {
 
           {/* Donor ledger */}
           {error ? (
-            <Card className="flex flex-col items-center justify-center px-6 py-16 text-center">
-              <p className="text-sm font-semibold text-gray-900">
-                {error.status === 403
-                  ? "You don't have access to the Pay It Forward fund"
-                  : "Couldn't load donors"}
-              </p>
-              <p className="mt-1 max-w-sm text-sm text-gray-500">
-                {error.status === 403
-                  ? "The donor ledger is available to full-access staff. Ask an administrator if you need access."
-                  : error.message}
-              </p>
-            </Card>
+            <LoadError
+              status={error.status}
+              noun="the donor ledger"
+              {...(error.status === 403
+                ? {
+                    title: "You don’t have access to the Pay It Forward fund",
+                    message:
+                      "The donor ledger is available to full-access staff. Ask an administrator if you need access.",
+                  }
+                : {})}
+            />
           ) : donors.length === 0 ? (
             <Card className="flex flex-col items-center justify-center px-6 py-16 text-center">
               <p className="text-sm font-semibold text-gray-900">

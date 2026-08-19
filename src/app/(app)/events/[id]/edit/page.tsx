@@ -4,9 +4,10 @@ import { EventForm } from "@/components/events/EventForm";
 import { AttendeeManager } from "@/components/events/AttendeeManager";
 import { DeleteEventButton } from "@/components/events/DeleteEventButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AccessCheckError } from "@/components/shared/AccessCheckError";
 import { apiGet, ApiError } from "@/lib/api";
+import { readAuthContext } from "@/lib/auth-context";
 import { canManageEvents as canManageEventsCap } from "@/constants/capabilities";
-import type { UserContext } from "@/types/alumni";
 import { getEventTypeOptions } from "../../vocab";
 import { updateEvent } from "../../actions";
 
@@ -33,15 +34,27 @@ export default async function EditEventPage({
   // require_full_access on PUT /events/{id} and the attendee endpoints. view_only
   // ("Professor") users who land here directly are sent back to the read-only
   // events list rather than shown a form/attendee controls the backend would
-  // 403 on submit. Resolve the flag inside try/catch, then redirect OUTSIDE it —
-  // redirect() throws a control-flow signal a catch would otherwise swallow
-  // (same pattern as /alumni/{id}/edit). Backend stays the source of truth.
+  // 403 on submit. Backend stays the source of truth.
+  //
+  // Only a 401/403 redirects (#688). On an unreadable context the flag stays
+  // false and we say so here: an event editor opened without a check is a
+  // control we cannot vouch for, and a bounce to /events during an outage just
+  // moves the user to a second broken screen under a URL they didn't ask for.
+  // redirect() runs outside every branch that could swallow its control-flow
+  // signal (same pattern as /alumni/{id}/edit).
   let canManageEvents = false;
-  try {
-    const ctx = await apiGet<UserContext>("/auth/context");
+  const auth = await readAuthContext();
+  if (auth.status === "ok") {
+    const ctx = auth.ctx;
     canManageEvents = canManageEventsCap(ctx.capabilities);
-  } catch {
-    /* not provisioned / context error → treat as no manage access */
+  }
+  if (auth.status === "unavailable") {
+    return (
+      <AccessCheckError
+        status={auth.httpStatus}
+        breadcrumb={[{ label: "Events", href: "/events" }, { label: "Edit" }]}
+      />
+    );
   }
   if (!canManageEvents) redirect("/events");
 

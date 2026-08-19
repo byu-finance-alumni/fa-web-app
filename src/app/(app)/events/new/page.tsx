@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
 import { Topbar } from "@/components/shell/Topbar";
 import { EventWizard } from "@/components/events/EventWizard";
-import { apiGet } from "@/lib/api";
+import { AccessCheckError } from "@/components/shared/AccessCheckError";
+import { readAuthContext } from "@/lib/auth-context";
 import { canCreateEvents, canImportEvents } from "@/constants/capabilities";
 import { hasFullAccess } from "@/constants/roles";
-import type { UserContext } from "@/types/alumni";
 import { getEventTypeOptions } from "../vocab";
 import { createEvent, previewEvent } from "../actions";
 
@@ -23,9 +23,14 @@ export default async function NewEventPage() {
   // engineer can grant it to a narrower role from the permission editor, and a
   // role check here would bounce someone the backend would accept. Anyone
   // without it is sent to the read-only events list rather than shown a form
-  // that 403s on submit. redirect() runs outside the try/catch (it throws a
-  // control-flow signal a catch would swallow). Backend is the source of truth;
-  // this is UX only.
+  // that 403s on submit. redirect() runs outside every branch that could
+  // swallow it (it throws a control-flow signal). Backend is the source of
+  // truth; this is UX only.
+  //
+  // A 401/403 is that answer and still redirects. An unreadable context is NOT
+  // an answer (#688): we would be bouncing someone who may well hold
+  // events.create, off the URL they asked for, on a fault that has nothing to
+  // do with them. All three flags stay false and the error renders in place.
   let canCreate = false;
   // Separate, coarser gate: the attendee-match upload is guarded by
   // require_full_access on the backend, so "take me to the upload next" is only
@@ -33,13 +38,23 @@ export default async function NewEventPage() {
   // the event itself — an event with no attendees is the common case.
   let canUploadAttendees = false;
   let canImport = false;
-  try {
-    const ctx = await apiGet<UserContext>("/auth/context");
+  const auth = await readAuthContext();
+  if (auth.status === "ok") {
+    const ctx = auth.ctx;
     canCreate = canCreateEvents(ctx.capabilities);
     canImport = canImportEvents(ctx.capabilities);
     canUploadAttendees = hasFullAccess(ctx.roles);
-  } catch {
-    /* not provisioned / context error → treat as no create access */
+  }
+  if (auth.status === "unavailable") {
+    return (
+      <AccessCheckError
+        status={auth.httpStatus}
+        breadcrumb={[
+          { label: "Events", href: "/events" },
+          { label: "Add event" },
+        ]}
+      />
+    );
   }
   if (!canCreate) redirect("/events");
 

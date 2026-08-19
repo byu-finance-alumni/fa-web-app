@@ -5,6 +5,7 @@ import { Topbar } from "@/components/shell/Topbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { LoadError } from "@/components/shared/LoadError";
 import {
   TaskFilters,
   type TaskFilterState,
@@ -125,20 +126,18 @@ export default async function TasksPage({
         <TaskFilters initial={filters} assignees={assignees} />
 
         {error ? (
-          <Card className="p-10 text-center">
-            <p className="text-sm font-semibold text-gray-900">
-              {error.status === 403
-                ? "You don't have access to Tasks"
-                : error.status === 401
-                  ? "Please sign in again"
-                  : "Couldn't load tasks"}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              {error.status === 403
+          <LoadError
+            status={error.status}
+            noun="tasks"
+            title={
+              error.status === 403 ? "You don’t have access to Tasks" : undefined
+            }
+            message={
+              error.status === 403
                 ? "The cross-alumni task list is available to full-access users only."
-                : error.message}
-            </p>
-          </Card>
+                : undefined
+            }
+          />
         ) : data && data.items.length === 0 ? (
           <Card className="p-10 text-center text-sm text-gray-500">
             {showAll

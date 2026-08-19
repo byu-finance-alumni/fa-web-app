@@ -5,6 +5,7 @@ import { Topbar } from "@/components/shell/Topbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { LoadError } from "@/components/shared/LoadError";
 import {
   ActivityToolbar,
   type ActivityFilterState,
@@ -136,20 +137,7 @@ export default async function ActivityPage({
         <ActivityToolbar initial={filters} types={data?.types ?? []} />
 
         {error ? (
-          <Card className="p-10 text-center">
-            <p className="text-sm font-semibold text-gray-900">
-              {error.status === 403
-                ? "Your account isn't provisioned yet"
-                : error.status === 401
-                  ? "Please sign in again"
-                  : "Couldn't load activity"}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              {error.status === 403
-                ? "Ask a Super Admin to grant your account a role."
-                : error.message}
-            </p>
-          </Card>
+          <LoadError status={error.status} noun="activity" />
         ) : data && data.items.length === 0 ? (
           <Card className="p-10 text-center text-sm text-gray-500">
             {hasFilters

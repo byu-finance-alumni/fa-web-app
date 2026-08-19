@@ -13,6 +13,14 @@ import {
 } from "@/app/(app)/pay-it-forward/actions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { downloadCsvFile } from "@/lib/csv";
+import {
+  FAILED_ROWS_UNAVAILABLE,
+  FAILED_ROWS_UNREADABLE,
+  REASON_COLUMN_NOTE,
+  buildFailedRowsCsv,
+  unmatchedNote,
+} from "@/lib/importFailures";
 
 type Step = "upload" | "review" | "result";
 
@@ -20,18 +28,6 @@ function fileForm(file: File): FormData {
   const fd = new FormData();
   fd.append("file", file, file.name);
   return fd;
-}
-
-function downloadCsv(filename: string, text: string) {
-  const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
 }
 
 const isCsv = (file: File) =>
@@ -70,6 +66,10 @@ export function DonationsImportWizard() {
   const [templateError, setTemplateError] = useState<string | null>(null);
   const [downloadingTemplate, startTemplate] = useTransition();
 
+  const [failedRowsError, setFailedRowsError] = useState<string | null>(null);
+  const [failedRowsNote, setFailedRowsNote] = useState<string | null>(null);
+  const [buildingFailedRows, setBuildingFailedRows] = useState(false);
+
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -78,6 +78,8 @@ export function DonationsImportWizard() {
     setPreviewError(null);
     setResult(null);
     setImportError(null);
+    setFailedRowsError(null);
+    setFailedRowsNote(null);
     if (!next) {
       setFile(null);
       setFileError(null);
@@ -124,29 +126,35 @@ export function DonationsImportWizard() {
     setTemplateError(null);
     startTemplate(async () => {
       const res = await downloadDonationsTemplate();
-      if (res.ok) downloadCsv("donations-import-template.csv", res.csv);
+      if (res.ok) downloadCsvFile("donations-import-template.csv", res.csv);
       else setTemplateError(res.error);
     });
   };
 
-  const onDownloadRejects = () => {
-    if (!result || result.rejects.length === 0) return;
-    const esc = (v: string) => {
-      let s = String(v);
-      // CSV-injection defence: if the value (ignoring leading whitespace) starts
-      // with a spreadsheet formula trigger, prefix a single quote so Excel/Sheets
-      // treats it as text. Prepending is robust to the leading-whitespace bypass
-      // a leading-only strip misses (e.g. " =cmd").
-      if (/^\s*[=+\-@\t\r]/.test(s)) s = "'" + s;
-      return `"${s.replace(/"/g, '""')}"`;
-    };
-    const lines = [
-      "row,name,reason",
-      ...result.rejects.map((r) =>
-        [esc(String(r.row)), esc(r.name), esc(r.reason)].join(","),
-      ),
-    ];
-    downloadCsv("donations-import-rejects.csv", lines.join("\r\n"));
+  /**
+   * Download ONLY the skipped rows, in the shape the donations importer will
+   * read back (#693). Rebuilt in the browser from `file`, because the commit
+   * result carries a row number and a reason but not the row's values.
+   */
+  const onDownloadFailedRows = async () => {
+    if (!result || result.rejects.length === 0 || !file) return;
+    setFailedRowsError(null);
+    setFailedRowsNote(null);
+    setBuildingFailedRows(true);
+    try {
+      const built = buildFailedRowsCsv(await file.text(), result.rejects);
+      if (!built.csv) {
+        setFailedRowsError(FAILED_ROWS_UNAVAILABLE);
+        return;
+      }
+      setFailedRowsNote(unmatchedNote(built));
+      downloadCsvFile("donations-import-failed-rows.csv", built.csv);
+    } catch {
+      // Generic on purpose — nothing the File API threw belongs on screen.
+      setFailedRowsError(FAILED_ROWS_UNREADABLE);
+    } finally {
+      setBuildingFailedRows(false);
+    }
   };
 
   return (
@@ -397,14 +405,35 @@ export function DonationsImportWizard() {
                     </li>
                   ))}
                 </ul>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={onDownloadRejects}
-                  className="mt-4"
-                >
-                  Download skipped (CSV)
-                </Button>
+                <div className="mt-4">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={onDownloadFailedRows}
+                    disabled={file === null || buildingFailedRows}
+                  >
+                    {buildingFailedRows
+                      ? "Preparing…"
+                      : `Download the ${result.rejects.length} skipped row${
+                          result.rejects.length === 1 ? "" : "s"
+                        } (CSV)`}
+                  </Button>
+                  <p className="mt-2 max-w-2xl text-xs text-gray-600">
+                    {file !== null
+                      ? REASON_COLUMN_NOTE
+                      : "The uploaded file is no longer in this page, so the skipped rows can't be rebuilt. The reasons above list every one."}
+                  </p>
+                  {failedRowsNote && (
+                    <p className="mt-1 max-w-2xl text-xs text-gray-700">
+                      {failedRowsNote}
+                    </p>
+                  )}
+                  {failedRowsError && (
+                    <p className="mt-1 max-w-2xl text-xs text-danger-600">
+                      {failedRowsError}
+                    </p>
+                  )}
+                </div>
               </div>
             )}
           </Card>

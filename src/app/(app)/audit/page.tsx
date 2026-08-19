@@ -9,13 +9,15 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
-import { getAuthContext } from "@/lib/auth-context";
+import { readAuthContext } from "@/lib/auth-context";
+import { AccessCheckError } from "@/components/shared/AccessCheckError";
 import { isUserAdmin } from "@/constants/roles";
 import { humanize } from "@/lib/format";
 import { Topbar } from "@/components/shell/Topbar";
 import { Card } from "@/components/ui/card";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { LoadError } from "@/components/shared/LoadError";
 import {
   AuditToolbar,
   type AuditFilterState,
@@ -148,9 +150,29 @@ export default async function AuditPage({
 }) {
   // Role gate (defense-in-depth): the audit trail is USER_ADMIN-only (engineer /
   // super_admin). Redirect anyone else — and any authed-but-unprovisioned user
-  // (getAuthContext throws → null) — to the dashboard rather than rendering a
+  // (a real 401/403) — to the dashboard rather than rendering a
   // dead-end "access required" shell. The backend still 403s /audit for others.
-  const gate = await getAuthContext().catch(() => null);
+  // Split the two failures apart (#688). A 401/403 — or a successful read that
+  // simply lacks the role — is the backend's answer, and the redirect below is
+  // correct. An unreadable context (5xx, timeout, unreachable) is not an answer
+  // at all: bouncing then strands a legitimate user on a dashboard that is
+  // failing for the same reason, under a URL they never asked for, and the
+  // report comes back as "the console vanished" instead of "the API is down".
+  // `gate` stays null on anything but a verified-success read, so the page can
+  // only render for someone we positively confirmed.
+  const auth = await readAuthContext();
+  if (auth.status === "unavailable") {
+    return (
+      <AccessCheckError
+        status={auth.httpStatus}
+        breadcrumb={[
+          { label: "Admin", href: "/admin" },
+          { label: "Audit" },
+        ]}
+      />
+    );
+  }
+  const gate = auth.status === "ok" ? auth.ctx : null;
   if (!gate || !isUserAdmin(gate.roles)) redirect("/dashboard");
 
   const sp = await searchParams;
@@ -230,18 +252,16 @@ export default async function AuditPage({
         />
 
         {error ? (
-          <Card className="p-10 text-center">
-            <p className="text-sm font-semibold text-gray-900">
-              {error.status === 403
-                ? "Super admin access required"
-                : "Couldn't load the audit log"}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              {error.status === 403
-                ? "The audit trail can contain sensitive record history, so it's restricted to super admins."
-                : error.message}
-            </p>
-          </Card>
+          <LoadError
+            status={error.status}
+            noun="the audit log"
+            title={error.status === 403 ? "Super admin access required" : undefined}
+            message={
+              error.status === 403
+                ? "The audit trail can contain sensitive record history, so it’s restricted to super admins."
+                : undefined
+            }
+          />
         ) : rows && rows.length === 0 ? (
           <Card className="p-10 text-center text-sm text-gray-500">
             {qs

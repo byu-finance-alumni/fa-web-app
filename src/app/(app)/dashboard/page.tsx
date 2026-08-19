@@ -8,6 +8,7 @@ import { DashboardSearch } from "@/components/dashboard/DashboardSearch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Fab } from "@/components/shared/Fab";
+import { LoadError } from "@/components/shared/LoadError";
 import { QuickLogButton } from "@/components/dashboard/QuickLogButton";
 import {
   canAddInteraction,
@@ -267,6 +268,12 @@ export default async function DashboardPage() {
   let s: Summary | null = null;
   let ctx: UserContext | null = null;
   let notProvisioned = false;
+  // A failed summary is NOT a dashboard of zeroes (#688). Every KPI on this page
+  // falls back to an em dash and the industry breakdown to an empty list, so a
+  // 5xx used to render as a real-looking dashboard for an institution with no
+  // alumni. Only a 403 is an answer about the account; everything else is a
+  // fault and gets said out loud.
+  let error: ApiError | null = null;
   try {
     [s, ctx] = await Promise.all([
       apiGet<Summary>("/dashboard/summary", {
@@ -280,6 +287,11 @@ export default async function DashboardPage() {
     ]);
   } catch (e) {
     if (e instanceof ApiError && e.status === 403) notProvisioned = true;
+    else
+      error =
+        e instanceof ApiError
+          ? e
+          : new ApiError(0, "Failed to load the dashboard.");
   }
 
   // Search workspace data (alumni filter options for the Advanced tab). Fetched
@@ -287,7 +299,7 @@ export default async function DashboardPage() {
   // dashboard.
   let filterOptions: FilterOptions | null = null;
   let industryVocab: string[] | null = null;
-  if (!notProvisioned) {
+  if (!notProvisioned && !error) {
     [filterOptions, industryVocab] = await Promise.all([
       apiGet<FilterOptions>("/alumni/filter-options", {
         revalidate: 300,
@@ -416,6 +428,8 @@ export default async function DashboardPage() {
             Your account is authenticated but not yet provisioned. Ask a Super
             Admin to grant your account a role to see data.
           </Card>
+        ) : error ? (
+          <LoadError status={error.status} noun="the dashboard" />
         ) : (
           /* Desktop: two columns that stretch to fill the viewport (quick-search
              on the left, KPIs + chart on the right). Mobile/tablet: a natural,
@@ -504,7 +518,7 @@ export default async function DashboardPage() {
 
         {/* Home quick-add FAB (mobile). Log interaction / Add note open an
             alumnus search first, then land on that profile's form. */}
-        {!notProvisioned && showFab ? (
+        {!notProvisioned && !error && showFab ? (
           <Fab label="Quick add">
             {canLogInteraction ? (
               <QuickLogButton kind="interaction" label="Log interaction" />

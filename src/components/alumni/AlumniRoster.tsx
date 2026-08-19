@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { apiGet, apiGetWithRetry, ApiError } from "@/lib/api";
-import { getAuthContext } from "@/lib/auth-context";
+import { readAuthContext, type AuthContextResult } from "@/lib/auth-context";
 import type { Alumni, AlumniPage } from "@/types/alumni";
 import type { FilterOptions } from "@/types/filters";
 import { canEditAlumni } from "@/constants/roles";
@@ -25,6 +25,7 @@ import { getHeadshotUrls } from "@/lib/headshots";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Fab } from "@/components/shared/Fab";
+import { LoadError } from "@/components/shared/LoadError";
 
 const LIMIT = 25;
 
@@ -120,7 +121,7 @@ export async function AlumniRoster({
         revalidate: 300,
         tags: ["vocabulary"],
       }),
-      getAuthContext(),
+      readAuthContext(),
     ]);
   if (listResult.status === "fulfilled") {
     data = listResult.value;
@@ -139,7 +140,18 @@ export async function AlumniRoster({
   ) {
     options = { ...options, industries: industryVocabResult.value.values };
   }
-  const ctx = ctxResult.status === "fulfilled" ? ctxResult.value : null;
+  // A context read that FAULTED is not a view-only account (#688): it would
+  // hide Add, Export and the interaction control from someone who holds them,
+  // which reads as their access being revoked mid-session. Only a 401/403 —
+  // where the backend actually said no — degrades the roster to read-only.
+  const auth: AuthContextResult =
+    ctxResult.status === "fulfilled"
+      ? ctxResult.value
+      : { status: "unavailable", httpStatus: null };
+  if (auth.status === "unavailable" && !error) {
+    error = new ApiError(auth.httpStatus ?? 0, "Failed to read your access.");
+  }
+  const ctx = auth.status === "ok" ? auth.ctx : null;
   const roles = ctx?.roles ?? null;
   // Creating a record and logging an interaction are separate, editable
   // capabilities (fa-web-api #379), so both read the capability list rather than
@@ -230,20 +242,7 @@ export async function AlumniRoster({
         ) : null}
 
         {error ? (
-          <Card className="p-10 text-center">
-            <p className="font-medium text-gray-900">
-              {error.status === 403
-                ? "Your account isn't provisioned yet"
-                : error.status === 401
-                  ? "Please sign in again"
-                  : `Couldn't load ${noun}`}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              {error.status === 403
-                ? "Ask a Super Admin to grant your account a role."
-                : error.message}
-            </p>
-          </Card>
+          <LoadError status={error.status} noun={noun} />
         ) : data && data.items.length === 0 ? (
           <Card className="p-10 text-center text-sm text-gray-500">
             No {noun} match your search.

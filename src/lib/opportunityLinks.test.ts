@@ -1473,8 +1473,12 @@ describe("the links.delete gate", () => {
   it("the list page reads the capability, not the role, and fails closed", () => {
     const src = read("src/app/(app)/links/page.tsx");
     expect(src).toContain("canDelete = canDeleteLinks(capabilities)");
-    // An unreadable /auth/context must not leave the delete controls on.
-    expect(src).toMatch(/catch \{[\s\S]*?canDelete = false;[\s\S]*?\}/);
+    // An unreadable /auth/context must not leave the delete controls on: the
+    // flag starts false and is only raised inside the success branch. (#688
+    // replaced the old catch-all — it could not tell a 403 from a 503, so an
+    // outage read as "you may no longer delete". The default is unchanged.)
+    expect(src).toMatch(/let canDelete = false;/);
+    expect(src).toMatch(/if \(auth\.status === "ok"\) \{/);
     // #379: never a role-name check for a capability-backed control.
     expect(src).not.toContain("super_admin");
     expect(src).not.toContain("hasFullAccess");
