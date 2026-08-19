@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Topbar } from "@/components/shell/Topbar";
-import { getAuthContext } from "@/lib/auth-context";
+import { AccessCheckError } from "@/components/shared/AccessCheckError";
+import { readAuthContext } from "@/lib/auth-context";
 import { canImportAlumni } from "@/constants/capabilities";
 import { UpdateImportWizard } from "@/components/alumni/import/UpdateImportWizard";
 
@@ -15,14 +16,29 @@ import { UpdateImportWizard } from "@/components/alumni/import/UpdateImportWizar
  * Note the cohort DOWNLOAD inside the wizard is gated separately server-side on
  * `alumni.export` — import and export are the two bulk doors and are granted
  * independently.
+ *
+ * The redirect answers a 401/403 only (#688). This screen overwrites existing
+ * alumni rows in bulk, so an unreadable `/auth/context` leaves the flag false
+ * and renders the error in place — neither opening the wizard on a guess nor
+ * moving the user off the URL they asked for.
  */
 export default async function UpdateAlumniPage() {
   let canUpdate = false;
-  try {
-    const ctx = await getAuthContext();
+  const auth = await readAuthContext();
+  if (auth.status === "ok") {
+    const ctx = auth.ctx;
     canUpdate = canImportAlumni(ctx.capabilities);
-  } catch {
-    canUpdate = false;
+  }
+  if (auth.status === "unavailable") {
+    return (
+      <AccessCheckError
+        status={auth.httpStatus}
+        breadcrumb={[
+          { label: "Import", href: "/admin/import" },
+          { label: "Update" },
+        ]}
+      />
+    );
   }
   if (!canUpdate) redirect("/alumni");
 

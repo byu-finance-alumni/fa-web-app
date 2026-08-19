@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ApiError } from "@/lib/api";
-import { getAuthContext } from "@/lib/auth-context";
+import { readAuthContext } from "@/lib/auth-context";
+import { AccessCheckError } from "@/components/shared/AccessCheckError";
 import { Topbar } from "@/components/shell/Topbar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,10 +52,30 @@ export default async function LoginFailuresPage({
   // Role gate (defense-in-depth): login failures are engineer-only. The
   // /engineer/* route group is already gated in engineer/layout.tsx; this
   // page-level check is belt-and-suspenders. Redirect non-engineers — and any
-  // authed-but-unprovisioned user (getAuthContext throws → null) — to the
+  // authed-but-unprovisioned user (a real 401/403) — to the
   // dashboard rather than rendering a dead-end shell. The backend re-enforces
   // RequireEngineer on GET /admin/login-failures.
-  const gate = await getAuthContext().catch(() => null);
+  // Split the two failures apart (#688). A 401/403 — or a successful read that
+  // simply lacks the role — is the backend's answer, and the redirect below is
+  // correct. An unreadable context (5xx, timeout, unreachable) is not an answer
+  // at all: bouncing then strands a legitimate user on a dashboard that is
+  // failing for the same reason, under a URL they never asked for, and the
+  // report comes back as "the console vanished" instead of "the API is down".
+  // `gate` stays null on anything but a verified-success read, so the page can
+  // only render for someone we positively confirmed.
+  const auth = await readAuthContext();
+  if (auth.status === "unavailable") {
+    return (
+      <AccessCheckError
+        status={auth.httpStatus}
+        breadcrumb={[
+          { label: "Engineer", href: "/engineer" },
+          { label: "Login failures" },
+        ]}
+      />
+    );
+  }
+  const gate = auth.status === "ok" ? auth.ctx : null;
   if (!gate || !isEngineer(gate.roles)) redirect("/dashboard");
 
   const sp = await searchParams;

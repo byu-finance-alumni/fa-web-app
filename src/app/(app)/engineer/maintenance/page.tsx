@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { ApiError } from "@/lib/api";
-import { getAuthContext } from "@/lib/auth-context";
+import { readAuthContext } from "@/lib/auth-context";
+import { AccessCheckError } from "@/components/shared/AccessCheckError";
 import { isEngineer } from "@/constants/roles";
 import { Topbar } from "@/components/shell/Topbar";
 import { Card } from "@/components/ui/card";
@@ -38,8 +39,28 @@ function formatDateTime(d: string | null): string {
 
 export default async function EngineerMaintenancePage() {
   // Role gate (defense-in-depth): redirect non-engineers — and any authed-but-
-  // unprovisioned user (getAuthContext throws → null) — to the dashboard.
-  const gate = await getAuthContext().catch(() => null);
+  // unprovisioned user (a real 401/403) — to the dashboard.
+  // Split the two failures apart (#688). A 401/403 — or a successful read that
+  // simply lacks the role — is the backend's answer, and the redirect below is
+  // correct. An unreadable context (5xx, timeout, unreachable) is not an answer
+  // at all: bouncing then strands a legitimate user on a dashboard that is
+  // failing for the same reason, under a URL they never asked for, and the
+  // report comes back as "the console vanished" instead of "the API is down".
+  // `gate` stays null on anything but a verified-success read, so the page can
+  // only render for someone we positively confirmed.
+  const auth = await readAuthContext();
+  if (auth.status === "unavailable") {
+    return (
+      <AccessCheckError
+        status={auth.httpStatus}
+        breadcrumb={[
+          { label: "Engineer", href: "/engineer" },
+          { label: "Maintenance mode" },
+        ]}
+      />
+    );
+  }
+  const gate = auth.status === "ok" ? auth.ctx : null;
   if (!gate || !isEngineer(gate.roles)) redirect("/dashboard");
 
   let state: MaintenanceState | null = null;

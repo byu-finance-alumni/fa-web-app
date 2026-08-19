@@ -1,8 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
-import { apiGet } from "@/lib/api";
-import type { UserContext } from "@/types/alumni";
+import { getAuthContext } from "@/lib/auth-context";
 import { SetPasswordForm } from "@/components/auth/SetPasswordForm";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
@@ -25,12 +24,18 @@ export default async function SetPasswordPage() {
   if (!session) redirect("/login");
 
   // If the user doesn't actually need a password change, don't show this screen.
-  // On any error fetching context (e.g. not yet provisioned), fall through and
-  // let them set a password rather than trapping them here.
+  //
+  // This is the one gate in the app that is SAFE to leave as a single catch
+  // (#688), because its restrictive outcome is the fall-through, not the
+  // redirect: `mustChange` starts true, and the only thing that can move the
+  // user on is a successful read that says the flag is already cleared. A 403
+  // (not yet provisioned), a 5xx and an unreachable API all land on the
+  // password form, which holds no alumni data and traps nobody — submitting it
+  // clears the flag and the app opens up. Redirecting on a fault instead would
+  // be the failure mode worth fixing, and it cannot happen here.
   let mustChange = true;
   try {
-    const ctx = await apiGet<UserContext>("/auth/context");
-    mustChange = ctx.must_change_password === true;
+    mustChange = (await getAuthContext()).must_change_password === true;
   } catch {
     mustChange = true;
   }

@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 import { apiGet, ApiError } from "@/lib/api";
+import { readAuthContext } from "@/lib/auth-context";
+import { AccessCheckError } from "@/components/shared/AccessCheckError";
 import { Topbar } from "@/components/shell/Topbar";
 import { VocabularyManager } from "@/components/admin/VocabularyManager";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import type { UserContext } from "@/types/alumni";
 import { LoadError } from "@/components/shared/LoadError";
 
 export interface VocabTerm {
@@ -49,21 +50,28 @@ const VOCAB_CAPABILITY = "vocab_admin";
  * makes a permission-editor grant actually take effect in the UI; the backend's
  * /admin/vocabulary endpoints re-enforce the same capability on every request.
  *
- * Fail SAFE on a transient /auth/context failure: a network blip / 5xx must NOT
- * be misread as "no access" and bounce a real vocab admin. We only redirect when
- * the backend DEFINITIVELY says this user lacks the capability (we read their
- * capabilities and it's absent, or it returned 401/403). On any other error we
- * render — the vocab endpoints below still 403 a caller without the capability.
+ * Three outcomes, not two (#688). A network blip / 5xx must NOT be misread as
+ * "no access" and bounce a real vocab admin — but the old code's other half was
+ * to RENDER the editor on such a blip, on the reasoning that the vocab
+ * endpoints 403 a caller without the capability anyway. That is fail-open: the
+ * endpoints hold, but this screen renames and retires the controlled values
+ * every dropdown in the app is built from, and opening it for an account whose
+ * capabilities we could not read is a guess in the permissive direction. So:
+ * redirect only when the backend DEFINITIVELY says no (we read the capability
+ * list and it's absent, or it answered 401/403); render the editor only on a
+ * verified-success read; and on an unreadable context say so, in place, on
+ * this URL.
  */
 export default async function VocabularyAdminPage() {
-  let denied = false;
-  try {
-    const ctx = await apiGet<UserContext>("/auth/context");
+  const auth = await readAuthContext();
+  if (auth.status === "unavailable") {
+    return <AccessCheckError status={auth.httpStatus} title="Vocabulary" />;
+  }
+  // Starts denied and is only cleared inside the verified-success branch.
+  let denied = true;
+  if (auth.status === "ok") {
+    const ctx = auth.ctx;
     denied = !(ctx.capabilities ?? []).includes(VOCAB_CAPABILITY);
-  } catch (e) {
-    if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
-      denied = true;
-    }
   }
   if (denied) redirect("/dashboard");
 
