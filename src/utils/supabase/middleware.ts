@@ -2,7 +2,6 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { APP_HOME, isReturnablePath } from "@/lib/urlSafety";
-import { SESSION_COOKIE_OPTIONS, boundCookieMaxAge } from "@/lib/sessionPolicy";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -63,22 +62,7 @@ export const updateSession = async (
     request: { headers: forwardHeaders() },
   });
 
-  // SESSION LIFETIME (#684): the auth cookie is bound to 12 hours — see
-  // src/lib/sessionPolicy.ts for why that number, and for the Supabase
-  // dashboard settings that must be set separately on dev AND prod. All three
-  // client factories (client.ts, server.ts, this one) import the same constant
-  // and must agree. This one matters most: the middleware refreshes the token on
-  // every matched request, so it rewrites the auth cookie constantly. If it
-  // alone kept the library default, every navigation would silently reset the
-  // lifetime back to 400 days and undo the bound set everywhere else.
-  //
-  // `cookieOptions` declares the intent; `boundCookieMaxAge` in `setAll` is what
-  // enforces it, because @supabase/ssr 0.10.3 overwrites `maxAge` with its own
-  // 400-day default on every write. Deletions (`maxAge: 0`) pass through
-  // untouched, and `httpOnly` / `sameSite` / `secure` are left as the library
-  // set them.
   const supabase = createServerClient(supabaseUrl!, supabaseKey!, {
-    cookieOptions: SESSION_COOKIE_OPTIONS,
     cookies: {
       getAll() {
         return request.cookies.getAll();
@@ -91,7 +75,7 @@ export const updateSession = async (
           request: { headers: forwardHeaders() },
         });
         cookiesToSet.forEach(({ name, value, options }) =>
-          supabaseResponse.cookies.set(name, value, boundCookieMaxAge(options)),
+          supabaseResponse.cookies.set(name, value, options),
         );
       },
     },
