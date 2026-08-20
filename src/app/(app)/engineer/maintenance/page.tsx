@@ -120,20 +120,26 @@ export default async function EngineerMaintenancePage() {
         <h1 className="sr-only">Maintenance mode</h1>
 
         {/*
-          One column, capped at the width the prose on this page already used.
+          Two columns from `lg` up: the SWITCH on the left, ALERTING on the
+          right.
 
-          The two-column `xl` grid existed to stand a six-column table beside the
-          switch. With the tables moved to Login failures there is nothing to put
-          in a second column, and stretching a switch and four short paragraphs
-          across a 27-inch monitor would give a half-empty screen and an
-          unreadably long measure. `max-w-2xl` is exactly what the explanatory
-          list was already constrained to, so this is the reading column the page
-          always had with the scaffolding removed — and it matches the other
-          engineer console pages, which are all a single column. It also settles
-          the old grid's one oddity: nothing reorders on a phone any more,
-          because there is only ever one order.
+          It was one column, which was right when this page was only the switch
+          and briefly correct after the tables moved to Login failures. Three
+          alerting cards have landed since, and a single column put the last of
+          them most of a screen below the fold — the owner's note was that he was
+          scrolling for everything. Splitting by job rather than by size is what
+          keeps it legible: the left column is the control you came to press, the
+          right column is everything about the message that tells you to press
+          it.
+
+          `lg` and not `xl` because these are narrow cards, not the six-column
+          table the old grid was built around, and a 1280px laptop is where this
+          page actually gets opened. `items-start` stops the shorter column
+          stretching to match the taller one. Below the breakpoint it collapses
+          in DOM order, which puts the SWITCH first — deliberate, because the
+          reason to open this page on a phone is to flip it.
         */}
-        <div className="max-w-2xl space-y-8">
+        <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-2">
           {/* Wrapped in its own element rather than spread into the stack: the
               switch block sets its own internal spacing (the `mt-3` timestamp
               sits tight under the card), and `space-y-8` on a shared parent
@@ -226,19 +232,21 @@ export default async function EngineerMaintenancePage() {
             )}
           </div>
 
-          {/* The three alerting controls, in the order the questions get
-              asked: where does an alert go, do those channels answer, and what
-              does it say. */}
-          {delivery ? (
-            <AlertDeliveryControl state={delivery} />
-          ) : (
-            <LoadError
-              status={deliveryError?.status ?? 0}
-              noun="the alert delivery setting"
-            />
-          )}
-          <TestAlertChannels />
-          <AlertTemplates />
+          {/* The right column: the three alerting controls, in the order the
+              questions get asked — where does an alert go, do those channels
+              answer, and what does it say. */}
+          <div className="space-y-8">
+            {delivery ? (
+              <AlertDeliveryControl state={delivery} />
+            ) : (
+              <LoadError
+                status={deliveryError?.status ?? 0}
+                noun="the alert delivery setting"
+              />
+            )}
+            <TestAlertChannels />
+            <AlertTemplates />
+          </div>
         </div>
       </main>
     </>

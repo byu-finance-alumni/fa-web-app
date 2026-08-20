@@ -247,13 +247,9 @@ export default async function LoginFailuresPage({
 
         <div className="mb-4 flex items-start justify-between gap-4">
           <p className="max-w-2xl text-sm text-gray-500">
-            Every failed sign-in attempt with a captured location, newest first.
-            The attempted email is snapshotted as typed and may not belong to
-            any account (a probe or typo). Times are shown in{" "}
-            <span className="font-medium text-gray-700">
-              Utah time (Mountain)
-            </span>
-            ; location is approximate (IP-based).
+            Every failed attempt, newest first — the email is as typed and may
+            match no account; times are{" "}
+            <span className="font-medium text-gray-700">Utah time</span>.
           </p>
         </div>
 

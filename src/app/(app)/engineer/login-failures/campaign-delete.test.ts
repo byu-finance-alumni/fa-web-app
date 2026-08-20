@@ -50,7 +50,7 @@ describe("loginCampaignConfirm", () => {
 
     expect(text).toMatch(/every failed sign-in/i);
     expect(text).toMatch(/12 of them are on this page/);
-    expect(text).toMatch(/more on the others/i);
+    expect(text).toMatch(/more on other pages/i);
   });
 
   it("counts the rows on this page in readable English", () => {
@@ -61,14 +61,17 @@ describe("loginCampaignConfirm", () => {
     ).toMatch(/1 of them is on this page/);
   });
 
-  it("names the incident and the attempted addresses as going too", () => {
+  it("names the incident as going too", () => {
+    // The attempted addresses used to get their own clause. They are the failed
+    // sign-in rows, so "every failed sign-in ever recorded" already covers them
+    // — and the owner asked for one sentence per spot, which makes a redundant
+    // clause the first thing to go.
     const text = loginCampaignConfirm({ ipAddress: IP, attemptsOnPage: 3 })
       .paragraphs.map((p) => p.text)
       .join(" ");
 
     expect(text).toMatch(/incident/i);
-    expect(text).toMatch(/email addresses/i);
-  });
+      });
 
   it("says plainly that the source can sign in again", () => {
     // The consequence nobody can guess from the words "delete campaign", and
