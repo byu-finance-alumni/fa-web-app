@@ -12,6 +12,12 @@ import { BLOCK_LIST_LIMIT, type LoginIpBlockPage } from "./blocks";
 /** Acknowledgement that a block was lifted, echoing what stopped applying. */
 type LoginIpBlockLifted = components["schemas"]["LoginIpBlockLifted"];
 
+/** What a test alert actually did, per channel. */
+export type AlertTestResult = components["schemas"]["AlertTestResult"];
+
+/** Which alert channel to check. */
+export type AlertPurpose = "operational" | "security";
+
 /**
  * Engineer maintenance-mode controls.
  */
@@ -100,6 +106,44 @@ export async function liftLoginIpBlock(
           : e instanceof ApiError
             ? e.message
             : "Couldn't lift that block.",
+    };
+  }
+}
+
+/**
+ * Send one clearly-marked TEST alert to a channel, to prove it is reachable.
+ * Engineer-only (POST /admin/alerts/test), rate limited to six an hour.
+ *
+ * WHY A BUTTON EXISTS FOR THIS. Before it, "is alerting wired up?" could only be
+ * answered by breaking something: an outage alert needs three sustained
+ * failures, so proving the error channel meant deliberately failing production
+ * for a minute. On 2026-08-19 a real security alert went to the error channel
+ * because no security webhook was set -- the documented fallback doing its job,
+ * and completely invisible from inside Slack.
+ *
+ * Returns the per-channel result rather than a boolean, because "nothing
+ * arrived" has two very different causes and the console has to be able to say
+ * which. Errors come back as a message rather than throwing, so a rate-limit
+ * refusal is a toast and not a blank page.
+ */
+export async function sendTestAlert(
+  purpose: AlertPurpose,
+): Promise<{ ok: true; result: AlertTestResult } | { ok: false; error: string }> {
+  try {
+    const result = await apiPost<AlertTestResult>(
+      `/admin/alerts/test?purpose=${purpose}`,
+      undefined,
+    );
+    return { ok: true, result };
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof ApiError && e.status === 429
+          ? "Too many test alerts. Six an hour is the limit — try again later."
+          : e instanceof ApiError
+            ? e.message
+            : "Couldn't send the test alert.",
     };
   }
 }
