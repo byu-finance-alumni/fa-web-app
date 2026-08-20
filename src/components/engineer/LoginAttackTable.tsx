@@ -43,7 +43,8 @@ export function LoginAttackTable({
 }: {
   data: LoginAttackSourcePage | null;
   error: ApiError | null;
-  windowHours: number;
+  /** Hours summarised, or null for every attempt ever recorded. */
+  windowHours: number | null;
   /**
    * Render the section heading. On the Maintenance page it names an otherwise
    * unlabelled column; inside the collapsed panel on the Login-failures page
