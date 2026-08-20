@@ -148,9 +148,8 @@ export function LoginAttackTable({
         may already have happened, and the row that says so is directly below.
       */}
       <p className="mt-3 text-xs text-gray-500">
-        The IP and location are self-reported by the client and can be spoofed —
-        treat a source as a lead, not proof. Sources over the threshold are
-        blocked automatically; see Blocked sources for what is being refused.
+        IP and location are self-reported and can be spoofed — treat a source as
+        a lead, not proof.
       </p>
     </section>
   );

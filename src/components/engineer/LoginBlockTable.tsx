@@ -112,16 +112,14 @@ export function LoginBlockTable({
       )}
 
       {/*
-        The two facts that stop this table being misread, both of which matter
-        more than anything in it: a block ends by itself, and an address is not
-        an identity. The second is why lifting exists at all.
+        The two facts that stop this table being misread — a block ends by
+        itself, and an address is not an identity — in one line. It was a
+        paragraph; the owner reads this page during an incident and prose is what
+        gets scrolled past.
       */}
       <p className="mt-3 text-xs text-gray-500">
         Blocks last {formatBlockLength(data?.block_seconds ?? 3600)} and end on
-        their own — nothing has to run for one to lapse. Addresses are
-        self-reported by the client, so if a block catches a real person, lift it:
-        they can sign in immediately and will not be blocked again automatically
-        for 24 hours. Signed-in engineers are never affected.
+        their own — lift one if it has caught a real person.
       </p>
     </section>
   );

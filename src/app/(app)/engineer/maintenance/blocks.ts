@@ -151,8 +151,8 @@ export function blockReason(block: LoginIpBlock): string {
  */
 export function blocksEmptyText(autoBlockEnabled: boolean): string {
   return autoBlockEnabled
-    ? "No sources are blocked. Nothing has crossed the threshold recently."
-    : "Automatic blocking is turned off, so nothing is being blocked. This list is not evidence that nobody is attacking the login.";
+    ? "No sources are blocked."
+    : "Automatic blocking is off, so an empty list here does not mean nobody is attacking.";
 }
 
 /** "1 hour" / "30 minutes" — how long a new block lasts, from the backend. */

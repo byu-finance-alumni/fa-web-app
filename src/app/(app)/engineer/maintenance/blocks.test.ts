@@ -100,7 +100,7 @@ describe("blocksEmptyText", () => {
     // The one thing this screen must never do: an empty table with the kill
     // switch off means nothing at all.
     const off = blocksEmptyText(false);
-    expect(off).toContain("turned off");
+    expect(off).toContain("is off");
     expect(off).not.toBe(blocksEmptyText(true));
   });
 
