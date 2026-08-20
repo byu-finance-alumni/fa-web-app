@@ -8,22 +8,12 @@
  * rendered server component in this suite.
  */
 
+import type { components } from "@/types/api.gen";
+
 /**
- * ⚠️ TEMPORARY LOCAL TYPES — REPLACE WITH THE GENERATED ONES.
- *
- * These mirror `LoginAttackSource` / `LoginAttackSourcePage` from
- * GET /admin/login-attack-sources. They are hand-written ONLY because the
- * backend endpoint has not reached dev yet, so `src/types/api.gen.ts` does not
- * describe it. Once it lands, run `npm run gen:api-types` and swap both of these
- * for the generated shapes, exactly as the Login-failures tab does:
- *
- *   export type LoginAttackSourcePage =
- *     components["schemas"]["LoginAttackSourcePage"];
- *   export type LoginAttackSource = LoginAttackSourcePage["items"][number];
- *
- * Until then the CI drift guard cannot see this contract, so a backend rename
- * would compile here and fail only at runtime. Do not extend it by hand — a
- * field the generator does not produce is a field that will vanish on regen.
+ * Types for GET /admin/login-attack-sources, taken from the generated schema so
+ * the CI drift guard covers this contract — a backend rename now fails in CI
+ * rather than at runtime.
  *
  * NOTE WHAT IS DELIBERATELY ABSENT: the attempted email addresses. The endpoint
  * returns `distinct_emails`, the COUNT, and never the addresses themselves —
@@ -31,31 +21,9 @@
  * a list of them is an enumeration oracle. The per-attempt detail, addresses
  * included, lives on /engineer/login-failures behind the same engineer gate.
  */
-export type LoginAttackSource = {
-  ip_address: string;
-  city: string | null;
-  region: string | null;
-  country: string | null;
-  first_seen: string;
-  last_seen: string;
-  attempts: number;
-  distinct_emails: number;
-  /**
-   * e.g. "spraying: many addresses, a few passwords each" — produced by the same
-   * classifier the Slack alert renders, so the table and the alert cannot
-   * describe one IP two different ways.
-   */
-  attack_type: string;
-  /** Whether the source crossed the detector's thresholds at all. */
-  is_attack: boolean;
-};
-
-/** See the warning above — replace with the generated `LoginAttackSourcePage`. */
-export type LoginAttackSourcePage = {
-  items: LoginAttackSource[];
-  window_hours: number;
-  limit: number;
-};
+export type LoginAttackSourcePage =
+  components["schemas"]["LoginAttackSourcePage"];
+export type LoginAttackSource = LoginAttackSourcePage["items"][number];
 
 /**
  * How much history the table shows. A day covers "did something happen
