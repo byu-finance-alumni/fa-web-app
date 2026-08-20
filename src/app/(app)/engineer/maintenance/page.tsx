@@ -7,8 +7,14 @@ import { Topbar } from "@/components/shell/Topbar";
 import { Card } from "@/components/ui/card";
 import { MaintenanceModeControl } from "@/components/engineer/MaintenanceModeControl";
 import { TestAlertChannels } from "@/components/engineer/TestAlertChannels";
+import { AlertDeliveryControl } from "@/components/engineer/AlertDeliveryControl";
 import { AlertTemplates } from "@/components/engineer/AlertTemplates";
-import { getMaintenanceState, type MaintenanceState } from "./actions";
+import {
+  getAlertDeliveryState,
+  getMaintenanceState,
+  type AlertDeliveryState,
+  type MaintenanceState,
+} from "./actions";
 import { LoadError } from "@/components/shared/LoadError";
 
 /**
@@ -86,6 +92,20 @@ export default async function EngineerMaintenancePage() {
       e instanceof ApiError
         ? e
         : new ApiError(0, "Failed to load the maintenance state.");
+  }
+
+  // A second independent read, in its own variables: this one says WHERE an
+  // alert would go, and an unhappy endpoint must not be able to take the
+  // maintenance switch off the screen.
+  let delivery: AlertDeliveryState | null = null;
+  let deliveryError: ApiError | null = null;
+  try {
+    delivery = await getAlertDeliveryState();
+  } catch (e) {
+    deliveryError =
+      e instanceof ApiError
+        ? e
+        : new ApiError(0, "Failed to load the alert delivery setting.");
   }
 
   return (
@@ -206,11 +226,18 @@ export default async function EngineerMaintenancePage() {
             )}
           </div>
 
-          {/* Last on the page, because it is the only thing here you press when
-              nothing is wrong. */}
+          {/* The three alerting controls, in the order the questions get
+              asked: where does an alert go, do those channels answer, and what
+              does it say. */}
+          {delivery ? (
+            <AlertDeliveryControl state={delivery} />
+          ) : (
+            <LoadError
+              status={deliveryError?.status ?? 0}
+              noun="the alert delivery setting"
+            />
+          )}
           <TestAlertChannels />
-          {/* Directly under the channel test, because the two are one job:
-              prove the message can get there, then decide what it says. */}
           <AlertTemplates />
         </div>
       </main>
