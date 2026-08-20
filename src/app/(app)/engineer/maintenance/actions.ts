@@ -41,11 +41,13 @@ export async function getMaintenanceState(): Promise<MaintenanceState> {
 
 /**
  * Failed sign-ins rolled up per source IP over the last `hours`, for the attack
- * table beside the switch. Engineer-only — the backend re-enforces
- * RequireEngineer on GET /admin/login-attack-sources. Callers catch ApiError.
+ * summary on /engineer/login-failures. (It used to render beside the
+ * maintenance switch; the reader who wants it is the one already looking at the
+ * attempts.) Engineer-only — the backend re-enforces RequireEngineer on
+ * GET /admin/login-attack-sources. Callers catch ApiError.
  *
  * Never cached: an engineer looking at this during an incident must be seeing
- * the current state, the same reason this page is `force-dynamic`.
+ * the current state, the same reason the pages that render it are dynamic.
  *
  * The response carries COUNTS of attempted addresses and never the addresses
  * themselves — see the type in ./attack-sources.
@@ -60,12 +62,13 @@ export async function getLoginAttackSources(
 
 /**
  * Sources currently refused by the automatic block, for the table under the
- * attack summary. Engineer-only — the backend re-enforces RequireEngineer on
- * GET /admin/login-ip-blocks. Callers catch ApiError.
+ * attack summary on /engineer/login-failures. Engineer-only — the backend
+ * re-enforces RequireEngineer on GET /admin/login-ip-blocks. Callers catch
+ * ApiError.
  *
  * `activeOnly=false` includes lifted and lapsed blocks, which is what makes
  * "did this ever fire on us?" answerable. Never cached, for the same reason the
- * rest of this page is `force-dynamic`.
+ * page that renders it is dynamic.
  */
 export async function getLoginIpBlocks(
   activeOnly = false,
@@ -95,7 +98,10 @@ export async function liftLoginIpBlock(
     const result = await apiDelete<LoginIpBlockLifted>(
       `/admin/login-ip-blocks/${blockId}`,
     );
-    revalidatePath("/engineer/maintenance");
+    // The route the block table now renders on. It said /engineer/maintenance
+    // while the table lived there; left unchanged it would revalidate a page
+    // that no longer shows blocks and leave the lifted row on screen.
+    revalidatePath("/engineer/login-failures");
     return { ok: true, ipAddress: result.ip_address };
   } catch (e) {
     return {

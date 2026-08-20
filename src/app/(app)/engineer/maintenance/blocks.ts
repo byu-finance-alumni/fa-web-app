@@ -1,5 +1,11 @@
 /**
- * Presentation logic for the Maintenance page's automatic-block table.
+ * Presentation logic for the automatic-block table.
+ *
+ * The table itself renders on /engineer/login-failures, next to the attempts
+ * that produced the blocks; these helpers stay here beside ./attack-sources,
+ * which they are the other half of — one describes who is hitting the login,
+ * the other what was done about them, and splitting the pair across two route
+ * folders would buy nothing.
  *
  * Same split as ./attack-sources: everything here is pure and takes plain data,
  * so the assertions that matter — a block that has 40 seconds left does not read

@@ -17,8 +17,9 @@ import {
 /**
  * Sources the login is currently refusing, under the attack summary.
  *
- * WHY IT IS ON THIS PAGE, directly beneath the table it answers. The attack
- * table says who is hitting the login; this says what was DONE about them. On
+ * WHY IT IS ON THE LOGIN FAILURES PAGE, beneath the summary it answers. The
+ * attack table says who is hitting the login; this says what was DONE about
+ * them, and the failed attempts that caused both are on the same screen. On
  * 2026-08-19 the answer to the second question was "nothing" — the campaigns
  * were detected and a human was told, because blocking was expected to happen at
  * the edge, which this account's plan does not include. Now a source that

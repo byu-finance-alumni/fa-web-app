@@ -14,10 +14,15 @@ import {
 } from "./actions";
 import { LoadError } from "@/components/shared/LoadError";
 import { LoginAttackTable } from "@/components/engineer/LoginAttackTable";
-// The attack summary is the SAME component and the SAME fetch the Maintenance
-// page uses — imported across rather than reimplemented, so the two screens
-// cannot drift into describing one IP two different ways (#456).
-import { getLoginAttackSources } from "../maintenance/actions";
+import { LoginBlockTable } from "@/components/engineer/LoginBlockTable";
+// Both login-security reads still live under ../maintenance. They were written
+// there when the tables sat beside the switch, and they stayed put when the
+// tables moved here: the two helper modules are a pair (./attack-sources and
+// ./blocks describe the same incident from either end), the server actions are
+// route-agnostic, and moving them would have churned every import for no
+// behavioural change. Imported across rather than reimplemented, so the two
+// screens cannot drift into describing one IP two different ways (#456).
+import { getLoginAttackSources, getLoginIpBlocks } from "../maintenance/actions";
 import {
   ATTACK_PANEL_DESCRIPTION,
   ATTACK_WINDOW_HOURS,
@@ -26,6 +31,7 @@ import {
   isAttackPanelOpen,
   type LoginAttackSourcePage,
 } from "../maintenance/attack-sources";
+import { type LoginIpBlockPage } from "../maintenance/blocks";
 
 const LIMIT = 50;
 
@@ -116,6 +122,26 @@ export default async function LoginFailuresPage({
     }
   }
 
+  // The blocked sources, read INDEPENDENTLY of both the summary above and the
+  // attempt list below, and held in its own variables for the same reason they
+  // are: this is the table that says who is currently being REFUSED, and an
+  // unhappy /admin/login-ip-blocks must never be able to take the attempt list —
+  // or the summary that explains it — off the screen. Unlike the summary this is
+  // fetched on every visit rather than only when a panel is open: it is a short
+  // list by construction (a source has to cross the abuse threshold to appear),
+  // and "is the login refusing anyone right now" is not a question worth hiding
+  // behind a click.
+  let blocks: LoginIpBlockPage | null = null;
+  let blockError: ApiError | null = null;
+  try {
+    blocks = await getLoginIpBlocks();
+  } catch (e) {
+    blockError =
+      e instanceof ApiError
+        ? e
+        : new ApiError(0, "Failed to load the blocked sources.");
+  }
+
   let data: LoginFailurePage | null = null;
   let error: ApiError | null = null;
   try {
@@ -188,6 +214,25 @@ export default async function LoginFailuresPage({
               />
             </div>
           ) : null}
+        </div>
+
+        {/*
+          Blocked sources, between the summary and the attempts.
+
+          This is where it answers something. The page is a list of failed
+          sign-ins; the unavoidable next question is what was DONE about them,
+          and on 2026-08-19 the answer was "nothing", which is why the automatic
+          block exists at all. Reading order is therefore who is hitting the
+          login (the summary, when opened), then who is being refused, then the
+          individual attempts. It sits ABOVE the attempt list rather than after
+          it because the list is paginated: anything below 50 rows and a pager is
+          somewhere nobody looks, and this is the short table that says whether a
+          real person is currently locked out. It also stays outside the
+          collapsible panel — a table that can be refusing a colleague right now
+          must not be hidden behind a toggle.
+        */}
+        <div className="mb-6">
+          <LoginBlockTable data={blocks} error={blockError} />
         </div>
 
         <div className="mb-4 flex items-start justify-between gap-4">
