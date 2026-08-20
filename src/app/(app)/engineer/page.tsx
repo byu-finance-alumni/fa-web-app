@@ -56,6 +56,12 @@ const TOOLS: Tool[] = [
       "Every failed sign-in attempt — who, when, from what IP, and why — newest first. The attempted email may not match any account.",
   },
   {
+    href: "/engineer/sessions",
+    title: "Sessions",
+    description:
+      "Everyone signed in right now, oldest first — how long each session has been open, and the control to end one or sign an account out everywhere.",
+  },
+  {
     href: "/engineer/maintenance",
     title: "Maintenance mode",
     description:

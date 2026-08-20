@@ -114,6 +114,11 @@ export const NAV: NavItem[] = [
         label: "Login failures",
         engineerOnly: true,
       },
+      // Who is signed in RIGHT NOW, and the control to end it. Sits with the two
+      // sign-in logs because it answers the same class of question, but it is an
+      // inventory rather than a history — and it is the only one of the three
+      // that can act, not just report.
+      { href: "/engineer/sessions", label: "Sessions", engineerOnly: true },
       // The site-wide pause. It was reachable only from the /engineer console
       // page or by typing the URL, which is the wrong place for a kill switch:
       // it is wanted during an incident, when nobody is browsing a card grid.
