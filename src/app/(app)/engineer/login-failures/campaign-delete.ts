@@ -94,23 +94,18 @@ export function loginCampaignConfirm({
     paragraphs: [
       {
         text:
-          `This removes every failed sign-in ever recorded from ${ipAddress} ` +
-          `— ${onPage}, and there may be more on the others — together with ` +
-          "the abuse incident opened for it. The attempted email addresses go " +
-          "with them.",
+          `Removes every failed sign-in ever recorded from ${ipAddress} ` +
+          `(${onPage}, and possibly more on other pages) and its abuse incident.`,
       },
       {
-        text:
-          "Any block still in force on that address is removed too, which " +
-          `means ${ipAddress} can sign in again.`,
+        text: `Any block still in force is removed too, so ${ipAddress} can sign in again.`,
         emphasis: true,
       },
       {
         text:
-          "This cannot be undone. If you only want to clear a block you think " +
-          "is wrong, use Lift on the Maintenance page instead — that keeps the " +
-          "record and stops the address being blocked again automatically for " +
-          "24 hours, which deleting does not.",
+          "Cannot be undone — to clear a block you think is wrong, use Lift " +
+          "instead, which keeps the record and stops automatic re-blocking for " +
+          "24 hours.",
       },
     ],
   };
