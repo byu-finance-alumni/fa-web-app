@@ -15,44 +15,25 @@
  */
 
 /**
- * ⚠️ LOCAL PLACEHOLDER TYPE — SWAP IT FOR THE GENERATED ONE.
- *
- * `src/types/api.gen.ts` is generated from the API's OpenAPI schema and must
- * never be hand-edited (CI has a drift guard), and DELETE
- * /admin/login-campaigns/{ip_address} does not exist in the deployed schema
- * yet. Once fa-web-api's `feat/delete-campaign` is merged to dev and the types
- * are regenerated, delete this declaration and replace it with:
- *
- *     import type { components } from "@/types/api.gen";
- *     export type LoginCampaignDeleted =
- *       components["schemas"]["LoginCampaignDeleted"];
- *
- * Same convention `engineer/sessions/actions.ts` used for `SessionRevokeResult`
- * before the sessions backend landed.
+ * What deleting one source's campaign removed, per table — taken from the
+ * generated schema so the CI drift guard covers this contract.
  *
  * ⚠️ NOTE WHAT IS DELIBERATELY ABSENT, exactly as on the attack table and the
  * block list: the attempted email addresses. The endpoint returns COUNTS of what
  * it deleted and never the addresses themselves — they are unverified strings a
  * stranger typed, some of them belong to real people, and a list of them is an
  * enumeration oracle. If a regenerated `LoginCampaignDeleted` ever grows an
- * address field, that is a backend bug, not a type to widen here.
+ * address field, that is a backend bug, not a type to widen here. The test
+ * below asserts it on the generated shape, so it now guards the REAL contract
+ * rather than a local copy of it.
+ *
+ * `active_blocks_deleted` is the number a human needs: "3 blocks removed" does
+ * not say whether that source can sign in again.
  */
-export type LoginCampaignDeleted = {
-  /** The address the delete was aimed at, echoed back. */
-  ip_address: string;
-  /** `login_failures` rows removed — the per-attempt rows on this page. */
-  failures_deleted: number;
-  /** `login_abuse_incidents` rows removed — the detector's record. */
-  incidents_deleted: number;
-  /** `login_ip_blocks` rows removed, including lifted and lapsed history. */
-  blocks_deleted: number;
-  /**
-   * How many of those blocks were still IN FORCE when they were deleted, i.e.
-   * whether anyone's access actually changed. This is the number a human needs:
-   * "3 blocks removed" does not say whether that source can sign in again.
-   */
-  active_blocks_deleted: number;
-};
+import type { components } from "@/types/api.gen";
+
+export type LoginCampaignDeleted =
+  components["schemas"]["LoginCampaignDeleted"];
 
 /** One paragraph of confirm copy; `emphasis` is the line not to skim past. */
 export type ConfirmParagraph = { text: string; emphasis?: boolean };

@@ -132,13 +132,14 @@ describe("the server action", () => {
     expect(body).not.toContain("throw");
   });
 
-  it("declares the response type LOCALLY and names the generated one to swap in", () => {
-    // `api.gen.ts` is generated from the API's OpenAPI schema and must never be
-    // hand-edited (CI has a drift guard), and this route is not on dev yet. The
-    // convention is a local type carrying the note — see ../sessions/actions.ts,
-    // which did exactly this before its backend shipped.
-    expect(ACTIONS).toContain("export type AlertDeliveryState = {");
-    expect(ACTIONS).toContain('components["schemas"]["AlertDeliveryState"]');
-    expect(ACTIONS).toContain("LOCAL TYPES");
+  it("takes the response type from the GENERATED schema, not a local copy", () => {
+    // It was a local placeholder while the backend was being written. Now that
+    // the route is on dev the type comes from `api.gen.ts`, which is what puts
+    // this contract under the CI drift guard: a backend rename fails the
+    // typecheck here instead of 422-ing in front of an engineer.
+    expect(ACTIONS).toContain(
+      'export type AlertDeliveryState = components["schemas"]["AlertDeliveryState"]',
+    );
+    expect(ACTIONS).not.toContain("LOCAL TYPES");
   });
 });

@@ -183,22 +183,34 @@ describe("no attempted address can reach the UI", () => {
     "utf-8",
   );
 
-  it("declares counts only — no email field on the response type", () => {
-    const type = source.slice(
-      source.indexOf("export type LoginCampaignDeleted"),
-      source.indexOf("/** One paragraph of confirm copy"),
+  it("declares counts only — no email field on the GENERATED response type", () => {
+    // Asserted against api.gen.ts, not against a local copy of the shape. While
+    // this type was a placeholder the test could only prove that WE had not
+    // added an address field; now it proves the BACKEND has not, which is the
+    // thing that actually matters. The attempted addresses are unverified
+    // strings a stranger typed, some belong to real people, and a list of them
+    // is an enumeration oracle.
+    const generated = readFileSync(
+      resolve(__dirname, "../../../../types/api.gen.ts"),
+      "utf-8",
     );
+    const start = generated.indexOf("LoginCampaignDeleted: {");
+    const type = generated.slice(start, generated.indexOf("};", start));
 
+    expect(start).toBeGreaterThan(-1);
     expect(type).toContain("failures_deleted");
     expect(type).not.toMatch(/^\s+email/m);
     expect(type).not.toMatch(/emails\??:/);
   });
 
-  it("keeps the placeholder type flagged for the generated one", () => {
-    // `api.gen.ts` is generated and must not be hand-edited (CI drift guard), so
-    // this shape is temporary. The marker is what stops it quietly becoming
-    // permanent and drifting from the backend contract.
-    expect(source).toMatch(/LOCAL PLACEHOLDER TYPE/);
-    expect(source).toContain('components["schemas"]["LoginCampaignDeleted"]');
+  it("takes the type from the generated schema, not a local copy", () => {
+    // It was a local placeholder while the backend was being written. Now that
+    // the route is on dev the shape comes from `api.gen.ts`, which is what puts
+    // this contract under the CI drift guard: a backend rename fails the
+    // typecheck instead of surfacing as an undefined count in the toast.
+    expect(source).toContain(
+      'components["schemas"]["LoginCampaignDeleted"]',
+    );
+    expect(source).not.toMatch(/LOCAL PLACEHOLDER TYPE/);
   });
 });

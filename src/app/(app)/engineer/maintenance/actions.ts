@@ -19,29 +19,33 @@ export type AlertTestResult = components["schemas"]["AlertTestResult"];
 export type AlertPurpose = "operational" | "security";
 
 /**
- * LOCAL TYPES — replace with the generated ones once the backend lands on dev.
+ * The alert-template contract, taken from the generated schema so the CI drift
+ * guard covers it.
  *
- * `api.gen.ts` is generated from the API's OpenAPI schema and must never be
- * hand-edited, and these routes do not exist in the deployed schema yet. Once
- * fa-web-api's alert-template branch is merged to dev, regenerate the types and
- * swap the three aliases below for
- * `components["schemas"]["AlertTemplatePlaceholder"]`,
- * `components["schemas"]["AlertTemplate"]` and
- * `components["schemas"]["AlertTemplatePage"]`.
+ * ⚠️ THE UI'S FIELD NAMES ARE NOT THE API'S, AND THAT IS DELIBERATE. The card
+ * was built against a guessed contract while the backend was still being
+ * written — `kind`/`value`/`default_value` against the API's
+ * `key`/`body`/`default_body` — and both sides typechecked because both were
+ * local types. `toTemplate` below is the one place the two vocabularies meet.
  *
- * Everything downstream — the actions here, ./alert-templates and the card —
- * reads these three names and nothing else, so the swap is those three lines
- * and no other edit.
+ * It is a mapping rather than a rename through the card because `.value` inside
+ * a textarea handler is `event.target.value`, and because one typed conversion
+ * site means a future backend rename fails the typecheck HERE, loudly, instead
+ * of quietly reintroducing a 422 nobody sees until they press Save.
  */
+type ApiAlertTemplateRow = components["schemas"]["AlertTemplateRow"];
+
 export type AlertTemplatePlaceholder = {
   /** The token as it is written in a message, without the braces. */
   name: string;
   /** What the backend substitutes for it, in words. */
   description: string;
+  /** A realistic value, used by the preview. */
+  example: string;
 };
 
 export type AlertTemplate = {
-  /** Stable identifier for the message, e.g. "outage" — never shown as a label. */
+  /** Stable identifier for the message — never shown as a label. */
   kind: string;
   /** Human name for the message. */
   label: string;
@@ -53,9 +57,30 @@ export type AlertTemplate = {
   default_value: string;
   /** What this kind may substitute. Anything else renders literally. */
   placeholders: AlertTemplatePlaceholder[];
+  /**
+   * The backend's own length cap. Carried through so the card's pre-flight
+   * check is the SAME number the database CHECK enforces — they were 2000 and
+   * 500, so a long template passed client validation and came back a 422.
+   */
+  maxChars: number;
+  /** Whether the stored wording differs from the default. */
+  customized: boolean;
 };
 
 export type AlertTemplatePage = { items: AlertTemplate[] };
+
+function toTemplate(row: ApiAlertTemplateRow): AlertTemplate {
+  return {
+    kind: row.key,
+    label: row.label,
+    description: row.description,
+    value: row.body,
+    default_value: row.default_body,
+    placeholders: row.placeholders,
+    maxChars: row.max_chars,
+    customized: row.customized,
+  };
+}
 
 /**
  * Every editable Slack message with its current wording, its default and the
@@ -72,7 +97,10 @@ export async function getAlertTemplates(): Promise<
   { ok: true; page: AlertTemplatePage } | { ok: false; error: string }
 > {
   try {
-    return { ok: true, page: await apiGet<AlertTemplatePage>("/admin/alert-templates") };
+    const page = await apiGet<components["schemas"]["AlertTemplateList"]>(
+      "/admin/alert-templates",
+    );
+    return { ok: true, page: { items: page.items.map(toTemplate) } };
   } catch (e) {
     return {
       ok: false,
@@ -87,7 +115,7 @@ export async function getAlertTemplates(): Promise<
 }
 
 /**
- * Store new wording for one message (PUT /admin/alert-templates/{kind}),
+ * Store new wording for one message (PUT /admin/alert-templates/{key}),
  * engineer-only.
  *
  * The backend re-validates the template it is handed — the card's own check on
@@ -104,11 +132,11 @@ export async function saveAlertTemplate(
   value: string,
 ): Promise<{ ok: true; template: AlertTemplate } | { ok: false; error: string }> {
   try {
-    const template = await apiPut<AlertTemplate>(
+    const row = await apiPut<ApiAlertTemplateRow>(
       `/admin/alert-templates/${encodeURIComponent(kind)}`,
-      { value },
+      { body: value },
     );
-    return { ok: true, template };
+    return { ok: true, template: toTemplate(row) };
   } catch (e) {
     return {
       ok: false,
@@ -126,7 +154,7 @@ export async function saveAlertTemplate(
 
 /**
  * Put one message back to the wording shipped with the app
- * (POST /admin/alert-templates/{kind}/reset), engineer-only.
+ * (DELETE /admin/alert-templates/{key}), engineer-only.
  *
  * A separate endpoint rather than a save of the default text the client happens
  * to be holding: the default is the backend's to know, and a stale tab must not
@@ -136,11 +164,13 @@ export async function resetAlertTemplate(
   kind: string,
 ): Promise<{ ok: true; template: AlertTemplate } | { ok: false; error: string }> {
   try {
-    const template = await apiPost<AlertTemplate>(
-      `/admin/alert-templates/${encodeURIComponent(kind)}/reset`,
-      undefined,
+    // DELETE, not POST /reset: the backend models "reset" as removing the
+    // override row, which is what makes the built-in sentence the fallback
+    // again rather than a second copy of it.
+    const row = await apiDelete<ApiAlertTemplateRow>(
+      `/admin/alert-templates/${encodeURIComponent(kind)}`,
     );
-    return { ok: true, template };
+    return { ok: true, template: toTemplate(row) };
   } catch (e) {
     return {
       ok: false,
@@ -347,32 +377,16 @@ export async function disableMaintenance(): Promise<
 }
 
 /**
- * LOCAL TYPES — replace with the generated ones once the backend lands on dev.
+ * Where an alert goes, taken from the generated schema so the CI drift guard
+ * covers this contract.
  *
- * `api.gen.ts` is generated from the API's OpenAPI schema and must never be
- * hand-edited (CI has a drift guard), and these routes do not exist in the
- * deployed schema yet. After fa-web-api's `feat/alert-delivery-toggle` is merged
- * to dev, regenerate and swap `AlertDeliveryState` for
- * `components["schemas"]["AlertDeliveryState"]` — the mode union is
- * `components["schemas"]["AlertDeliveryState"]["mode"]`, and the request body is
- * `components["schemas"]["AlertDeliveryUpdate"]`. Same convention this file's
- * neighbours used before their backends shipped (see ../sessions/actions.ts).
+ * ``slack_configured`` / ``email_configured`` are not decoration: the card
+ * promises that e-mail still fires when Slack does not land, and that promise is
+ * FALSE if no alert mailbox is configured. Booleans only — the backend never
+ * returns the webhook URL (a credential) or the recipients.
  */
-export type AlertDeliveryMode = "slack_only" | "slack_and_email";
-
-export type AlertDeliveryState = {
-  mode: AlertDeliveryMode;
-  updated_at: string | null;
-  updated_by_email: string | null;
-  /**
-   * Whether each channel has anywhere to send AT ALL. Not decoration: the card
-   * promises that e-mail still fires when Slack does not land, and that promise
-   * is FALSE if no alert mailbox is configured. Booleans only — the backend
-   * never returns the webhook URL (a credential) or the recipients.
-   */
-  slack_configured: boolean;
-  email_configured: boolean;
-};
+export type AlertDeliveryState = components["schemas"]["AlertDeliveryState"];
+export type AlertDeliveryMode = AlertDeliveryState["mode"];
 
 /**
  * Read where alerts currently go. Engineer-only on the backend

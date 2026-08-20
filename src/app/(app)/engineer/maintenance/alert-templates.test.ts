@@ -26,9 +26,9 @@ import {
  */
 
 const PLACEHOLDERS: AlertTemplatePlaceholder[] = [
-  { name: "environment", description: "Which deployment alerted." },
-  { name: "ip_address", description: "The source that was blocked." },
-  { name: "attempt_count", description: "How many attempts it made." },
+  { name: "environment", description: "Which deployment alerted.", example: "production" },
+  { name: "ip_address", description: "The source that was blocked.", example: "203.0.113.9" },
+  { name: "attempt_count", description: "How many attempts it made.", example: "8" },
 ];
 
 function template(over: Partial<AlertTemplate> = {}): AlertTemplate {
@@ -40,6 +40,8 @@ function template(over: Partial<AlertTemplate> = {}): AlertTemplate {
     default_value:
       "Blocked {ip_address} on {environment} after {attempt_count} tries.",
     placeholders: PLACEHOLDERS,
+    maxChars: 500,
+    customized: false,
     ...over,
   };
 }
@@ -193,9 +195,13 @@ describe("exampleValue", () => {
 });
 
 describe("previewTemplate", () => {
-  it("renders a kind's draft with that kind's examples", () => {
+  it("renders a kind's draft with the BACKEND's examples, not invented ones", () => {
+    // The example now comes from the placeholder the API sent, so the preview
+    // is what the message will actually look like. The name-shape heuristics
+    // remain only as the fallback for a placeholder that arrives without one —
+    // which is why this asserts the fixture's values and not theirs.
     expect(previewTemplate(template(), template().value)).toBe(
-      "Blocked 203.0.113.42 on production after 3 tries.",
+      "Blocked 203.0.113.9 on production after 8 tries.",
     );
   });
 

@@ -77,12 +77,16 @@ export function unknownPlaceholders(
 export function templateProblem(
   template: string,
   allowed: readonly AlertTemplatePlaceholder[],
+  maxLength: number = TEMPLATE_MAX_LENGTH,
 ): string | null {
   if (!template.trim()) {
     return 'A message can’t be empty. Use "Reset to default" if you want the standard wording back.';
   }
-  if (template.length > TEMPLATE_MAX_LENGTH) {
-    return `That’s ${template.length} characters — the limit is ${TEMPLATE_MAX_LENGTH}.`;
+  // The cap comes from the row the backend sent, not from the constant: they
+  // were 2000 here and 500 in the database CHECK, so a long message passed this
+  // check and came back a 422 with the draft still in the box.
+  if (template.length > maxLength) {
+    return `That’s ${template.length} characters — the limit is ${maxLength}.`;
   }
   const unknown = unknownPlaceholders(template, allowed);
   if (unknown.length > 0) {
@@ -159,7 +163,11 @@ export function exampleValues(
   allowed: readonly AlertTemplatePlaceholder[],
 ): Record<string, string> {
   const values: Record<string, string> = {};
-  for (const p of allowed) values[p.name] = exampleValue(p.name);
+  // The backend now ships a realistic `example` per placeholder, so the preview
+  // shows what the message will genuinely look like rather than a guess. The
+  // name-shape heuristics below it are the fallback for a placeholder that
+  // arrives without one.
+  for (const p of allowed) values[p.name] = p.example || exampleValue(p.name);
   return values;
 }
 

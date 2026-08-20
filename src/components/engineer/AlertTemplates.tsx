@@ -108,7 +108,7 @@ export function AlertTemplates() {
 
   function save(t: AlertTemplate) {
     const draft = drafts[t.kind] ?? t.value;
-    const problem = templateProblem(draft, t.placeholders);
+    const problem = templateProblem(draft, t.placeholders, t.maxChars);
     if (problem) {
       toast.error(problem);
       return;
@@ -221,7 +221,7 @@ export function AlertTemplates() {
               const edited = isDirty(draft, t.value);
               const open = openKind === t.kind;
               const problem = open
-                ? templateProblem(draft, t.placeholders)
+                ? templateProblem(draft, t.placeholders, t.maxChars)
                 : null;
               const leftover = unknownPlaceholders(draft, t.placeholders);
               const preview = previewTemplate(t, draft);
