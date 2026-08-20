@@ -31,7 +31,7 @@ export type LoginAttackSource = LoginAttackSourcePage["items"][number];
  * that a week-old probe doesn't sit at the top pretending to be current. The
  * backend caps the parameter at a week.
  */
-export const ATTACK_WINDOW_HOURS = 24;
+export const ATTACK_WINDOW_HOURS: number | null = null;
 
 /**
  * Utah time (Mountain), with SECONDS.
@@ -131,7 +131,11 @@ export function attackTypeLabel(attackType: string): string {
  * It names the window because "no failed sign-ins" without one is a claim the
  * page is not making.
  */
-export function emptyStateText(windowHours: number): string {
+export function emptyStateText(windowHours: number | null): string {
+  // `null` is the console's default and means every attempt ever recorded, so
+  // the sentence must NOT name a window — claiming "in the last 24 hours" while
+  // showing all of history is the exact confusion this table just caused.
+  if (windowHours === null) return "No failed sign-in attempts recorded.";
   const window =
     windowHours === 1
       ? "hour"
