@@ -6,20 +6,15 @@ import { isEngineer } from "@/constants/roles";
 import { Topbar } from "@/components/shell/Topbar";
 import { Card } from "@/components/ui/card";
 import { MaintenanceModeControl } from "@/components/engineer/MaintenanceModeControl";
-import { LoginAttackTable } from "@/components/engineer/LoginAttackTable";
-import { LoginBlockTable } from "@/components/engineer/LoginBlockTable";
 import { TestAlertChannels } from "@/components/engineer/TestAlertChannels";
+import { AlertDeliveryControl } from "@/components/engineer/AlertDeliveryControl";
+import { AlertTemplates } from "@/components/engineer/AlertTemplates";
 import {
-  getLoginAttackSources,
-  getLoginIpBlocks,
+  getAlertDeliveryState,
   getMaintenanceState,
+  type AlertDeliveryState,
   type MaintenanceState,
 } from "./actions";
-import {
-  ATTACK_WINDOW_HOURS,
-  type LoginAttackSourcePage,
-} from "./attack-sources";
-import { type LoginIpBlockPage } from "./blocks";
 import { LoadError } from "@/components/shared/LoadError";
 
 /**
@@ -32,6 +27,13 @@ import { LoadError } from "@/components/shared/LoadError";
  *
  * Never cached — an engineer looking at this screen during an incident must be
  * seeing the real current state.
+ *
+ * WHAT IS NO LONGER HERE. The failed sign-in summary and the blocked-source
+ * table used to sit beside the switch. Both are about the LOGIN rather than
+ * about this control, and they now live on /engineer/login-failures next to the
+ * attempts that produced them — one page to read about an attack, one page to
+ * pause the site. Their reads moved with them; this page fetches only the
+ * switch.
  */
 
 export const dynamic = "force-dynamic";
@@ -76,6 +78,11 @@ export default async function EngineerMaintenancePage() {
   const gate = auth.status === "ok" ? auth.ctx : null;
   if (!gate || !isEngineer(gate.roles)) redirect("/dashboard");
 
+  // The only read this page makes, and its failure is held in its own variable
+  // and rendered in place of the switch ALONE. The alert-channel card below is a
+  // separate control with its own backend call, so an unreachable /maintenance
+  // must not be able to take it off the screen — the same independence the two
+  // tables used to have here, kept for what is left.
   let state: MaintenanceState | null = null;
   let error: ApiError | null = null;
   try {
@@ -87,37 +94,18 @@ export default async function EngineerMaintenancePage() {
         : new ApiError(0, "Failed to load the maintenance state.");
   }
 
-  // The attack table's read is kept SEPARATE from the switch's, in both
-  // directions. It is fetched whatever the state read did, and its failure is
-  // held in its own variable: the switch is the recovery control on this page,
-  // and an unreachable summary endpoint must never be able to take it off the
-  // screen. The reverse matters too — if the state read failed, a working
-  // summary is still the most useful thing here, since "the API is down" and
-  // "someone is hammering the login" can be the same incident.
-  let attacks: LoginAttackSourcePage | null = null;
-  let attackError: ApiError | null = null;
+  // A second independent read, in its own variables: this one says WHERE an
+  // alert would go, and an unhappy endpoint must not be able to take the
+  // maintenance switch off the screen.
+  let delivery: AlertDeliveryState | null = null;
+  let deliveryError: ApiError | null = null;
   try {
-    attacks = await getLoginAttackSources(ATTACK_WINDOW_HOURS);
+    delivery = await getAlertDeliveryState();
   } catch (e) {
-    attackError =
+    deliveryError =
       e instanceof ApiError
         ? e
-        : new ApiError(0, "Failed to load the failed sign-in summary.");
-  }
-
-  // Third independent read, held in its own variables for the same reason as the
-  // second: this is the table that says who is currently being REFUSED, and it
-  // must not be able to take the switch — or the attack summary that explains
-  // it — off the screen when its own endpoint is unhappy.
-  let blocks: LoginIpBlockPage | null = null;
-  let blockError: ApiError | null = null;
-  try {
-    blocks = await getLoginIpBlocks();
-  } catch (e) {
-    blockError =
-      e instanceof ApiError
-        ? e
-        : new ApiError(0, "Failed to load the blocked sources.");
+        : new ApiError(0, "Failed to load the alert delivery setting.");
   }
 
   return (
@@ -132,18 +120,24 @@ export default async function EngineerMaintenancePage() {
         <h1 className="sr-only">Maintenance mode</h1>
 
         {/*
-          Two columns from `xl` up: the switch on the left, what is currently
-          hitting the login on the right. They are the two halves of the same
-          question during an incident, and having to navigate between them is
-          what let the 2026-08-19 campaign go unnoticed for a day.
+          One column, capped at the width the prose on this page already used.
 
-          The split is at `xl`, not `lg`: the right column is a six-column table
-          and squeezing it beside a 32rem control at 1024px makes both worse than
-          stacking. Below the breakpoint the grid collapses in DOM order, which
-          puts the CONTROL first — deliberate, because the reason to open this
-          page on a phone is to flip the switch.
+          The two-column `xl` grid existed to stand a six-column table beside the
+          switch. With the tables moved to Login failures there is nothing to put
+          in a second column, and stretching a switch and four short paragraphs
+          across a 27-inch monitor would give a half-empty screen and an
+          unreadably long measure. `max-w-2xl` is exactly what the explanatory
+          list was already constrained to, so this is the reading column the page
+          always had with the scaffolding removed — and it matches the other
+          engineer console pages, which are all a single column. It also settles
+          the old grid's one oddity: nothing reorders on a phone any more,
+          because there is only ever one order.
         */}
-        <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,32rem)_minmax(0,1fr)]">
+        <div className="max-w-2xl space-y-8">
+          {/* Wrapped in its own element rather than spread into the stack: the
+              switch block sets its own internal spacing (the `mt-3` timestamp
+              sits tight under the card), and `space-y-8` on a shared parent
+              would override it. */}
           <div>
             {error || !state ? (
               <LoadError
@@ -167,7 +161,7 @@ export default async function EngineerMaintenancePage() {
                 </Card>
 
                 {state.enabled ? (
-                  <p className="mt-3 max-w-2xl text-sm text-gray-500">
+                  <p className="mt-3 text-sm text-gray-500">
                     Turned on {formatDateTime(state.enabled_at)}
                     {state.enabled_by_email
                       ? ` by ${state.enabled_by_email}`
@@ -176,7 +170,7 @@ export default async function EngineerMaintenancePage() {
                   </p>
                 ) : null}
 
-                <div className="mt-8 max-w-2xl">
+                <div className="mt-8">
                   <h2 className="text-sm font-semibold text-gray-900">
                     What this does
                   </h2>
@@ -232,20 +226,19 @@ export default async function EngineerMaintenancePage() {
             )}
           </div>
 
-          {/* Who is hitting the login, then what was done about them. The two
-              belong in one column and in that order: the second table is only
-              readable as an answer to the first. */}
-          <div className="space-y-8">
-            <LoginAttackTable
-              data={attacks}
-              error={attackError}
-              windowHours={ATTACK_WINDOW_HOURS}
+          {/* The three alerting controls, in the order the questions get
+              asked: where does an alert go, do those channels answer, and what
+              does it say. */}
+          {delivery ? (
+            <AlertDeliveryControl state={delivery} />
+          ) : (
+            <LoadError
+              status={deliveryError?.status ?? 0}
+              noun="the alert delivery setting"
             />
-            <LoginBlockTable data={blocks} error={blockError} />
-            {/* Last in the column, because it is the only thing here you press
-                when nothing is wrong. */}
-            <TestAlertChannels />
-          </div>
+          )}
+          <TestAlertChannels />
+          <AlertTemplates />
         </div>
       </main>
     </>

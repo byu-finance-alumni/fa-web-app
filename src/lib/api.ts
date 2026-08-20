@@ -135,7 +135,7 @@ export async function apiGetWithRetry<T>(
 }
 
 async function apiSend<T>(
-  method: "POST" | "PATCH" | "DELETE",
+  method: "POST" | "PUT" | "PATCH" | "DELETE",
   path: string,
   body?: unknown,
 ): Promise<T> {
@@ -155,6 +155,9 @@ async function apiSend<T>(
 
 export const apiPost = <T>(path: string, body: unknown) =>
   apiSend<T>("POST", path, body);
+/** JSON PUT — a full replacement of a resource, e.g. an alert message's text. */
+export const apiPut = <T>(path: string, body: unknown) =>
+  apiSend<T>("PUT", path, body);
 export const apiPatch = <T>(path: string, body: unknown) =>
   apiSend<T>("PATCH", path, body);
 export const apiDelete = <T>(path: string) => apiSend<T>("DELETE", path);
