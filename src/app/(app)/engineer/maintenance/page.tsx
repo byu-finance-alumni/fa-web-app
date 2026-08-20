@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { MaintenanceModeControl } from "@/components/engineer/MaintenanceModeControl";
 import { LoginAttackTable } from "@/components/engineer/LoginAttackTable";
 import { LoginBlockTable } from "@/components/engineer/LoginBlockTable";
+import { TestAlertChannels } from "@/components/engineer/TestAlertChannels";
 import {
   getLoginAttackSources,
   getLoginIpBlocks,
@@ -241,6 +242,9 @@ export default async function EngineerMaintenancePage() {
               windowHours={ATTACK_WINDOW_HOURS}
             />
             <LoginBlockTable data={blocks} error={blockError} />
+            {/* Last in the column, because it is the only thing here you press
+                when nothing is wrong. */}
+            <TestAlertChannels />
           </div>
         </div>
       </main>

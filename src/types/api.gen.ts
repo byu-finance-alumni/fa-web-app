@@ -2034,6 +2034,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/alerts/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Test Alert
+         * @description Send one clearly-marked TEST alert to a channel. Engineer only.
+         *
+         *     Answers "is alerting actually wired up?" without breaking anything. Before
+         *     this, the only way to prove the operational channel worked was to make the API
+         *     fail three times over a minute -- a deliberate production outage to check a
+         *     webhook. The security channel could at least be proved by simulating an
+         *     attack, which is how the 2026-08-19 misrouting was found at all.
+         *
+         *     It uses the real renderer, the real fan-out and the real webhooks, and it
+         *     touches NO incident state: nothing is opened, claimed or resolved, so a test
+         *     can never suppress the alert for a real incident starting a second later.
+         *
+         *     The response reports each channel separately -- configured, and delivered --
+         *     plus whether a security alert is currently falling back to the error channel
+         *     because ``SLACK_SECURITY_WEBHOOK_URL`` is unset. That fallback is deliberate
+         *     and documented, but it is invisible from inside Slack, which is exactly how it
+         *     went unnoticed.
+         *
+         *     Rate limited to six an hour (engineer-gated on top): it is the one route whose
+         *     whole job is to post to a third party.
+         */
+        post: operations["send_test_alert_admin_alerts_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/engineer-actions": {
         parameters: {
             query?: never;
@@ -4556,6 +4595,29 @@ export interface components {
             limit: number;
             /** Offset */
             offset: number;
+        };
+        /**
+         * AlertTestResult
+         * @description What a test alert actually did, per channel.
+         *
+         *     ⚠️ CONFIGURED AND DELIVERED ARE SEPARATE FIELDS ON PURPOSE. "Nothing arrived"
+         *     has two very different causes -- the channel has no webhook, or it has one and
+         *     the send failed -- and a single boolean cannot tell them apart. Reporting both
+         *     is the entire reason this endpoint is more useful than watching a channel.
+         */
+        AlertTestResult: {
+            /** Purpose */
+            purpose: string;
+            /** Slack Configured */
+            slack_configured: boolean;
+            /** Slack Delivered */
+            slack_delivered: boolean;
+            /** Email Configured */
+            email_configured: boolean;
+            /** Email Delivered */
+            email_delivered: boolean;
+            /** Fell Back To Error Channel */
+            fell_back_to_error_channel: boolean;
         };
         /**
          * AlumniCreateFull
@@ -11992,6 +12054,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LoginIpBlockLifted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_test_alert_admin_alerts_test_post: {
+        parameters: {
+            query?: {
+                purpose?: "operational" | "security";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertTestResult"];
                 };
             };
             /** @description Validation Error */
