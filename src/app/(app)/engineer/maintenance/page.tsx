@@ -7,6 +7,7 @@ import { Topbar } from "@/components/shell/Topbar";
 import { Card } from "@/components/ui/card";
 import { MaintenanceModeControl } from "@/components/engineer/MaintenanceModeControl";
 import { TestAlertChannels } from "@/components/engineer/TestAlertChannels";
+import { AlertTemplates } from "@/components/engineer/AlertTemplates";
 import { getMaintenanceState, type MaintenanceState } from "./actions";
 import { LoadError } from "@/components/shared/LoadError";
 
@@ -208,6 +209,9 @@ export default async function EngineerMaintenancePage() {
           {/* Last on the page, because it is the only thing here you press when
               nothing is wrong. */}
           <TestAlertChannels />
+          {/* Directly under the channel test, because the two are one job:
+              prove the message can get there, then decide what it says. */}
+          <AlertTemplates />
         </div>
       </main>
     </>

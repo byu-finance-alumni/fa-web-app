@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { apiDelete, apiGet, apiPost, ApiError } from "@/lib/api";
+import { apiDelete, apiGet, apiPost, apiPut, ApiError } from "@/lib/api";
 import type { components } from "@/types/api.gen";
 import {
   ATTACK_WINDOW_HOURS,
@@ -17,6 +17,142 @@ export type AlertTestResult = components["schemas"]["AlertTestResult"];
 
 /** Which alert channel to check. */
 export type AlertPurpose = "operational" | "security";
+
+/**
+ * LOCAL TYPES — replace with the generated ones once the backend lands on dev.
+ *
+ * `api.gen.ts` is generated from the API's OpenAPI schema and must never be
+ * hand-edited, and these routes do not exist in the deployed schema yet. Once
+ * fa-web-api's alert-template branch is merged to dev, regenerate the types and
+ * swap the three aliases below for
+ * `components["schemas"]["AlertTemplatePlaceholder"]`,
+ * `components["schemas"]["AlertTemplate"]` and
+ * `components["schemas"]["AlertTemplatePage"]`.
+ *
+ * Everything downstream — the actions here, ./alert-templates and the card —
+ * reads these three names and nothing else, so the swap is those three lines
+ * and no other edit.
+ */
+export type AlertTemplatePlaceholder = {
+  /** The token as it is written in a message, without the braces. */
+  name: string;
+  /** What the backend substitutes for it, in words. */
+  description: string;
+};
+
+export type AlertTemplate = {
+  /** Stable identifier for the message, e.g. "outage" — never shown as a label. */
+  kind: string;
+  /** Human name for the message. */
+  label: string;
+  /** One line on when this message fires. */
+  description: string;
+  /** The wording in force right now. */
+  value: string;
+  /** The wording shipped with the app, which "reset" restores. */
+  default_value: string;
+  /** What this kind may substitute. Anything else renders literally. */
+  placeholders: AlertTemplatePlaceholder[];
+};
+
+export type AlertTemplatePage = { items: AlertTemplate[] };
+
+/**
+ * Every editable Slack message with its current wording, its default and the
+ * placeholders it accepts. Engineer-only (GET /admin/alert-templates).
+ *
+ * Unlike the other reads on this page this one is NOT done in the server
+ * component: the card that uses it holds unsaved drafts, so it owns its own
+ * loading and reloading rather than being re-rendered underneath them by a
+ * route revalidation. That is also why the error comes back as a message
+ * instead of throwing — a card that cannot load must not be able to take the
+ * maintenance switch off the screen.
+ */
+export async function getAlertTemplates(): Promise<
+  { ok: true; page: AlertTemplatePage } | { ok: false; error: string }
+> {
+  try {
+    return { ok: true, page: await apiGet<AlertTemplatePage>("/admin/alert-templates") };
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof ApiError && e.status === 403
+          ? "Editing alert messages is restricted to engineers."
+          : e instanceof ApiError
+            ? e.message
+            : "Couldn't load the alert messages.",
+    };
+  }
+}
+
+/**
+ * Store new wording for one message (PUT /admin/alert-templates/{kind}),
+ * engineer-only.
+ *
+ * The backend re-validates the template it is handed — the card's own check on
+ * empty text and unknown placeholders is there to save a round trip, and is not
+ * what keeps a broken message out of the channel. A 422 therefore has to be
+ * readable rather than fatal, which is why this returns the message instead of
+ * throwing: the engineer still has their draft in the box and can fix it.
+ *
+ * Returns the stored template so the card can re-baseline its dirty check
+ * against what the backend actually kept, rather than against what was sent.
+ */
+export async function saveAlertTemplate(
+  kind: string,
+  value: string,
+): Promise<{ ok: true; template: AlertTemplate } | { ok: false; error: string }> {
+  try {
+    const template = await apiPut<AlertTemplate>(
+      `/admin/alert-templates/${encodeURIComponent(kind)}`,
+      { value },
+    );
+    return { ok: true, template };
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof ApiError && e.status === 404
+          ? "That message no longer exists — reload the page."
+          : e instanceof ApiError && e.status === 429
+            ? "Too many changes at once. Wait a moment and save again."
+            : e instanceof ApiError
+              ? e.message
+              : "Couldn't save that message.",
+    };
+  }
+}
+
+/**
+ * Put one message back to the wording shipped with the app
+ * (POST /admin/alert-templates/{kind}/reset), engineer-only.
+ *
+ * A separate endpoint rather than a save of the default text the client happens
+ * to be holding: the default is the backend's to know, and a stale tab must not
+ * be able to "reset" a message to a default that has since changed.
+ */
+export async function resetAlertTemplate(
+  kind: string,
+): Promise<{ ok: true; template: AlertTemplate } | { ok: false; error: string }> {
+  try {
+    const template = await apiPost<AlertTemplate>(
+      `/admin/alert-templates/${encodeURIComponent(kind)}/reset`,
+      undefined,
+    );
+    return { ok: true, template };
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof ApiError && e.status === 404
+          ? "That message no longer exists — reload the page."
+          : e instanceof ApiError
+            ? e.message
+            : "Couldn't reset that message.",
+    };
+  }
+}
 
 /**
  * Engineer maintenance-mode controls.
