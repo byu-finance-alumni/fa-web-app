@@ -9,6 +9,7 @@ import { MaintenanceModeControl } from "@/components/engineer/MaintenanceModeCon
 import { LoginAttackTable } from "@/components/engineer/LoginAttackTable";
 import { LoginBlockTable } from "@/components/engineer/LoginBlockTable";
 import { TestAlertChannels } from "@/components/engineer/TestAlertChannels";
+import { AlertTemplates } from "@/components/engineer/AlertTemplates";
 import {
   getLoginAttackSources,
   getLoginIpBlocks,
@@ -245,6 +246,9 @@ export default async function EngineerMaintenancePage() {
             {/* Last in the column, because it is the only thing here you press
                 when nothing is wrong. */}
             <TestAlertChannels />
+            {/* Directly under the channel test, because the two are one job:
+                prove the message can get there, then decide what it says. */}
+            <AlertTemplates />
           </div>
         </div>
       </main>
