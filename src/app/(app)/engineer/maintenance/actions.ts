@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { apiDelete, apiGet, apiPost, ApiError } from "@/lib/api";
+import { apiDelete, apiGet, apiPost, apiPut, ApiError } from "@/lib/api";
 import type { components } from "@/types/api.gen";
 import {
   ATTACK_WINDOW_HOURS,
@@ -202,4 +202,80 @@ export async function disableMaintenance(): Promise<
   revalidatePath("/engineer/maintenance");
   revalidatePath("/", "layout");
   return { result };
+}
+
+/**
+ * LOCAL TYPES — replace with the generated ones once the backend lands on dev.
+ *
+ * `api.gen.ts` is generated from the API's OpenAPI schema and must never be
+ * hand-edited (CI has a drift guard), and these routes do not exist in the
+ * deployed schema yet. After fa-web-api's `feat/alert-delivery-toggle` is merged
+ * to dev, regenerate and swap `AlertDeliveryState` for
+ * `components["schemas"]["AlertDeliveryState"]` — the mode union is
+ * `components["schemas"]["AlertDeliveryState"]["mode"]`, and the request body is
+ * `components["schemas"]["AlertDeliveryUpdate"]`. Same convention this file's
+ * neighbours used before their backends shipped (see ../sessions/actions.ts).
+ */
+export type AlertDeliveryMode = "slack_only" | "slack_and_email";
+
+export type AlertDeliveryState = {
+  mode: AlertDeliveryMode;
+  updated_at: string | null;
+  updated_by_email: string | null;
+  /**
+   * Whether each channel has anywhere to send AT ALL. Not decoration: the card
+   * promises that e-mail still fires when Slack does not land, and that promise
+   * is FALSE if no alert mailbox is configured. Booleans only — the backend
+   * never returns the webhook URL (a credential) or the recipients.
+   */
+  slack_configured: boolean;
+  email_configured: boolean;
+};
+
+/**
+ * Read where alerts currently go. Engineer-only on the backend
+ * (`GET /admin/alert-delivery`); callers catch ApiError, the same shape as
+ * `getMaintenanceState` above.
+ *
+ * Never cached, like everything else on this page: an engineer reading this
+ * during an incident must see the value that is actually in force.
+ */
+export async function getAlertDeliveryState(): Promise<AlertDeliveryState> {
+  return apiGet<AlertDeliveryState>("/admin/alert-delivery");
+}
+
+/**
+ * Choose whether alerts go to Slack only, or to Slack AND e-mail.
+ * Engineer-only (`PUT /admin/alert-delivery`).
+ *
+ * ⚠️ NEITHER SETTING CAN PRODUCE SILENCE, and the card says so in words. In
+ * "Slack only" the e-mail is not switched off — it becomes the BACKSTOP, sent
+ * whenever the Slack post does not land (a revoked webhook, a Slack outage, an
+ * unconfigured channel). The backend enforces that: the only branch that skips
+ * the mail is the one reached when Slack actually accepted the message.
+ *
+ * Returns the error rather than throwing, so a 403 or a blip is a toast instead
+ * of a blanked console — the same contract as `liftLoginIpBlock` and
+ * `sendTestAlert` above.
+ */
+export async function setAlertDeliveryMode(
+  mode: AlertDeliveryMode,
+): Promise<
+  { ok: true; state: AlertDeliveryState } | { ok: false; error: string }
+> {
+  try {
+    const state = await apiPut<AlertDeliveryState>("/admin/alert-delivery", {
+      mode,
+    });
+    revalidatePath("/engineer/maintenance");
+    return { ok: true, state };
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof ApiError
+          ? e.message
+          : "Couldn't change where alerts are delivered.",
+    };
+  }
 }

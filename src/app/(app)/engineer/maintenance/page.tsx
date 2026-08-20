@@ -9,10 +9,13 @@ import { MaintenanceModeControl } from "@/components/engineer/MaintenanceModeCon
 import { LoginAttackTable } from "@/components/engineer/LoginAttackTable";
 import { LoginBlockTable } from "@/components/engineer/LoginBlockTable";
 import { TestAlertChannels } from "@/components/engineer/TestAlertChannels";
+import { AlertDeliveryControl } from "@/components/engineer/AlertDeliveryControl";
 import {
+  getAlertDeliveryState,
   getLoginAttackSources,
   getLoginIpBlocks,
   getMaintenanceState,
+  type AlertDeliveryState,
   type MaintenanceState,
 } from "./actions";
 import {
@@ -118,6 +121,21 @@ export default async function EngineerMaintenancePage() {
       e instanceof ApiError
         ? e
         : new ApiError(0, "Failed to load the blocked sources.");
+  }
+
+  // Fourth independent read, in its own variables for the same reason as the
+  // two above: this one says WHERE an alert would go, and an unhappy endpoint
+  // must not take the switch — or the tables that explain why you are looking at
+  // it — off the screen.
+  let delivery: AlertDeliveryState | null = null;
+  let deliveryError: ApiError | null = null;
+  try {
+    delivery = await getAlertDeliveryState();
+  } catch (e) {
+    deliveryError =
+      e instanceof ApiError
+        ? e
+        : new ApiError(0, "Failed to load the alert delivery setting.");
   }
 
   return (
@@ -242,6 +260,16 @@ export default async function EngineerMaintenancePage() {
               windowHours={ATTACK_WINDOW_HOURS}
             />
             <LoginBlockTable data={blocks} error={blockError} />
+            {/* Where an alert goes, then whether those channels answer. The
+                second only makes sense as a check on the first. */}
+            {delivery ? (
+              <AlertDeliveryControl state={delivery} />
+            ) : (
+              <LoadError
+                status={deliveryError?.status ?? 0}
+                noun="the alert delivery setting"
+              />
+            )}
             {/* Last in the column, because it is the only thing here you press
                 when nothing is wrong. */}
             <TestAlertChannels />
