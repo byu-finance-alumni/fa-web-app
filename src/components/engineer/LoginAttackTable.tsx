@@ -38,29 +38,56 @@ export function LoginAttackTable({
   data,
   error,
   windowHours,
+  showHeading = true,
+  showAllAttemptsLink = true,
 }: {
   data: LoginAttackSourcePage | null;
   error: ApiError | null;
   windowHours: number;
+  /**
+   * Render the section heading. On the Maintenance page it names an otherwise
+   * unlabelled column; inside the collapsed panel on the Login-failures page
+   * the button the reader just pressed is the label, and repeating it is
+   * clutter. Presentation only — the two callers must never diverge in what
+   * they SHOW, only in what frames it.
+   */
+  showHeading?: boolean;
+  /**
+   * Link out to the per-attempt list. Suppressed on the Login-failures page,
+   * where that list is the content directly underneath and the link would point
+   * at the page you are already on.
+   */
+  showAllAttemptsLink?: boolean;
 }) {
   const sources = data?.items ?? [];
 
   return (
-    <section aria-labelledby="attack-table-heading">
-      <div className="mb-3 flex items-baseline justify-between gap-3">
-        <h2
-          id="attack-table-heading"
-          className="text-sm font-semibold text-gray-900"
-        >
-          Failed sign-ins by source
-        </h2>
-        <Link
-          href="/engineer/login-failures"
-          className="shrink-0 text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
-        >
-          Every attempt
-        </Link>
-      </div>
+    <section
+      aria-label={showHeading ? undefined : "Failed sign-ins by source"}
+      aria-labelledby={showHeading ? "attack-table-heading" : undefined}
+    >
+      {showHeading || showAllAttemptsLink ? (
+        <div className="mb-3 flex items-baseline justify-between gap-3">
+          {showHeading ? (
+            <h2
+              id="attack-table-heading"
+              className="text-sm font-semibold text-gray-900"
+            >
+              Failed sign-ins by source
+            </h2>
+          ) : (
+            <span />
+          )}
+          {showAllAttemptsLink ? (
+            <Link
+              href="/engineer/login-failures"
+              className="shrink-0 text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
+            >
+              Every attempt
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
 
       {error ? (
         <LoadError

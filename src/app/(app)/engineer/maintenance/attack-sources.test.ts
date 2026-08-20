@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  ATTACK_PANEL_DESCRIPTION,
+  ATTACK_PANEL_HIDE_LABEL,
+  ATTACK_PANEL_SHOW_LABEL,
+  attackPanelHref,
+  attackPanelLabel,
   attackTypeLabel,
   emptyStateText,
   formatClock,
   formatDuration,
   formatLocation,
+  isAttackPanelOpen,
   splitAttackType,
   type LoginAttackSource,
 } from "./attack-sources";
@@ -200,5 +206,83 @@ describe("the shape the console is handed", () => {
       "distinct_emails",
     ]);
     expect(JSON.stringify(source())).not.toContain("@");
+  });
+});
+
+describe("the collapsed panel on the login-failures page", () => {
+  it("is CLOSED when the parameter is absent", () => {
+    // The requirement, stated as the first assertion in the file that matters:
+    // a reader arriving at /engineer/login-failures gets the attempt list, and
+    // the summary only when they ask for it.
+    expect(isAttackPanelOpen(undefined)).toBe(false);
+  });
+
+  it("stays closed for anything that is not the exact opt-in value", () => {
+    // Strict on purpose. Everything here is a value a stray link, a copied URL
+    // or a well-meaning refactor could produce, and every one of them must
+    // still mean collapsed — the panel can only be opened deliberately.
+    for (const value of [
+      "",
+      "0",
+      "false",
+      "true",
+      "yes",
+      "on",
+      "01",
+      " 1",
+      null,
+    ])
+      expect(isAttackPanelOpen(value)).toBe(false);
+  });
+
+  it("opens only on the opt-in value", () => {
+    expect(isAttackPanelOpen("1")).toBe(true);
+  });
+
+  it("round-trips through the href it generates", () => {
+    // The toggle must actually reach the open state it advertises: whatever
+    // `attackPanelHref` writes has to be read back as open by the page.
+    const href = attackPanelHref("/engineer/login-failures", {
+      open: true,
+      offset: 0,
+    });
+    const value = new URL(href, "https://x").searchParams.get("attacks");
+    expect(isAttackPanelOpen(value)).toBe(true);
+  });
+
+  it("leaves the parameter off entirely when closed, rather than writing a falsy one", () => {
+    // Closed is the ABSENCE of the parameter, not `attacks=0`. Keeping it that
+    // way means the default can never be flipped by changing how a value is
+    // parsed — there is no value.
+    expect(
+      attackPanelHref("/engineer/login-failures", { open: false, offset: 0 }),
+    ).toBe("/engineer/login-failures");
+  });
+
+  it("keeps the reader's place in the attempt list when toggling", () => {
+    // They were on offset 150 for a reason; expanding a panel must not throw
+    // them back to page one.
+    expect(
+      attackPanelHref("/engineer/login-failures", { open: true, offset: 150 }),
+    ).toBe("/engineer/login-failures?offset=150&attacks=1");
+    expect(
+      attackPanelHref("/engineer/login-failures", { open: false, offset: 150 }),
+    ).toBe("/engineer/login-failures?offset=150");
+  });
+
+  it("labels the button for the state it will move to", () => {
+    expect(attackPanelLabel(false)).toBe(ATTACK_PANEL_SHOW_LABEL);
+    expect(attackPanelLabel(true)).toBe(ATTACK_PANEL_HIDE_LABEL);
+  });
+
+  it("says what it does, whatever the joke is", () => {
+    // The copy is meant to be swapped, so this does not pin the words — it pins
+    // the PROPERTY that made them acceptable: a tired reader at 9pm can tell
+    // what the button opens without pressing it. The subtitle carries the plain
+    // meaning and stays joke-free.
+    expect(ATTACK_PANEL_DESCRIPTION).toMatch(/failed sign-ins/i);
+    expect(ATTACK_PANEL_DESCRIPTION).toMatch(/source ip/i);
+    // And the hide label must read as the way back out.
+    expect(ATTACK_PANEL_HIDE_LABEL).toMatch(/^hide/i);
   });
 });

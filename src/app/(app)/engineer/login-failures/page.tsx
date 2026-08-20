@@ -7,8 +7,25 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { redirect } from "next/navigation";
 import { isEngineer } from "@/constants/roles";
-import { getLoginFailures, type LoginFailurePage, type LoginFailureRow } from "./actions";
+import {
+  getLoginFailures,
+  type LoginFailurePage,
+  type LoginFailureRow,
+} from "./actions";
 import { LoadError } from "@/components/shared/LoadError";
+import { LoginAttackTable } from "@/components/engineer/LoginAttackTable";
+// The attack summary is the SAME component and the SAME fetch the Maintenance
+// page uses — imported across rather than reimplemented, so the two screens
+// cannot drift into describing one IP two different ways (#456).
+import { getLoginAttackSources } from "../maintenance/actions";
+import {
+  ATTACK_PANEL_DESCRIPTION,
+  ATTACK_WINDOW_HOURS,
+  attackPanelHref,
+  attackPanelLabel,
+  isAttackPanelOpen,
+  type LoginAttackSourcePage,
+} from "../maintenance/attack-sources";
 
 const LIMIT = 50;
 
@@ -35,7 +52,7 @@ function formatLocation(r: LoginFailureRow): string {
   return parts.length ? parts.join(", ") : "—";
 }
 
-type SP = { offset?: string };
+type SP = { offset?: string; attacks?: string };
 
 /**
  * Engineer-only Login failures tab: the FAILED sign-in attempts recorded by the
@@ -80,6 +97,24 @@ export default async function LoginFailuresPage({
 
   const sp = await searchParams;
   const offset = Math.max(0, Number(sp.offset ?? "0") || 0);
+  // COLLAPSED IS THE DEFAULT, and it is the default because the parameter is
+  // absent — there is no initial value here that a later edit could invert.
+  const attacksOpen = isAttackPanelOpen(sp.attacks);
+
+  // Only fetched when the panel is open. Visiting the attempt list does not
+  // spend a round trip, or write an audit row, for a panel nobody opened.
+  let attacks: LoginAttackSourcePage | null = null;
+  let attackError: ApiError | null = null;
+  if (attacksOpen) {
+    try {
+      attacks = await getLoginAttackSources(ATTACK_WINDOW_HOURS);
+    } catch (e) {
+      attackError =
+        e instanceof ApiError
+          ? e
+          : new ApiError(0, "Failed to load the failed sign-in summary.");
+    }
+  }
 
   let data: LoginFailurePage | null = null;
   let error: ApiError | null = null;
@@ -87,7 +122,9 @@ export default async function LoginFailuresPage({
     data = await getLoginFailures(LIMIT, offset);
   } catch (e) {
     error =
-      e instanceof ApiError ? e : new ApiError(0, "Failed to load login failures.");
+      e instanceof ApiError
+        ? e
+        : new ApiError(0, "Failed to load login failures.");
   }
 
   const rows = data?.items ?? null;
@@ -95,10 +132,17 @@ export default async function LoginFailuresPage({
   const to = data ? Math.min(offset + LIMIT, data.total) : 0;
   const hasPrev = offset > 0;
   const hasNext = data ? offset + LIMIT < data.total : false;
+  // Paging must not collapse the panel out from under the reader, so the page
+  // links carry its state too.
   const pageHref = (newOffset: number) =>
-    newOffset > 0
-      ? `/engineer/login-failures?offset=${newOffset}`
-      : "/engineer/login-failures";
+    attackPanelHref("/engineer/login-failures", {
+      open: attacksOpen,
+      offset: newOffset,
+    });
+  const togglePanelHref = attackPanelHref("/engineer/login-failures", {
+    open: !attacksOpen,
+    offset,
+  });
 
   return (
     <>
@@ -110,13 +154,51 @@ export default async function LoginFailuresPage({
       />
       <main className="flex-1 overflow-auto p-6">
         <h1 className="sr-only">Login failures</h1>
+
+        {/*
+          The per-source summary, collapsed, above the per-attempt list. This is
+          the page he actually opens when he goes looking, and on 2026-08-19 the
+          question that mattered was not "what attempts happened" (750 rows of
+          them) but "who is doing this" — three sources. The button is a link so
+          the expanded view is a URL he can paste at someone.
+        */}
+        <div className="mb-5">
+          <Button asChild variant="secondary">
+            <Link
+              href={togglePanelHref}
+              aria-expanded={attacksOpen}
+              aria-controls="attack-summary-panel"
+            >
+              {attackPanelLabel(attacksOpen)}
+            </Link>
+          </Button>
+          {/* The joke is in the button; this line is the plain answer for
+              someone reading it tired, and is deliberately joke-free. */}
+          <p className="mt-2 text-sm text-gray-500">
+            {ATTACK_PANEL_DESCRIPTION}
+          </p>
+          {attacksOpen ? (
+            <div id="attack-summary-panel" className="mt-4">
+              <LoginAttackTable
+                data={attacks}
+                error={attackError}
+                windowHours={ATTACK_WINDOW_HOURS}
+                showHeading={false}
+                showAllAttemptsLink={false}
+              />
+            </div>
+          ) : null}
+        </div>
+
         <div className="mb-4 flex items-start justify-between gap-4">
           <p className="max-w-2xl text-sm text-gray-500">
             Every failed sign-in attempt with a captured location, newest first.
-            The attempted email is snapshotted as typed and may not belong to any
-            account (a probe or typo). Times are shown in{" "}
-            <span className="font-medium text-gray-700">Utah time (Mountain)</span>;
-            location is approximate (IP-based).
+            The attempted email is snapshotted as typed and may not belong to
+            any account (a probe or typo). Times are shown in{" "}
+            <span className="font-medium text-gray-700">
+              Utah time (Mountain)
+            </span>
+            ; location is approximate (IP-based).
           </p>
         </div>
 
@@ -124,7 +206,9 @@ export default async function LoginFailuresPage({
           <LoadError
             status={error.status}
             noun="the login failures"
-            title={error.status === 403 ? "Engineer access required" : undefined}
+            title={
+              error.status === 403 ? "Engineer access required" : undefined
+            }
             message={
               error.status === 403
                 ? "The login-failure history is restricted to engineers."
@@ -196,8 +280,16 @@ export default async function LoginFailuresPage({
                 Showing {from}–{to} of {data!.total}
               </span>
               <div className="flex gap-2">
-                <PageLink href={pageHref(offset - LIMIT)} enabled={hasPrev} label="‹ Prev" />
-                <PageLink href={pageHref(offset + LIMIT)} enabled={hasNext} label="Next ›" />
+                <PageLink
+                  href={pageHref(offset - LIMIT)}
+                  enabled={hasPrev}
+                  label="‹ Prev"
+                />
+                <PageLink
+                  href={pageHref(offset + LIMIT)}
+                  enabled={hasNext}
+                  label="Next ›"
+                />
               </div>
             </div>
           </>

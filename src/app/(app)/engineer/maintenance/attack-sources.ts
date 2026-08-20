@@ -172,3 +172,90 @@ export function emptyStateText(windowHours: number): string {
         : `${windowHours} hours`;
   return `No failed sign-in attempts in the last ${window}.`;
 }
+
+// --------------------------------------------------------- the collapsed panel --
+//
+// The same table also sits at the top of /engineer/login-failures, collapsed,
+// because that is the page the owner actually opens when he goes looking. It is
+// the SAME component and the SAME fetch as the Maintenance page — one
+// implementation, so the two screens cannot drift into disagreeing about what an
+// attack was.
+//
+// WHY THE OPEN/CLOSED STATE LIVES IN THE URL rather than in `useState` or a
+// `<details>` element. Three things fall out of it that are worth more than the
+// client-side animation we give up:
+//
+//   1. Collapsed is the default because the parameter is ABSENT, which is a
+//      state no future refactor can accidentally invert — there is no initial
+//      value to mistype. `isAttackPanelOpen` is the whole gate and it is pure.
+//   2. The fetch is genuinely lazy. The page only calls the endpoint when the
+//      panel is open, so simply visiting the login-failures list does not spend
+//      an API round trip — or write an audit row — for a panel nobody opened.
+//      A `<details>` element would render (and therefore fetch) regardless.
+//   3. An expanded panel is linkable. During an incident "look at this" is a
+//      URL you can paste, which is the entire reason this page gets opened.
+//
+// The cost is a server round trip to expand, which on an engineer console that
+// already paginates by link is the pattern the page uses everywhere else.
+
+/** The query parameter carrying the panel state. */
+export const ATTACK_PANEL_PARAM = "attacks";
+
+/** The only value that opens it. See `isAttackPanelOpen`. */
+export const ATTACK_PANEL_OPEN_VALUE = "1";
+
+/**
+ * Is the summary panel open?
+ *
+ * Deliberately strict: ONLY the exact opt-in value opens it. Absent, empty,
+ * "0", "false", "true", or anything a stray link picked up all mean collapsed.
+ * Collapsed is the default and this is the single place that could change it —
+ * so a bug here is a bug in one pure function with a test on it, rather than a
+ * page that quietly ships expanded.
+ */
+export function isAttackPanelOpen(value: string | undefined | null): boolean {
+  return value === ATTACK_PANEL_OPEN_VALUE;
+}
+
+/**
+ * The toggle's href, preserving where the reader was in the attempt list.
+ *
+ * Losing their page position on expanding a panel would be its own small
+ * betrayal — they were on offset 150 for a reason.
+ */
+export function attackPanelHref(
+  basePath: string,
+  { open, offset }: { open: boolean; offset: number },
+): string {
+  const params = new URLSearchParams();
+  if (offset > 0) params.set("offset", String(offset));
+  if (open) params.set(ATTACK_PANEL_PARAM, ATTACK_PANEL_OPEN_VALUE);
+  const query = params.toString();
+  return query ? `${basePath}?${query}` : basePath;
+}
+
+/**
+ * The button copy.
+ *
+ * He asked for it to be funny. The constraint that outranks funny: someone
+ * landing here at 9pm during an incident must not have to work out what the
+ * button does. So the joke is carried by a phrase that is also a literally
+ * accurate description of credential guessing — somebody is going down the row
+ * trying the handle on every door — and the plain-English subtitle underneath
+ * says exactly what the panel contains, with no joke in it at all.
+ *
+ * Kept as constants rather than inline JSX so the wording is asserted in one
+ * place: this is copy that will get swapped, and the test should fail loudly
+ * when it is, not silently pass on whatever replaced it.
+ */
+export const ATTACK_PANEL_SHOW_LABEL = "See who’s been trying the doorknob";
+export const ATTACK_PANEL_HIDE_LABEL = "Hide the doorknob report";
+
+/** The plain, joke-free line under the button. This one has to be unmissable. */
+export const ATTACK_PANEL_DESCRIPTION =
+  "Failed sign-ins grouped by source IP — who, from where, how many, and how fast.";
+
+/** The button's label for a given state. */
+export function attackPanelLabel(open: boolean): string {
+  return open ? ATTACK_PANEL_HIDE_LABEL : ATTACK_PANEL_SHOW_LABEL;
+}
