@@ -14,6 +14,7 @@ import {
 } from "./actions";
 import { LoadError } from "@/components/shared/LoadError";
 import { LoginAttackTable } from "@/components/engineer/LoginAttackTable";
+import { DeleteLoginCampaign } from "@/components/engineer/DeleteLoginCampaign";
 // The attack summary is the SAME component and the SAME fetch the Maintenance
 // page uses — imported across rather than reimplemented, so the two screens
 // cannot drift into describing one IP two different ways (#456).
@@ -128,6 +129,15 @@ export default async function LoginFailuresPage({
   }
 
   const rows = data?.items ?? null;
+  // How many rows on THIS page share each source address. The delete acts on the
+  // whole source, not the row it is rendered on, so its confirm uses this to
+  // anchor "every failed sign-in from this address" in something the reader can
+  // actually see — while still saying there may be more on the other pages.
+  const attemptsByIp = new Map<string, number>();
+  for (const r of rows ?? []) {
+    if (r.ip_address)
+      attemptsByIp.set(r.ip_address, (attemptsByIp.get(r.ip_address) ?? 0) + 1);
+  }
   const from = data && data.total > 0 ? offset + 1 : 0;
   const to = data ? Math.min(offset + LIMIT, data.total) : 0;
   const hasPrev = offset > 0;
@@ -234,6 +244,14 @@ export default async function LoginFailuresPage({
                     {formatLocation(r)}
                     {r.ip_address ? ` · ${r.ip_address}` : ""}
                   </p>
+                  {r.ip_address ? (
+                    <div className="mt-2">
+                      <DeleteLoginCampaign
+                        ipAddress={r.ip_address}
+                        attemptsOnPage={attemptsByIp.get(r.ip_address) ?? 1}
+                      />
+                    </div>
+                  ) : null}
                 </Card>
               ))}
             </div>
@@ -248,6 +266,12 @@ export default async function LoginFailuresPage({
                     <th className="w-48 px-4 py-3">Location</th>
                     <th className="w-40 px-4 py-3">IP address</th>
                     <th className="w-40 px-4 py-3">Reason</th>
+                    {/* Per-SOURCE delete. Unlabelled because the button says
+                        what it does and a column heading over one control
+                        reads as a data column. */}
+                    <th className="w-44 px-4 py-3">
+                      <span className="sr-only">Delete campaign</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -268,6 +292,16 @@ export default async function LoginFailuresPage({
                       </td>
                       <td className="px-4 py-3 text-gray-700">
                         {r.reason ?? "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {r.ip_address ? (
+                          <DeleteLoginCampaign
+                            ipAddress={r.ip_address}
+                            attemptsOnPage={
+                              attemptsByIp.get(r.ip_address) ?? 1
+                            }
+                          />
+                        ) : null}
                       </td>
                     </tr>
                   ))}
