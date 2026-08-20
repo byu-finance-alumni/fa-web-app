@@ -11,38 +11,14 @@ import { Card } from "@/components/ui/card";
 import { RevokeSession } from "@/components/engineer/RevokeSession";
 import { isEngineer, roleLabel } from "@/constants/roles";
 import { formatAge, sessionTone } from "@/lib/sessionAge";
+import type { components } from "@/types/api.gen";
 
 /**
- * LOCAL TYPES — replace with the generated ones once the backend lands on dev.
- *
- * `api.gen.ts` is generated from the API's OpenAPI schema and must never be
- * hand-edited, and GET /admin/sessions does not exist in the deployed schema
- * yet. After fa-web-api's `feat/engineer-session-management` is merged to dev,
- * regenerate and swap these for `components["schemas"]["ActiveSessionRow"]` and
- * `components["schemas"]["ActiveSessionPage"]` (the revoke response is
- * `SessionRevokeResult`, used in ./actions.ts).
+ * Types for GET /admin/sessions, taken from the generated schema so the CI drift
+ * guard covers this contract — a backend rename now fails in CI rather than at
+ * runtime. (The revoke response is `SessionRevokeResult`, used in ./actions.ts.)
  */
-interface ActiveSessionRow {
-  session_id: string;
-  user_id: number | null;
-  email: string | null;
-  roles: string[];
-  account_active: boolean;
-  created_at: string;
-  last_active_at: string;
-  refreshed_at: string | null;
-  age_seconds: number;
-  idle_seconds: number;
-  is_current: boolean;
-  is_account_active_session: boolean;
-}
-
-interface ActiveSessionPage {
-  items: ActiveSessionRow[];
-  total: number;
-  limit: number;
-  offset: number;
-}
+type ActiveSessionPage = components["schemas"]["ActiveSessionPage"];
 
 const LIMIT = 50;
 

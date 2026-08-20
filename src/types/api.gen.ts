@@ -353,6 +353,18 @@ export interface paths {
          *     caller, never of the account, which is what keeps it out of the
          *     anti-enumeration contract. The frontend fails open on any non-OK response, so
          *     being throttled here skips the pre-check rather than blocking a sign-in.
+         *
+         *     AUTOMATIC BLOCK (#457): if the forwarded source address is under a block,
+         *     this refuses BEFORE the email is looked up at all — so the refusal is a
+         *     property of the caller and cannot say anything about the account. This is the
+         *     call that actually stops the attempt: the frontend does not attempt the
+         *     Supabase sign-in when ``allowed`` is false. It needs ``context.ip_address``
+         *     in the body to do it; a client that sends only ``email`` is unaffected here
+         *     and is refused on the record call instead.
+         *
+         *     SCOPE. The block is consulted HERE and on ``/auth/login/record``, and
+         *     nowhere else in the application. The public survey — the only public page,
+         *     used by alumni worldwide — never touches it.
          */
         post: operations["login_precheck_auth_login_precheck_post"];
         delete?: never;
@@ -395,6 +407,10 @@ export interface paths {
          *
          *     Per-IP rate limited (#423), on the same route-dependency-before-the-body
          *     basis as ``/auth/login/precheck``.
+         *
+         *     AUTOMATIC BLOCK (#457): a source under a block is refused here with the same
+         *     generic, account-independent status the pre-check returns, and nothing at all
+         *     is written for it. See the comment at the top of the body.
          *
          *     RETENTION (#423): the failure path also triggers the expired-record purge,
          *     at most once an hour per process. It is hooked HERE, and nowhere else, on
@@ -1806,6 +1822,213 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Active Sessions
+         * @description List every LIVE Supabase session, oldest first (paginated). Engineer only.
+         *
+         *     Backs the Admin -> Sessions tab. Rows come from ``auth.sessions`` joined to
+         *     our ``users``/``roles`` tables, filtered to sessions that have not expired.
+         *     Engineer-gated and paginated (default 50, hard cap 200) exactly like the
+         *     logins / login-failures endpoints.
+         *
+         *     Reading the inventory is itself audited (``read_active_sessions``; actor +
+         *     applied limit/offset) — the returned rows are not logged. As with every other
+         *     engineer action, the audit layer reroutes an engineer's ``AuditLog`` to
+         *     ``engineer_action_log`` (#199).
+         *
+         *     NOT rate-limited, on purpose: this is the read an engineer uses to DECIDE
+         *     what to revoke, and throttling it would brake the recovery path rather than
+         *     the destructive one (the same reasoning that leaves maintenance-mode DISABLE
+         *     unthrottled).
+         */
+        get: operations["list_active_sessions_admin_sessions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke Active Session
+         * @description Revoke ONE live session. Engineer only. Destructive and irreversible —
+         *     the person is signed out and must sign in again.
+         *
+         *     Both halves, in one transaction (see app/services/auth_sessions.py):
+         *       1. DELETE the ``auth.sessions`` row. ``auth.refresh_tokens`` cascades, so
+         *          no new access token can ever be minted for that session.
+         *       2. Stamp ``users.active_session_id`` with a ``revoked:<uuid4>`` sentinel
+         *          when — and only when — that is needed to kill the OUTSTANDING access
+         *          token: the session is the account's currently-honoured one, or the
+         *          account has no claimed session at all (NULL fails open under #147). If
+         *          the account has since claimed a DIFFERENT session, we do not stamp:
+         *          #147 already rejects the revoked one, and stamping would sign the user
+         *          out of the session they are legitimately using.
+         *
+         *     SELF-REVOCATION (the lockout question). Ending your own current session is a
+         *     legitimate thing to want — "sign me out of this device" — so it is allowed,
+         *     but never as a side effect: it requires an explicit ``confirm_self=true``,
+         *     and without it the call is refused (409) with nothing changed. The flag is
+         *     the deliberate act; the confirmation dialog in the console is the second.
+         *
+         *     It is NOT irrecoverable, and that is the point worth being explicit about.
+         *     Unlike maintenance mode — where the switch that pauses the site could hide
+         *     the switch that un-pauses it — nothing here touches the ability to sign in:
+         *     the account is not locked, not deactivated, the password is unchanged, and
+         *     ``POST /auth/login`` runs on the force-change-EXEMPT resolver, which does NOT
+         *     enforce the single-session guard. So the very next sign-in re-claims
+         *     ``active_session_id`` and clears the sentinel. The guard exists to prevent an
+         *     ACCIDENT, not to prevent a lockout that cannot happen.
+         *
+         *     404 if the session no longer exists (already expired, already revoked, or the
+         *     listing was stale) — deliberately not a silent success, so the console does
+         *     not report ending access it did not end.
+         */
+        delete: operations["revoke_active_session_admin_sessions__session_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{user_id}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke User Sessions
+         * @description Revoke EVERY live session for one user. Engineer only. Destructive and
+         *     irreversible — the person is signed out on every device.
+         *
+         *     Same two halves as the single revoke, except the sentinel is ALWAYS stamped:
+         *     ending every session on the account is exactly what was asked for, so there
+         *     is no case where leaving an outstanding access token alive is correct. Runs
+         *     even when the user currently has zero ``auth.sessions`` rows — stamping the
+         *     sentinel still invalidates any access token already in flight, so "sign this
+         *     person out" does the whole job rather than most of it.
+         *
+         *     SELF-REVOCATION: this necessarily includes the caller's own current session
+         *     when they target themselves, so targeting your own account requires
+         *     ``confirm_self=true`` — the same explicit act the single revoke requires,
+         *     for the same reason (see ``revoke_active_session`` for why signing yourself
+         *     out is recoverable and therefore permitted at all).
+         *
+         *     SCOPE: there is deliberately no "revoke everything, everyone" endpoint. The
+         *     only mass sign-out in this app is maintenance mode, which is built to keep
+         *     engineers signed in precisely so the operator cannot strand themselves; a
+         *     second, unguarded fleet-wide revoke would reintroduce that risk for no
+         *     benefit this screen needs. Per-user is the widest blast radius offered here.
+         */
+        delete: operations["revoke_user_sessions_admin_users__user_id__sessions_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/login-ip-blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Login Ip Blocks
+         * @description Automatic login blocks for this environment (#457). Engineer only.
+         *
+         *     The "see it" half of the requirement that an engineer can see and lift
+         *     blocks; DELETE below is the "lift it" half. Active blocks come first, then —
+         *     when ``active_only=false`` — recent history including lifted and lapsed ones,
+         *     which is what makes "did this ever fire on us?" answerable.
+         *
+         *     Read-only and side-effect free apart from the read audit
+         *     (``read_login_ip_blocks``), exactly like /login-attack-sources.
+         *
+         *     ⚠️ NO ATTEMPTED EMAIL ADDRESSES ARE RETURNED — only ``distinct_email_count``.
+         *     Same rule and same reason as the attack table and the Slack alert: those
+         *     addresses are unverified strings a stranger typed, some belong to real
+         *     people, and a list of them is an enumeration oracle for anything that reaches
+         *     this response.
+         *
+         *     ⚠️ ``ip_address`` IS CLIENT-SUPPLIED, forwarded from ``x-forwarded-for``. It
+         *     is a LEAD, not a verdict, and the console states this alongside the table.
+         *     Blocking on it is safe only because ``login_block`` refuses to block an
+         *     address with a recent successful sign-in or one an engineer has signed in
+         *     from — read that module before drawing conclusions from a row here.
+         */
+        get: operations["list_login_ip_blocks_admin_login_ip_blocks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/login-ip-blocks/{block_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Lift Login Ip Block
+         * @description Lift one automatic login block early (#457). Engineer only.
+         *
+         *     The manual override on a control that can refuse people. It exists because a
+         *     block is a heuristic acting on a CLIENT-SUPPLIED address, and the person who
+         *     can tell it got one wrong must be able to say so without waiting out the
+         *     hour or editing the production database by hand.
+         *
+         *     A lifted source is not automatically re-blocked for
+         *     ``login_block.LIFT_GRACE_SECONDS`` (24 hours). Without that grace the next
+         *     failed login from the same address would re-open the block and this endpoint
+         *     would be decorative — the false positive would outlive the fix.
+         *
+         *     404 if there is no ACTIVE block with that id (already lifted, or never
+         *     existed), so a double-click is a clean 404 rather than a second lift that
+         *     rewrites who lifted it.
+         *
+         *     Engineer-gated (RequireEngineer) like the neighbouring login endpoints, and
+         *     audited (``lift_login_ip_block`` + the source address). Note the gate is on
+         *     the ROLE the caller holds, not on where they are calling from: blocks are
+         *     consulted only on the two unauthenticated pre-login routes, so an engineer
+         *     signing in from a blocked address is unaffected and can reach this endpoint
+         *     to clear it.
+         */
+        delete: operations["lift_login_ip_block_admin_login_ip_blocks__block_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -4201,6 +4424,79 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * ActiveSessionPage
+         * @description A page of live sessions, OLDEST FIRST, with the total for pagination.
+         *
+         *     Oldest-first is the opposite of the neighbouring log endpoints and is
+         *     deliberate: the row that matters is the one that has been open for five
+         *     weeks, so it must not be paged past.
+         */
+        ActiveSessionPage: {
+            /** Items */
+            items: components["schemas"]["ActiveSessionRow"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+        };
+        /**
+         * ActiveSessionRow
+         * @description One live Supabase session.
+         *
+         *     ``user_id``/``roles`` come from OUR ``users`` table via the auth id; both are
+         *     null/empty for a Supabase auth identity with no application user row, which
+         *     is shown rather than hidden because a live session on one is an anomaly worth
+         *     seeing. ``age_seconds`` is measured from ``created_at`` and is the number the
+         *     screen exists to surface; ``idle_seconds`` runs from ``last_active_at``
+         *     (the newest of created / updated / last-refreshed).
+         *
+         *     ``is_current`` marks the caller's OWN session, so revoking it can be
+         *     presented as the deliberate act it is. ``is_account_active_session`` says
+         *     whether this is the session our API currently honours for that account
+         *     (``users.active_session_id``) — a false here means #147 is already rejecting
+         *     it even though Supabase would still refresh it.
+         */
+        ActiveSessionRow: {
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /** User Id */
+            user_id: number | null;
+            /** Email */
+            email: string | null;
+            /**
+             * Roles
+             * @default []
+             */
+            roles: string[];
+            /** Account Active */
+            account_active: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Last Active At
+             * Format: date-time
+             */
+            last_active_at: string;
+            /** Refreshed At */
+            refreshed_at: string | null;
+            /** Age Seconds */
+            age_seconds: number;
+            /** Idle Seconds */
+            idle_seconds: number;
+            /** Is Current */
+            is_current: boolean;
+            /** Is Account Active Session */
+            is_account_active_session: boolean;
+        };
         /**
          * ActivityFeed
          * @description Paginated interaction feed for ``GET /dashboard/activity``.
@@ -7361,12 +7657,95 @@ export interface components {
             reason: string | null;
         };
         /**
+         * LoginIpBlockLifted
+         * @description Acknowledgement that a block was lifted, echoing what stopped applying.
+         */
+        LoginIpBlockLifted: {
+            /** Block Id */
+            block_id: number;
+            /** Ip Address */
+            ip_address: string;
+        };
+        /**
+         * LoginIpBlockPage
+         * @description Blocks for this environment, active ones first.
+         *
+         *     ``block_seconds`` and ``auto_block_enabled`` are echoed so the console can
+         *     say how long a new block lasts, and can show "automatic blocking is OFF"
+         *     rather than presenting an empty list as if it meant "nobody is blocked".
+         */
+        LoginIpBlockPage: {
+            /** Items */
+            items: components["schemas"]["LoginIpBlockRow"][];
+            /** Active Only */
+            active_only: boolean;
+            /** Limit */
+            limit: number;
+            /** Block Seconds */
+            block_seconds: number;
+            /** Auto Block Enabled */
+            auto_block_enabled: boolean;
+        };
+        /**
+         * LoginIpBlockRow
+         * @description One automatic login block (#457), for the engineer console's list.
+         *
+         *     ``active`` is computed by the database as
+         *     ``lifted_at IS NULL AND blocked_until > now()`` rather than by the client,
+         *     so a stale browser tab cannot show a lapsed block as live. ``blocked_until``
+         *     is the whole safety story in one field: it is never null and never more than
+         *     24 hours out, so every row here ends by itself.
+         *
+         *     ⚠️ There is deliberately NO email field, for the same reason the attack table
+         *     has none — see that endpoint's docstring.
+         */
+        LoginIpBlockRow: {
+            /** Block Id */
+            block_id: number;
+            /** Ip Address */
+            ip_address: string;
+            /**
+             * Blocked At
+             * Format: date-time
+             */
+            blocked_at: string;
+            /**
+             * Blocked Until
+             * Format: date-time
+             */
+            blocked_until: string;
+            /** Active */
+            active: boolean;
+            /** Attempt Count */
+            attempt_count: number;
+            /** Distinct Email Count */
+            distinct_email_count: number;
+            /** Pattern */
+            pattern: string | null;
+            /** Abuse Incident Id */
+            abuse_incident_id: number | null;
+            /** Lifted At */
+            lifted_at: string | null;
+            /** Lifted By User Id */
+            lifted_by_user_id: number | null;
+        };
+        /**
          * LoginPrecheckRequest
          * @description Email to evaluate the pre-login throttle/lock state for.
+         *
+         *     ``context`` is OPTIONAL and carries the same client IP / geo the record call
+         *     already forwards. It was added by #457 so the pre-check — the call that
+         *     actually stops a sign-in being attempted — can see whether the caller's
+         *     source is blocked. A client that omits it (any frontend built before #457)
+         *     simply gets no block evaluation here and is refused at
+         *     ``POST /auth/login/record`` instead: the feature degrades, it does not break.
+         *
+         *     Nothing in ``context`` is trusted for authorization; see LoginContext.
          */
         LoginPrecheckRequest: {
             /** Email */
             email: string;
+            context?: components["schemas"]["LoginContext"] | null;
         };
         /**
          * LoginPurgeResult
@@ -8068,6 +8447,31 @@ export interface components {
         SessionActiveResponse: {
             /** Active */
             active: boolean;
+        };
+        /**
+         * SessionRevokeResult
+         * @description Outcome of a revoke.
+         *
+         *     ``sessions_deleted`` counts ``auth.sessions`` rows removed (the Supabase
+         *     half). ``access_revoked`` says whether the ``users.active_session_id``
+         *     sentinel was stamped (our half) — i.e. whether any outstanding access token
+         *     on that account was invalidated immediately rather than left to expire.
+         *     ``self_revoked`` is true when the caller ended their own current session and
+         *     is about to be signed out.
+         */
+        SessionRevokeResult: {
+            /** Revoked */
+            revoked: boolean;
+            /** Sessions Deleted */
+            sessions_deleted: number;
+            /** Access Revoked */
+            access_revoked: boolean;
+            /** Self Revoked */
+            self_revoked: boolean;
+            /** User Id */
+            user_id: number | null;
+            /** Email */
+            email: string | null;
         };
         /** StateCount */
         StateCount: {
@@ -11427,6 +11831,167 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LoginAttackSourcePage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_active_sessions_admin_sessions_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActiveSessionPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_active_session_admin_sessions__session_id__delete: {
+        parameters: {
+            query?: {
+                confirm_self?: boolean;
+            };
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionRevokeResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_user_sessions_admin_users__user_id__sessions_delete: {
+        parameters: {
+            query?: {
+                confirm_self?: boolean;
+            };
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionRevokeResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_login_ip_blocks_admin_login_ip_blocks_get: {
+        parameters: {
+            query?: {
+                active_only?: boolean;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginIpBlockPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    lift_login_ip_block_admin_login_ip_blocks__block_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                block_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginIpBlockLifted"];
                 };
             };
             /** @description Validation Error */

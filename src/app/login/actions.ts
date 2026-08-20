@@ -29,18 +29,30 @@ const MAINTENANCE_MESSAGE =
  * Returns `true` when the attempt may proceed, `false` when it's in cooldown or
  * locked.
  *
+ * We forward the same client IP / geo the record call sends, because the backend
+ * also refuses a SOURCE that has been automatically blocked for hammering the
+ * login, and this is the call that actually stops the attempt — the Supabase
+ * sign-in below never runs when the answer is `false`. The `context` field is
+ * optional on the backend, so it degrades rather than breaks: without it a
+ * blocked source is simply refused one step later, on the record call.
+ *
+ * The refusal is the SAME generic cooldown status the per-email lockout returns,
+ * derived only from the caller's address, so nothing here distinguishes a real
+ * account from one that has never existed.
+ *
  * FAIL-OPEN: any network error / non-OK response / malformed body logs
  * server-side and returns `true`. A hiccup in the lockout service must never
  * stop a legitimate user from signing in.
  */
 async function loginPrecheckAllowed(email: string): Promise<boolean> {
   try {
+    const context = await readLoginContext();
     const res = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/auth/login/precheck`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, context }),
         cache: "no-store",
       },
     );

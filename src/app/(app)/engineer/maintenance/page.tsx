@@ -7,8 +7,10 @@ import { Topbar } from "@/components/shell/Topbar";
 import { Card } from "@/components/ui/card";
 import { MaintenanceModeControl } from "@/components/engineer/MaintenanceModeControl";
 import { LoginAttackTable } from "@/components/engineer/LoginAttackTable";
+import { LoginBlockTable } from "@/components/engineer/LoginBlockTable";
 import {
   getLoginAttackSources,
+  getLoginIpBlocks,
   getMaintenanceState,
   type MaintenanceState,
 } from "./actions";
@@ -16,6 +18,7 @@ import {
   ATTACK_WINDOW_HOURS,
   type LoginAttackSourcePage,
 } from "./attack-sources";
+import { type LoginIpBlockPage } from "./blocks";
 import { LoadError } from "@/components/shared/LoadError";
 
 /**
@@ -99,6 +102,21 @@ export default async function EngineerMaintenancePage() {
       e instanceof ApiError
         ? e
         : new ApiError(0, "Failed to load the failed sign-in summary.");
+  }
+
+  // Third independent read, held in its own variables for the same reason as the
+  // second: this is the table that says who is currently being REFUSED, and it
+  // must not be able to take the switch — or the attack summary that explains
+  // it — off the screen when its own endpoint is unhappy.
+  let blocks: LoginIpBlockPage | null = null;
+  let blockError: ApiError | null = null;
+  try {
+    blocks = await getLoginIpBlocks();
+  } catch (e) {
+    blockError =
+      e instanceof ApiError
+        ? e
+        : new ApiError(0, "Failed to load the blocked sources.");
   }
 
   return (
@@ -213,12 +231,16 @@ export default async function EngineerMaintenancePage() {
             )}
           </div>
 
-          <div>
+          {/* Who is hitting the login, then what was done about them. The two
+              belong in one column and in that order: the second table is only
+              readable as an answer to the first. */}
+          <div className="space-y-8">
             <LoginAttackTable
               data={attacks}
               error={attackError}
               windowHours={ATTACK_WINDOW_HOURS}
             />
+            <LoginBlockTable data={blocks} error={blockError} />
           </div>
         </div>
       </main>

@@ -141,13 +141,16 @@ export function LoginAttackTable({
         The caveat has to sit next to the data, not in a docstring: `ip_address`
         is copied from the client's own `x-forwarded-for` header, so it can be
         forged to implicate someone innocent or rotated per request to escape the
-        grouping. One line — long enough to stop a block being placed on a
-        spoofed address, short enough to actually be read during an incident.
+        grouping. One line — short enough to actually be read during an incident.
+
+        It no longer says "check the logs before blocking one": blocking is
+        automatic now, so the useful instruction is the opposite one — the block
+        may already have happened, and the row that says so is directly below.
       */}
       <p className="mt-3 text-xs text-gray-500">
         The IP and location are self-reported by the client and can be spoofed —
-        treat a source as a lead, not proof, and check the Vercel logs before
-        blocking one.
+        treat a source as a lead, not proof. Sources over the threshold are
+        blocked automatically; see Blocked sources for what is being refused.
       </p>
     </section>
   );

@@ -1,12 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { apiGet, apiPost, ApiError } from "@/lib/api";
+import { apiDelete, apiGet, apiPost, ApiError } from "@/lib/api";
 import type { components } from "@/types/api.gen";
 import {
   ATTACK_WINDOW_HOURS,
   type LoginAttackSourcePage,
 } from "./attack-sources";
+import { BLOCK_LIST_LIMIT, type LoginIpBlockPage } from "./blocks";
+
+/** Acknowledgement that a block was lifted, echoing what stopped applying. */
+type LoginIpBlockLifted = components["schemas"]["LoginIpBlockLifted"];
 
 /**
  * Engineer maintenance-mode controls.
@@ -46,6 +50,58 @@ export async function getLoginAttackSources(
   return apiGet<LoginAttackSourcePage>(
     `/admin/login-attack-sources?hours=${hours}`,
   );
+}
+
+/**
+ * Sources currently refused by the automatic block, for the table under the
+ * attack summary. Engineer-only — the backend re-enforces RequireEngineer on
+ * GET /admin/login-ip-blocks. Callers catch ApiError.
+ *
+ * `activeOnly=false` includes lifted and lapsed blocks, which is what makes
+ * "did this ever fire on us?" answerable. Never cached, for the same reason the
+ * rest of this page is `force-dynamic`.
+ */
+export async function getLoginIpBlocks(
+  activeOnly = false,
+  limit: number = BLOCK_LIST_LIMIT,
+): Promise<LoginIpBlockPage> {
+  return apiGet<LoginIpBlockPage>(
+    `/admin/login-ip-blocks?active_only=${activeOnly}&limit=${limit}`,
+  );
+}
+
+/**
+ * Lift one automatic block early — the manual override on a control that can
+ * refuse people. Engineer-only (DELETE /admin/login-ip-blocks/{id}).
+ *
+ * The backend does not re-block a lifted source for 24 hours, so this is a real
+ * decision and not a pause: without that grace the next failed sign-in from the
+ * same address would re-open the block and the button would be decorative.
+ *
+ * Returns the error message rather than throwing, so a 404 (someone else lifted
+ * it, or it lapsed while the page sat open) is reported in a toast instead of
+ * blanking the console.
+ */
+export async function liftLoginIpBlock(
+  blockId: number,
+): Promise<{ ok: true; ipAddress: string } | { ok: false; error: string }> {
+  try {
+    const result = await apiDelete<LoginIpBlockLifted>(
+      `/admin/login-ip-blocks/${blockId}`,
+    );
+    revalidatePath("/engineer/maintenance");
+    return { ok: true, ipAddress: result.ip_address };
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof ApiError && e.status === 404
+          ? "That block is no longer active — it was lifted or it expired."
+          : e instanceof ApiError
+            ? e.message
+            : "Couldn't lift that block.",
+    };
+  }
 }
 
 /**

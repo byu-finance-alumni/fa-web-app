@@ -2,25 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { apiDelete, ApiError } from "@/lib/api";
+import type { components } from "@/types/api.gen";
 
 /**
- * LOCAL TYPE — replace with the generated one once the backend lands on dev.
- *
- * `api.gen.ts` is generated from the API's OpenAPI schema and must never be
- * hand-edited, and these routes do not exist in the deployed schema yet. After
- * fa-web-api's `feat/engineer-session-management` is merged to dev, regenerate
- * and swap this for
- * `components["schemas"]["SessionRevokeResult"]` (the listing types are
- * `ActiveSessionRow` / `ActiveSessionPage`, used in ./page.tsx).
+ * The revoke response, taken from the generated schema so the CI drift guard
+ * covers this contract. (The listing types are `ActiveSessionRow` /
+ * `ActiveSessionPage`, used in ./page.tsx.)
  */
-type SessionRevokeResult = {
-  revoked: boolean;
-  sessions_deleted: number;
-  access_revoked: boolean;
-  self_revoked: boolean;
-  user_id: number | null;
-  email: string | null;
-};
+type SessionRevokeResult = components["schemas"]["SessionRevokeResult"];
 
 export type RevokeResult =
   | { ok: true; result: SessionRevokeResult }
