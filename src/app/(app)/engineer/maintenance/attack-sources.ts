@@ -248,8 +248,8 @@ export function attackPanelHref(
  * place: this is copy that will get swapped, and the test should fail loudly
  * when it is, not silently pass on whatever replaced it.
  */
-export const ATTACK_PANEL_SHOW_LABEL = "See who’s been trying the doorknob";
-export const ATTACK_PANEL_HIDE_LABEL = "Hide the doorknob report";
+export const ATTACK_PANEL_SHOW_LABEL = "Show failed sign-ins by source";
+export const ATTACK_PANEL_HIDE_LABEL = "Hide failed sign-ins by source";
 
 /** The plain, joke-free line under the button. This one has to be unmissable. */
 export const ATTACK_PANEL_DESCRIPTION =
