@@ -14,10 +14,16 @@ import {
 } from "./actions";
 import { LoadError } from "@/components/shared/LoadError";
 import { LoginAttackTable } from "@/components/engineer/LoginAttackTable";
-// The attack summary is the SAME component and the SAME fetch the Maintenance
-// page uses — imported across rather than reimplemented, so the two screens
-// cannot drift into describing one IP two different ways (#456).
-import { getLoginAttackSources } from "../maintenance/actions";
+import { LoginBlockTable } from "@/components/engineer/LoginBlockTable";
+import { DeleteLoginCampaign } from "@/components/engineer/DeleteLoginCampaign";
+// Both login-security reads still live under ../maintenance. They were written
+// there when the tables sat beside the switch, and they stayed put when the
+// tables moved here: the two helper modules are a pair (./attack-sources and
+// ./blocks describe the same incident from either end), the server actions are
+// route-agnostic, and moving them would have churned every import for no
+// behavioural change. Imported across rather than reimplemented, so the two
+// screens cannot drift into describing one IP two different ways (#456).
+import { getLoginAttackSources, getLoginIpBlocks } from "../maintenance/actions";
 import {
   ATTACK_PANEL_DESCRIPTION,
   ATTACK_WINDOW_HOURS,
@@ -26,6 +32,7 @@ import {
   isAttackPanelOpen,
   type LoginAttackSourcePage,
 } from "../maintenance/attack-sources";
+import { type LoginIpBlockPage } from "../maintenance/blocks";
 
 const LIMIT = 50;
 
@@ -116,6 +123,26 @@ export default async function LoginFailuresPage({
     }
   }
 
+  // The blocked sources, read INDEPENDENTLY of both the summary above and the
+  // attempt list below, and held in its own variables for the same reason they
+  // are: this is the table that says who is currently being REFUSED, and an
+  // unhappy /admin/login-ip-blocks must never be able to take the attempt list —
+  // or the summary that explains it — off the screen. Unlike the summary this is
+  // fetched on every visit rather than only when a panel is open: it is a short
+  // list by construction (a source has to cross the abuse threshold to appear),
+  // and "is the login refusing anyone right now" is not a question worth hiding
+  // behind a click.
+  let blocks: LoginIpBlockPage | null = null;
+  let blockError: ApiError | null = null;
+  try {
+    blocks = await getLoginIpBlocks();
+  } catch (e) {
+    blockError =
+      e instanceof ApiError
+        ? e
+        : new ApiError(0, "Failed to load the blocked sources.");
+  }
+
   let data: LoginFailurePage | null = null;
   let error: ApiError | null = null;
   try {
@@ -128,6 +155,15 @@ export default async function LoginFailuresPage({
   }
 
   const rows = data?.items ?? null;
+  // How many rows on THIS page share each source address. The delete acts on the
+  // whole source, not the row it is rendered on, so its confirm uses this to
+  // anchor "every failed sign-in from this address" in something the reader can
+  // actually see — while still saying there may be more on the other pages.
+  const attemptsByIp = new Map<string, number>();
+  for (const r of rows ?? []) {
+    if (r.ip_address)
+      attemptsByIp.set(r.ip_address, (attemptsByIp.get(r.ip_address) ?? 0) + 1);
+  }
   const from = data && data.total > 0 ? offset + 1 : 0;
   const to = data ? Math.min(offset + LIMIT, data.total) : 0;
   const hasPrev = offset > 0;
@@ -190,6 +226,25 @@ export default async function LoginFailuresPage({
           ) : null}
         </div>
 
+        {/*
+          Blocked sources, between the summary and the attempts.
+
+          This is where it answers something. The page is a list of failed
+          sign-ins; the unavoidable next question is what was DONE about them,
+          and on 2026-08-19 the answer was "nothing", which is why the automatic
+          block exists at all. Reading order is therefore who is hitting the
+          login (the summary, when opened), then who is being refused, then the
+          individual attempts. It sits ABOVE the attempt list rather than after
+          it because the list is paginated: anything below 50 rows and a pager is
+          somewhere nobody looks, and this is the short table that says whether a
+          real person is currently locked out. It also stays outside the
+          collapsible panel — a table that can be refusing a colleague right now
+          must not be hidden behind a toggle.
+        */}
+        <div className="mb-6">
+          <LoginBlockTable data={blocks} error={blockError} />
+        </div>
+
         <div className="mb-4 flex items-start justify-between gap-4">
           <p className="max-w-2xl text-sm text-gray-500">
             Every failed sign-in attempt with a captured location, newest first.
@@ -234,6 +289,14 @@ export default async function LoginFailuresPage({
                     {formatLocation(r)}
                     {r.ip_address ? ` · ${r.ip_address}` : ""}
                   </p>
+                  {r.ip_address ? (
+                    <div className="mt-2">
+                      <DeleteLoginCampaign
+                        ipAddress={r.ip_address}
+                        attemptsOnPage={attemptsByIp.get(r.ip_address) ?? 1}
+                      />
+                    </div>
+                  ) : null}
                 </Card>
               ))}
             </div>
@@ -248,6 +311,12 @@ export default async function LoginFailuresPage({
                     <th className="w-48 px-4 py-3">Location</th>
                     <th className="w-40 px-4 py-3">IP address</th>
                     <th className="w-40 px-4 py-3">Reason</th>
+                    {/* Per-SOURCE delete. Unlabelled because the button says
+                        what it does and a column heading over one control
+                        reads as a data column. */}
+                    <th className="w-44 px-4 py-3">
+                      <span className="sr-only">Delete campaign</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -268,6 +337,16 @@ export default async function LoginFailuresPage({
                       </td>
                       <td className="px-4 py-3 text-gray-700">
                         {r.reason ?? "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {r.ip_address ? (
+                          <DeleteLoginCampaign
+                            ipAddress={r.ip_address}
+                            attemptsOnPage={
+                              attemptsByIp.get(r.ip_address) ?? 1
+                            }
+                          />
+                        ) : null}
                       </td>
                     </tr>
                   ))}
