@@ -176,6 +176,15 @@ describe("attack type", () => {
 });
 
 describe("empty state", () => {
+  it("names NO window when it is showing all of history", () => {
+    // The console's default. Saying "in the last 24 hours" while the table is
+    // actually showing everything is the confusion this whole change exists to
+    // fix: the morning after the first real campaigns, a 24-hour window emptied
+    // the table overnight and it read as the rows having been deleted.
+    expect(emptyStateText(null)).toBe("No failed sign-in attempts recorded.");
+    expect(emptyStateText(null)).not.toMatch(/hour|day|last/i);
+  });
+
   it("reads as reassurance and names the window", () => {
     // What the page shows on almost every day it is opened.
     expect(emptyStateText(24)).toBe(

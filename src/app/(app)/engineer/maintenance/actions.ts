@@ -219,10 +219,15 @@ export async function getMaintenanceState(): Promise<MaintenanceState> {
  * themselves — see the type in ./attack-sources.
  */
 export async function getLoginAttackSources(
-  hours: number = ATTACK_WINDOW_HOURS,
+  hours: number | null = ATTACK_WINDOW_HOURS,
 ): Promise<LoginAttackSourcePage> {
+  // `hours` is OMITTED, not sent as a value, when the caller wants everything:
+  // the backend treats an absent parameter as all history. Sending `hours=null`
+  // would be a 422.
   return apiGet<LoginAttackSourcePage>(
-    `/admin/login-attack-sources?hours=${hours}`,
+    hours === null
+      ? "/admin/login-attack-sources"
+      : `/admin/login-attack-sources?hours=${hours}`,
   );
 }
 

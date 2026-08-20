@@ -1774,7 +1774,15 @@ export interface paths {
         };
         /**
          * List Login Attack Sources
-         * @description Failed sign-ins rolled up per SOURCE IP over a recent window. Engineer only.
+         * @description Failed sign-ins rolled up per SOURCE IP. Engineer only.
+         *
+         *     ⚠️ OMITTING ``hours`` SUMMARISES EVERYTHING, and that is the console's
+         *     default. It used to default to 24 and cap at a week, which made yesterday's
+         *     incident disappear overnight — the morning after the first real campaigns the
+         *     owner read the empty table as "the rows were deleted" rather than "the window
+         *     moved". "Has anyone ever come at us" is the question this table answers, and
+         *     it has no window. A caller that wants one can still pass ``hours``; the cap
+         *     is a year, high enough not to be the thing that hides an incident.
          *
          *     Backs the attack table on the engineer Maintenance page — the screen the
          *     owner opens during an incident. GET /admin/login-failures answers "what
@@ -1814,9 +1822,12 @@ export interface paths {
          *     source, and one "unknown" bucket would sum unrelated people into a row that
          *     looks like a campaign) — they remain visible per-attempt on /login-failures.
          *
-         *     ``hours`` defaults to 24 and is capped at a week; ``limit`` defaults to 50
-         *     and is hard-capped at 200, mirroring the neighbouring log endpoints, so one
-         *     request cannot ask the database to aggregate unbounded history.
+         *     ``hours`` is optional (unset = all history) and capped at a year; ``limit``
+         *     defaults to 50 and is hard-capped at 200, mirroring the neighbouring log
+         *     endpoints. The row cap is what bounds the RESPONSE now that the time range
+         *     does not — and `login_failures` is an incident log that is purged on a
+         *     retention schedule, not a traffic log, so "all history" is small by
+         *     construction.
          */
         get: operations["list_login_attack_sources_admin_login_attack_sources_get"];
         put?: never;
@@ -7970,7 +7981,7 @@ export interface components {
             /** Items */
             items: components["schemas"]["LoginAttackSource"][];
             /** Window Hours */
-            window_hours: number;
+            window_hours: number | null;
             /** Limit */
             limit: number;
         };
@@ -12271,7 +12282,7 @@ export interface operations {
     list_login_attack_sources_admin_login_attack_sources_get: {
         parameters: {
             query?: {
-                hours?: number;
+                hours?: number | null;
                 limit?: number;
             };
             header?: never;
