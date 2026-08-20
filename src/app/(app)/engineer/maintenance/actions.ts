@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { apiGet, apiPost, ApiError } from "@/lib/api";
 import type { components } from "@/types/api.gen";
+import {
+  ATTACK_WINDOW_HOURS,
+  type LoginAttackSourcePage,
+} from "./attack-sources";
 
 /**
  * Engineer maintenance-mode controls.
@@ -23,6 +27,25 @@ export type MaintenanceEnableResult =
  */
 export async function getMaintenanceState(): Promise<MaintenanceState> {
   return apiGet<MaintenanceState>("/maintenance");
+}
+
+/**
+ * Failed sign-ins rolled up per source IP over the last `hours`, for the attack
+ * table beside the switch. Engineer-only — the backend re-enforces
+ * RequireEngineer on GET /admin/login-attack-sources. Callers catch ApiError.
+ *
+ * Never cached: an engineer looking at this during an incident must be seeing
+ * the current state, the same reason this page is `force-dynamic`.
+ *
+ * The response carries COUNTS of attempted addresses and never the addresses
+ * themselves — see the type in ./attack-sources.
+ */
+export async function getLoginAttackSources(
+  hours: number = ATTACK_WINDOW_HOURS,
+): Promise<LoginAttackSourcePage> {
+  return apiGet<LoginAttackSourcePage>(
+    `/admin/login-attack-sources?hours=${hours}`,
+  );
 }
 
 /**
