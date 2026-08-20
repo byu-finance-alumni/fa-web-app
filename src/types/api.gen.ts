@@ -1749,6 +1749,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/login-attack-sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Login Attack Sources
+         * @description Failed sign-ins rolled up per SOURCE IP over a recent window. Engineer only.
+         *
+         *     Backs the attack table on the engineer Maintenance page — the screen the
+         *     owner opens during an incident. GET /admin/login-failures answers "what
+         *     attempts happened"; this answers "who is doing it", which is the question
+         *     that matters when 750 rows scroll past. One row per source: where it appears
+         *     to be, when it started and stopped, how many attempts, how many distinct
+         *     addresses, and what shape the campaign is.
+         *
+         *     Read-only and side-effect free: it opens no incident, sends no alert, and
+         *     never blocks anything. Engineer-gated (RequireEngineer) exactly like
+         *     /login-failures and /logins, and the read is audited
+         *     (``read_login_attack_sources``; actor + applied window/limit).
+         *
+         *     THE CLASSIFIER IS SHARED, ON PURPOSE. ``attack_type`` comes from
+         *     ``login_abuse.classify_source``, which wraps the very ``is_abusive`` and
+         *     ``classify`` the Slack alert renders. The table and the alert therefore
+         *     cannot describe the same IP two different ways, and retuning a threshold
+         *     moves both at once.
+         *
+         *     ⚠️ NO ATTEMPTED EMAIL ADDRESSES ARE RETURNED. Only ``distinct_emails``, the
+         *     count. Those addresses are unverified strings typed by a stranger, some of
+         *     them belong to real people, and a list of them is both the material the
+         *     attacker was probing with and an enumeration oracle for anyone who reaches
+         *     this response. The per-attempt detail, addresses included, stays where it
+         *     already was: GET /admin/login-failures, behind the same engineer gate.
+         *
+         *     ⚠️ ``ip_address`` IS CLIENT-SUPPLIED. It is copied from ``login_failures``,
+         *     which the Next.js login action populates from the incoming request's
+         *     ``x-forwarded-for``. Anyone calling this API directly can put anything there,
+         *     so a source here can be forged to implicate an innocent address or rotated
+         *     per request to evade the grouping entirely. It is the only per-attacker
+         *     identifier this data has, so it is used — but it is a LEAD, not a verdict.
+         *     Verify against the edge's own logs before blocking on it. The console states
+         *     this alongside the table.
+         *
+         *     Attempts with no captured IP are excluded (they cannot be attributed to a
+         *     source, and one "unknown" bucket would sum unrelated people into a row that
+         *     looks like a campaign) — they remain visible per-attempt on /login-failures.
+         *
+         *     ``hours`` defaults to 24 and is capped at a week; ``limit`` defaults to 50
+         *     and is hard-capped at 200, mirroring the neighbouring log endpoints, so one
+         *     request cannot ask the database to aggregate unbounded history.
+         */
+        get: operations["list_login_attack_sources_admin_login_attack_sources_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/engineer-actions": {
         parameters: {
             query?: never;
@@ -7138,6 +7200,63 @@ export interface components {
             role_year?: number | null;
         };
         /**
+         * LoginAttackSource
+         * @description One source IP rolled up from ``login_failures``, for the Maintenance
+         *     page's attack table (#456).
+         *
+         *     ``attempts`` and ``distinct_emails`` are counts over the requested window;
+         *     ``first_seen``/``last_seen`` bound the source's activity inside it, so a
+         *     16-second burst and a 10-minute grind are told apart. ``attack_type`` is
+         *     ``login_abuse.classify_source`` — the same classifier the Slack alert uses,
+         *     so the table and the alert cannot disagree — and ``is_attack`` says whether
+         *     the source crossed the detector's thresholds at all.
+         *
+         *     ⚠️ There is deliberately NO email field. See the endpoint docstring.
+         */
+        LoginAttackSource: {
+            /** Ip Address */
+            ip_address: string;
+            /** City */
+            city: string | null;
+            /** Region */
+            region: string | null;
+            /** Country */
+            country: string | null;
+            /**
+             * First Seen
+             * Format: date-time
+             */
+            first_seen: string;
+            /**
+             * Last Seen
+             * Format: date-time
+             */
+            last_seen: string;
+            /** Attempts */
+            attempts: number;
+            /** Distinct Emails */
+            distinct_emails: number;
+            /** Attack Type */
+            attack_type: string;
+            /** Is Attack */
+            is_attack: boolean;
+        };
+        /**
+         * LoginAttackSourcePage
+         * @description The attack table: sources busiest-first, plus the window they cover.
+         *
+         *     ``window_hours`` and ``limit`` echo what was actually applied so the console
+         *     can say "in the last N hours" without re-deriving it from the request.
+         */
+        LoginAttackSourcePage: {
+            /** Items */
+            items: components["schemas"]["LoginAttackSource"][];
+            /** Window Hours */
+            window_hours: number;
+            /** Limit */
+            limit: number;
+        };
+        /**
          * LoginContext
          * @description Optional client context for a sign-in attempt, forwarded by the frontend
          *     login action from the incoming request — the client IP (``x-forwarded-for``)
@@ -11276,6 +11395,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LoginFailurePage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_login_attack_sources_admin_login_attack_sources_get: {
+        parameters: {
+            query?: {
+                hours?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginAttackSourcePage"];
                 };
             };
             /** @description Validation Error */
