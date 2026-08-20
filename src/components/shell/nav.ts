@@ -17,9 +17,9 @@ import { CAPABILITY, hasCapability } from "@/constants/capabilities";
  * role check would hide a screen from a role the engineer has deliberately
  * granted, making the permission toggle look broken. Gate on `capability`.
  */
-export type NavLeaf = {
-  href: string;
-  label: string;
+
+/** Gating flags — shared by leaves and groups, so a whole group can be gated. */
+type NavGating = {
   /** Capability code required to see this item (fa-web-api #379). */
   capability?: string;
   superAdminOnly?: boolean;
@@ -28,9 +28,29 @@ export type NavLeaf = {
   hideViewOnly?: boolean;
 };
 
-export type NavItem = NavLeaf & {
-  children?: NavLeaf[];
+/** A navigable entry. `children` is declared (as `undefined`) so a plain
+ *  `item.children ? … : …` narrows the union in both directions. */
+export type NavLeaf = NavGating & {
+  href: string;
+  label: string;
+  children?: undefined;
 };
+
+/**
+ * A collapsible section. Groups are toggles, never links — `href` is only the
+ * section root for the older top-level groups and is deliberately optional, so
+ * a purely organisational group (Engineer → Security) does not have to invent a
+ * route that does not exist.
+ *
+ * Groups nest: `children` is `NavItem[]`, not `NavLeaf[]`.
+ */
+export type NavGroup = NavGating & {
+  href?: string;
+  label: string;
+  children: NavItem[];
+};
+
+export type NavItem = NavLeaf | NavGroup;
 
 export const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard" },
@@ -108,25 +128,46 @@ export const NAV: NavItem[] = [
       { href: "/engineer/permissions", label: "Permissions", engineerOnly: true },
       { href: "/engineer/preview", label: "Preview as role", engineerOnly: true },
       { href: "/engineer/surveys", label: "Surveys", engineerOnly: true },
-      { href: "/engineer/logins", label: "Logins", engineerOnly: true },
       {
-        href: "/engineer/login-failures",
-        label: "Login failures",
+        // The incident/abuse cluster, gathered out of the flat Engineer list.
+        // These four answer one question — who got in, who tried, who is in
+        // right now, and how do I shut the doors — and they are the screens
+        // reached under time pressure, so they read better as one named place
+        // than as four siblings of the day-to-day config tools.
+        //
+        // Deliberately NOT in here: Permissions (role configuration, changed on
+        // an ordinary working day, not during an incident), Preview as role (a
+        // read-only QA lens), Surveys (campaign operations) and Support contacts
+        // (error-screen content). Folding those in would make "Security" mean
+        // "engineer stuff", which is what the Engineer group already means.
+        //
+        // No `href`: there is no /engineer/security route and there must not
+        // appear to be one — the header is a disclosure toggle, not a link.
+        label: "Security",
         engineerOnly: true,
-      },
-      // Who is signed in RIGHT NOW, and the control to end it. Sits with the two
-      // sign-in logs because it answers the same class of question, but it is an
-      // inventory rather than a history — and it is the only one of the three
-      // that can act, not just report.
-      { href: "/engineer/sessions", label: "Sessions", engineerOnly: true },
-      // The site-wide pause. It was reachable only from the /engineer console
-      // page or by typing the URL, which is the wrong place for a kill switch:
-      // it is wanted during an incident, when nobody is browsing a card grid.
-      // Ordered to match the console page's own card order.
-      {
-        href: "/engineer/maintenance",
-        label: "Maintenance mode",
-        engineerOnly: true,
+        children: [
+          { href: "/engineer/logins", label: "Logins", engineerOnly: true },
+          {
+            href: "/engineer/login-failures",
+            label: "Login failures",
+            engineerOnly: true,
+          },
+          // Who is signed in RIGHT NOW, and the control to end it. Sits with the
+          // two sign-in logs because it answers the same class of question, but
+          // it is an inventory rather than a history — and it is the only one of
+          // the three that can act, not just report.
+          { href: "/engineer/sessions", label: "Sessions", engineerOnly: true },
+          // The site-wide pause — and the home of the automatic IP blocks and
+          // the login-attack table. It was reachable only from the /engineer
+          // console page or by typing the URL, which is the wrong place for a
+          // kill switch: it is wanted during an incident, when nobody is
+          // browsing a card grid.
+          {
+            href: "/engineer/maintenance",
+            label: "Maintenance mode",
+            engineerOnly: true,
+          },
+        ],
       },
       {
         href: "/engineer/support-contacts",
@@ -137,12 +178,14 @@ export const NAV: NavItem[] = [
   },
 ];
 
-/** Every navigable leaf href (group headers are toggles, not links), plus the
- *  standalone privacy link — for resolving the active nav item. */
-export const LEAF_HREFS: string[] = [
-  ...NAV.flatMap((i) => (i.children ? i.children.map((c) => c.href) : [i.href])),
-  "/privacy",
-];
+/** Every navigable leaf href beneath `item` — group headers are toggles, not
+ *  links, so a group contributes its descendants and never itself. */
+export const leafHrefs = (item: NavItem): string[] =>
+  item.children ? item.children.flatMap(leafHrefs) : [item.href];
+
+/** Every navigable leaf href, plus the standalone privacy link — for resolving
+ *  the active nav item. */
+export const LEAF_HREFS: string[] = [...NAV.flatMap(leafHrefs), "/privacy"];
 
 /** The active link is the LONGEST leaf href the current path matches (exact, or
  *  as a "/parent/…" prefix) — so a deeper route wins over a shorter prefix. */
@@ -153,12 +196,93 @@ export const resolveActiveHref = (pathname: string): string | null =>
     return best === null || href.length > best.length ? href : best;
   }, null);
 
+/* ==================================================================== *
+ * Group open/closed state
+ *
+ * Nothing here is persisted — no storage, no cookie. A group's open state is
+ * derived from exactly two things: whether the current route lives inside it,
+ * and whether the user has toggled it since arriving on this route.
+ * ==================================================================== */
+
+/** Stable identity for a group, unique across the tree — a nested group may
+ *  repeat a label under a different parent, so ancestors are part of the key. */
+export const navGroupKey = (
+  ancestorLabels: readonly string[],
+  label: string,
+): string => [...ancestorLabels, label].join(" / ");
+
+/** DOM id of the panel a group's toggle button controls (`aria-controls`). */
+export const navGroupPanelId = (key: string): string =>
+  `nav-group-${key
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")}`;
+
+/**
+ * Manual toggles, stamped with the route they were made on.
+ *
+ * The stamp is the whole point. A collapse is an opinion about the page you are
+ * looking at, not a standing preference, so it is discarded the moment the route
+ * changes. That is what guarantees "you never land on a page whose nav entry is
+ * hidden" — including via the back button, which does not remount the shell and
+ * would otherwise carry a stale collapse into the page it lands on.
+ */
+export type NavToggles = {
+  readonly pathname: string;
+  readonly open: Readonly<Record<string, boolean>>;
+};
+
+export const NO_NAV_TOGGLES: NavToggles = { pathname: "", open: {} };
+
+/** The toggles that still apply on `pathname`; a route change discards them. */
+export const currentNavToggles = (
+  toggles: NavToggles,
+  pathname: string,
+): Readonly<Record<string, boolean>> =>
+  toggles.pathname === pathname ? toggles.open : {};
+
+/** Record one group's new open state against the current route. */
+export const toggleNavGroup = (
+  toggles: NavToggles,
+  pathname: string,
+  key: string,
+  open: boolean,
+): NavToggles => ({
+  pathname,
+  open: { ...currentNavToggles(toggles, pathname), [key]: open },
+});
+
+/**
+ * Is `group` open? The route decides by default — a group holding the active
+ * link starts open, at every depth, so the entry for the page you are on is
+ * always visible — and an explicit toggle made on this route wins.
+ */
+export const isNavGroupOpen = (
+  group: NavItem,
+  key: string,
+  activeHref: string | null,
+  toggles: Readonly<Record<string, boolean>>,
+): boolean =>
+  toggles[key] ?? (activeHref !== null && leafHrefs(group).includes(activeHref));
+
+/**
+ * The Engineer → Security screens, in nav order. Exported so the Engineer
+ * console page groups its cards off this same list rather than keeping a second,
+ * drifting idea of what "Security" means.
+ */
+export const ENGINEER_SECURITY_HREFS: readonly string[] = (() => {
+  const engineer = NAV.find((i) => i.label === "Engineer");
+  const security = engineer?.children?.find((c) => c.label === "Security");
+  return security ? leafHrefs(security) : [];
+})();
+
 /**
  * Role- and capability-filtered nav. A group keeps only the children the user
- * may see and is dropped entirely if none remain. `canVocab` drives the
- * Vocabulary item independently of the role string; `capabilities` is the
- * effective capability list from `GET /auth/context` and drives every item
- * carrying a `capability` code (fa-web-api #379).
+ * may see and is dropped entirely if none remain — recursively, so an emptied
+ * nested group takes itself out of its parent. `canVocab` drives the Vocabulary
+ * item independently of the role string; `capabilities` is the effective
+ * capability list from `GET /auth/context` and drives every item carrying a
+ * `capability` code (fa-web-api #379).
  *
  * `capabilities` defaults to empty, which HIDES capability-gated items. That is
  * the safe default and matches engineer preview-as-role, where we hold the
@@ -173,18 +297,19 @@ export function getVisibleNav(
   const isEngineer = role === ROLE.ENGINEER;
   const isViewOnly = role === ROLE.VIEW_ONLY;
 
-  const canSee = (n: NavLeaf) =>
+  const canSee = (n: NavItem) =>
     (!n.superAdminOnly || isSuperAdmin) &&
     (!n.capability || hasCapability(capabilities, n.capability)) &&
     (!n.engineerOnly || isEngineer) &&
     (!n.vocabOnly || canVocab) &&
     (!n.hideViewOnly || !isViewOnly);
 
-  return NAV.flatMap((item) => {
-    if (item.children) {
-      const children = item.children.filter(canSee);
-      return children.length ? [{ ...item, children }] : [];
-    }
-    return canSee(item) ? [item] : [];
-  });
+  const visible = (item: NavItem): NavItem[] => {
+    if (!canSee(item)) return [];
+    if (!item.children) return [item];
+    const children = item.children.flatMap(visible);
+    return children.length ? [{ ...item, children }] : [];
+  };
+
+  return NAV.flatMap(visible);
 }
