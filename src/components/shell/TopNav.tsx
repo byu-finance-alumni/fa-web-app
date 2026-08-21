@@ -75,9 +75,6 @@ export function TopNav({
   // there is no /dashboard/* subtree, and a prefix match would silently take the
   // scrim off any future one.
   const onDashboard = pathname === "/dashboard";
-  // The dashboard's bar shares the greeting's photo, so it takes the softer
-  // scrim the old band used; every other route keeps the heavier pair.
-  const barePhoto = onDashboard;
   // ONE PHOTO covering the bar and the masthead. Gated on the route as well as
   // the prop so a future page passing a greeting cannot silently grow a 240px
   // photo header.
@@ -113,31 +110,21 @@ export function TopNav({
              image spanning both, which means the band moving into the shell. */
           style={{ objectPosition: "center 45%" }}
         />
-        {/* TWO TREATMENTS, and on the dashboard it is the HERO'S, not the
-            bar's own (Jake, 2026-08-21).
+        {/* ONE TREATMENT, EVERYWHERE (Jake, 2026-08-21). It was two: a soft
+            scrim on the dashboard so the bar matched the masthead beneath it,
+            and a much heavier one elsewhere so a strip of building would not
+            compete with the links. The heavier version hid the photo almost
+            completely, which was the complaint — so every route now uses the
+            softer pair and the photo actually reads.
 
-            Bare photo was tried here and the links disappeared into the
-            skylight — exactly the contrast the scrims exist to hold. So the
-            dashboard gets the same two layers the band directly below it uses,
-            at the same opacities: the bar and the band then read as one
-            continuous treatment rather than two different blues stacked.
-
-            Every other route keeps the heavier pair, because there is no band
-            under them to match and a 96px strip of building competes with the
-            links. */}
+            ⚠️ These two opacities are the contrast, not decoration. A bare photo
+            was tried on the dashboard and the links vanished into the atrium
+            skylight. Lighten either layer and check the labels over the
+            brightest part of the image before keeping it. */}
+        <div aria-hidden="true" className="absolute inset-0 bg-navy-900/45" />
         <div
           aria-hidden="true"
-          className={`absolute inset-0 ${
-            barePhoto ? "bg-navy-900/45" : "bg-navy-900/85"
-          }`}
-        />
-        <div
-          aria-hidden="true"
-          className={`absolute inset-0 bg-gradient-to-r ${
-            barePhoto
-              ? "from-navy-900/80 via-navy-900/60 to-navy-900/35"
-              : "from-navy-900 via-navy-900/95 to-navy-900/75"
-          }`}
+          className="absolute inset-0 bg-gradient-to-r from-navy-900/80 via-navy-900/60 to-navy-900/35"
         />
       </div>
 
@@ -145,7 +132,7 @@ export function TopNav({
           being right-aligned rather than packed against the brand is most of
           what makes that bar read as a masthead instead of a toolbar. */}
       <div className={showHero ? "relative" : "relative flex h-24 items-center gap-6 px-8"}>
-      <div className="flex h-24 items-center gap-6 px-8">
+      <div className="flex h-16 items-center gap-6 px-8">
         <Link href="/dashboard" className="shrink-0">
           <span className={`text-2xl font-bold tracking-tight text-white${barePhoto ? " drop-shadow-md" : ""}`}>
             BYU
@@ -259,7 +246,12 @@ export function TopNav({
           the whole point of moving it here: one image, one scrim, no seam. The
           height is the old band's 144px, so the page below is unchanged. */}
       {showHero ? (
-        <div className="flex h-36 flex-col justify-center px-8">
+        /* `justify-start`, not `justify-center`. Centred in 144px the block sat
+           low enough that the KPI tiles — which are pulled up 56px to straddle
+           the photo — covered the subtitle; you could see the last few letters
+           of it behind the first card. Top-aligned, the text finishes ~16px
+           above where the tiles begin. */
+        <div className="flex h-36 flex-col justify-start px-8 pt-2">
           <h1 className="text-3xl font-bold tracking-tight text-white drop-shadow-sm md:text-4xl">
             {greeting}
           </h1>

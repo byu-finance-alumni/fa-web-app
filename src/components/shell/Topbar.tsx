@@ -17,6 +17,21 @@ export function Topbar({
   breadcrumb?: Crumb[];
   children?: React.ReactNode;
 }) {
+  // EXPERIMENT (experiment/top-nav): RENDERS NOTHING. Every page below the
+  // dashboard still calls <Topbar>, and with the photo bar above it that white
+  // strip sat between the two — the thing the dashboard already had removed.
+  //
+  // ⚠️ THE BREADCRUMB AND THE PAGE TITLE GO WITH IT, and that is a real loss,
+  // not a tidy-up: on a deep screen the breadcrumb is the only thing telling you
+  // where you are and how to get back. Blanking the component is the cheapest
+  // way to see the idea; making it real means moving the title and trail into
+  // the photo bar, under the nav row, the way the dashboard's greeting sits
+  // there now.
+  //
+  // `children` (the centred zone some pages fill) disappears too — check any
+  // page that passed something before judging this.
+  return null;
+
   return (
     <header className="grid h-16 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-gray-300 bg-white px-4 md:px-6">
       {/* Compact top bar renders the title at 16px — see UX-UI.md typography "Known gap". */}

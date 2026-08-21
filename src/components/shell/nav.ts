@@ -72,18 +72,15 @@ export const NAV: NavItem[] = [
     ],
   },
   { href: "/events", label: "Events" },
-  // Opportunity links (api #441). Stays top-level — a browsing surface staff
-  // work out of, not a one-off admin task — and keeps the owner's wording. It
-  // wrapped to two lines in the bar; that is fixed with `whitespace-nowrap` in
-  // TopNav rather than by shortening a label he chose deliberately (a test in
-  // opportunityLinks.test.ts pins it, which is how I found out).
-  {
-    href: "/links",
-    label: "Internship Links",
-    capability: CAPABILITY.SURVEYS_MANAGE,
-  },
-  // Map, Statistics and Activity are all "go and look at the shape of the data",
-  // which is a reason to visit rather than a place to work — so they group.
+  // Map, Statistics, Activity and Internship Links: places you go to look at
+  // something, rather than places you work out of. Seven top-level entries now.
+  //
+  // Internship Links (api #441) moved in here at the owner's request. The code
+  // comment it arrived with argued for keeping it top-level — a browsing surface
+  // rather than a one-off admin task — which was the right call down a sidebar
+  // where an eighth entry costs nothing. Across a bar it is one of the widest
+  // labels, and it keeps its full wording here because that wording was chosen
+  // deliberately (a test in opportunityLinks.test.ts pins it).
   {
     label: "Insights",
     children: [
@@ -93,6 +90,11 @@ export const NAV: NavItem[] = [
         href: "/activity",
         label: "Activity",
         capability: CAPABILITY.REPORTS_ADVANCED,
+      },
+      {
+        href: "/links",
+        label: "Internship Links",
+        capability: CAPABILITY.SURVEYS_MANAGE,
       },
     ],
   },
