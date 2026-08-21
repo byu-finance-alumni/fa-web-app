@@ -9,6 +9,7 @@ import {
   formatDuration,
   formatLocation,
   splitAttackType,
+  visibleSources,
   type LoginAttackSource,
   type LoginAttackSourcePage,
 } from "@/app/(app)/engineer/maintenance/attack-sources";
@@ -60,7 +61,11 @@ export function LoginAttackTable({
    */
   showAllAttemptsLink?: boolean;
 }) {
-  const sources = data?.items ?? [];
+  // Ordinary fumbled sign-ins from the places the team works from are dropped
+  // here rather than by the API, so the endpoint stays a faithful report and
+  // this stays a view preference. `visibleSources` never drops a source the
+  // backend classified as an attack — see the note on `isQuietSource`.
+  const sources = visibleSources(data?.items ?? []);
 
   return (
     <section
