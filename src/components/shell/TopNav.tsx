@@ -27,6 +27,12 @@ import { SignOutButton } from "@/components/auth/SignOutButton";
  *     sidebar's own mobile behaviour is out of scope here;
  *   * the photo is the existing dashboard hero, reused as-is.
  *
+ * ⚠️ The `brand-blue` scale is 600/500/300/50 ONLY. There is no 100 or 200, and
+ * Tailwind emits nothing for a shade that does not exist — the labels here were
+ * `text-brand-blue-100`, which silently left them inheriting the default dark
+ * colour and invisible against the scrim. On dark surfaces use `text-white` at
+ * an opacity, or `text-brand-blue-300`, which is what the sidebar uses.
+ *
  * If the direction is kept, this gets rebuilt properly. Do not merge it as is.
  */
 export function TopNav({
@@ -96,7 +102,7 @@ export function TopNav({
                   className={`rounded-md px-3 py-2 text-sm font-medium transition ${
                     active
                       ? "bg-white/20 text-white"
-                      : "text-brand-blue-100 hover:bg-white/10 hover:text-white"
+                      : "text-white/85 hover:bg-white/10 hover:text-white"
                   }`}
                 >
                   {item.label}
@@ -120,7 +126,7 @@ export function TopNav({
                   className={`flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium transition ${
                     active || open
                       ? "bg-white/20 text-white"
-                      : "text-brand-blue-100 hover:bg-white/10 hover:text-white"
+                      : "text-white/85 hover:bg-white/10 hover:text-white"
                   }`}
                 >
                   {item.label}
@@ -173,7 +179,7 @@ export function TopNav({
         <div className="flex shrink-0 items-center gap-4">
           <div className="text-right leading-tight">
             <p className="text-sm font-medium text-white">{name || email}</p>
-            <p className="text-xs text-brand-blue-200">{email}</p>
+            <p className="text-xs text-white/70">{email}</p>
           </div>
           <SignOutButton onDark />
         </div>
