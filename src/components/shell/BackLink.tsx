@@ -1,10 +1,9 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { resolveActiveHref } from "@/components/shell/nav";
 
 /**
- * "Back" — one step, on any screen you had to click into to reach.
+ * "Back" — one step, on the data-entry screens only.
  *
  * ⚠️ IT ADDS NO HEIGHT. The wrapper is `h-0` and the button is absolutely
  * positioned out of it, into the top padding the page below already has (`p-6`
@@ -18,16 +17,21 @@ import { resolveActiveHref } from "@/components/shell/nav";
  * 24px of padding without ever touching what the page renders.
  *
  * WHY IT EXISTS. Moving navigation into the photo bar took the per-page
- * `Topbar` with it, and the breadcrumb went too. On a top-level destination that
- * costs nothing — the bar itself says where you are. On a screen you drilled
- * into, an alumni profile say, the trail was the only thing telling you how to
- * get back, and losing it silently is worse than the white bar it replaced.
+ * `Topbar` with it, and the breadcrumb went too. On a form you opened from
+ * somewhere else, that trail was the only thing telling you how to leave without
+ * saving.
  *
- * WHERE IT SHOWS. Only where the route is DEEPER than the nav entry that
- * matched it: `resolveActiveHref` maps /alumni/842 back to /alumni, so the two
- * differ exactly when you are below a destination. /alumni gets no button;
- * /alumni/842 does. That is derived rather than listed, so a new sub-route gets
- * one without anybody remembering to add it.
+ * ⚠️ WHERE IT SHOWS — FORMS, NOT EVERY DEEP ROUTE (Jake, 2026-08-21). It first
+ * appeared anywhere the path ran deeper than its nav entry, which put it on
+ * browse screens like /alumni/842 and /map/state/UT that already read as
+ * destinations and did not want one. The rule is now the screens you go to in
+ * order to ENTER something and then leave: edit, new, and import.
+ *
+ * Still derived from the path rather than listed, so /alumni/[id]/edit/personal
+ * and a future /events/[id]/edit/whatever are covered without anybody
+ * remembering to add them. If a form ever lands on a path that does not end in
+ * one of these words, this is the line to extend — a listed route table is the
+ * thing to avoid, since it silently omits new screens.
  *
  * ⚠️ IT IS `router.back()`, NOT a link to the parent — which is what "take you
  * back one page" means and is usually right, but is worth knowing: it returns to
@@ -36,15 +40,26 @@ import { resolveActiveHref } from "@/components/shell/nav";
  * search returns you to that search with its filters intact (the reason to
  * prefer it over a hard link to /alumni).
  */
+/**
+ * The rule, exported so it can be checked against the app's real routes rather
+ * than restated in a test — a test that reimplements this predicate passes no
+ * matter what it says.
+ *
+ * A SEGMENT test, not `endsWith`: `/alumni/842/edit/personal` is still the edit
+ * form, and so are the five other sections beside it.
+ */
+export function shouldShowBack(pathname: string): boolean {
+  return pathname
+    .split("/")
+    .filter(Boolean)
+    .some((s) => s === "edit" || s === "new" || s === "import");
+}
+
 export function BackLink() {
   const pathname = usePathname();
   const router = useRouter();
 
-  if (!pathname) return null;
-  const destination = resolveActiveHref(pathname);
-  // No match at all (a route outside the nav) still counts as "deep" — those
-  // are the screens most likely to be dead ends.
-  if (destination === pathname) return null;
+  if (!pathname || !shouldShowBack(pathname)) return null;
 
   return (
     <div className="relative z-20 h-0">
