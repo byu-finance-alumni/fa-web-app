@@ -52,7 +52,6 @@
  * lighten either layer, move the text, or swap the photo.
  */
 
-import { SignOutButton } from "@/components/auth/SignOutButton";
 
 /**
  * The KPI strip straddles the band's bottom edge: this class pulls it up by 72px
@@ -75,8 +74,23 @@ import { SignOutButton } from "@/components/auth/SignOutButton";
  * the flow, so the search card below moves up with the tiles instead of leaving
  * a 72px hole — and nothing overlaps it.
  */
-/** Inert on this branch — nothing to straddle now the band is gone. */
-export const HERO_OVERLAP_CLASS = "";
+export const HERO_OVERLAP_CLASS = "lg:-mt-[56px]";
+
+/** The plain greeting the branch briefly used instead of the band — kept so the
+ *  two can be compared without digging through git history. Unused. */
+export function DashboardGreeting({ greeting }: { greeting: string }) {
+  return (
+    <div className="pt-6">
+      <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+        {greeting}
+      </h1>
+      <p className="mt-1 text-sm text-gray-500">
+        Here&rsquo;s what&rsquo;s happening across the BYU Finance alumni
+        network today.
+      </p>
+    </div>
+  );
+}
 
 /** Shell: the photo, the scrim, and a content well that leaves room at the
  *  bottom for the overlapping KPI tiles. Used by the live page and by the
@@ -175,39 +189,20 @@ export function HeroBand({
 
 /** The live band: "Welcome back, {name}" and the standing subtitle. */
 /**
- * EXPERIMENT (experiment/top-nav): a plain greeting, not a photo band.
+ * The photo band, back on the dashboard (Jake, 2026-08-21) — it now appears
+ * BELOW the nav's photo rather than instead of it.
  *
- * THE PHOTO MOVED TO THE NAV, so a second one directly beneath it was the same
- * image twice in the first 250px of the page — which is most of why this screen
- * looked wrong once the bar landed. Two other things went with it:
+ * ⚠️ NO `action` HERE ANY MORE. The band carried Sign out only because this page
+ * had no top bar; with the bar carrying it, passing it again put two on screen
+ * at once. That is the one part of removing the band that should not come back.
  *
- *   * the SECOND Sign out. The band grew one when this page had no top bar;
- *     with the bar carrying it, there were two on screen at once.
- *   * ~144px of height. The 96px bar took that from the same budget the
- *     breakdown is fighting for, and this is where it comes back from.
- *
- * The KPI tiles no longer straddle anything, so `HERO_OVERLAP_CLASS` is inert
- * on this branch (kept exported so the skeleton and the page still compile).
+ * ⚠️ And it costs ~144px, on a page whose bottom row was already competing for
+ * height with a 96px bar. If the Industry breakdown starts clipping, this is
+ * where the height went.
  */
 export function DashboardHero({ greeting }: { greeting: string }) {
   return (
-    <div className="pt-6">
-      <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-        {greeting}
-      </h1>
-      <p className="mt-1 text-sm text-gray-500">
-        Here&rsquo;s what&rsquo;s happening across the BYU Finance alumni
-        network today.
-      </p>
-    </div>
-  );
-}
-
-/** The original photo band, unused on this branch — kept so the diff back to
- *  `dev` stays small and the idea is easy to restore. */
-export function DashboardHeroBand({ greeting }: { greeting: string }) {
-  return (
-    <HeroBand action={<SignOutButton onDark />}>
+    <HeroBand>
       {/* 36px — one step ABOVE the 24–30px page-title band in UX-UI.md's type
           scale, because this is the dashboard's masthead rather than a section
           title, and the scale has no rung between 30px and 36px. */}

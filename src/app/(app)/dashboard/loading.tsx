@@ -2,7 +2,6 @@ import {
   HeroBand,
   HERO_OVERLAP_CLASS,
 } from "@/components/dashboard/DashboardHero";
-import { SignOutButton } from "@/components/auth/SignOutButton";
 import {
   MetricGridSkeleton,
   CardSkeleton,
@@ -33,7 +32,7 @@ import {
 export default function Loading() {
   return (
     <main className="flex-1 overflow-auto lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden">
-      <HeroBand action={<SignOutButton onDark />}>
+      <HeroBand>
         {/* Same heights as the live heading + subtitle, so the text does not
             reflow when it arrives. White at low alpha reads as a placeholder on
             the navy scrim where the page's grey shimmer would not. */}
