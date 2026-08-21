@@ -7,6 +7,8 @@ import {
   attackPanelLabel,
   attackTypeLabel,
   emptyStateText,
+  isQuietSource,
+  visibleSources,
   formatClock,
   formatDuration,
   formatLocation,
@@ -293,5 +295,80 @@ describe("the collapsed panel on the login-failures page", () => {
     expect(ATTACK_PANEL_DESCRIPTION).toMatch(/source ip/i);
     // And the hide label must read as the way back out.
     expect(ATTACK_PANEL_HIDE_LABEL).toMatch(/^hide/i);
+  });
+});
+
+// ======================= QUIET LOCATIONS, AND THE HOLE THEY MUST NOT OPEN ====
+//
+// The owner and his manager work from Minden NV, Provo UT and Orem UT, so their
+// mistyped passwords were filling the table with things that are not incidents.
+// Hiding them is a real improvement to a screen you are supposed to be able to
+// skim — but the field being matched on is IP geolocation, which is
+// self-reported and spoofable, and that makes the naive version of this filter a
+// permanent blind spot on the one page built to catch an attacker.
+
+/** An ordinary fumbled sign-in — the file's `source` is an ATTACK by default. */
+function fumble(over: Partial<LoginAttackSource> = {}): LoginAttackSource {
+  return source({
+    attempts: 2,
+    distinct_emails: 1,
+    attack_type: "fumble: one address, a couple of tries",
+    is_attack: false,
+    ...over,
+  });
+}
+
+describe("quiet locations", () => {
+  it("hides an ordinary fumble from one of the team's cities", () => {
+    expect(isQuietSource(fumble({ city: "Provo", region: "Utah" }))).toBe(true);
+    expect(isQuietSource(fumble({ city: "Orem", region: "Utah" }))).toBe(true);
+    expect(isQuietSource(fumble({ city: "Minden", region: "Nevada" }))).toBe(
+      true,
+    );
+  });
+
+  it("NEVER hides a source the backend called an attack", () => {
+    // The whole point. `city` is self-reported, so a filter that trusted it
+    // would let anyone sending `x-vercel-ip-city: Provo` disappear from the
+    // security console permanently. `is_attack` is computed from behaviour —
+    // how many addresses, how many attempts, how fast — which the client does
+    // not get to assert about itself.
+    const spoofed = fumble({ city: "Provo", region: "Utah", is_attack: true });
+    expect(isQuietSource(spoofed)).toBe(false);
+    expect(visibleSources([spoofed])).toHaveLength(1);
+  });
+
+  it("does not hide a different Provo", () => {
+    // Cities repeat across states; matching on the name alone would quietly
+    // swallow a real source from somewhere nobody on this team has been.
+    expect(
+      isQuietSource(fumble({ city: "Provo", region: "South Dakota" })),
+    ).toBe(false);
+  });
+
+  it("accepts the state code as well as the name", () => {
+    // The edge sends `x-vercel-ip-country-region` as a code sometimes and a
+    // name others; a filter that only understood one would silently stop
+    // working the day that changed.
+    expect(isQuietSource(fumble({ city: "provo", region: "UT" }))).toBe(true);
+  });
+
+  it("leaves everywhere else alone", () => {
+    expect(isQuietSource(fumble({ city: "Seattle", region: "Washington" }))).toBe(
+      false,
+    );
+    expect(isQuietSource(fumble({ city: null, region: null }))).toBe(false);
+  });
+
+  it("keeps the attacks and drops only the quiet fumbles", () => {
+    const rows = [
+      fumble({ ip_address: "1.1.1.1", city: "Provo", region: "Utah" }),
+      fumble({ ip_address: "2.2.2.2", city: "Seattle", region: "Washington" }),
+      fumble({ ip_address: "3.3.3.3", city: "Orem", region: "Utah", is_attack: true }),
+    ];
+    expect(visibleSources(rows).map((s) => s.ip_address)).toEqual([
+      "2.2.2.2",
+      "3.3.3.3",
+    ]);
   });
 });
