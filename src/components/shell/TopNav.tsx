@@ -97,7 +97,13 @@ export function TopNav({
           sizes="100vw"
           alt=""
           aria-hidden="true"
-          className="h-full w-full object-cover"
+          /* FIXED 240px, anchored to the top of the bar — NOT `h-full`.
+             `object-cover` frames against the box it is in, so a 240px header
+             (dashboard, with the masthead) and a 64px one (everywhere else)
+             showed different slices of the photo and the bar looked like a
+             different image page to page. At a constant height the top 64px is
+             always the same pixels; the short header just clips the rest. */
+          className="absolute inset-x-0 top-0 h-60 w-full object-cover"
           /* SAME framing as the band below it (45%), not the bar's own 55%. Two
              strips of the same photo showing different parts of it is what read
              as "not matching".
