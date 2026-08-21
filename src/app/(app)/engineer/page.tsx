@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { readAuthContext } from "@/lib/auth-context";
 import { AccessCheckError } from "@/components/shared/AccessCheckError";
 import { isEngineer } from "@/constants/roles";
+import { ENGINEER_SECURITY_HREFS } from "@/components/shell/nav";
 
 /**
  * Engineer Console home (#162). A dedicated, engineer-only landing that gathers
@@ -56,6 +57,12 @@ const TOOLS: Tool[] = [
       "Every failed sign-in attempt — who, when, from what IP, and why — newest first. The attempted email may not match any account.",
   },
   {
+    href: "/engineer/sessions",
+    title: "Sessions",
+    description:
+      "Everyone signed in right now, oldest first — how long each session has been open, and the control to end one or sign an account out everywhere.",
+  },
+  {
     href: "/engineer/maintenance",
     title: "Maintenance mode",
     description:
@@ -66,6 +73,26 @@ const TOOLS: Tool[] = [
     title: "Support contacts",
     description:
       "Manage the support contacts shown to users on the in-app error screen.",
+  },
+];
+
+/**
+ * The console is grouped the same way the sidebar is, so the two cannot disagree
+ * about what "Security" means: membership is read from the sidebar's Security
+ * group (`ENGINEER_SECURITY_HREFS`) rather than restated here, and the cards
+ * follow that group's order. Anything not in it stays where it was.
+ */
+const SECURITY_ORDER = new Map(
+  ENGINEER_SECURITY_HREFS.map((href, i) => [href, i] as const),
+);
+
+const SECTIONS: { title: string; tools: Tool[] }[] = [
+  { title: "Tools", tools: TOOLS.filter((t) => !SECURITY_ORDER.has(t.href)) },
+  {
+    title: "Security",
+    tools: TOOLS.filter((t) => SECURITY_ORDER.has(t.href)).sort(
+      (a, b) => SECURITY_ORDER.get(a.href)! - SECURITY_ORDER.get(b.href)!,
+    ),
   },
 ];
 
@@ -98,18 +125,27 @@ export default async function EngineerConsolePage() {
           Engineer-only tools. Everything here is restricted to the engineer
           role and re-enforced by the backend on every request.
         </p>
-        <div className="grid max-w-4xl grid-cols-1 gap-4 sm:grid-cols-2">
-          {TOOLS.map((tool) => (
-            <Link key={tool.href} href={tool.href} className="group block">
-              <Card className="h-full p-5 transition-colors group-hover:border-brand-blue-300">
-                <h2 className="text-sm font-semibold text-gray-900">
-                  {tool.title}
-                </h2>
-                <p className="mt-1 text-sm text-gray-500">{tool.description}</p>
-              </Card>
-            </Link>
-          ))}
-        </div>
+        {SECTIONS.map((section) => (
+          <section key={section.title} className="mb-8 last:mb-0">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
+              {section.title}
+            </h2>
+            <div className="grid max-w-4xl grid-cols-1 gap-4 sm:grid-cols-2">
+              {section.tools.map((tool) => (
+                <Link key={tool.href} href={tool.href} className="group block">
+                  <Card className="h-full p-5 transition-colors group-hover:border-brand-blue-300">
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      {tool.title}
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      {tool.description}
+                    </p>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ))}
       </main>
     </>
   );

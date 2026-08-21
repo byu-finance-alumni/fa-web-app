@@ -353,6 +353,18 @@ export interface paths {
          *     caller, never of the account, which is what keeps it out of the
          *     anti-enumeration contract. The frontend fails open on any non-OK response, so
          *     being throttled here skips the pre-check rather than blocking a sign-in.
+         *
+         *     AUTOMATIC BLOCK (#457): if the forwarded source address is under a block,
+         *     this refuses BEFORE the email is looked up at all — so the refusal is a
+         *     property of the caller and cannot say anything about the account. This is the
+         *     call that actually stops the attempt: the frontend does not attempt the
+         *     Supabase sign-in when ``allowed`` is false. It needs ``context.ip_address``
+         *     in the body to do it; a client that sends only ``email`` is unaffected here
+         *     and is refused on the record call instead.
+         *
+         *     SCOPE. The block is consulted HERE and on ``/auth/login/record``, and
+         *     nowhere else in the application. The public survey — the only public page,
+         *     used by alumni worldwide — never touches it.
          */
         post: operations["login_precheck_auth_login_precheck_post"];
         delete?: never;
@@ -395,6 +407,10 @@ export interface paths {
          *
          *     Per-IP rate limited (#423), on the same route-dependency-before-the-body
          *     basis as ``/auth/login/precheck``.
+         *
+         *     AUTOMATIC BLOCK (#457): a source under a block is refused here with the same
+         *     generic, account-independent status the pre-check returns, and nothing at all
+         *     is written for it. See the comment at the top of the body.
          *
          *     RETENTION (#423): the failure path also triggers the expired-record purge,
          *     at most once an hour per process. It is hooked HERE, and nowhere else, on
@@ -1742,6 +1758,567 @@ export interface paths {
          */
         get: operations["list_login_failures_admin_login_failures_get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/login-attack-sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Login Attack Sources
+         * @description Failed sign-ins rolled up per SOURCE IP. Engineer only.
+         *
+         *     ⚠️ OMITTING ``hours`` SUMMARISES EVERYTHING, and that is the console's
+         *     default. It used to default to 24 and cap at a week, which made yesterday's
+         *     incident disappear overnight — the morning after the first real campaigns the
+         *     owner read the empty table as "the rows were deleted" rather than "the window
+         *     moved". "Has anyone ever come at us" is the question this table answers, and
+         *     it has no window. A caller that wants one can still pass ``hours``; the cap
+         *     is a year, high enough not to be the thing that hides an incident.
+         *
+         *     Backs the attack table on the engineer Maintenance page — the screen the
+         *     owner opens during an incident. GET /admin/login-failures answers "what
+         *     attempts happened"; this answers "who is doing it", which is the question
+         *     that matters when 750 rows scroll past. One row per source: where it appears
+         *     to be, when it started and stopped, how many attempts, how many distinct
+         *     addresses, and what shape the campaign is.
+         *
+         *     Read-only and side-effect free: it opens no incident, sends no alert, and
+         *     never blocks anything. Engineer-gated (RequireEngineer) exactly like
+         *     /login-failures and /logins, and the read is audited
+         *     (``read_login_attack_sources``; actor + applied window/limit).
+         *
+         *     THE CLASSIFIER IS SHARED, ON PURPOSE. ``attack_type`` comes from
+         *     ``login_abuse.classify_source``, which wraps the very ``is_abusive`` and
+         *     ``classify`` the Slack alert renders. The table and the alert therefore
+         *     cannot describe the same IP two different ways, and retuning a threshold
+         *     moves both at once.
+         *
+         *     ⚠️ NO ATTEMPTED EMAIL ADDRESSES ARE RETURNED. Only ``distinct_emails``, the
+         *     count. Those addresses are unverified strings typed by a stranger, some of
+         *     them belong to real people, and a list of them is both the material the
+         *     attacker was probing with and an enumeration oracle for anyone who reaches
+         *     this response. The per-attempt detail, addresses included, stays where it
+         *     already was: GET /admin/login-failures, behind the same engineer gate.
+         *
+         *     ⚠️ ``ip_address`` IS CLIENT-SUPPLIED. It is copied from ``login_failures``,
+         *     which the Next.js login action populates from the incoming request's
+         *     ``x-forwarded-for``. Anyone calling this API directly can put anything there,
+         *     so a source here can be forged to implicate an innocent address or rotated
+         *     per request to evade the grouping entirely. It is the only per-attacker
+         *     identifier this data has, so it is used — but it is a LEAD, not a verdict.
+         *     Verify against the edge's own logs before blocking on it. The console states
+         *     this alongside the table.
+         *
+         *     Attempts with no captured IP are excluded (they cannot be attributed to a
+         *     source, and one "unknown" bucket would sum unrelated people into a row that
+         *     looks like a campaign) — they remain visible per-attempt on /login-failures.
+         *
+         *     ``hours`` is optional (unset = all history) and capped at a year; ``limit``
+         *     defaults to 50 and is hard-capped at 200, mirroring the neighbouring log
+         *     endpoints. The row cap is what bounds the RESPONSE now that the time range
+         *     does not — and `login_failures` is an incident log that is purged on a
+         *     retention schedule, not a traffic log, so "all history" is small by
+         *     construction.
+         */
+        get: operations["list_login_attack_sources_admin_login_attack_sources_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Active Sessions
+         * @description List every LIVE Supabase session, oldest first (paginated). Engineer only.
+         *
+         *     Backs the Admin -> Sessions tab. Rows come from ``auth.sessions`` joined to
+         *     our ``users``/``roles`` tables, filtered to sessions that have not expired.
+         *     Engineer-gated and paginated (default 50, hard cap 200) exactly like the
+         *     logins / login-failures endpoints.
+         *
+         *     Reading the inventory is itself audited (``read_active_sessions``; actor +
+         *     applied limit/offset) — the returned rows are not logged. As with every other
+         *     engineer action, the audit layer reroutes an engineer's ``AuditLog`` to
+         *     ``engineer_action_log`` (#199).
+         *
+         *     NOT rate-limited, on purpose: this is the read an engineer uses to DECIDE
+         *     what to revoke, and throttling it would brake the recovery path rather than
+         *     the destructive one (the same reasoning that leaves maintenance-mode DISABLE
+         *     unthrottled).
+         */
+        get: operations["list_active_sessions_admin_sessions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke Active Session
+         * @description Revoke ONE live session. Engineer only. Destructive and irreversible —
+         *     the person is signed out and must sign in again.
+         *
+         *     Both halves, in one transaction (see app/services/auth_sessions.py):
+         *       1. DELETE the ``auth.sessions`` row. ``auth.refresh_tokens`` cascades, so
+         *          no new access token can ever be minted for that session.
+         *       2. Stamp ``users.active_session_id`` with a ``revoked:<uuid4>`` sentinel
+         *          when — and only when — that is needed to kill the OUTSTANDING access
+         *          token: the session is the account's currently-honoured one, or the
+         *          account has no claimed session at all (NULL fails open under #147). If
+         *          the account has since claimed a DIFFERENT session, we do not stamp:
+         *          #147 already rejects the revoked one, and stamping would sign the user
+         *          out of the session they are legitimately using.
+         *
+         *     SELF-REVOCATION (the lockout question). Ending your own current session is a
+         *     legitimate thing to want — "sign me out of this device" — so it is allowed,
+         *     but never as a side effect: it requires an explicit ``confirm_self=true``,
+         *     and without it the call is refused (409) with nothing changed. The flag is
+         *     the deliberate act; the confirmation dialog in the console is the second.
+         *
+         *     It is NOT irrecoverable, and that is the point worth being explicit about.
+         *     Unlike maintenance mode — where the switch that pauses the site could hide
+         *     the switch that un-pauses it — nothing here touches the ability to sign in:
+         *     the account is not locked, not deactivated, the password is unchanged, and
+         *     ``POST /auth/login`` runs on the force-change-EXEMPT resolver, which does NOT
+         *     enforce the single-session guard. So the very next sign-in re-claims
+         *     ``active_session_id`` and clears the sentinel. The guard exists to prevent an
+         *     ACCIDENT, not to prevent a lockout that cannot happen.
+         *
+         *     404 if the session no longer exists (already expired, already revoked, or the
+         *     listing was stale) — deliberately not a silent success, so the console does
+         *     not report ending access it did not end.
+         */
+        delete: operations["revoke_active_session_admin_sessions__session_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{user_id}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke User Sessions
+         * @description Revoke EVERY live session for one user. Engineer only. Destructive and
+         *     irreversible — the person is signed out on every device.
+         *
+         *     Same two halves as the single revoke, except the sentinel is ALWAYS stamped:
+         *     ending every session on the account is exactly what was asked for, so there
+         *     is no case where leaving an outstanding access token alive is correct. Runs
+         *     even when the user currently has zero ``auth.sessions`` rows — stamping the
+         *     sentinel still invalidates any access token already in flight, so "sign this
+         *     person out" does the whole job rather than most of it.
+         *
+         *     SELF-REVOCATION: this necessarily includes the caller's own current session
+         *     when they target themselves, so targeting your own account requires
+         *     ``confirm_self=true`` — the same explicit act the single revoke requires,
+         *     for the same reason (see ``revoke_active_session`` for why signing yourself
+         *     out is recoverable and therefore permitted at all).
+         *
+         *     SCOPE: there is deliberately no "revoke everything, everyone" endpoint. The
+         *     only mass sign-out in this app is maintenance mode, which is built to keep
+         *     engineers signed in precisely so the operator cannot strand themselves; a
+         *     second, unguarded fleet-wide revoke would reintroduce that risk for no
+         *     benefit this screen needs. Per-user is the widest blast radius offered here.
+         */
+        delete: operations["revoke_user_sessions_admin_users__user_id__sessions_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/login-ip-blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Login Ip Blocks
+         * @description Automatic login blocks for this environment (#457). Engineer only.
+         *
+         *     The "see it" half of the requirement that an engineer can see and lift
+         *     blocks; DELETE below is the "lift it" half. Active blocks come first, then —
+         *     when ``active_only=false`` — recent history including lifted and lapsed ones,
+         *     which is what makes "did this ever fire on us?" answerable.
+         *
+         *     Read-only and side-effect free apart from the read audit
+         *     (``read_login_ip_blocks``), exactly like /login-attack-sources.
+         *
+         *     ⚠️ NO ATTEMPTED EMAIL ADDRESSES ARE RETURNED — only ``distinct_email_count``.
+         *     Same rule and same reason as the attack table and the Slack alert: those
+         *     addresses are unverified strings a stranger typed, some belong to real
+         *     people, and a list of them is an enumeration oracle for anything that reaches
+         *     this response.
+         *
+         *     ⚠️ ``ip_address`` IS CLIENT-SUPPLIED, forwarded from ``x-forwarded-for``. It
+         *     is a LEAD, not a verdict, and the console states this alongside the table.
+         *     Blocking on it is safe only because ``login_block`` refuses to block an
+         *     address with a recent successful sign-in or one an engineer has signed in
+         *     from — read that module before drawing conclusions from a row here.
+         */
+        get: operations["list_login_ip_blocks_admin_login_ip_blocks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/login-ip-blocks/{block_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Lift Login Ip Block
+         * @description Lift one automatic login block early (#457). Engineer only.
+         *
+         *     The manual override on a control that can refuse people. It exists because a
+         *     block is a heuristic acting on a CLIENT-SUPPLIED address, and the person who
+         *     can tell it got one wrong must be able to say so without waiting out the
+         *     hour or editing the production database by hand.
+         *
+         *     A lifted source is not automatically re-blocked for
+         *     ``login_block.LIFT_GRACE_SECONDS`` (24 hours). Without that grace the next
+         *     failed login from the same address would re-open the block and this endpoint
+         *     would be decorative — the false positive would outlive the fix.
+         *
+         *     404 if there is no ACTIVE block with that id (already lifted, or never
+         *     existed), so a double-click is a clean 404 rather than a second lift that
+         *     rewrites who lifted it.
+         *
+         *     Engineer-gated (RequireEngineer) like the neighbouring login endpoints, and
+         *     audited (``lift_login_ip_block`` + the source address). Note the gate is on
+         *     the ROLE the caller holds, not on where they are calling from: blocks are
+         *     consulted only on the two unauthenticated pre-login routes, so an engineer
+         *     signing in from a blocked address is unaffected and can reach this endpoint
+         *     to clear it.
+         */
+        delete: operations["lift_login_ip_block_admin_login_ip_blocks__block_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/login-campaigns/{ip_address}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Login Campaign
+         * @description Delete one CAMPAIGN — everything recorded for a single source IP. Engineer
+         *     only.
+         *
+         *     Removes, for that address: its ``login_failures`` rows (the per-attempt log
+         *     behind this page), its ``login_abuse_incidents`` row(s) (the detector's
+         *     record of the campaign), and its ``login_ip_blocks`` row(s). One transaction,
+         *     with the audit row, so the trail can never be missing for rows that are gone.
+         *
+         *     WHY IT EXISTS. Proving the automatic block (#457) actually refuses people on
+         *     production meant driving real failed sign-ins at the real API — the only
+         *     honest way to test a control that reads a Postgres row — which left synthetic
+         *     rows in the login telemetry. Clearing them by hand meant a psql session
+         *     against production, which is precisely what every other control on these
+         *     screens exists to avoid. The unit is a SOURCE because that is the unit the
+         *     console already thinks in: the attack table is one row per source and the
+         *     block table is one row per source.
+         *
+         *     ⚠️ DELETING THE BLOCK ROW UN-BLOCKS THAT SOURCE. That is correct and
+         *     intended — a finished campaign's block is exactly the thing you are cleaning
+         *     up — but it is a real consequence, so ``blocks_deleted`` and
+         *     ``active_blocks_deleted`` are both reported and the console states it before
+         *     the engineer confirms. Note that this is NOT the lift control: DELETE
+         *     /admin/login-ip-blocks/{id} is the reversible, recorded "this block was
+         *     wrong", and it suppresses automatic re-blocking for 24 hours. Deleting the
+         *     row drops that grace with it, so a source that is still misbehaving can be
+         *     re-blocked by the very next failed sign-in.
+         *
+         *     ⚠️ NO ATTEMPTED EMAIL ADDRESSES ARE RETURNED — only counts. Same rule and
+         *     same reason as /login-attack-sources and /login-ip-blocks: the addresses in
+         *     the rows being deleted are unverified strings a stranger typed, some belong
+         *     to real people, and a list of them is an enumeration oracle for anything that
+         *     reaches this response. The service never selects the column at all.
+         *
+         *     Every count is what Postgres reported deleting (``RETURNING``), not an
+         *     assumed success, and an address that matches nothing is a clean 200 of zeros
+         *     rather than a 404: the call is idempotent, so a double-click or a retry is a
+         *     harmless no-op, and zeros are how an engineer learns they mistyped the
+         *     address. Scoped to the current ``environment`` wherever the table has that
+         *     column, so a dev deployment can never reach a production row — see
+         *     ``app/services/login_campaign.py`` for why ``login_failures`` is the one
+         *     table without one.
+         *
+         *     Engineer-gated: the rate-limit dependency resolves the actor through
+         *     ``require_engineer`` (the same shape POST /admin/alerts/test uses), so the
+         *     role check and the budget are one dependency and the identity is
+         *     server-trusted. Rate limited to ten per ten minutes — destructive, and there
+         *     is no undo.
+         *
+         *     AUDITED, and that is the point of the route as much as the deletion is. The
+         *     ``before_flush`` guard in app/models/audit.py reroutes an engineer's
+         *     ``AuditLog`` into the append-only ``engineer_action_log``, which has no purge
+         *     path and which only super_admin can read — so an engineer cannot use this
+         *     endpoint to erase the record of having used it. The row carries the source
+         *     address and every count, written whether or not anything matched.
+         */
+        delete: operations["delete_login_campaign_admin_login_campaigns__ip_address__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/alerts/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Test Alert
+         * @description Send one clearly-marked TEST alert to a channel. Engineer only.
+         *
+         *     Answers "is alerting actually wired up?" without breaking anything. Before
+         *     this, the only way to prove the operational channel worked was to make the API
+         *     fail three times over a minute -- a deliberate production outage to check a
+         *     webhook. The security channel could at least be proved by simulating an
+         *     attack, which is how the 2026-08-19 misrouting was found at all.
+         *
+         *     It uses the real renderer, the real fan-out and the real webhooks, and it
+         *     touches NO incident state: nothing is opened, claimed or resolved, so a test
+         *     can never suppress the alert for a real incident starting a second later.
+         *
+         *     The response reports each channel separately -- configured, and delivered --
+         *     plus whether a security alert is currently falling back to the error channel
+         *     because ``SLACK_SECURITY_WEBHOOK_URL`` is unset. That fallback is deliberate
+         *     and documented, but it is invisible from inside Slack, which is exactly how it
+         *     went unnoticed.
+         *
+         *     Rate limited to six an hour (engineer-gated on top): it is the one route whose
+         *     whole job is to post to a third party.
+         */
+        post: operations["send_test_alert_admin_alerts_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/alert-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Alert Templates
+         * @description The editable Slack alert wording, with defaults and previews. Engineer only.
+         *
+         *     The "see it" half of letting the owner write his own alerts; PUT below is the
+         *     "change it" half and DELETE is the undo. Each row carries the built-in
+         *     default alongside the current body, so the console can show what reset would
+         *     restore and can mark a message as customised by comparing the two rather than
+         *     by asking whether a row exists — which matters because the migration SEEDS the
+         *     defaults, and a seeded row is not an edit.
+         *
+         *     Read UNCACHED, unlike the alerting path's read: the console must show what is
+         *     stored right now, or an engineer saves an edit and appears to see it not take.
+         *
+         *     Engineer-gated (``RequireEngineer``) like the neighbouring alerting routes,
+         *     and audited (``read_alert_templates``). Not rate limited — it is a read, and
+         *     braking the screen someone uses to fix a bad template is the same
+         *     lockout-shaped mistake as limiting the maintenance-mode disable route.
+         */
+        get: operations["list_alert_templates_admin_alert_templates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/alert-templates/{template_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Alert Template
+         * @description Rewrite one alert's wording. Engineer only.
+         *
+         *     422 with a message the engineer can act on if the body is empty, longer than
+         *     ``alert_templates.MAX_BODY_CHARS``, contains a control or invisible character,
+         *     names a placeholder this message does not have, or carries a brace that is not
+         *     part of one. Those rules exist because a template that cannot render costs a
+         *     real alert its wording, and the moment to find that out is while someone is
+         *     typing — not while the site is down.
+         *
+         *     ⚠️ WHAT THIS CANNOT DO. It cannot make an alert say something the renderer
+         *     does not already compute, and specifically it cannot reach an attempted email
+         *     address: substitution resolves names against a dict the renderer built, so the
+         *     reachable facts are exactly the ``placeholders`` list on the GET above. It also
+         *     cannot silence an alert — a body that will not render is refused here, and a
+         *     body that somehow gets stored anyway is discarded whole at render time in
+         *     favour of the built-in default.
+         *
+         *     Engineer-gated through the rate limiter's own ``actor_guard`` (the same shape
+         *     as POST /admin/alerts/test), rate limited to 30 per ten minutes, and audited
+         *     (``update_alert_template``). The audit records WHICH message changed, not the
+         *     prose — the wording itself is one SELECT away in the table, and an audit row
+         *     is not the place to keep a copy of it.
+         */
+        put: operations["update_alert_template_admin_alert_templates__template_key__put"];
+        post?: never;
+        /**
+         * Reset Alert Template
+         * @description Put one alert's wording back to the built-in default. Engineer only.
+         *
+         *     The undo, and deliberately the CHEAP direction: it deletes the override row,
+         *     after which the message says exactly what it said before anybody edited it.
+         *
+         *     404 if there was nothing stored, so a double-click is a clean "already the
+         *     default" rather than a second delete that implies something changed.
+         *
+         *     NOT rate limited, on purpose and for the same reason the maintenance-mode
+         *     *disable* route is not: this is the recovery path from wording that broke the
+         *     message, and a limiter on the way back is itself the failure mode. The brake
+         *     belongs on the direction that does the damage, which is the PUT above.
+         */
+        delete: operations["reset_alert_template_admin_alert_templates__template_key__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/alert-delivery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Alert Delivery
+         * @description Which channels an alert goes to right now (#458). Engineer only.
+         *
+         *     The "see it" half of the setting; PUT below is the "change it" half. Returns
+         *     the mode, who last set it and when, plus whether each channel is configured
+         *     at all.
+         *
+         *     ⚠️ ``email_configured`` IS NOT DECORATION. The console's job on this screen is
+         *     to stop somebody reading "Slack only" as "we will be silent if Slack breaks".
+         *     That promise -- the e-mail backstop still fires when a Slack post does not
+         *     land -- is only TRUE if a mailbox is actually configured, and the screen
+         *     cannot say so honestly without being told. Neither flag carries the webhook
+         *     URL (a credential) or the recipient list (somebody's address); they are
+         *     booleans.
+         *
+         *     UNCACHED, unlike the read on the alerting path: an engineer looking at this
+         *     must see the true current value, not one up to a minute stale. It can
+         *     therefore fail -- if the setting is unreadable this 500s and the console
+         *     renders its load error, rather than quietly displaying the default as though
+         *     it had been verified.
+         *
+         *     DELIBERATELY NOT AUDITED as a read. The neighbouring /login-ip-blocks and
+         *     /login-attack-sources reads are audited because they return attack data about
+         *     real sources; this returns one enum value carrying no PII, and it is fetched
+         *     on every render of the Maintenance page. An audit row per page view would
+         *     bury the writes below, which are the events worth having a trail of.
+         */
+        get: operations["get_alert_delivery_admin_alert_delivery_get"];
+        /**
+         * Set Alert Delivery
+         * @description Choose whether alerts go to Slack only, or to Slack AND e-mail. Engineer only.
+         *
+         *     ``slack_only`` (the default) is what the API does today: Slack is the
+         *     channel, and the e-mail goes out only when the Slack post did not land.
+         *     ``slack_and_email`` sends both every time -- the behaviour before
+         *     2026-08-19, kept because "I want a copy in the mailbox" is a legitimate
+         *     preference and removing it left no way back.
+         *
+         *     A TABLE AND NOT AN ENV VAR, which is the whole reason this endpoint exists:
+         *     the requirement was to change it without a redeploy. It also has to be a fact
+         *     about the SERVICE -- on Vercel serverless a module-level variable dies with
+         *     the invocation and the instances handling an outage share no memory -- so it
+         *     is a row in ``alert_delivery_config``, following ``maintenance_mode``.
+         *
+         *     ⚠️ NEITHER MODE CAN PRODUCE SILENCE, and this endpoint cannot create one that
+         *     does. There is no value meaning "Slack, and nothing if Slack breaks": in
+         *     ``slack_only`` a failed, rejected or unconfigured Slack post still falls
+         *     through to the e-mail. ``AlertDeliveryUpdate`` is a ``Literal`` so an unknown
+         *     mode is a 422 before any query runs, a CHECK constraint makes it unstorable,
+         *     and ``failure_alert.deliver_alert`` skips the e-mail on exactly one branch --
+         *     the one reached when Slack actually landed.
+         *
+         *     Takes effect in this process immediately and everywhere else within the
+         *     read cache's TTL (a minute). PUT rather than POST because it is idempotent:
+         *     re-selecting the mode already in force is a no-op that only re-stamps who
+         *     confirmed it and when.
+         *
+         *     Audited as ``set_alert_delivery_mode`` with the old and new values. As with
+         *     every engineer action the write is rerouted from ``audit_logs`` to
+         *     ``engineer_action_log`` by the ``before_flush`` guard (#199); nothing here
+         *     writes that table directly.
+         */
+        put: operations["set_alert_delivery_admin_alert_delivery_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -4140,6 +4717,79 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * ActiveSessionPage
+         * @description A page of live sessions, OLDEST FIRST, with the total for pagination.
+         *
+         *     Oldest-first is the opposite of the neighbouring log endpoints and is
+         *     deliberate: the row that matters is the one that has been open for five
+         *     weeks, so it must not be paged past.
+         */
+        ActiveSessionPage: {
+            /** Items */
+            items: components["schemas"]["ActiveSessionRow"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+        };
+        /**
+         * ActiveSessionRow
+         * @description One live Supabase session.
+         *
+         *     ``user_id``/``roles`` come from OUR ``users`` table via the auth id; both are
+         *     null/empty for a Supabase auth identity with no application user row, which
+         *     is shown rather than hidden because a live session on one is an anomaly worth
+         *     seeing. ``age_seconds`` is measured from ``created_at`` and is the number the
+         *     screen exists to surface; ``idle_seconds`` runs from ``last_active_at``
+         *     (the newest of created / updated / last-refreshed).
+         *
+         *     ``is_current`` marks the caller's OWN session, so revoking it can be
+         *     presented as the deliberate act it is. ``is_account_active_session`` says
+         *     whether this is the session our API currently honours for that account
+         *     (``users.active_session_id``) — a false here means #147 is already rejecting
+         *     it even though Supabase would still refresh it.
+         */
+        ActiveSessionRow: {
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /** User Id */
+            user_id: number | null;
+            /** Email */
+            email: string | null;
+            /**
+             * Roles
+             * @default []
+             */
+            roles: string[];
+            /** Account Active */
+            account_active: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Last Active At
+             * Format: date-time
+             */
+            last_active_at: string;
+            /** Refreshed At */
+            refreshed_at: string | null;
+            /** Age Seconds */
+            age_seconds: number;
+            /** Idle Seconds */
+            idle_seconds: number;
+            /** Is Current */
+            is_current: boolean;
+            /** Is Account Active Session */
+            is_account_active_session: boolean;
+        };
+        /**
          * ActivityFeed
          * @description Paginated interaction feed for ``GET /dashboard/activity``.
          */
@@ -4198,6 +4848,147 @@ export interface components {
             limit: number;
             /** Offset */
             offset: number;
+        };
+        /**
+         * AlertDeliveryState
+         * @description Engineer-console view of the alert-delivery setting.
+         *
+         *     ``updated_at`` / ``updated_by_email`` are who-and-when for the console only.
+         *     The durable record of the change is the audit trail
+         *     (``set_alert_delivery_mode``), which survives the actor being deleted.
+         */
+        AlertDeliveryState: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "slack_only" | "slack_and_email";
+            /** Updated At */
+            updated_at: string | null;
+            /** Updated By Email */
+            updated_by_email: string | null;
+            /**
+             * Slack Configured
+             * @default false
+             */
+            slack_configured: boolean;
+            /**
+             * Email Configured
+             * @default false
+             */
+            email_configured: boolean;
+        };
+        /**
+         * AlertDeliveryUpdate
+         * @description Set the delivery mode. ``extra="forbid"`` so a typo'd field is a 422
+         *     rather than a silently ignored no-op on a control somebody just changed.
+         */
+        AlertDeliveryUpdate: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "slack_only" | "slack_and_email";
+        };
+        /**
+         * AlertTemplateList
+         * @description Every editable message, in the order the console shows them.
+         */
+        AlertTemplateList: {
+            /** Items */
+            items: components["schemas"]["AlertTemplateRow"][];
+        };
+        /**
+         * AlertTemplatePlaceholder
+         * @description One ``{name}`` a template may use, with what it means and an example.
+         *
+         *     The console shows these next to the field, which is the only way an owner
+         *     editing a sentence can know what he is allowed to say. ``example`` is what
+         *     drives the live preview.
+         */
+        AlertTemplatePlaceholder: {
+            /** Name */
+            name: string;
+            /** Description */
+            description: string;
+            /** Example */
+            example: string;
+        };
+        /**
+         * AlertTemplateRow
+         * @description One editable message: its default wording, its current wording, and how
+         *     the current wording renders.
+         *
+         *     ``default_body`` is always sent, so the console can show what "reset" would
+         *     restore without asking a second time — and so "customised" is visible as a
+         *     difference rather than as a claim.
+         *
+         *     ⚠️ ``placeholders`` IS THE COMPLETE LIST OF FACTS THIS MESSAGE CAN CARRY.
+         *     There is no placeholder for an attempted email address and there never will
+         *     be: they are unverified strings a stranger typed, some belong to real people,
+         *     and a list of them in a Slack channel is an enumeration oracle. See
+         *     ``app/services/alert_templates.py``.
+         */
+        AlertTemplateRow: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Description */
+            description: string;
+            /** Default Body */
+            default_body: string;
+            /** Body */
+            body: string;
+            /** Customized */
+            customized: boolean;
+            /** Preview */
+            preview: string;
+            /** Placeholders */
+            placeholders: components["schemas"]["AlertTemplatePlaceholder"][];
+            /** Max Chars */
+            max_chars: number;
+            /** Updated At */
+            updated_at: string | null;
+            /** Updated By User Id */
+            updated_by_user_id: number | null;
+        };
+        /**
+         * AlertTemplateUpdate
+         * @description New wording for one message.
+         *
+         *     ``extra="forbid"`` so a typo'd field is a 422 rather than a silent no-op that
+         *     looks like a successful save. The real validation — length, control
+         *     characters, which placeholders are allowed — lives in
+         *     ``alert_templates.validate_body`` and is applied at RENDER time as well, so a
+         *     row that arrives some other way is held to the same rules.
+         */
+        AlertTemplateUpdate: {
+            /** Body */
+            body: string;
+        };
+        /**
+         * AlertTestResult
+         * @description What a test alert actually did, per channel.
+         *
+         *     ⚠️ CONFIGURED AND DELIVERED ARE SEPARATE FIELDS ON PURPOSE. "Nothing arrived"
+         *     has two very different causes -- the channel has no webhook, or it has one and
+         *     the send failed -- and a single boolean cannot tell them apart. Reporting both
+         *     is the entire reason this endpoint is more useful than watching a channel.
+         */
+        AlertTestResult: {
+            /** Purpose */
+            purpose: string;
+            /** Slack Configured */
+            slack_configured: boolean;
+            /** Slack Delivered */
+            slack_delivered: boolean;
+            /** Email Configured */
+            email_configured: boolean;
+            /** Email Delivered */
+            email_delivered: boolean;
+            /** Fell Back To Error Channel */
+            fell_back_to_error_channel: boolean;
         };
         /**
          * AlumniCreateFull
@@ -7138,6 +7929,97 @@ export interface components {
             role_year?: number | null;
         };
         /**
+         * LoginAttackSource
+         * @description One source IP rolled up from ``login_failures``, for the Maintenance
+         *     page's attack table (#456).
+         *
+         *     ``attempts`` and ``distinct_emails`` are counts over the requested window;
+         *     ``first_seen``/``last_seen`` bound the source's activity inside it, so a
+         *     16-second burst and a 10-minute grind are told apart. ``attack_type`` is
+         *     ``login_abuse.classify_source`` — the same classifier the Slack alert uses,
+         *     so the table and the alert cannot disagree — and ``is_attack`` says whether
+         *     the source crossed the detector's thresholds at all.
+         *
+         *     ⚠️ There is deliberately NO email field. See the endpoint docstring.
+         */
+        LoginAttackSource: {
+            /** Ip Address */
+            ip_address: string;
+            /** City */
+            city: string | null;
+            /** Region */
+            region: string | null;
+            /** Country */
+            country: string | null;
+            /**
+             * First Seen
+             * Format: date-time
+             */
+            first_seen: string;
+            /**
+             * Last Seen
+             * Format: date-time
+             */
+            last_seen: string;
+            /** Attempts */
+            attempts: number;
+            /** Distinct Emails */
+            distinct_emails: number;
+            /** Attack Type */
+            attack_type: string;
+            /** Is Attack */
+            is_attack: boolean;
+        };
+        /**
+         * LoginAttackSourcePage
+         * @description The attack table: sources busiest-first, plus the window they cover.
+         *
+         *     ``window_hours`` and ``limit`` echo what was actually applied so the console
+         *     can say "in the last N hours" without re-deriving it from the request.
+         */
+        LoginAttackSourcePage: {
+            /** Items */
+            items: components["schemas"]["LoginAttackSource"][];
+            /** Window Hours */
+            window_hours: number | null;
+            /** Limit */
+            limit: number;
+        };
+        /**
+         * LoginCampaignDeleted
+         * @description What deleting one source's campaign ACTUALLY removed, per table.
+         *
+         *     Every number is a count of rows Postgres reported deleting (each statement
+         *     carries ``RETURNING``), never an assumed success — an address that matched
+         *     nothing comes back as zeros, which is the only way the engineer learns they
+         *     typed it wrong.
+         *
+         *     ``blocks_deleted`` vs ``active_blocks_deleted``: the first is history
+         *     removed, the second is how many of those were IN FORCE at the moment of
+         *     deletion, i.e. whether anybody's access actually changed. Deleting a block
+         *     row un-blocks the source, and the console has to be able to say that plainly
+         *     rather than leaving the engineer to infer it.
+         *
+         *     ⚠️ THERE IS DELIBERATELY NO EMAIL FIELD, and no list of anything. Same rule
+         *     as the attack table, the block list and the Slack alert: the attempted
+         *     addresses being deleted are unverified strings a stranger typed, some of them
+         *     belong to real people, and a list of them is an enumeration oracle for
+         *     anything that reaches this response. Counts only. ``ip_address`` is the
+         *     caller's own input echoed back so the UI can name what it removed.
+         */
+        LoginCampaignDeleted: {
+            /** Ip Address */
+            ip_address: string;
+            /** Failures Deleted */
+            failures_deleted: number;
+            /** Incidents Deleted */
+            incidents_deleted: number;
+            /** Blocks Deleted */
+            blocks_deleted: number;
+            /** Active Blocks Deleted */
+            active_blocks_deleted: number;
+        };
+        /**
          * LoginContext
          * @description Optional client context for a sign-in attempt, forwarded by the frontend
          *     login action from the incoming request — the client IP (``x-forwarded-for``)
@@ -7242,12 +8124,95 @@ export interface components {
             reason: string | null;
         };
         /**
+         * LoginIpBlockLifted
+         * @description Acknowledgement that a block was lifted, echoing what stopped applying.
+         */
+        LoginIpBlockLifted: {
+            /** Block Id */
+            block_id: number;
+            /** Ip Address */
+            ip_address: string;
+        };
+        /**
+         * LoginIpBlockPage
+         * @description Blocks for this environment, active ones first.
+         *
+         *     ``block_seconds`` and ``auto_block_enabled`` are echoed so the console can
+         *     say how long a new block lasts, and can show "automatic blocking is OFF"
+         *     rather than presenting an empty list as if it meant "nobody is blocked".
+         */
+        LoginIpBlockPage: {
+            /** Items */
+            items: components["schemas"]["LoginIpBlockRow"][];
+            /** Active Only */
+            active_only: boolean;
+            /** Limit */
+            limit: number;
+            /** Block Seconds */
+            block_seconds: number;
+            /** Auto Block Enabled */
+            auto_block_enabled: boolean;
+        };
+        /**
+         * LoginIpBlockRow
+         * @description One automatic login block (#457), for the engineer console's list.
+         *
+         *     ``active`` is computed by the database as
+         *     ``lifted_at IS NULL AND blocked_until > now()`` rather than by the client,
+         *     so a stale browser tab cannot show a lapsed block as live. ``blocked_until``
+         *     is the whole safety story in one field: it is never null and never more than
+         *     24 hours out, so every row here ends by itself.
+         *
+         *     ⚠️ There is deliberately NO email field, for the same reason the attack table
+         *     has none — see that endpoint's docstring.
+         */
+        LoginIpBlockRow: {
+            /** Block Id */
+            block_id: number;
+            /** Ip Address */
+            ip_address: string;
+            /**
+             * Blocked At
+             * Format: date-time
+             */
+            blocked_at: string;
+            /**
+             * Blocked Until
+             * Format: date-time
+             */
+            blocked_until: string;
+            /** Active */
+            active: boolean;
+            /** Attempt Count */
+            attempt_count: number;
+            /** Distinct Email Count */
+            distinct_email_count: number;
+            /** Pattern */
+            pattern: string | null;
+            /** Abuse Incident Id */
+            abuse_incident_id: number | null;
+            /** Lifted At */
+            lifted_at: string | null;
+            /** Lifted By User Id */
+            lifted_by_user_id: number | null;
+        };
+        /**
          * LoginPrecheckRequest
          * @description Email to evaluate the pre-login throttle/lock state for.
+         *
+         *     ``context`` is OPTIONAL and carries the same client IP / geo the record call
+         *     already forwards. It was added by #457 so the pre-check — the call that
+         *     actually stops a sign-in being attempted — can see whether the caller's
+         *     source is blocked. A client that omits it (any frontend built before #457)
+         *     simply gets no block evaluation here and is refused at
+         *     ``POST /auth/login/record`` instead: the feature degrades, it does not break.
+         *
+         *     Nothing in ``context`` is trusted for authorization; see LoginContext.
          */
         LoginPrecheckRequest: {
             /** Email */
             email: string;
+            context?: components["schemas"]["LoginContext"] | null;
         };
         /**
          * LoginPurgeResult
@@ -7949,6 +8914,31 @@ export interface components {
         SessionActiveResponse: {
             /** Active */
             active: boolean;
+        };
+        /**
+         * SessionRevokeResult
+         * @description Outcome of a revoke.
+         *
+         *     ``sessions_deleted`` counts ``auth.sessions`` rows removed (the Supabase
+         *     half). ``access_revoked`` says whether the ``users.active_session_id``
+         *     sentinel was stamped (our half) — i.e. whether any outstanding access token
+         *     on that account was invalidated immediately rather than left to expire.
+         *     ``self_revoked`` is true when the caller ended their own current session and
+         *     is about to be signed out.
+         */
+        SessionRevokeResult: {
+            /** Revoked */
+            revoked: boolean;
+            /** Sessions Deleted */
+            sessions_deleted: number;
+            /** Access Revoked */
+            access_revoked: boolean;
+            /** Self Revoked */
+            self_revoked: boolean;
+            /** User Id */
+            user_id: number | null;
+            /** Email */
+            email: string | null;
         };
         /** StateCount */
         StateCount: {
@@ -11276,6 +12266,400 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LoginFailurePage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_login_attack_sources_admin_login_attack_sources_get: {
+        parameters: {
+            query?: {
+                hours?: number | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginAttackSourcePage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_active_sessions_admin_sessions_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActiveSessionPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_active_session_admin_sessions__session_id__delete: {
+        parameters: {
+            query?: {
+                confirm_self?: boolean;
+            };
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionRevokeResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_user_sessions_admin_users__user_id__sessions_delete: {
+        parameters: {
+            query?: {
+                confirm_self?: boolean;
+            };
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionRevokeResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_login_ip_blocks_admin_login_ip_blocks_get: {
+        parameters: {
+            query?: {
+                active_only?: boolean;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginIpBlockPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    lift_login_ip_block_admin_login_ip_blocks__block_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                block_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginIpBlockLifted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_login_campaign_admin_login_campaigns__ip_address__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ip_address: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginCampaignDeleted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_test_alert_admin_alerts_test_post: {
+        parameters: {
+            query?: {
+                purpose?: "operational" | "security";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertTestResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_alert_templates_admin_alert_templates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertTemplateList"];
+                };
+            };
+        };
+    };
+    update_alert_template_admin_alert_templates__template_key__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                template_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlertTemplateUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertTemplateRow"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_alert_template_admin_alert_templates__template_key__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                template_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertTemplateRow"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_alert_delivery_admin_alert_delivery_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertDeliveryState"];
+                };
+            };
+        };
+    };
+    set_alert_delivery_admin_alert_delivery_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlertDeliveryUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertDeliveryState"];
                 };
             };
             /** @description Validation Error */
