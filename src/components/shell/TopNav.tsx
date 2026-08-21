@@ -36,13 +36,18 @@ import { SignOutButton } from "@/components/auth/SignOutButton";
  * If the direction is kept, this gets rebuilt properly. Do not merge it as is.
  */
 export function TopNav({
-  email,
-  name = "",
+  // `email` and `name` are declared on the props but deliberately NOT
+  // destructured — nothing renders them since the name came off the right edge.
+  // Leaving them off here rather than aliasing them keeps the unused-vars rule
+  // meaningful instead of muted.
   role,
   canVocab = false,
   capabilities = [],
 }: {
-  email: string;
+  email?: string;
+  /** Accepted but NOT rendered since the name came off the right edge. Kept on
+   *  the props so this call site stays identical to the Sidebar's — swapping
+   *  the two components back is one line either way. */
   name?: string;
   role: string;
   canVocab?: boolean;
@@ -79,26 +84,32 @@ export function TopNav({
           className="h-full w-full object-cover"
           style={{ objectPosition: "center 55%" }}
         />
-        {/* Off the dashboard, much heavier than the hero's: on
-            silverfund.byu.edu the photo is a TEXTURE — you register that the bar
-            is not flat navy and nothing more. Anything lighter and a 96px strip
-            of building competes with the links sitting on it.
+        {/* TWO TREATMENTS, and on the dashboard it is the HERO'S, not the
+            bar's own (Jake, 2026-08-21).
 
-            ⚠️ ON THE DASHBOARD THERE IS NO SCRIM AT ALL, by request. These two
-            layers are what put the white labels at 8-9.5:1 against the photo;
-            without them the contrast is whatever happens to be behind each word,
-            and the atrium's skylight is close to white. The labels keep a
-            drop-shadow so they do not dissolve outright, but that is a
-            mitigation, not a fix — if a label is hard to read, this is why. */}
-        {!barePhoto ? (
-          <>
-            <div aria-hidden="true" className="absolute inset-0 bg-navy-900/85" />
-            <div
-              aria-hidden="true"
-              className="absolute inset-0 bg-gradient-to-r from-navy-900 via-navy-900/95 to-navy-900/75"
-            />
-          </>
-        ) : null}
+            Bare photo was tried here and the links disappeared into the
+            skylight — exactly the contrast the scrims exist to hold. So the
+            dashboard gets the same two layers the band directly below it uses,
+            at the same opacities: the bar and the band then read as one
+            continuous treatment rather than two different blues stacked.
+
+            Every other route keeps the heavier pair, because there is no band
+            under them to match and a 96px strip of building competes with the
+            links. */}
+        <div
+          aria-hidden="true"
+          className={`absolute inset-0 ${
+            barePhoto ? "bg-navy-900/45" : "bg-navy-900/85"
+          }`}
+        />
+        <div
+          aria-hidden="true"
+          className={`absolute inset-0 bg-gradient-to-r ${
+            barePhoto
+              ? "from-navy-900/80 via-navy-900/60 to-navy-900/35"
+              : "from-navy-900 via-navy-900/95 to-navy-900/75"
+          }`}
+        />
       </div>
 
       {/* 96px, brand left, links RIGHT — the Silver Fund proportions. The links
@@ -127,8 +138,6 @@ export function TopNav({
                      and full opacity only — a filled chip on a photo reads as a
                      button and there are eight of them. */
                   className={`whitespace-nowrap text-[15px] transition ${
-                    barePhoto ? "drop-shadow-md " : ""
-                  }${
                     active
                       ? "font-semibold text-white"
                       : "font-normal text-white/80 hover:text-white"
@@ -153,8 +162,6 @@ export function TopNav({
                   aria-controls={navGroupPanelId(key)}
                   onClick={() => setOpenKey(open ? null : key)}
                   className={`flex items-center gap-1.5 whitespace-nowrap text-[15px] transition ${
-                    barePhoto ? "drop-shadow-md " : ""
-                  }${
                     active || open
                       ? "font-semibold text-white"
                       : "font-normal text-white/80 hover:text-white"
@@ -207,12 +214,13 @@ export function TopNav({
           })}
         </nav>
 
-        {/* The reference has no account cluster at all — it is a public site.
-            This one needs Sign out, so it sits after the links, separated by a
-            hairline rule rather than by more spacing, which would otherwise read
-            as another nav item. */}
-        <div className="ml-8 flex shrink-0 items-center gap-4 border-l border-white/20 pl-8">
-          <span className={`text-[15px] text-white/80${barePhoto ? " drop-shadow-md" : ""}`}>{name || email}</span>
+        {/* THE RIGHT EDGE. It was a hairline rule, the full user name and a
+            white button, which over a photo read as three competing things
+            crowding the corner. Now: the name is dropped (the bar is not where
+            you check who you are signed in as — and it duplicated what the old
+            sidebar footer showed), the rule goes with it, and Sign out sits on
+            its own with the same 32px gap the links use between themselves. */}
+        <div className="ml-8 shrink-0">
           <SignOutButton onDark />
         </div>
       </div>
