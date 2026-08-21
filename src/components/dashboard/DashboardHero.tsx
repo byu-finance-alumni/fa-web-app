@@ -112,7 +112,13 @@ export function HeroBand({
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/images/dashboard-hero.jpg"
-        srcSet="/images/dashboard-hero-960.jpg 960w, /images/dashboard-hero.jpg 1920w"
+        /* 960 / 1280 / 1920. The 1280 was added on 2026-08-21 because the two-
+           step set was making the common case pay for the rare one: `sizes`
+           resolves to ~1270px on a laptop — the viewport less the 15rem sidebar
+           — which is one pixel over the 960 candidate, so every laptop
+           downloaded the 1920 file. 320 kB instead of 650 kB on the first paint
+           of the screen everyone lands on, for one extra file in the repo. */
+        srcSet="/images/dashboard-hero-960.jpg 960w, /images/dashboard-hero-1280.jpg 1280w, /images/dashboard-hero.jpg 1920w"
         /* The band is the content column: full width on mobile, and the viewport
            less the 15rem sidebar from md up. */
         sizes="(min-width: 768px) calc(100vw - 15rem), 100vw"
