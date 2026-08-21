@@ -31,7 +31,7 @@ import {
  */
 export default function Loading() {
   return (
-    <main className="flex-1 overflow-auto lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden lg:[scrollbar-gutter:auto]">
+    <main className="flex-1 overflow-auto lg:flex lg:min-h-0 lg:flex-col lg:[overflow:clip] lg:[overflow-clip-margin:96px] lg:[scrollbar-gutter:auto]">
       <HeroBand>
         {/* Same heights as the live heading + subtitle, so the text does not
             reflow when it arrives. White at low alpha reads as a placeholder on

@@ -75,13 +75,17 @@
  * a 72px hole — and nothing overlaps it.
  */
 /**
- * EMPTY on this branch. The tiles used to straddle the band's bottom edge, but
- * the photo now lives in the SHELL, above <main> — and <main> clips at `lg` to
- * stop the page scrolling. A negative margin here would slide the tiles up
- * under that clip and cut their tops off, so the overlap is off rather than
- * subtly broken. Restore it if the masthead ever moves back into the page.
+ * The tiles straddle the photo's bottom edge again (Jake, 2026-08-21).
+ *
+ * It was empty for a while because the photo moved into the SHELL, above
+ * <main>, and <main> clipped with `overflow: hidden` — which sheared the tops
+ * off anything pulled up out of it. Both that container and the shell column now
+ * use `overflow: clip` with a 96px `overflow-clip-margin`: still no scrolling,
+ * but this much overflow is allowed to render.
+ *
+ * 56px is half a 112px tile, so they sit exactly half on the photo.
  */
-export const HERO_OVERLAP_CLASS = "";
+export const HERO_OVERLAP_CLASS = "lg:-mt-[56px]";
 
 /** The plain greeting the branch briefly used instead of the band — kept so the
  *  two can be compared without digging through git history. Unused. */

@@ -471,6 +471,12 @@ export default async function DashboardPage() {
           floor is ever hit. That is the honest failure — a scrollbar in one
           panel — rather than rows silently under the fold.
 
+          ⚠️ `overflow: clip` AND NOT `hidden`. Both stop the page scrolling,
+          but `hidden` clips at the border box with no way to let anything out —
+          which sheared the tops off the KPI tiles the moment they were pulled up
+          to straddle the photo. `clip` takes an `overflow-clip-margin`, so the
+          page still cannot scroll while 96px of deliberate overflow renders.
+
           Below `lg` nothing changes: the KPI strip and the breakdown are not
           rendered at all, the fields simply flow, and the page scrolls the way a
           phone should. */}
@@ -481,7 +487,7 @@ export default async function DashboardPage() {
           appear — and the nav bar is a SIBLING of <main>, so it spans the full
           width while everything under it stops short. That is the white strip
           down the right-hand side. */}
-      <main className="flex-1 overflow-auto lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden lg:[scrollbar-gutter:auto]">
+      <main className="flex-1 overflow-auto lg:flex lg:min-h-0 lg:flex-col lg:[overflow:clip] lg:[overflow-clip-margin:96px] lg:[scrollbar-gutter:auto]">
         {/* The masthead moved INTO the shell (experiment/top-nav): the nav bar
             and the greeting now share one photo, which is the only way the two
             are continuous at every window width. Nothing renders it here. */}
@@ -529,7 +535,12 @@ export default async function DashboardPage() {
                    wrap, where 2x2 keeps each tile the width it was designed at.
                    The strip only actually renders from `lg` (`hidden lg:grid`),
                    so the 2-up is what a narrow desktop window gets. */
-                className={`relative hidden grid-cols-1 gap-4 sm:grid-cols-2 lg:grid lg:grid-cols-4 lg:gap-4 ${HERO_OVERLAP_CLASS}`}
+                /* `z-10` so the tiles paint ABOVE the shell's photo header.
+                   Both are positioned, and the header comes first in the DOM —
+                   without an explicit z-index the tiles would win only by
+                   source order, which is exactly the kind of thing a later
+                   wrapper quietly changes. */
+                className={`relative z-10 hidden grid-cols-1 gap-4 sm:grid-cols-2 lg:grid lg:grid-cols-4 lg:gap-4 ${HERO_OVERLAP_CLASS}`}
               >
                 <MetricCard
                   size="lg"

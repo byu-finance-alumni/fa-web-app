@@ -179,7 +179,11 @@ export default async function AppLayout({
             the viewport grows past the column and gets clipped by overflow-hidden
             instead of scrolling (E8: vocabulary unreachable below the last
             section). Applied here so every (app) page inherits the fix. */}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-16 md:pb-0">
+        {/* EXPERIMENT: `clip` + a clip-margin rather than `hidden`, for the same
+            reason as on the dashboard's <main> — this column would otherwise be
+            the one that shears the KPI tiles as they overlap the photo above.
+            Still no scrolling; 96px of deliberate overflow is allowed out. */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col [overflow:clip] [overflow-clip-margin:96px] pb-16 md:pb-0">
           {previewRole && <PreviewBanner roleLabel={roleLabel(previewRole)} />}
           {children}
         </div>
