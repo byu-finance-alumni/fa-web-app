@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown } from "lucide-react";
@@ -69,6 +69,28 @@ export function TopNav({
   const visibleNav = getVisibleNav(role, canVocab, capabilities);
   const activeHref = resolveActiveHref(pathname);
   const [openKey, setOpenKey] = useState<string | null>(null);
+  const navRef = useRef<HTMLElement | null>(null);
+
+  // Escape closes, and so does a click anywhere outside the nav. Without these
+  // the only way out of a menu was to choose something from it, which is why an
+  // open one felt stuck.
+  useEffect(() => {
+    if (!openKey) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpenKey(null);
+    };
+    const onClick = (e: MouseEvent) => {
+      if (!navRef.current?.contains(e.target as Node)) setOpenKey(null);
+    };
+    document.addEventListener("keydown", onKey);
+    // `click`, not `mousedown` — mousedown fires before the menu item's own
+    // click and would close the panel out from under the selection.
+    document.addEventListener("click", onClick);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("click", onClick);
+    };
+  }, [openKey]);
 
   // DASHBOARD ONLY: the bar shows the bare photo, no navy (Jake, 2026-08-21).
   // Everywhere else keeps the scrims. Matched exactly rather than by prefix —
@@ -84,7 +106,7 @@ export function TopNav({
     (item as NavGroup).children !== undefined;
 
   return (
-    <header className="relative hidden shrink-0 overflow-visible md:block">
+    <header className="relative z-40 hidden shrink-0 overflow-visible md:block">
       {/* The photo and its scrims, clipped to the bar. Same two-layer treatment
           the dashboard hero uses — a flat wash plus a left-heavy gradient — so
           the brand and the nav labels keep their contrast wherever the photo
@@ -152,7 +174,7 @@ export function TopNav({
           </span>
         </Link>
 
-        <nav className="ml-auto flex min-w-0 items-center gap-8">
+        <nav ref={navRef} className="ml-auto flex min-w-0 items-center gap-8">
           {visibleNav.map((item) => {
             if (!isGroup(item)) {
               const active = item.href === activeHref;
