@@ -54,25 +54,47 @@ export type NavItem = NavLeaf | NavGroup;
 
 export const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/alumni", label: "Alumni" },
-  { href: "/friends", label: "Friends" },
+  // EXPERIMENT (experiment/top-nav): eleven top-level entries fitted down a
+  // sidebar, where vertical space is cheap and a long list reads fine. Across a
+  // bar they crowd, and "Internship Links" wrapped to two lines on a 1900px
+  // screen. Regrouped to eight, on ONE rule: an entry stays top-level if it is
+  // somewhere staff work out of daily, and moves into a group if it is a place
+  // they visit for a reason.
+  //
+  // Nothing is hidden and no route changed — `LEAF_HREFS` is identical, so
+  // every gate, redirect and active-route test still describes the same set.
+  {
+    href: "/alumni",
+    label: "People",
+    children: [
+      { href: "/alumni", label: "Alumni" },
+      { href: "/friends", label: "Friends" },
+    ],
+  },
   { href: "/events", label: "Events" },
-  // Opportunity links (api #441). Top-level rather than under Manage because it
-  // is a browsing surface staff work out of, not a one-off admin task — but it
-  // IS the moderation queue for a public-submitted field, so it carries the same
-  // capability the backend requires for `status=pending|rejected` and for every
-  // write. Same gate as Needs Surveying, which is the other survey-review screen.
+  // Opportunity links (api #441). Stays top-level — a browsing surface staff
+  // work out of, not a one-off admin task — and keeps the owner's wording. It
+  // wrapped to two lines in the bar; that is fixed with `whitespace-nowrap` in
+  // TopNav rather than by shortening a label he chose deliberately (a test in
+  // opportunityLinks.test.ts pins it, which is how I found out).
   {
     href: "/links",
     label: "Internship Links",
     capability: CAPABILITY.SURVEYS_MANAGE,
   },
-  { href: "/map", label: "Map" },
-  { href: "/statistics", label: "Statistics" },
+  // Map, Statistics and Activity are all "go and look at the shape of the data",
+  // which is a reason to visit rather than a place to work — so they group.
   {
-    href: "/activity",
-    label: "Activity",
-    capability: CAPABILITY.REPORTS_ADVANCED,
+    label: "Insights",
+    children: [
+      { href: "/map", label: "Map" },
+      { href: "/statistics", label: "Statistics" },
+      {
+        href: "/activity",
+        label: "Activity",
+        capability: CAPABILITY.REPORTS_ADVANCED,
+      },
+    ],
   },
 
   {

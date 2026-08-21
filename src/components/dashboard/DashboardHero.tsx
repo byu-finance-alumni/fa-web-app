@@ -75,7 +75,8 @@ import { SignOutButton } from "@/components/auth/SignOutButton";
  * the flow, so the search card below moves up with the tiles instead of leaving
  * a 72px hole — and nothing overlaps it.
  */
-export const HERO_OVERLAP_CLASS = "lg:-mt-[56px]";
+/** Inert on this branch — nothing to straddle now the band is gone. */
+export const HERO_OVERLAP_CLASS = "";
 
 /** Shell: the photo, the scrim, and a content well that leaves room at the
  *  bottom for the overlapping KPI tiles. Used by the live page and by the
@@ -173,10 +174,39 @@ export function HeroBand({
 }
 
 /** The live band: "Welcome back, {name}" and the standing subtitle. */
+/**
+ * EXPERIMENT (experiment/top-nav): a plain greeting, not a photo band.
+ *
+ * THE PHOTO MOVED TO THE NAV, so a second one directly beneath it was the same
+ * image twice in the first 250px of the page — which is most of why this screen
+ * looked wrong once the bar landed. Two other things went with it:
+ *
+ *   * the SECOND Sign out. The band grew one when this page had no top bar;
+ *     with the bar carrying it, there were two on screen at once.
+ *   * ~144px of height. The 96px bar took that from the same budget the
+ *     breakdown is fighting for, and this is where it comes back from.
+ *
+ * The KPI tiles no longer straddle anything, so `HERO_OVERLAP_CLASS` is inert
+ * on this branch (kept exported so the skeleton and the page still compile).
+ */
 export function DashboardHero({ greeting }: { greeting: string }) {
   return (
-    // Sign out rides the band because this page has no top bar — see the note
-    // in dashboard/page.tsx.
+    <div className="pt-6">
+      <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+        {greeting}
+      </h1>
+      <p className="mt-1 text-sm text-gray-500">
+        Here&rsquo;s what&rsquo;s happening across the BYU Finance alumni
+        network today.
+      </p>
+    </div>
+  );
+}
+
+/** The original photo band, unused on this branch — kept so the diff back to
+ *  `dev` stays small and the idea is easy to restore. */
+export function DashboardHeroBand({ greeting }: { greeting: string }) {
+  return (
     <HeroBand action={<SignOutButton onDark />}>
       {/* 36px — one step ABOVE the 24–30px page-title band in UX-UI.md's type
           scale, because this is the dashboard's masthead rather than a section

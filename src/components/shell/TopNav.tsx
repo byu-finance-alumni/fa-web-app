@@ -109,7 +109,7 @@ export function TopNav({
                   /* No pill. The reference marks the current page with weight
                      and full opacity only — a filled chip on a photo reads as a
                      button and there are eight of them. */
-                  className={`text-[15px] transition ${
+                  className={`whitespace-nowrap text-[15px] transition ${
                     active
                       ? "font-semibold text-white"
                       : "font-normal text-white/80 hover:text-white"
@@ -133,7 +133,7 @@ export function TopNav({
                   aria-expanded={open}
                   aria-controls={navGroupPanelId(key)}
                   onClick={() => setOpenKey(open ? null : key)}
-                  className={`flex items-center gap-1.5 text-[15px] transition ${
+                  className={`flex items-center gap-1.5 whitespace-nowrap text-[15px] transition ${
                     active || open
                       ? "font-semibold text-white"
                       : "font-normal text-white/80 hover:text-white"
