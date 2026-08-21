@@ -137,7 +137,11 @@ export function TopNav({
       {/* 96px, brand left, links RIGHT — the Silver Fund proportions. The links
           being right-aligned rather than packed against the brand is most of
           what makes that bar read as a masthead instead of a toolbar. */}
-      <div className={showHero ? "relative" : "relative flex h-24 items-center gap-6 px-8"}>
+      {/* Just a positioning context. The h-16 row below owns the bar's height on
+          EVERY page — this used to fall back to `h-24 flex items-center` when
+          there was no masthead, which wrapped the 64px row inside a 96px flex
+          box and pushed the links ~16px lower off the dashboard than on it. */}
+      <div className="relative">
       <div className="flex h-16 items-center gap-6 px-8">
         <Link href="/dashboard" className="shrink-0">
           <span className="text-2xl font-bold tracking-tight text-white">
