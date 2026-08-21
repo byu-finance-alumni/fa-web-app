@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { TopNav } from "@/components/shell/TopNav";
+import { BackLink } from "@/components/shell/BackLink";
 import { MobileNav } from "@/components/shell/MobileNav";
 import { SessionTimeout } from "@/components/auth/SessionTimeout";
 import { SessionGuard } from "@/components/auth/SessionGuard";
@@ -185,6 +186,9 @@ export default async function AppLayout({
             Still no scrolling; 96px of deliberate overflow is allowed out. */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col [overflow:clip] [overflow-clip-margin:96px] pb-16 md:pb-0">
           {previewRole && <PreviewBanner roleLabel={roleLabel(previewRole)} />}
+          {/* Sits ABOVE <main> so it does not scroll away with the content, and
+              renders itself only on screens you clicked into — see BackLink. */}
+          <BackLink />
           {children}
         </div>
         <MobileNav />
