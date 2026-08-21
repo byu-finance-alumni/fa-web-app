@@ -53,6 +53,12 @@ export function TopNav({
   const activeHref = resolveActiveHref(pathname);
   const [openKey, setOpenKey] = useState<string | null>(null);
 
+  // DASHBOARD ONLY: the bar shows the bare photo, no navy (Jake, 2026-08-21).
+  // Everywhere else keeps the scrims. Matched exactly rather than by prefix —
+  // there is no /dashboard/* subtree, and a prefix match would silently take the
+  // scrim off any future one.
+  const barePhoto = pathname === "/dashboard";
+
   const isGroup = (item: NavItem): item is NavGroup =>
     (item as NavGroup).children !== undefined;
 
@@ -73,15 +79,26 @@ export function TopNav({
           className="h-full w-full object-cover"
           style={{ objectPosition: "center 55%" }}
         />
-        {/* Much heavier than the dashboard hero's. On silverfund.byu.edu the
-            photo is a TEXTURE — you register that the bar is not flat navy, and
-            nothing more. Anything lighter and a 96px strip of building competes
-            with the links sitting on it. */}
-        <div aria-hidden="true" className="absolute inset-0 bg-navy-900/85" />
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 bg-gradient-to-r from-navy-900 via-navy-900/95 to-navy-900/75"
-        />
+        {/* Off the dashboard, much heavier than the hero's: on
+            silverfund.byu.edu the photo is a TEXTURE — you register that the bar
+            is not flat navy and nothing more. Anything lighter and a 96px strip
+            of building competes with the links sitting on it.
+
+            ⚠️ ON THE DASHBOARD THERE IS NO SCRIM AT ALL, by request. These two
+            layers are what put the white labels at 8-9.5:1 against the photo;
+            without them the contrast is whatever happens to be behind each word,
+            and the atrium's skylight is close to white. The labels keep a
+            drop-shadow so they do not dissolve outright, but that is a
+            mitigation, not a fix — if a label is hard to read, this is why. */}
+        {!barePhoto ? (
+          <>
+            <div aria-hidden="true" className="absolute inset-0 bg-navy-900/85" />
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 bg-gradient-to-r from-navy-900 via-navy-900/95 to-navy-900/75"
+            />
+          </>
+        ) : null}
       </div>
 
       {/* 96px, brand left, links RIGHT — the Silver Fund proportions. The links
@@ -89,10 +106,10 @@ export function TopNav({
           what makes that bar read as a masthead instead of a toolbar. */}
       <div className="relative flex h-24 items-center gap-6 px-8">
         <Link href="/dashboard" className="shrink-0">
-          <span className="text-2xl font-bold tracking-tight text-white">
+          <span className={`text-2xl font-bold tracking-tight text-white${barePhoto ? " drop-shadow-md" : ""}`}>
             BYU
           </span>
-          <span className="ml-2 text-2xl font-normal text-white">
+          <span className={`ml-2 text-2xl font-normal text-white${barePhoto ? " drop-shadow-md" : ""}`}>
             Alumni Database
           </span>
         </Link>
@@ -110,6 +127,8 @@ export function TopNav({
                      and full opacity only — a filled chip on a photo reads as a
                      button and there are eight of them. */
                   className={`whitespace-nowrap text-[15px] transition ${
+                    barePhoto ? "drop-shadow-md " : ""
+                  }${
                     active
                       ? "font-semibold text-white"
                       : "font-normal text-white/80 hover:text-white"
@@ -134,6 +153,8 @@ export function TopNav({
                   aria-controls={navGroupPanelId(key)}
                   onClick={() => setOpenKey(open ? null : key)}
                   className={`flex items-center gap-1.5 whitespace-nowrap text-[15px] transition ${
+                    barePhoto ? "drop-shadow-md " : ""
+                  }${
                     active || open
                       ? "font-semibold text-white"
                       : "font-normal text-white/80 hover:text-white"
@@ -191,7 +212,7 @@ export function TopNav({
             hairline rule rather than by more spacing, which would otherwise read
             as another nav item. */}
         <div className="ml-8 flex shrink-0 items-center gap-4 border-l border-white/20 pl-8">
-          <span className="text-[15px] text-white/80">{name || email}</span>
+          <span className={`text-[15px] text-white/80${barePhoto ? " drop-shadow-md" : ""}`}>{name || email}</span>
           <SignOutButton onDark />
         </div>
       </div>
