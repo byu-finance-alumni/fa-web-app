@@ -42,12 +42,21 @@ describe("dashboard KPI strip", () => {
     expect(src).toMatch(/alumni_edited_this_year\?: number;/);
   });
 
-  it("keeps the strip three-across with exactly three tiles", () => {
-    // A fourth tile silently reflows `sm:grid-cols-3` into a 3+1 orphan row and
-    // lengthens the column, squeezing the Industry panel underneath it.
+  it("keeps the strip a whole number of tiles across, with no orphan row", () => {
+    // This guarded three tiles in a `sm:grid-cols-3` strip, because a fourth
+    // would have reflowed into a 3+1 orphan row, lengthened the column and
+    // squeezed the Industry panel underneath it. A fourth tile arrived
+    // (Companies, 2026-08-20), so the COLUMNS moved with it rather than the
+    // guard being deleted: the failure it protects against is a tile count and
+    // a column count that disagree, whatever the numbers happen to be.
     const src = dashboardSource();
-    expect(src).toContain("sm:grid-cols-3");
-    expect(src.match(/<MetricCard\b/g) ?? []).toHaveLength(3);
+    const tiles = (src.match(/<MetricCard\b/g) ?? []).length;
+
+    expect(tiles).toBe(4);
+    expect(src).toContain("lg:grid-cols-4");
+    // 2x2 at tablet rather than 4-up: four across there squeezes a six-figure
+    // value and its sub-line into ~180px and the numbers wrap.
+    expect(src).toContain("sm:grid-cols-2");
   });
 
   it("labels the two edit tiles by their own window, not a bare shared label", () => {
@@ -56,8 +65,25 @@ describe("dashboard KPI strip", () => {
     // window — "Alumni edited" alone would leave the two numbers looking like
     // the same measurement disagreeing with itself.
     const src = dashboardSource();
-    expect(src).toContain('label="Alumni edited this month"');
-    expect(src).toContain('label="Alumni edited this year"');
+    expect(src).toContain('label="Edited this month"');
+    expect(src).toContain('label="Edited this year"');
+  });
+
+  it("derives every sub-line from a figure the summary returns", () => {
+    // The tiles gained a context line under the value in the 2026-08-19
+    // redesign. Each one has to be COMPUTED from `/dashboard/summary`, and has
+    // to collapse to nothing when the figure behind it is missing — a hardcoded
+    // percentage or industry count would be indistinguishable from a real one
+    // on screen and wrong the moment the data moved.
+    const src = dashboardSource();
+    expect(src).toContain("breakdown.industries.filter((i) => i.count > 0)");
+    expect(src).toContain("Math.round((n / totalAlumni) * 100)");
+    // A share of an unknown or empty roster is not a number we can show.
+    expect(src).toContain("n === undefined || !totalAlumni ? null");
+    // Every sub-line is guarded by its own null check.
+    expect(src).toContain("industriesWithAlumni === null");
+    expect(src).toContain("editedMonthShare === null");
+    expect(src).toContain("editedYearShare === null");
   });
 
   it("gives each edit tile a distinct link label", () => {
