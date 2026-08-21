@@ -53,7 +53,7 @@ export function BackLink() {
         onClick={() => router.back()}
         className="absolute left-6 top-1 whitespace-nowrap text-sm font-medium text-brand-blue-600 transition hover:text-brand-blue-500"
       >
-        &larr; Back
+        Back
       </button>
     </div>
   );
