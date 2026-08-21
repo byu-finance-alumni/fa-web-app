@@ -1239,18 +1239,22 @@ describe("the Add-link steps", () => {
  * ==================================================================== */
 
 describe("the Internship Links nav entry", () => {
-  it("sits alongside the other top-level sections and is capability-gated", () => {
+  it("sits under Insights, keeps its wording and its gate", () => {
     const src = read("src/components/shell/nav.ts");
-    // Same route, same gate, same position — only the wording changed (the
-    // owner renamed the sidebar entry to "Internship Links"). Asserted piecewise
-    // because the entry no longer fits on one line.
-    const entry = src.slice(
-      src.indexOf('href: "/links"'),
-      src.indexOf('href: "/map"'),
+    // It was top-level, on the argument that it is a browsing surface rather
+    // than a one-off admin task — right down a sidebar, where an extra entry
+    // costs nothing. Across a top bar it is one of the widest labels, and the
+    // owner moved it into Insights (2026-08-21).
+    //
+    // What this test is actually for is UNCHANGED: same route, same capability,
+    // same wording. Only the position moved, so only the slice moved with it.
+    const insights = src.slice(
+      src.indexOf('label: "Insights"'),
+      src.indexOf('label: "Manage"'),
     );
-    expect(entry).toContain('href: "/links"');
-    expect(entry).toContain('label: "Internship Links"');
-    expect(entry).toContain("capability: CAPABILITY.SURVEYS_MANAGE");
+    expect(insights).toContain('href: "/links"');
+    expect(insights).toContain('label: "Internship Links"');
+    expect(insights).toContain("capability: CAPABILITY.SURVEYS_MANAGE");
     expect(src).not.toContain('label: "Links"');
   });
 

@@ -1,8 +1,9 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
-import { Sidebar } from "@/components/shell/Sidebar";
+import { TopNav } from "@/components/shell/TopNav";
 import { MobileNav } from "@/components/shell/MobileNav";
+import { BackLink } from "@/components/shell/BackLink";
 import { SessionTimeout } from "@/components/auth/SessionTimeout";
 import { SessionGuard } from "@/components/auth/SessionGuard";
 import { PointerEventsGuard } from "@/components/shell/PointerEventsGuard";
@@ -45,6 +46,7 @@ export default async function AppLayout({
   let canVocabReal = false;
   let realCapabilities: readonly string[] = [];
   let userName = "";
+  let greeting = "";
   // "The sidebar has no Manage or Engineer dropdown and no data is showing" —
   // the 2026-08-18 incident report (#688). It was not a nav bug: /auth/context
   // was erroring, the catch here left every flag at its default, and a Super
@@ -82,6 +84,20 @@ export default async function AppLayout({
     realCapabilities = ctx.capabilities ?? [];
     // Display name for the sidebar footer (falls back to email if unset).
     userName = [ctx.first_name, ctx.last_name].filter(Boolean).join(" ");
+    // EXPERIMENT: the dashboard's masthead line, derived here because the SHELL
+    // now owns the photo it sits on. Same rule the page used — a first name from
+    // the context, or the email's local part title-cased, never a fabricated
+    // one — and a static greeting rather than a time-of-day one, because the
+    // server renders in UTC and would guess the viewer's hour wrong.
+    const first =
+      ctx.first_name?.trim() ||
+      (() => {
+        const local = ctx.email?.split("@")[0]?.trim();
+        const head = local?.split(/[._-]/)[0];
+        if (!head || /\d/.test(head)) return "";
+        return head.charAt(0).toUpperCase() + head.slice(1).toLowerCase();
+      })();
+    greeting = first ? `Welcome back, ${first}` : "Welcome back";
   }
   // Falling through with the defaults above means `auth.status === "denied"`:
   // 403 = authenticated but not yet provisioned in the users table, 401 = the
@@ -140,19 +156,23 @@ export default async function AppLayout({
       {/* While previewing a role, frame the whole viewport in a thick amber
           border so it's impossible to forget you're not seeing your own account
           (#256). Pairs with the solid PreviewBanner below. */}
+      {/* EXPERIMENT (experiment/top-nav): the shell is a COLUMN here, not a row —
+          nav across the top instead of down the side. Everything below is
+          unchanged; the same `min-h-0` chain still bounds the page. */}
       <div
-        className={`flex h-full overflow-hidden bg-canvas${
+        className={`flex h-full flex-col overflow-hidden bg-canvas${
           previewRole ? " ring-4 ring-inset ring-warning-500" : ""
         }`}
       >
-        {/* While previewing, the sidebar reflects the previewed role (engineer
+        {/* While previewing, the nav reflects the previewed role (engineer
             tools disappear); the engineer exits via the always-visible banner. */}
-        <Sidebar
+        <TopNav
           email={user.email ?? ""}
           name={userName}
           role={effectiveRole}
           canVocab={canVocab}
           capabilities={capabilities}
+          greeting={greeting}
         />
         {/* min-h-0 lets the inner <main className="flex-1 overflow-auto"> on each
             page actually cap its height and scroll. A flex child defaults to
@@ -160,8 +180,15 @@ export default async function AppLayout({
             the viewport grows past the column and gets clipped by overflow-hidden
             instead of scrolling (E8: vocabulary unreachable below the last
             section). Applied here so every (app) page inherits the fix. */}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-16 md:pb-0">
+        {/* EXPERIMENT: `clip` + a clip-margin rather than `hidden`, for the same
+            reason as on the dashboard's <main> — this column would otherwise be
+            the one that shears the KPI tiles as they overlap the photo above.
+            Still no scrolling; 96px of deliberate overflow is allowed out. */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col [overflow:clip] [overflow-clip-margin:96px] pb-16 md:pb-0">
           {previewRole && <PreviewBanner roleLabel={roleLabel(previewRole)} />}
+          {/* Zero-height; it overlays the page's own top padding rather than
+              taking a row of its own — see BackLink. */}
+          <BackLink />
           {children}
         </div>
         <MobileNav />

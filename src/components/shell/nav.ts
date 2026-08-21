@@ -54,25 +54,49 @@ export type NavItem = NavLeaf | NavGroup;
 
 export const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/alumni", label: "Alumni" },
-  { href: "/friends", label: "Friends" },
-  { href: "/events", label: "Events" },
-  // Opportunity links (api #441). Top-level rather than under Manage because it
-  // is a browsing surface staff work out of, not a one-off admin task — but it
-  // IS the moderation queue for a public-submitted field, so it carries the same
-  // capability the backend requires for `status=pending|rejected` and for every
-  // write. Same gate as Needs Surveying, which is the other survey-review screen.
+  // EXPERIMENT (experiment/top-nav): eleven top-level entries fitted down a
+  // sidebar, where vertical space is cheap and a long list reads fine. Across a
+  // bar they crowd, and "Internship Links" wrapped to two lines on a 1900px
+  // screen. Regrouped to eight, on ONE rule: an entry stays top-level if it is
+  // somewhere staff work out of daily, and moves into a group if it is a place
+  // they visit for a reason.
+  //
+  // Nothing is hidden and no route changed — `LEAF_HREFS` is identical, so
+  // every gate, redirect and active-route test still describes the same set.
   {
-    href: "/links",
-    label: "Internship Links",
-    capability: CAPABILITY.SURVEYS_MANAGE,
+    href: "/alumni",
+    label: "People",
+    children: [
+      { href: "/alumni", label: "Alumni" },
+      { href: "/friends", label: "Friends" },
+    ],
   },
-  { href: "/map", label: "Map" },
-  { href: "/statistics", label: "Statistics" },
+  { href: "/events", label: "Events" },
+  // Map, Statistics, Activity and Internship Links: places you go to look at
+  // something, rather than places you work out of. Seven top-level entries now.
+  //
+  // Internship Links (api #441) moved in here at the owner's request. The code
+  // comment it arrived with argued for keeping it top-level — a browsing surface
+  // rather than a one-off admin task — which was the right call down a sidebar
+  // where an eighth entry costs nothing. Across a bar it is one of the widest
+  // labels, and it keeps its full wording here because that wording was chosen
+  // deliberately (a test in opportunityLinks.test.ts pins it).
   {
-    href: "/activity",
-    label: "Activity",
-    capability: CAPABILITY.REPORTS_ADVANCED,
+    label: "Insights",
+    children: [
+      { href: "/map", label: "Map" },
+      { href: "/statistics", label: "Statistics" },
+      {
+        href: "/activity",
+        label: "Activity",
+        capability: CAPABILITY.REPORTS_ADVANCED,
+      },
+      {
+        href: "/links",
+        label: "Internship Links",
+        capability: CAPABILITY.SURVEYS_MANAGE,
+      },
+    ],
   },
 
   {
