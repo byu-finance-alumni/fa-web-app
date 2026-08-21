@@ -106,7 +106,7 @@ export function TopNav({
     (item as NavGroup).children !== undefined;
 
   return (
-    <header className="relative z-40 hidden shrink-0 overflow-visible md:block">
+    <header className="relative hidden shrink-0 overflow-visible md:block">
       {/* The photo and its scrims, clipped to the bar. Same two-layer treatment
           the dashboard hero uses — a flat wash plus a left-heavy gradient — so
           the brand and the nav labels keep their contrast wherever the photo
