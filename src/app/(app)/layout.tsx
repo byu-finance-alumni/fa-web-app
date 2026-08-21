@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
-import { Sidebar } from "@/components/shell/Sidebar";
+import { TopNav } from "@/components/shell/TopNav";
 import { MobileNav } from "@/components/shell/MobileNav";
 import { SessionTimeout } from "@/components/auth/SessionTimeout";
 import { SessionGuard } from "@/components/auth/SessionGuard";
@@ -140,14 +140,17 @@ export default async function AppLayout({
       {/* While previewing a role, frame the whole viewport in a thick amber
           border so it's impossible to forget you're not seeing your own account
           (#256). Pairs with the solid PreviewBanner below. */}
+      {/* EXPERIMENT (experiment/top-nav): the shell is a COLUMN here, not a row —
+          nav across the top instead of down the side. Everything below is
+          unchanged; the same `min-h-0` chain still bounds the page. */}
       <div
-        className={`flex h-full overflow-hidden bg-canvas${
+        className={`flex h-full flex-col overflow-hidden bg-canvas${
           previewRole ? " ring-4 ring-inset ring-warning-500" : ""
         }`}
       >
-        {/* While previewing, the sidebar reflects the previewed role (engineer
+        {/* While previewing, the nav reflects the previewed role (engineer
             tools disappear); the engineer exits via the always-visible banner. */}
-        <Sidebar
+        <TopNav
           email={user.email ?? ""}
           name={userName}
           role={effectiveRole}
