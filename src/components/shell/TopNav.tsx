@@ -71,26 +71,33 @@ export function TopNav({
           alt=""
           aria-hidden="true"
           className="h-full w-full object-cover"
-          style={{ objectPosition: "center 40%" }}
+          style={{ objectPosition: "center 55%" }}
         />
-        <div aria-hidden="true" className="absolute inset-0 bg-navy-900/70" />
+        {/* Much heavier than the dashboard hero's. On silverfund.byu.edu the
+            photo is a TEXTURE — you register that the bar is not flat navy, and
+            nothing more. Anything lighter and a 96px strip of building competes
+            with the links sitting on it. */}
+        <div aria-hidden="true" className="absolute inset-0 bg-navy-900/85" />
         <div
           aria-hidden="true"
-          className="absolute inset-0 bg-gradient-to-r from-navy-900/90 via-navy-900/75 to-navy-900/60"
+          className="absolute inset-0 bg-gradient-to-r from-navy-900 via-navy-900/95 to-navy-900/75"
         />
       </div>
 
-      <div className="relative flex h-16 items-center gap-6 px-6">
-        <Link href="/dashboard" className="shrink-0 leading-tight">
-          <span className="block text-sm font-bold tracking-wide text-white">
-            BYU FINANCE
+      {/* 96px, brand left, links RIGHT — the Silver Fund proportions. The links
+          being right-aligned rather than packed against the brand is most of
+          what makes that bar read as a masthead instead of a toolbar. */}
+      <div className="relative flex h-24 items-center gap-6 px-8">
+        <Link href="/dashboard" className="shrink-0">
+          <span className="text-2xl font-bold tracking-tight text-white">
+            BYU
           </span>
-          <span className="block text-xs text-brand-blue-300">
+          <span className="ml-2 text-2xl font-normal text-white">
             Alumni Database
           </span>
         </Link>
 
-        <nav className="flex min-w-0 flex-1 items-center gap-1">
+        <nav className="ml-auto flex min-w-0 items-center gap-8">
           {visibleNav.map((item) => {
             if (!isGroup(item)) {
               const active = item.href === activeHref;
@@ -99,10 +106,13 @@ export function TopNav({
                   key={item.href}
                   href={item.href}
                   aria-current={active ? "page" : undefined}
-                  className={`rounded-md px-3 py-2 text-sm font-medium transition ${
+                  /* No pill. The reference marks the current page with weight
+                     and full opacity only — a filled chip on a photo reads as a
+                     button and there are eight of them. */
+                  className={`text-[15px] transition ${
                     active
-                      ? "bg-white/20 text-white"
-                      : "text-white/85 hover:bg-white/10 hover:text-white"
+                      ? "font-semibold text-white"
+                      : "font-normal text-white/80 hover:text-white"
                   }`}
                 >
                   {item.label}
@@ -123,10 +133,10 @@ export function TopNav({
                   aria-expanded={open}
                   aria-controls={navGroupPanelId(key)}
                   onClick={() => setOpenKey(open ? null : key)}
-                  className={`flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium transition ${
+                  className={`flex items-center gap-1.5 text-[15px] transition ${
                     active || open
-                      ? "bg-white/20 text-white"
-                      : "text-white/85 hover:bg-white/10 hover:text-white"
+                      ? "font-semibold text-white"
+                      : "font-normal text-white/80 hover:text-white"
                   }`}
                 >
                   {item.label}
@@ -138,7 +148,7 @@ export function TopNav({
                 {open ? (
                   <div
                     id={navGroupPanelId(key)}
-                    className="absolute left-0 top-full z-50 mt-1 min-w-56 rounded-lg border border-gray-200 bg-white py-1 shadow-card"
+                    className="absolute right-0 top-full z-50 mt-2 min-w-56 rounded-lg border border-gray-200 bg-white py-1 shadow-card"
                   >
                     {item.children.map((child: NavItem) =>
                       isGroup(child) ? (
@@ -176,11 +186,12 @@ export function TopNav({
           })}
         </nav>
 
-        <div className="flex shrink-0 items-center gap-4">
-          <div className="text-right leading-tight">
-            <p className="text-sm font-medium text-white">{name || email}</p>
-            <p className="text-xs text-white/70">{email}</p>
-          </div>
+        {/* The reference has no account cluster at all — it is a public site.
+            This one needs Sign out, so it sits after the links, separated by a
+            hairline rule rather than by more spacing, which would otherwise read
+            as another nav item. */}
+        <div className="ml-8 flex shrink-0 items-center gap-4 border-l border-white/20 pl-8">
+          <span className="text-[15px] text-white/80">{name || email}</span>
           <SignOutButton onDark />
         </div>
       </div>
