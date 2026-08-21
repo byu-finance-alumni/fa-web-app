@@ -485,7 +485,14 @@ export default async function DashboardPage() {
           Below `lg` nothing changes: the KPI strip and the breakdown are not
           rendered at all, the fields simply flow, and the page scrolls the way a
           phone should. */}
-      <main className="flex-1 overflow-auto lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden">
+      {/* ⚠️ `scrollbar-gutter:auto` at `lg` (experiment/top-nav). Global CSS puts
+          `scrollbar-gutter: stable` on every <main> so a page that starts
+          scrolling does not jump sideways. This page CANNOT scroll from `lg` up,
+          so that gutter is ~15px reserved for a scrollbar that will never
+          appear — and the nav bar is a SIBLING of <main>, so it spans the full
+          width while everything under it stops short. That is the white strip
+          down the right-hand side. */}
+      <main className="flex-1 overflow-auto lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden lg:[scrollbar-gutter:auto]">
         <DashboardHero greeting={greeting} />
         {/* Top padding is on the BRANCHES, not here: the happy path zeroes it
             from `lg` up so the KPI strip's negative margin is measured straight

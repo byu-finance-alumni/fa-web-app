@@ -82,7 +82,17 @@ export function TopNav({
           alt=""
           aria-hidden="true"
           className="h-full w-full object-cover"
-          style={{ objectPosition: "center 55%" }}
+          /* SAME framing as the band below it (45%), not the bar's own 55%. Two
+             strips of the same photo showing different parts of it is what read
+             as "not matching".
+
+             ⚠️ They still are not CONTINUOUS — the bar and the band are separate
+             elements of different heights, so a single percentage cannot make
+             the band start exactly where the bar stops, and the offset needed to
+             do it changes with window width. Same crop is as close as two
+             elements get; the only way to a genuinely unbroken photo is one
+             image spanning both, which means the band moving into the shell. */
+          style={{ objectPosition: "center 45%" }}
         />
         {/* TWO TREATMENTS, and on the dashboard it is the HERO'S, not the
             bar's own (Jake, 2026-08-21).
