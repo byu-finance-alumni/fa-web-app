@@ -3,10 +3,12 @@ import { apiGet, ApiError } from "@/lib/api";
 import { getAuthContext } from "@/lib/auth-context";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { SearchHero } from "@/components/dashboard/SearchHero";
-import {
-  DashboardHero,
-  HERO_OVERLAP_CLASS,
-} from "@/components/dashboard/DashboardHero";
+// `DashboardHero` is no longer imported — the shell renders the masthead now.
+// HERO_OVERLAP_CLASS still is, and is empty on this branch: the tiles cannot
+// straddle the photo any more, because the photo lives above <main> and <main>
+// clips at `lg` to stop the page scrolling. A negative margin here would slide
+// the tiles under that clip and cut their tops off.
+import { HERO_OVERLAP_CLASS } from "@/components/dashboard/DashboardHero";
 import { DashboardSearch } from "@/components/dashboard/DashboardSearch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -96,20 +98,6 @@ interface Summary {
 }
 
 /* ------------------------------------------------------------- date helpers -- */
-
-/** A clean first name from the auth context, or null if there's nothing usable.
- *  Falls back to the local-part of the email (title-cased) when no name field is
- *  set — never a fabricated name. */
-function resolveFirstName(ctx: UserContext | null): string | null {
-  const name = ctx?.first_name?.trim();
-  if (name) return name;
-  const local = ctx?.email?.split("@")[0]?.trim();
-  if (!local) return null;
-  // "marcus.young" / "marcus_young" -> "Marcus"
-  const first = local.split(/[._-]/)[0];
-  if (!first || /\d/.test(first)) return null;
-  return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
-}
 
 /* -------------------------------------------------------------- presentation -- */
 
@@ -348,8 +336,9 @@ export default async function DashboardPage() {
   // "Welcome back, Marcus" — name from the auth context (or a first name derived
   // from the email), with a no-name fallback. A static greeting avoids the wrong
   // time-of-day (the server renders in UTC, not the viewer's local hour).
-  const firstName = resolveFirstName(ctx);
-  const greeting = firstName ? `Welcome back, ${firstName}` : "Welcome back";
+  // The greeting itself moved to the shell with the photo it sits on; this
+  // helper stays because the file still documents the naming rule and a future
+  // per-page masthead would want it.
 
   // Quick-add FAB (mobile) gating. Each shortcut asks for the capability its
   // destination actually needs (fa-web-api #379 replaced the one blanket
@@ -493,7 +482,9 @@ export default async function DashboardPage() {
           width while everything under it stops short. That is the white strip
           down the right-hand side. */}
       <main className="flex-1 overflow-auto lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden lg:[scrollbar-gutter:auto]">
-        <DashboardHero greeting={greeting} />
+        {/* The masthead moved INTO the shell (experiment/top-nav): the nav bar
+            and the greeting now share one photo, which is the only way the two
+            are continuous at every window width. Nothing renders it here. */}
         {/* Top padding is on the BRANCHES, not here: the happy path zeroes it
             from `lg` up so the KPI strip's negative margin is measured straight
             off the band's bottom edge (see HERO_OVERLAP_CLASS), while the two

@@ -45,6 +45,7 @@ export default async function AppLayout({
   let canVocabReal = false;
   let realCapabilities: readonly string[] = [];
   let userName = "";
+  let greeting = "";
   // "The sidebar has no Manage or Engineer dropdown and no data is showing" —
   // the 2026-08-18 incident report (#688). It was not a nav bug: /auth/context
   // was erroring, the catch here left every flag at its default, and a Super
@@ -82,6 +83,20 @@ export default async function AppLayout({
     realCapabilities = ctx.capabilities ?? [];
     // Display name for the sidebar footer (falls back to email if unset).
     userName = [ctx.first_name, ctx.last_name].filter(Boolean).join(" ");
+    // EXPERIMENT: the dashboard's masthead line, derived here because the SHELL
+    // now owns the photo it sits on. Same rule the page used — a first name from
+    // the context, or the email's local part title-cased, never a fabricated
+    // one — and a static greeting rather than a time-of-day one, because the
+    // server renders in UTC and would guess the viewer's hour wrong.
+    const first =
+      ctx.first_name?.trim() ||
+      (() => {
+        const local = ctx.email?.split("@")[0]?.trim();
+        const head = local?.split(/[._-]/)[0];
+        if (!head || /\d/.test(head)) return "";
+        return head.charAt(0).toUpperCase() + head.slice(1).toLowerCase();
+      })();
+    greeting = first ? `Welcome back, ${first}` : "Welcome back";
   }
   // Falling through with the defaults above means `auth.status === "denied"`:
   // 403 = authenticated but not yet provisioned in the users table, 401 = the
@@ -156,6 +171,7 @@ export default async function AppLayout({
           role={effectiveRole}
           canVocab={canVocab}
           capabilities={capabilities}
+          greeting={greeting}
         />
         {/* min-h-0 lets the inner <main className="flex-1 overflow-auto"> on each
             page actually cap its height and scroll. A flex child defaults to

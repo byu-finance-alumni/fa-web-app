@@ -43,6 +43,7 @@ export function TopNav({
   role,
   canVocab = false,
   capabilities = [],
+  greeting,
 }: {
   email?: string;
   /** Accepted but NOT rendered since the name came off the right edge. Kept on
@@ -52,6 +53,17 @@ export function TopNav({
   role: string;
   canVocab?: boolean;
   capabilities?: readonly string[];
+  /**
+   * The dashboard's masthead line. Passing it makes this ONE photo covering the
+   * bar AND the greeting, rather than the bar's strip and a second band below —
+   * which is the only way the two are genuinely continuous, since two separate
+   * elements cannot be made to line up at every window width.
+   *
+   * The shell renders it because the shell owns the photo. It is derived here
+   * from the same auth context the layout already reads for the user's name, so
+   * no new request.
+   */
+  greeting?: string;
 }) {
   const pathname = usePathname();
   const visibleNav = getVisibleNav(role, canVocab, capabilities);
@@ -62,7 +74,14 @@ export function TopNav({
   // Everywhere else keeps the scrims. Matched exactly rather than by prefix —
   // there is no /dashboard/* subtree, and a prefix match would silently take the
   // scrim off any future one.
-  const barePhoto = pathname === "/dashboard";
+  const onDashboard = pathname === "/dashboard";
+  // The dashboard's bar shares the greeting's photo, so it takes the softer
+  // scrim the old band used; every other route keeps the heavier pair.
+  const barePhoto = onDashboard;
+  // ONE PHOTO covering the bar and the masthead. Gated on the route as well as
+  // the prop so a future page passing a greeting cannot silently grow a 240px
+  // photo header.
+  const showHero = onDashboard && Boolean(greeting);
 
   const isGroup = (item: NavItem): item is NavGroup =>
     (item as NavGroup).children !== undefined;
@@ -125,7 +144,8 @@ export function TopNav({
       {/* 96px, brand left, links RIGHT — the Silver Fund proportions. The links
           being right-aligned rather than packed against the brand is most of
           what makes that bar read as a masthead instead of a toolbar. */}
-      <div className="relative flex h-24 items-center gap-6 px-8">
+      <div className={showHero ? "relative" : "relative flex h-24 items-center gap-6 px-8"}>
+      <div className="flex h-24 items-center gap-6 px-8">
         <Link href="/dashboard" className="shrink-0">
           <span className={`text-2xl font-bold tracking-tight text-white${barePhoto ? " drop-shadow-md" : ""}`}>
             BYU
@@ -233,6 +253,22 @@ export function TopNav({
         <div className="ml-8 shrink-0">
           <SignOutButton onDark />
         </div>
+      </div>
+
+      {/* The greeting sits UNDER the nav row and INSIDE the same photo, which is
+          the whole point of moving it here: one image, one scrim, no seam. The
+          height is the old band's 144px, so the page below is unchanged. */}
+      {showHero ? (
+        <div className="flex h-36 flex-col justify-center px-8">
+          <h1 className="text-3xl font-bold tracking-tight text-white drop-shadow-sm md:text-4xl">
+            {greeting}
+          </h1>
+          <p className="mt-1 max-w-2xl text-sm font-normal text-white">
+            Here&rsquo;s what&rsquo;s happening across the BYU Finance alumni
+            network today.
+          </p>
+        </div>
+      ) : null}
       </div>
     </header>
   );

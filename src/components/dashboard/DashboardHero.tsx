@@ -74,7 +74,14 @@
  * the flow, so the search card below moves up with the tiles instead of leaving
  * a 72px hole — and nothing overlaps it.
  */
-export const HERO_OVERLAP_CLASS = "lg:-mt-[56px]";
+/**
+ * EMPTY on this branch. The tiles used to straddle the band's bottom edge, but
+ * the photo now lives in the SHELL, above <main> — and <main> clips at `lg` to
+ * stop the page scrolling. A negative margin here would slide the tiles up
+ * under that clip and cut their tops off, so the overlap is off rather than
+ * subtly broken. Restore it if the masthead ever moves back into the page.
+ */
+export const HERO_OVERLAP_CLASS = "";
 
 /** The plain greeting the branch briefly used instead of the band — kept so the
  *  two can be compared without digging through git history. Unused. */
