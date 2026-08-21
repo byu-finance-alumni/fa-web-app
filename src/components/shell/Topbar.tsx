@@ -31,24 +31,4 @@ export function Topbar({
   // `children` (the centred zone some pages fill) disappears too — check any
   // page that passed something before judging this.
   return null;
-
-  return (
-    <header className="grid h-16 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-gray-300 bg-white px-4 md:px-6">
-      {/* Compact top bar renders the title at 16px — see UX-UI.md typography "Known gap". */}
-      {breadcrumb ? (
-        <Breadcrumb items={breadcrumb} />
-      ) : title ? (
-        <h1 className="text-base font-semibold text-gray-900">{title}</h1>
-      ) : (
-        /* Titleless bar: an empty cell holds the column open. Never an empty
-           <h1> — a screen reader would announce a nameless heading. */
-        <div aria-hidden="true" />
-      )}
-      {/* Center zone — equal 1fr columns either side keep it truly centered */}
-      <div className="flex items-center justify-center">{children}</div>
-      <div className="flex items-center justify-end gap-3">
-        <SignOutButton />
-      </div>
-    </header>
-  );
 }

@@ -134,10 +134,10 @@ export function TopNav({
       <div className={showHero ? "relative" : "relative flex h-24 items-center gap-6 px-8"}>
       <div className="flex h-16 items-center gap-6 px-8">
         <Link href="/dashboard" className="shrink-0">
-          <span className={`text-2xl font-bold tracking-tight text-white${barePhoto ? " drop-shadow-md" : ""}`}>
+          <span className="text-2xl font-bold tracking-tight text-white">
             BYU
           </span>
-          <span className={`ml-2 text-2xl font-normal text-white${barePhoto ? " drop-shadow-md" : ""}`}>
+          <span className="ml-2 text-2xl font-normal text-white">
             Alumni Database
           </span>
         </Link>
