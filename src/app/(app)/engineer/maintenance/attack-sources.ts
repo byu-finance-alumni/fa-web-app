@@ -86,6 +86,67 @@ export function formatDuration(firstIso: string, lastIso: string): string {
 }
 
 /** "Seattle, Washington, US" from whatever parts the edge captured, or "—". */
+/**
+ * Places whose ordinary fumbled sign-ins are noise on this table.
+ *
+ * The owner and his manager work from these, so a mistyped password from one of
+ * them is a person having a Tuesday, not an incident — and a security screen
+ * that lists it teaches you to skim the screen.
+ *
+ * Matched on city + region so "Provo" only hides Provo, UTAH. Cities repeat
+ * across states, and a silent match on the wrong Provo is the kind of quiet
+ * hole this whole feature exists to avoid.
+ */
+export const QUIET_LOCATIONS: readonly { city: string; region: string }[] = [
+  { city: "minden", region: "nevada" },
+  { city: "provo", region: "utah" },
+  { city: "orem", region: "utah" },
+];
+
+/** US state names as the edge reports them, plus the codes it sometimes sends. */
+const REGION_ALIASES: Record<string, string> = {
+  ut: "utah",
+  nv: "nevada",
+};
+
+function normalise(value: string | null): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
+/**
+ * Should this source be hidden from the table?
+ *
+ * ⚠️ AN ATTACK IS NEVER HIDDEN, WHATEVER IT CLAIMS ITS LOCATION IS. That is the
+ * whole design of this filter and it is not a nicety.
+ *
+ * `city`/`region` come from IP geolocation — the same self-reported, spoofable
+ * field the caption under this table warns about. A filter that hid rows on that
+ * field alone would hand anyone who sets `x-vercel-ip-city: Provo` a permanent
+ * blind spot on the one screen built to catch them. Gating on `is_attack` — the
+ * backend's own classification, computed from BEHAVIOUR (how many addresses, how
+ * many attempts, how fast) and not from anything the client says about itself —
+ * means the worst a spoofer can achieve is hiding a handful of failed sign-ins
+ * that were never going to be reported anyway. The moment they do something
+ * worth seeing, they appear.
+ */
+export function isQuietSource(source: LoginAttackSource): boolean {
+  if (source.is_attack) return false;
+  const city = normalise(source.city);
+  const rawRegion = normalise(source.region);
+  const region = REGION_ALIASES[rawRegion] ?? rawRegion;
+  return QUIET_LOCATIONS.some((q) => q.city === city && q.region === region);
+}
+
+/**
+ * The rows worth showing: every attack, plus any ordinary failure that did not
+ * come from one of the quiet places.
+ */
+export function visibleSources(
+  sources: readonly LoginAttackSource[],
+): LoginAttackSource[] {
+  return sources.filter((s) => !isQuietSource(s));
+}
+
 export function formatLocation(source: LoginAttackSource): string {
   const parts = [source.city, source.region, source.country].filter(Boolean);
   return parts.length ? parts.join(", ") : "—";
