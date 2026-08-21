@@ -71,7 +71,10 @@ export function MetricCard({
     raised ? "shadow-md" : "shadow-card",
     // The raised tiles carry the mockup's generous 24px inset; every other call
     // site keeps the dense CRM padding it has today.
-    raised ? "p-6" : lg ? "p-5" : "p-4",
+    // `raised` is the dashboard strip and nothing else. It was `p-6`; the
+    // breakdown underneath needed the height more than these tiles needed the
+    // air, and at 36px the value was never the thing that was hard to read.
+    raised ? "p-4" : lg ? "p-5" : "p-4",
   );
   // Semantic sub-line tones, all straight off the UX-UI.md status tokens.
   const subToneClass = {
@@ -86,7 +89,10 @@ export function MetricCard({
           top, whether it wraps to one line or two. */}
       <span
         className={cn(
-          "block min-h-8 text-xs font-semibold uppercase tracking-wide text-gray-500",
+          // min-h keeps a one-line and a two-line label the same height, so the
+          // four values stay on one baseline. 24px still clears two lines at
+          // this size; it does not need to reserve 32.
+          "block min-h-6 text-xs font-semibold uppercase tracking-wide text-gray-500",
           raised ? "text-left" : "text-center",
         )}
       >
@@ -102,9 +108,11 @@ export function MetricCard({
           className={cn(
             "tracking-tight tabular-nums text-gray-900",
             raised ? "text-left font-bold" : "text-center font-semibold",
-            // Raised tiles run one step up the scale (36px) — the dashboard is
-            // the only screen where the number is the headline.
-            lg ? (raised ? "text-4xl" : "text-3xl") : "text-xl",
+            // Raised tiles run one step up the scale — the dashboard is the
+            // only screen where the number is the headline. 30px rather than
+            // 36px since 2026-08-20: still the largest thing on the page, and
+            // the 6px goes to the Industry breakdown.
+            lg ? (raised ? "text-3xl" : "text-2xl") : "text-xl",
           )}
         >
           {value ?? "—"}
@@ -124,9 +132,17 @@ export function MetricCard({
     </>
   );
 
+  // NO HOVER FILL (Jake, 2026-08-20). The tint read as the card being selected
+  // rather than pointed at, and on the dashboard four of these sit in a row
+  // straddling a photo, where a wash on one made the strip look uneven.
+  //
+  // The border tint stays, and so does the focus ring: hover is a nicety, but a
+  // card you can click has to SAY it is clickable, and the ring is how anyone
+  // navigating by keyboard knows where they are. Removing those alongside the
+  // fill would turn a visual preference into an accessibility regression.
   const interactive = cn(
     base,
-    "cursor-pointer transition-colors hover:border-brand-blue-300 hover:bg-brand-blue-50/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
+    "cursor-pointer transition-colors hover:border-brand-blue-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1",
   );
 
   if (href) {

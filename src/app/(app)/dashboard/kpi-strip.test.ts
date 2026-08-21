@@ -42,12 +42,21 @@ describe("dashboard KPI strip", () => {
     expect(src).toMatch(/alumni_edited_this_year\?: number;/);
   });
 
-  it("keeps the strip three-across with exactly three tiles", () => {
-    // A fourth tile silently reflows `sm:grid-cols-3` into a 3+1 orphan row and
-    // lengthens the column, squeezing the Industry panel underneath it.
+  it("keeps the strip a whole number of tiles across, with no orphan row", () => {
+    // This guarded three tiles in a `sm:grid-cols-3` strip, because a fourth
+    // would have reflowed into a 3+1 orphan row, lengthened the column and
+    // squeezed the Industry panel underneath it. A fourth tile arrived
+    // (Companies, 2026-08-20), so the COLUMNS moved with it rather than the
+    // guard being deleted: the failure it protects against is a tile count and
+    // a column count that disagree, whatever the numbers happen to be.
     const src = dashboardSource();
-    expect(src).toContain("sm:grid-cols-3");
-    expect(src.match(/<MetricCard\b/g) ?? []).toHaveLength(3);
+    const tiles = (src.match(/<MetricCard\b/g) ?? []).length;
+
+    expect(tiles).toBe(4);
+    expect(src).toContain("lg:grid-cols-4");
+    // 2x2 at tablet rather than 4-up: four across there squeezes a six-figure
+    // value and its sub-line into ~180px and the numbers wrap.
+    expect(src).toContain("sm:grid-cols-2");
   });
 
   it("labels the two edit tiles by their own window, not a bare shared label", () => {

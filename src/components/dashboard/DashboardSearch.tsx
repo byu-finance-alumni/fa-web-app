@@ -532,6 +532,23 @@ export function DashboardSearch({
             growing and without the card changing height. Auto margins resolve
             AFTER flex-grow, which is why the cap still wins.
 
+            ⚠️ THE CAP IS 20rem, NOT 15rem, AND THE DIFFERENCE IS THE WHITE SPACE
+            (Jake, 2026-08-20). `mt-auto` pins the buttons to the bottom edge but
+            it cannot make the leftover height stop existing — it just moves the
+            emptiness above the action bar, which is what read as wasted space.
+            The only way to shrink the gap is to give that height to the fields,
+            so the cap goes 15rem → 20rem and the scroll box shows ~80px more of
+            the facets before it starts scrolling.
+
+            It stays a CAP, and it stays well under the row: the row is set by
+            the Industry breakdown panel's natural height (~488px here), and this
+            tab's natural height with a 20rem block is ~400px, so the grid row is
+            still dictated by the neighbour and the card cannot grow. Raise this
+            further and that stops being true — the tab starts setting the row
+            itself and the page jumps on every tab switch, which is the exact bug
+            the cap was introduced to fix. If the fields ever need more room than
+            this, the answer is fewer fields on the tab, not a taller cap.
+
             `gap-4` rather than `space-y-4` on this container for the same
             reason: `space-y-*` compiles to a `> * ~ *` margin-top rule whose
             specificity beats a plain `mt-auto` utility, so the auto margin would
@@ -550,7 +567,7 @@ export function DashboardSearch({
               scroll-free Quick tab doesn't clip). Give the scroll box inline
               padding so the ring has room, and cancel it with -mx so the fields
               stay aligned with the Quick tab (no shift on tab switch). */}
-          <div className="space-y-4 lg:-mx-2 lg:max-h-60 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:px-2">
+          <div className="space-y-4 lg:-mx-2 lg:max-h-80 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:px-2">
             <IdentityGrid value={adv} onChange={setAdv} />
             {/* Same 2-up grid as everything above and below it, so the From/To
                 pair keeps the half-width cell it has on the Quick tab rather

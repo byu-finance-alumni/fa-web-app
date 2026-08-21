@@ -52,6 +52,8 @@
  * lighten either layer, move the text, or swap the photo.
  */
 
+import { SignOutButton } from "@/components/auth/SignOutButton";
+
 /**
  * The KPI strip straddles the band's bottom edge: this class pulls it up by 72px
  * — half of a `raised` `size="lg"` MetricCard (24px padding + 32px label + 40px
@@ -73,17 +75,36 @@
  * the flow, so the search card below moves up with the tiles instead of leaving
  * a 72px hole — and nothing overlaps it.
  */
-export const HERO_OVERLAP_CLASS = "lg:-mt-[72px]";
+export const HERO_OVERLAP_CLASS = "lg:-mt-[56px]";
 
 /** Shell: the photo, the scrim, and a content well that leaves room at the
  *  bottom for the overlapping KPI tiles. Used by the live page and by the
  *  loading skeleton, so the two are the same height to the pixel. */
-export function HeroBand({ children }: { children: React.ReactNode }) {
+export function HeroBand({
+  children,
+  action,
+}: {
+  children: React.ReactNode;
+  /** Rendered over the top-right of the band — the dashboard puts Sign out here. */
+  action?: React.ReactNode;
+}) {
   return (
     // `overflow-hidden` clips the photo to the band — it holds NOTHING that has
     // to escape (the KPI tiles that overlap the band are a sibling BELOW it, so
     // their shadows are never clipped by this).
-    <div className="relative h-52 shrink-0 overflow-hidden md:h-60 lg:h-64">
+    // ⚠️ SHORTER AT `lg` THAN AT `md`, WHICH LOOKS LIKE A TYPO AND IS NOT
+    // (Jake, 2026-08-20). `lg` is the only breakpoint where the KPI strip, the
+    // search card AND the Industry breakdown are all rendered, competing for one
+    // laptop viewport that the page is not allowed to scroll. The breakdown is
+    // the content; this photo is decoration. When they cannot both fit, the
+    // decoration gives up its height — 256px to 176px, which is the ~3 industry
+    // rows that were being pushed under the fold.
+    //
+    // 176px is a floor, not a preference: the text well reserves 72px at the
+    // bottom for the tiles that straddle the edge (`lg:pb-[72px]`), and the
+    // greeting plus its subtitle need ~72px of the rest. Take much more and the
+    // heading starts colliding with the tiles.
+    <div className="relative h-52 shrink-0 overflow-hidden md:h-60 lg:h-36">
       {/* Decorative: the band's meaning is entirely in the text over it, so the
           photo is alt="" and hidden from the a11y tree rather than described.
           eslint-disable-next-line @next/next/no-img-element -- see the
@@ -115,10 +136,30 @@ export function HeroBand({ children }: { children: React.ReactNode }) {
         aria-hidden="true"
         className="absolute inset-0 bg-gradient-to-r from-navy-900/80 via-navy-900/60 to-navy-900/35"
       />
+      {/* The band's own top-right action, over both scrims. Absolute rather than
+          a row inside the text well: the well is vertically centred and the
+          action belongs at the top edge, and taking it out of that flow also
+          means a long greeting can never push it off the band. `z-10` puts it
+          above the gradient; `pointer-events-none` on the wrapper with it
+          restored on the child keeps the rest of the band unclickable, so the
+          invisible box does not eat clicks meant for the search card below. */}
+      {action ? (
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-end px-4 pt-4 md:px-6">
+          <div className="pointer-events-auto">{action}</div>
+        </div>
+      ) : null}
       {/* The text well. Bottom padding from `lg` up reserves the strip of band
           the KPI tiles cover, so the greeting is never behind a card. Below `lg`
-          the KPI strip isn't rendered at all, so no room is reserved. */}
-      <div className="relative flex h-full flex-col justify-center px-4 md:px-6 lg:pb-[72px]">
+          the KPI strip isn't rendered at all, so no room is reserved. Top
+          padding clears the action above when the band is short. */}
+      {/* `pt-12` clears the Sign out button ONLY where the band is narrow enough
+          for the greeting to run under it. From `lg` the band is the viewport
+          less a 15rem sidebar — the greeting ends hundreds of pixels short of
+          the button — and the reservation is pure waste there: with the band cut
+          to 176px, 48px of top padding plus the 72px reserved for the tiles
+          leaves less than the heading needs, and the text overflows the band it
+          is supposed to sit inside. */}
+      <div className="relative flex h-full flex-col justify-center px-4 pt-12 md:px-6 lg:pb-[56px] lg:pt-0">
         {children}
       </div>
     </div>
@@ -128,11 +169,13 @@ export function HeroBand({ children }: { children: React.ReactNode }) {
 /** The live band: "Welcome back, {name}" and the standing subtitle. */
 export function DashboardHero({ greeting }: { greeting: string }) {
   return (
-    <HeroBand>
+    // Sign out rides the band because this page has no top bar — see the note
+    // in dashboard/page.tsx.
+    <HeroBand action={<SignOutButton onDark />}>
       {/* 36px — one step ABOVE the 24–30px page-title band in UX-UI.md's type
           scale, because this is the dashboard's masthead rather than a section
           title, and the scale has no rung between 30px and 36px. */}
-      <h1 className="text-3xl font-bold tracking-tight text-white drop-shadow-sm md:text-4xl">
+      <h1 className="text-2xl font-bold tracking-tight text-white drop-shadow-sm md:text-3xl">
         {greeting}
       </h1>
       {/* WHITE, not a muted grey. Stepping a masthead's second line down to
@@ -143,7 +186,7 @@ export function DashboardHero({ greeting }: { greeting: string }) {
           likely to be skimmed. White clears 7:1 at every width; the hierarchy is
           carried by size and weight instead (36px bold over 16px regular).
           `max-w-2xl` stops the line running further right still. */}
-      <p className="mt-2 max-w-2xl text-base font-normal text-white">
+      <p className="mt-1 max-w-2xl text-sm font-normal text-white">
         Here&rsquo;s what&rsquo;s happening across the BYU Finance alumni network
         today.
       </p>

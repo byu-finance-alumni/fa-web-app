@@ -146,11 +146,24 @@ describe("the dashboard panel uses it", () => {
     expect(src).toContain("Math.round((r.count / max) * 100)");
   });
 
-  it("keeps one line per industry and a scrollbar rather than clipping", () => {
-    // Both were deliberate fixes: the stacked two-line row didn't fit a laptop,
-    // and `overflow-hidden` made the overflow silent.
-    expect(src).toContain("lg:min-h-[20px]");
-    expect(src).toContain("lg:overflow-y-auto");
-    expect(src).not.toContain("lg:overflow-hidden");
+  it("keeps one line per industry, and SHRINKS rather than scrolling", () => {
+    // One line per row is what made this list fit a laptop at all, and it
+    // stands: the stacked two-line row cost ~30px each and needed ~540px.
+    expect(src).toContain("lg:flex-1");
+
+    // ⚠️ THIS NOW ASSERTS THE OPPOSITE OF WHAT IT USED TO (Jake, 2026-08-20).
+    // It required `lg:overflow-y-auto` on the panel, on the reasoning that if
+    // the list outgrew its box a scrollbar was more honest than rows silently
+    // vanishing. Sound in general, wrong here: these rows are ELASTIC, so the
+    // scrollbar appeared while every industry was still on screen, which reads
+    // as broken rather than honest. The rows compress instead.
+    expect(src).not.toContain("lg:overflow-y-auto");
+
+    // The floor that makes compressing possible. It was 20px — which was the
+    // row's NATURAL height (12px text on a 16px line, plus 2px of padding
+    // either side), so it never actually compressed; it just overflowed. 14px
+    // with the vertical padding removed is a real floor.
+    expect(src).toContain("lg:min-h-[14px]");
+    expect(src).toContain("lg:py-0");
   });
 });

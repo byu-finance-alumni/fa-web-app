@@ -6877,6 +6877,10 @@ export interface components {
             alumni_edited_this_month: number;
             /** Alumni Edited This Year */
             alumni_edited_this_year: number;
+            /** Distinct Employers */
+            distinct_employers: number;
+            /** Employer States */
+            employer_states: number;
             /** Not Contacted 6Mo */
             not_contacted_6mo: number;
             /** Not Contacted 12Mo */
