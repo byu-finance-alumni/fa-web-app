@@ -41,7 +41,11 @@ export function Topbar({
   // what "remove the white bar on the alumni page" was about (2026-08-22).
   //
   // The title survives on phones only, where this bar is not replaced by
-  // anything. `heading` is still derived here because that bar uses it.
+  // anything. `heading` is still derived here because that bar uses it — and so
+  // is `children`, the slot the alumni profile and Admin fill with a
+  // `TopbarSearch`. That slot is PHONE-ONLY now: the nav bar carries a search on
+  // every page, so on desktop the per-page one was a second box doing the same
+  // job, in a strip of its own.
   // ONE heading, derived once so the two bars can never disagree. An explicit
   // `title` wins; otherwise the deepest crumb is the page's own name.
   const heading = title ?? breadcrumb?.at(-1)?.label;
@@ -64,7 +68,7 @@ export function Topbar({
         </div>
       </header>
 
-      <DesktopPageRow>{children}</DesktopPageRow>
+      <DesktopPageRow />
     </>
   );
 }
