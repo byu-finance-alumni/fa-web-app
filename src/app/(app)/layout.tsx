@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { TopNav } from "@/components/shell/TopNav";
 import { MobileNav } from "@/components/shell/MobileNav";
-import { BackLink } from "@/components/shell/BackLink";
 import { SessionTimeout } from "@/components/auth/SessionTimeout";
 import { SessionGuard } from "@/components/auth/SessionGuard";
 import { PointerEventsGuard } from "@/components/shell/PointerEventsGuard";
@@ -186,9 +185,6 @@ export default async function AppLayout({
             Still no scrolling; 96px of deliberate overflow is allowed out. */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col [overflow:clip] [overflow-clip-margin:96px] pb-16 md:pb-0">
           {previewRole && <PreviewBanner roleLabel={roleLabel(previewRole)} />}
-          {/* Zero-height; it overlays the page's own top padding rather than
-              taking a row of its own — see BackLink. */}
-          <BackLink />
           {children}
         </div>
         <MobileNav />

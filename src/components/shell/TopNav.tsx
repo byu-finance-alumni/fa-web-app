@@ -13,6 +13,7 @@ import {
   type NavGroup,
 } from "@/components/shell/nav";
 import { SignOutButton } from "@/components/auth/SignOutButton";
+import { NavSearch } from "@/components/shell/NavSearch";
 
 /**
  * EXPERIMENT ONLY — horizontal navigation across the top, over the Marriott
@@ -269,7 +270,11 @@ export function TopNav({
             you check who you are signed in as — and it duplicated what the old
             sidebar footer showed), the rule goes with it, and Sign out sits on
             its own with the same 32px gap the links use between themselves. */}
-        <div className="ml-8 shrink-0">
+        {/* Search sits between the links and Sign out (Jake, 2026-08-22). It is
+            a control, not a destination, so it keeps the links' 32px gap on its
+            left and rides in the same group as Sign out on its right. */}
+        <div className="ml-8 flex shrink-0 items-center gap-3">
+          <NavSearch />
           <SignOutButton onDark />
         </div>
       </div>
