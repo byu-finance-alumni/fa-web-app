@@ -62,14 +62,12 @@ export function BackLink() {
   if (!pathname || !shouldShowBack(pathname)) return null;
 
   return (
-    <div className="relative z-20 h-0">
-      <button
-        type="button"
-        onClick={() => router.back()}
-        className="absolute left-6 top-1 whitespace-nowrap text-sm font-medium text-brand-blue-600 transition hover:text-brand-blue-500"
-      >
-        Back
-      </button>
-    </div>
+    <button
+      type="button"
+      onClick={() => router.back()}
+      className="shrink-0 whitespace-nowrap text-sm font-medium text-brand-blue-600 transition hover:text-brand-blue-500"
+    >
+      Back
+    </button>
   );
 }
