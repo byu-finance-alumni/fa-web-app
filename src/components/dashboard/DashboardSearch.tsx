@@ -509,55 +509,44 @@ export function DashboardSearch({
         </TabsContent>
 
         {/* ------------------------------------------------------- Advanced -- */}
-        {/* ⚠️ THE CARD MUST NOT CHANGE HEIGHT WHEN THIS TAB IS SELECTED. It
-            shares a dashboard grid row with the Industry breakdown panel, whose
-            NATURAL height sets the row; a stretched grid item still contributes
-            its own content height to that row, so ~900px of facets here would
-            grow the row and the whole page would jump on every tab switch.
+        {/* ⚠️ THE FIELD BLOCK FILLS THE CARD — DO NOT PUT A HEIGHT CAP BACK ON
+            IT. It carried `lg:max-h-60`, then `lg:max-h-80`, for a reason that
+            has since stopped being true, and the cap outliving it is what left
+            ~250px of white space under the fields on prod (Jake, 2026-08-22).
 
-            The fix is `lg:max-h-60` on the field block below, plus `min-h-0`
-            (which lets a flex child shrink below its content), `flex-1` and
-            `overflow-y-auto` so the remainder becomes an inner scroll. The
-            fields scroll and the card stays exactly the size the Quick tab left
-            it — measured at 488px in both tabs.
+            THE HISTORY, because the cap looks arbitrary without it. This card
+            shares a dashboard grid row with the Industry breakdown panel. Back
+            when that row was sized by its CONTENT, ~900px of facets here would
+            grow the row and the whole page jumped on every tab switch — so the
+            fields were capped and the remainder became an inner scroll, sized to
+            match the neighbour's natural height (~488px). `lg:mt-auto` on the
+            action bar then absorbed the leftover so the buttons still sat on the
+            card's bottom edge.
 
-            That cap has a consequence this tab has to answer for: once the
-            field block can no longer GROW, the leftover height is free space,
-            and with the default `flex-start` packing it collects at the bottom —
-            which floated the action bar up off the card's bottom edge, ~90px
-            higher than the Quick tab's (#594 said the bar sat on the bottom edge
-            in both tabs; between the cap landing and this, it briefly didn't).
-            `lg:mt-auto` on the action bar absorbs that free space instead, so
-            the buttons are pushed back down to the edge without the field block
-            growing and without the card changing height. Auto margins resolve
-            AFTER flex-grow, which is why the cap still wins.
+            WHAT CHANGED: the top-nav work made the dashboard fill the viewport.
+            The row is now `lg:min-h-0 lg:flex-1` inside a bounded column, so its
+            height comes from the WINDOW, not from either panel's content. The
+            card grew to ~780px, the cap stayed at 320px, and `mt-auto` dutifully
+            pushed the buttons to the bottom — which is exactly what turned the
+            leftover into one big gap instead of spreading it.
 
-            ⚠️ THE CAP IS 20rem, NOT 15rem, AND THE DIFFERENCE IS THE WHITE SPACE
-            (Jake, 2026-08-20). `mt-auto` pins the buttons to the bottom edge but
-            it cannot make the leftover height stop existing — it just moves the
-            emptiness above the action bar, which is what read as wasted space.
-            The only way to shrink the gap is to give that height to the fields,
-            so the cap goes 15rem → 20rem and the scroll box shows ~80px more of
-            the facets before it starts scrolling.
+            With the cap gone, `lg:flex-1` + `lg:min-h-0` + `lg:overflow-y-auto`
+            let the block take precisely the free height and scroll past it. The
+            page cannot jump on a tab switch any more, because content no longer
+            sets the row at all — which is the same guarantee the cap was bought
+            to provide, now held by the layout instead.
 
-            It stays a CAP, and it stays well under the row: the row is set by
-            the Industry breakdown panel's natural height (~488px here), and this
-            tab's natural height with a 20rem block is ~400px, so the grid row is
-            still dictated by the neighbour and the card cannot grow. Raise this
-            further and that stops being true — the tab starts setting the row
-            itself and the page jumps on every tab switch, which is the exact bug
-            the cap was introduced to fix. If the fields ever need more room than
-            this, the answer is fewer fields on the tab, not a taller cap.
+            `mt-auto` stays on the action bar. It is inert while the fields fill
+            the card, and it is the thing that keeps the buttons on the bottom
+            edge if they ever do not.
 
-            `gap-4` rather than `space-y-4` on this container for the same
-            reason: `space-y-*` compiles to a `> * ~ *` margin-top rule whose
-            specificity beats a plain `mt-auto` utility, so the auto margin would
-            never apply. `gap` gives the identical 16px rhythm and leaves
-            margin-top free.
+            `gap-4` rather than `space-y-4` on this container: `space-y-*`
+            compiles to a `> * ~ *` margin-top rule whose specificity beats a
+            plain `mt-auto` utility, so the auto margin would never apply. `gap`
+            gives the identical 16px rhythm and leaves margin-top free.
 
-            Mobile drops the bound, the inner scroll and the auto margin
-            entirely — the fields flow and the whole page scrolls, the native
-            pattern. */}
+            Mobile drops the bound, the inner scroll and the auto margin entirely
+            — the fields flow and the whole page scrolls, the native pattern. */}
         <TabsContent
           value="advanced"
           className="flex flex-col gap-4 lg:min-h-0 lg:flex-1"
@@ -567,7 +556,7 @@ export function DashboardSearch({
               scroll-free Quick tab doesn't clip). Give the scroll box inline
               padding so the ring has room, and cancel it with -mx so the fields
               stay aligned with the Quick tab (no shift on tab switch). */}
-          <div className="space-y-4 lg:-mx-2 lg:max-h-80 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:px-2">
+          <div className="space-y-4 lg:-mx-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:px-2">
             <IdentityGrid value={adv} onChange={setAdv} />
             {/* Same 2-up grid as everything above and below it, so the From/To
                 pair keeps the half-width cell it has on the Quick tab rather

@@ -305,3 +305,38 @@ describe("the alumni list forwards the new params (#584)", () => {
     ).toBe("true");
   });
 });
+
+/**
+ * The advanced field block must FILL the card, not be capped.
+ *
+ * A height cap has been added to this block twice and tuned twice — it existed
+ * because the dashboard row used to be sized by its content, and ~900px of
+ * facets here made the page jump on every tab switch. The row is bounded by the
+ * window now, so the cap only ever leaves dead space: on a 1980x1440 screen it
+ * held the fields at 320px and left 618px of white under them (Jake, 2026-08-22).
+ *
+ * This is the guard against it coming back a third time. If a jump on tab switch
+ * ever returns, the fix is in the ROW's bounding, not a cap here.
+ */
+describe("advanced search fills the card", () => {
+  const src = readFileSync(
+    resolve(__dirname, "DashboardSearch.tsx"),
+    "utf-8",
+  );
+  // The scroll container, matched the way the component writes it: the one
+  // className carrying the inner scroll.
+  const fieldBlock = src.match(/className="[^"]*lg:overflow-y-auto[^"]*"/)?.[0];
+
+  it("has a scroll container that grows and shrinks with the card", () => {
+    expect(fieldBlock).toBeDefined();
+    // flex-1 to take the free height, min-h-0 so it may shrink below its
+    // content, overflow-y-auto so the remainder scrolls rather than overflowing.
+    expect(fieldBlock).toContain("lg:flex-1");
+    expect(fieldBlock).toContain("lg:min-h-0");
+    expect(fieldBlock).toContain("lg:overflow-y-auto");
+  });
+
+  it("carries no height cap", () => {
+    expect(fieldBlock).not.toMatch(/lg:max-h-/);
+  });
+});
