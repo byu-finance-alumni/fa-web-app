@@ -1,5 +1,5 @@
 import { SignOutButton } from "@/components/auth/SignOutButton";
-import { BackLink } from "@/components/shell/BackLink";
+import { DesktopPageRow } from "@/components/shell/DesktopPageRow";
 import { type Crumb } from "@/components/ui/Breadcrumb";
 
 export function Topbar({
@@ -35,22 +35,13 @@ export function Topbar({
   // nav does not render and the sidebar never did, so this is the ONLY thing
   // carrying Sign out — blanking it took the only way off a phone.
   //
-  // DESKTOP (`md:flex`): a heading LINE, not a bar. No background, no border, no
-  // fixed height — the white strip between the photo and the page was the whole
-  // complaint, and it was the bar's surface, not its contents. The contents are
-  // worth keeping: on a screen you drilled into, the breadcrumb is the only
-  // thing saying where you are, and losing it silently was the cost of moving
-  // navigation into the photo (#737).
+  // DESKTOP: usually NOTHING — see `DesktopPageRow`, which renders a row only
+  // when there is a Back button or a `children` control to put in it. A strip
+  // holding just a page title was still a pale band under the photo, which is
+  // what "remove the white bar on the alumni page" was about (2026-08-22).
   //
-  // Sign out is dropped here — the nav bar carries it, and two on one screen was
-  // the bug that took the hero's copy out.
-  //
-  // ⚠️ BACK LIVES IN THIS ROW, not in the shell. It used to be a zero-height
-  // overlay hanging in the page's own top padding, which worked only while
-  // nothing else was there; this line lands in exactly that space. Every route
-  // that shows a Back — edit, new, import — renders a Topbar (checked, all ten),
-  // so the button keeps its full coverage and now sits ON the same line as the
-  // trail instead of on top of it.
+  // The title survives on phones only, where this bar is not replaced by
+  // anything. `heading` is still derived here because that bar uses it.
   // ONE heading, derived once so the two bars can never disagree. An explicit
   // `title` wins; otherwise the deepest crumb is the page's own name.
   const heading = title ?? breadcrumb?.at(-1)?.label;
@@ -73,15 +64,7 @@ export function Topbar({
         </div>
       </header>
 
-      <div className="hidden shrink-0 items-center gap-4 px-6 pb-1 pt-4 md:flex">
-        <BackLink />
-        {heading ? (
-          <h1 className="truncate text-base font-semibold text-gray-900">
-            {heading}
-          </h1>
-        ) : null}
-        {children ? <div className="ml-auto flex items-center">{children}</div> : null}
-      </div>
+      <DesktopPageRow>{children}</DesktopPageRow>
     </>
   );
 }
