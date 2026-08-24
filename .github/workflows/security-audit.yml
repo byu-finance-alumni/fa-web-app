@@ -91,6 +91,18 @@ jobs:
         run: |
           npm audit --json > npm-audit.json || true
           npm audit --omit=dev --json > npm-audit-prod.json || true
+          # ⚠️ THE VERDICT ON SHIPPING DEPENDENCIES IS THIS SCRIPT'S, NOT OURS.
+          # It already encodes which advisories are accepted and why, and it is
+          # what gates a merge. Re-deriving the same answer here got it WRONG:
+          # `next` and `postcss` are only flagged BECAUSE of transitively
+          # accepted advisories, so a naive GHSA comparison reported two
+          # problems that the gate itself considers settled.
+          if node scripts/audit-prod.mjs > audit-prod.txt 2>&1; then
+            echo '{"ok": true}' > audit-prod-gate.json
+          else
+            echo '{"ok": false}' > audit-prod-gate.json
+          fi
+          cat audit-prod.txt
 
       # --- 3. SAST ---------------------------------------------------------
       - name: Semgrep
@@ -131,6 +143,7 @@ jobs:
             security-report.md
             tripwires.json
             npm-audit.json
+            audit-prod.txt
             semgrep.json
             gitleaks.json
           retention-days: 90
@@ -160,7 +173,7 @@ jobs:
           if [ "$AUDIT_RESULT" != "success" ]; then
             LINE=":warning: fa-web-app weekly security audit did not finish (scan job: $AUDIT_RESULT). Nothing was checked — open the run."
           else
-            LINE="${VERDICT:-:white_check_mark:} fa-web-app weekly security audit — ${SUMMARY:-no findings}. CodeQL: $CODEQL_RESULT."
+            LINE="${VERDICT:-:white_check_mark:} fa-web-app weekly security audit: ${SUMMARY:-all clear, nothing needs you}. CodeQL: $CODEQL_RESULT."
           fi
           jq -n --arg t "$LINE" --arg u "$RUN_URL" \
             '{text: ($t + " <" + $u + "|Full report>")}' \
