@@ -1,28 +1,29 @@
-# Weekly deep security audit (fa-web-app).
+# Weekly CodeQL for fa-web-app. CodeQL ONLY — this workflow does not notify.
 #
-# WHY THIS EXISTS SEPARATELY FROM ci.yml. CI runs on every push and has to stay
-# fast, so it carries only the checks worth blocking a merge on — including a
-# dependency audit deliberately scoped to PRODUCTION packages, because a vitest
-# advisory should never stop a merge. This job is allowed to be slow and
-# thorough: the heavy analysers, the FULL dependency tree, the whole git history,
-# and the project's own security invariants. It reports rather than blocks — a
-# weekly red X is a weekly notification people learn to ignore.
+# ⚠️ THE REST OF THIS REPO'S WEEKLY AUDIT LIVES IN fa-web-api. That workflow
+# clones this repo and runs THIS repo's own scripts against it
+# (scripts/security-scan.mjs, scripts/audit-prod.mjs, scripts/security-report.mjs),
+# then posts ONE Slack message covering both codebases. Two workflows posting
+# meant two messages every Sunday answering a single question, so the reporting
+# was consolidated there. The checks were not reduced — they moved.
 #
-# ⚠️ A SCHEDULED WORKFLOW ONLY RUNS FROM THE DEFAULT BRANCH. This repo's default
-# branch is `prod`, so this file does nothing on `dev` until it is merged to
-# prod. Use the "Run workflow" button (workflow_dispatch) to test it anywhere.
+# WHY THIS FILE STILL EXISTS AT ALL: CodeQL results have to be uploaded from the
+# repository they describe, or they never appear in that repo's Security tab.
+# That is the one part of the audit that cannot be run from the other repo.
 #
-# ⚠️ SLACK NEEDS A REPO SECRET: SLACK_SECURITY_WEBHOOK_URL. There is no GitHub
-# secret today (the webhook lives on the Vercel project, which Actions cannot
-# read), so until one is added the audit still runs and still uploads its report
-# — it just says so in the log instead of posting.
-name: Weekly security audit
+# ⚠️ DO NOT ADD A SLACK STEP HERE. If this repo needs to say something of its
+# own, change the message in fa-web-api instead — otherwise the "one message a
+# week" property quietly goes away and nobody notices until Sunday.
+#
+# ⚠️ A SCHEDULED WORKFLOW ONLY RUNS FROM THE DEFAULT BRANCH, which here is
+# `prod`. This file does nothing on `dev`; use the Run workflow button to test.
+name: Weekly CodeQL
 
 on:
   schedule:
-    # Monday 04:00 UTC = Sunday 22:00 in Utah on daylight time, 21:00 on
-    # standard time. Sunday night either way; it is waiting on Monday morning.
-    - cron: "0 4 * * 1"
+    # Half an hour before the fa-web-api audit, so this repo's Security tab is
+    # already up to date when that run reports on both.
+    - cron: "30 3 * * 1"
   workflow_dispatch:
 
 permissions:
@@ -30,7 +31,7 @@ permissions:
   security-events: write
 
 concurrency:
-  group: security-audit-${{ github.ref }}
+  group: codeql-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -43,138 +44,10 @@ jobs:
       - uses: github/codeql-action/init@v3
         with:
           languages: javascript-typescript
+          # security-extended adds the lower-confidence security queries. This
+          # is the weekly job, not the merge gate, so the extra noise is
+          # affordable and the extra coverage is the point.
           queries: security-extended
       - uses: github/codeql-action/analyze@v3
         with:
           category: "/language:javascript-typescript"
-
-  audit:
-    name: Deep scan
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    outputs:
-      summary: ${{ steps.report.outputs.summary }}
-      verdict: ${{ steps.report.outputs.verdict }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          # Secret scanning needs the history. A key committed and later
-          # "removed" is still in every clone.
-          fetch-depth: 0
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-
-      - name: Install
-        run: npm ci
-
-      # --- 1. Our own invariants ------------------------------------------
-      # The checks that know what this app is: the two — and only two — ways to
-      # reach a page without a session, and the rule that no server secret is
-      # readable from a client component. See scripts/security-scan.mjs.
-      - name: Project security tripwires
-        id: tripwires
-        continue-on-error: true
-        run: node scripts/security-scan.mjs --json tripwires.json
-
-      # --- 2. Dependencies, ALL of them ------------------------------------
-      # BOTH scopes, deliberately. "Does this ship to a browser?" is decided by
-      # `--omit=dev`, which is the same definition scripts/audit-prod.mjs uses
-      # for the merge gate — inferring it from the full tree's JSON gets it
-      # wrong, and counting a vitest advisory as a shipping one is exactly how a
-      # report earns its way into the muted pile.
-      - name: Dependency audit (full tree)
-        id: deps
-        continue-on-error: true
-        run: |
-          npm audit --json > npm-audit.json || true
-          npm audit --omit=dev --json > npm-audit-prod.json || true
-          # ⚠️ THE VERDICT ON SHIPPING DEPENDENCIES IS THIS SCRIPT'S, NOT OURS.
-          # It already encodes which advisories are accepted and why, and it is
-          # what gates a merge. Re-deriving the same answer here got it WRONG:
-          # `next` and `postcss` are only flagged BECAUSE of transitively
-          # accepted advisories, so a naive GHSA comparison reported two
-          # problems that the gate itself considers settled.
-          if node scripts/audit-prod.mjs > audit-prod.txt 2>&1; then
-            echo '{"ok": true}' > audit-prod-gate.json
-          else
-            echo '{"ok": false}' > audit-prod-gate.json
-          fi
-          cat audit-prod.txt
-
-      # --- 3. SAST ---------------------------------------------------------
-      - name: Semgrep
-        id: semgrep
-        continue-on-error: true
-        run: |
-          pipx install semgrep
-          semgrep scan \
-            --config p/security-audit \
-            --config p/owasp-top-ten \
-            --config p/typescript \
-            --config p/react \
-            --json --output semgrep.json --quiet --metrics=off \
-            src
-
-      # --- 4. Secrets, across the whole history ----------------------------
-      - name: Secret scan (full history)
-        id: secrets
-        continue-on-error: true
-        run: |
-          curl -sSfL -o gitleaks.tar.gz \
-            https://github.com/gitleaks/gitleaks/releases/download/v8.24.0/gitleaks_8.24.0_linux_x64.tar.gz
-          tar -xzf gitleaks.tar.gz gitleaks
-          ./gitleaks detect --redact --no-banner --report-format json --report-path gitleaks.json
-
-      # --- 5. One report ----------------------------------------------------
-      - name: Build report
-        id: report
-        if: always()
-        run: node scripts/security-report.mjs --repo "$GITHUB_REPOSITORY" --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-
-      - name: Upload full report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: security-audit-${{ github.run_id }}
-          path: |
-            security-report.md
-            tripwires.json
-            npm-audit.json
-            audit-prod.txt
-            semgrep.json
-            gitleaks.json
-          retention-days: 90
-          if-no-files-found: warn
-
-  notify:
-    name: Notify Slack
-    runs-on: ubuntu-latest
-    needs: [audit, codeql]
-    # Report whatever happened, including when a scanner job fell over — a
-    # silent week must never be indistinguishable from a clean one.
-    if: always()
-    steps:
-      - name: Post the summary
-        env:
-          WEBHOOK: ${{ secrets.SLACK_SECURITY_WEBHOOK_URL }}
-          SUMMARY: ${{ needs.audit.outputs.summary }}
-          VERDICT: ${{ needs.audit.outputs.verdict }}
-          AUDIT_RESULT: ${{ needs.audit.result }}
-          CODEQL_RESULT: ${{ needs.codeql.result }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          if [ -z "$WEBHOOK" ]; then
-            echo "::warning title=Slack not configured::Set the SLACK_SECURITY_WEBHOOK_URL repo secret to get this weekly summary in Slack. The full report is attached to this run as an artifact."
-            exit 0
-          fi
-          if [ "$AUDIT_RESULT" != "success" ]; then
-            LINE=":warning: fa-web-app weekly security audit did not finish (scan job: $AUDIT_RESULT). Nothing was checked — open the run."
-          else
-            LINE="${VERDICT:-:white_check_mark:} fa-web-app weekly security audit: ${SUMMARY:-all clear, nothing needs you}. CodeQL: $CODEQL_RESULT."
-          fi
-          jq -n --arg t "$LINE" --arg u "$RUN_URL" \
-            '{text: ($t + " <" + $u + "|Full report>")}' \
-            | curl -sS -X POST -H "Content-Type: application/json" -d @- "$WEBHOOK"

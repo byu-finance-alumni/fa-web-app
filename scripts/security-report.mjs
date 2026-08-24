@@ -239,14 +239,14 @@ let summary;
 if (unknown.length) {
   // Not "all clear": part of the sweep did not happen, and saying so is the
   // whole reason a missing report is tracked separately from a clean one.
-  verdict = ":warning:";
+  verdict = "INCOMPLETE";
   summary = `INCOMPLETE - ${unknown.join(", ")} did not run, so this week is only a partial check`;
   if (bits.length) summary += ` (and ${bits.join(", ")} in what did run)`;
 } else if (!needsAttention) {
-  verdict = ":white_check_mark:";
+  verdict = "ALL CLEAR";
   summary = "all clear, nothing needs you";
 } else {
-  verdict = critical || high ? ":rotating_light:" : ":large_yellow_circle:";
+  verdict = "NEEDS A LOOK";
   summary = `${needsAttention} ${needsAttention === 1 ? "thing needs" : "things need"} a look - ${bits.join(", ")}`;
 }
 
