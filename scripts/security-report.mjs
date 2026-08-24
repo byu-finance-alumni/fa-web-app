@@ -14,7 +14,7 @@
  * that makes a weekly audit worthless.
  */
 
-import { existsSync, readFileSync, statSync, writeFileSync, appendFileSync } from "node:fs";
+import { readFileSync, writeFileSync, appendFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -26,10 +26,19 @@ const arg = (name, fallback = "") => {
 };
 
 function load(name) {
-  const p = join(ROOT, name);
-  if (!existsSync(p) || !statSync(p).size) return null;
+  // Read first and ask questions later, rather than exists() → stat() → read().
+  // That sequence is a TOCTOU race (CodeQL js/file-system-race) and it would
+  // have shown up as a `high` in this very report every week — a scanner that
+  // starts life flagging its own reporter is one nobody keeps reading.
+  let raw;
   try {
-    return JSON.parse(readFileSync(p, "utf8"));
+    raw = readFileSync(join(ROOT, name), "utf8");
+  } catch {
+    return null; // absent = this tool did not run; the caller reports UNKNOWN
+  }
+  if (!raw.trim()) return null;
+  try {
+    return JSON.parse(raw);
   } catch {
     return null;
   }
