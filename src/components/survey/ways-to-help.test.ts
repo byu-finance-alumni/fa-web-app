@@ -30,27 +30,39 @@ const HELP_PAGE = "src/app/survey/[token]/help/page.tsx";
 
 describe("the involvement questions the page asks", () => {
   it("asks the edit flow's engagement questions, in the same order", () => {
-    const expected = ENGAGEMENT_SECTION.fields
-      .filter((f) => !f.donateUrl)
-      .map((f) => f.key);
+    const expected = ENGAGEMENT_SECTION.fields.map((f) => f.key);
     expect(WAYS_TO_HELP_FIELD_KEYS).toEqual(expected);
     expect(WAYS_TO_HELP_FIELDS.length).toBeGreaterThan(0);
   });
 
-  it("carries no Pay It Forward donate link", () => {
-    // Jake's 2026-08-25 note scoped this page to involvement and
-    // jobs/internships only. The giving question is excluded rather than shown
-    // with its donate button stripped off: "would you like to donate?" with no
-    // way to donate is the same dead end this page exists to remove.
-    expect(WAYS_TO_HELP_FIELDS.some((f) => f.donateUrl)).toBe(false);
-    expect(WAYS_TO_HELP_FIELD_KEYS).not.toContain("program.piff_donor");
-  });
-
-  it("leaves the giving question untouched in the edit flow", () => {
-    const giving = ENGAGEMENT_SECTION.fields.find(
+  it("asks the Pay It Forward giving question, WITH its donate link", () => {
+    // Jake's call, 2026-08-25, asked explicitly: giving stays on this page.
+    // These alumni confirmed in one click, so they are the most willing
+    // audience the survey ever has.
+    //
+    // The donate URL riding along is the point, not an accident. The question
+    // is only worth asking with a way to act on it — "would you like to
+    // donate?" with no donate button would recreate the exact dead end this
+    // page exists to remove.
+    const giving = WAYS_TO_HELP_FIELDS.find(
       (f) => f.key === "program.piff_donor",
     );
+    expect(giving).toBeDefined();
     expect(giving?.donateUrl).toBeTruthy();
+    expect(WAYS_TO_HELP_FIELD_KEYS).toContain("program.piff_donor");
+  });
+
+  it("asks the same giving question the edit flow does, not a copy", () => {
+    // Identity, not equality: the page aliases ENGAGEMENT_SECTION rather than
+    // rebuilding it, so the two can never drift into asking differently-worded
+    // versions of the same question.
+    const fromEdit = ENGAGEMENT_SECTION.fields.find(
+      (f) => f.key === "program.piff_donor",
+    );
+    const fromPage = WAYS_TO_HELP_FIELDS.find(
+      (f) => f.key === "program.piff_donor",
+    );
+    expect(fromPage).toBe(fromEdit);
   });
 
   it("never asks a profile field", () => {
