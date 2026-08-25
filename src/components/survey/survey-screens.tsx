@@ -515,6 +515,36 @@ export const ENGAGEMENT_SECTION: Section = {
 export const EDIT_SECTIONS: Section[] = [...INFO_SECTIONS, ENGAGEMENT_SECTION];
 
 /**
+ * The involvement questions the WAYS-TO-HELP page asks (#755) — the same
+ * `ENGAGEMENT_SECTION` list the edit flow uses, minus anything carrying a
+ * `donateUrl`.
+ *
+ * That filter is how the Pay It Forward question stays OFF this page. Jake's
+ * 2026-08-25 note scoped the page to involvement and jobs/internships only, and
+ * a giving question with its donate button stripped out would be worse than not
+ * asking: "Would you like to donate?" with no way to donate is the same
+ * dead-end this issue exists to remove. The question is untouched in the edit
+ * flow, where the donate link is right underneath it.
+ *
+ * Derived rather than hand-listed on purpose — the edit flow and this page ask
+ * the same questions in the same order by construction, and a new giving
+ * question added to `ENGAGEMENT_SECTION` later is excluded here automatically
+ * instead of quietly appearing on a page that was scoped not to carry one.
+ */
+export const WAYS_TO_HELP_FIELDS: EditField[] = ENGAGEMENT_SECTION.fields.filter(
+  (f) => !f.donateUrl,
+);
+
+/**
+ * The ONLY field keys the ways-to-help page may submit. Passed to
+ * `answeredFields` so a payload from that page cannot carry a profile field the
+ * page never showed — see `lib/surveyConfirm`.
+ */
+export const WAYS_TO_HELP_FIELD_KEYS: readonly string[] = WAYS_TO_HELP_FIELDS.map(
+  (f) => f.key,
+);
+
+/**
  * The opportunity-links screen's id in the section menu (#441).
  *
  * A PSEUDO-SECTION, exactly like `"photo"`, and deliberately NOT a member of
@@ -1090,6 +1120,189 @@ export function EditFlow({
   );
 }
 
+/* ------------------------------------------------------- ways to help ----- */
+
+/**
+ * Where "Yes, everything is correct" now leads (#755).
+ *
+ * The problem this screen replaces: confirming rendered a `SuccessPanel` whose
+ * only control was "I need to make changes". Both of the survey's asks —
+ * involvement and jobs/internships — lived inside the EDIT flow, so the alumni
+ * with nothing to correct, the ones who reply fastest and are easiest to help,
+ * were the only ones never asked to help. This screen is that ask, on the path
+ * they actually take.
+ *
+ * What it is NOT:
+ *
+ *  * NOT a field editor. It renders `WAYS_TO_HELP_FIELDS` (the involvement
+ *    questions) and the opportunity-links form, and nothing else. Their name,
+ *    employer and contact details are not on this page — they just told us
+ *    those are right, and putting them back on screen would re-ask the question
+ *    they answered.
+ *  * NOT a dead end either. "I need to make changes" sits directly under the
+ *    intro, because an alum who confirmed by mistake must not have to read a
+ *    page of asks before finding the way out.
+ *  * NOT gated on having answered anything. Their confirmation is already
+ *    recorded by the time they get here, so Submit works with the page
+ *    untouched — see `waysToHelpThanksBody`, which says what actually happened
+ *    rather than claiming updates are in.
+ *
+ * No shell, no `<main>`, no footer: the caller wraps this in `SurveyPageShell`,
+ * which already provides all three.
+ */
+export function WaysToHelp({
+  firstName,
+  valueOf,
+  setEdit,
+  links,
+  setLinks,
+  onNeedChanges,
+  onSubmit,
+  submitting,
+  submitError,
+}: {
+  firstName: string;
+  valueOf: (key: string) => string;
+  setEdit: (key: string, value: string) => void;
+  /** Owned by the caller, like the edit flow's: they go to their OWN endpoint. */
+  links: LinkEntry[];
+  setLinks: (next: LinkEntry[]) => void;
+  /** Back to the review screen, where "I need to make changes" is waiting. */
+  onNeedChanges: () => void;
+  onSubmit: () => void;
+  submitting: boolean;
+  submitError: string | null;
+}) {
+  // Same shape and the same rules as the edit flow's, for the same reason: the
+  // links batch is all-or-nothing server-side, so a bad value is worth catching
+  // under the box that caused it rather than as "something was rejected".
+  const [linkErrors, setLinkErrors] = useState<Record<string, LinkEntryErrors>>(
+    {},
+  );
+
+  // The involvement questions need no gate of their own — every one is a Yes/No
+  // radio, so there is no value an alum can type wrong.
+  const handleSubmit = () => {
+    const found = validateLinkEntries(links);
+    setLinkErrors(found);
+    if (Object.keys(found).length > 0) return;
+    onSubmit();
+  };
+
+  return (
+    <>
+      <div>
+        <h1 className="text-3xl font-semibold leading-tight tracking-tight text-navy-800">
+          Thanks for confirming, {firstName}
+        </h1>
+        <p className="mt-3 max-w-prose text-base leading-relaxed text-gray-600">
+          Your information is up to date — that&apos;s everything we needed from
+          you. While you&apos;re here, there are two optional ways you can help
+          our finance students.
+        </p>
+        {/*
+          The escape hatch, ABOVE the asks rather than buried under them. Someone
+          who pressed the wrong button has already been told their details are
+          right; making them scroll past two requests for their time to correct
+          that is the same trap in a different shape.
+        */}
+        <div className="mt-4">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onNeedChanges}
+            disabled={submitting}
+          >
+            I need to make changes
+          </Button>
+        </div>
+      </div>
+
+      <section className="mt-10" aria-labelledby="ways-to-help-involvement">
+        <h2
+          id="ways-to-help-involvement"
+          className="text-lg font-semibold text-navy-800"
+        >
+          Ways to get involved
+        </h2>
+        <p className="mt-1 max-w-prose text-sm leading-relaxed text-gray-500">
+          Say yes to anything you&apos;d be open to. Nothing here commits you to
+          a date — someone from the Finance team gets in touch first.
+        </p>
+        <div className="mt-4 space-y-5 rounded-lg border border-gray-200 bg-white p-5 sm:p-6">
+          {WAYS_TO_HELP_FIELDS.map((f) => (
+            <FieldControl
+              key={f.key}
+              field={f}
+              value={valueOf(f.key)}
+              onChange={(v) => setEdit(f.key, v)}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section className="mt-10" aria-labelledby="ways-to-help-links">
+        <OpportunityLinksSection
+          headingAs="h2"
+          headingId="ways-to-help-links"
+          entries={links}
+          setEntries={setLinks}
+          errors={linkErrors}
+          clearError={(entryId, field) =>
+            setLinkErrors((prev) => {
+              const entry = prev[entryId];
+              if (!entry?.[field]) return prev;
+              const nextEntry = { ...entry };
+              delete nextEntry[field];
+              const updated = { ...prev };
+              if (Object.keys(nextEntry).length > 0) updated[entryId] = nextEntry;
+              else delete updated[entryId];
+              return updated;
+            })
+          }
+          setError={(entryId, field, message) =>
+            setLinkErrors((prev) => ({
+              ...prev,
+              [entryId]: { ...(prev[entryId] ?? {}), [field]: message },
+            }))
+          }
+        />
+      </section>
+
+      {/*
+        Navy, not the survey's `submit-green` button. That green is a documented
+        single-control exception in UX-UI.md — the edit flow's "Submit my
+        updates", which an alum reaches only after filling a long form and can
+        miss. This button sits at the end of a short optional page whose primary
+        action is the only button in the block, and UX-UI.md is explicit that a
+        second control wanting `submit-green` should take `brand-blue`/navy
+        instead.
+      */}
+      <div className="mt-10 border-t border-gray-200 pt-8">
+        {submitError ? (
+          <p className="mb-4 text-sm text-danger-600">{submitError}</p>
+        ) : null}
+        <Button
+          type="button"
+          variant="navy"
+          size="lg"
+          className="w-full"
+          onClick={handleSubmit}
+          disabled={submitting}
+        >
+          {submitting ? "Sending…" : "Send this to the Finance team"}
+        </Button>
+        <p className="mt-3 text-sm leading-relaxed text-gray-500">
+          Nothing to add? You&apos;re already done — your confirmation is
+          recorded and you can close this page.
+        </p>
+      </div>
+
+      <TrustNote />
+    </>
+  );
+}
+
 function SectionRow({
   title,
   blurb,
@@ -1325,12 +1538,14 @@ function PhotoSection({
  * an icon. The alum meeting this screen is on a phone, in an email client's
  * browser, and will not fight a dense grid.
  */
-function OpportunityLinksSection({
+export function OpportunityLinksSection({
   entries,
   setEntries,
   errors,
   clearError,
   setError,
+  headingAs = "h1",
+  headingId,
 }: {
   entries: LinkEntry[];
   setEntries: (next: LinkEntry[]) => void;
@@ -1341,7 +1556,18 @@ function OpportunityLinksSection({
     field: keyof LinkEntryErrors,
     message: string,
   ) => void;
+  /**
+   * `h1` in the edit flow, where this screen IS the page (#441); `h2` on the
+   * ways-to-help page (#755), where it is the second of two asks under that
+   * page's own heading. The wording is identical either way — only the level
+   * and its type scale change, because two `h1`s on one screen leaves a screen
+   * reader with two competing page titles.
+   */
+  headingAs?: "h1" | "h2";
+  headingId?: string;
 }) {
+  const Heading = headingAs;
+  const asPage = headingAs === "h1";
   const atCap = entries.length >= MAX_LINKS;
 
   // Today, for every deadline picker's floor. Resolved once here and after
@@ -1357,10 +1583,23 @@ function OpportunityLinksSection({
 
   return (
     <>
-      <h1 className="text-3xl font-semibold leading-tight tracking-tight text-navy-800">
+      <Heading
+        id={headingId}
+        className={
+          asPage
+            ? "text-3xl font-semibold leading-tight tracking-tight text-navy-800"
+            : "text-lg font-semibold text-navy-800"
+        }
+      >
         Jobs &amp; internships
-      </h1>
-      <p className="mt-3 max-w-prose text-base leading-relaxed text-gray-600">
+      </Heading>
+      <p
+        className={
+          asPage
+            ? "mt-3 max-w-prose text-base leading-relaxed text-gray-600"
+            : "mt-1 max-w-prose text-sm leading-relaxed text-gray-500"
+        }
+      >
         Know of a job or internship our students should see? Share the link — our
         team reviews everything before it&apos;s shared.
       </p>

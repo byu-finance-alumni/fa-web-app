@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { SAMPLE_ALUM, SAMPLE_ALUM_NAME } from "@/lib/sampleAlumni";
@@ -21,6 +22,12 @@ import {
   type Fields,
 } from "@/components/survey/survey-screens";
 import { SurveyPageShell } from "@/components/survey/SurveyPageShell";
+import {
+  confirmErrorMessage,
+  confirmOnlyBody,
+  isDeadTokenStatus,
+  waysToHelpHref,
+} from "@/lib/surveyConfirm";
 import type { components } from "@/types/api.gen";
 
 /**
@@ -40,7 +47,18 @@ import type { components } from "@/types/api.gen";
  * the record directly (that's the admin's confirm step).
  */
 
-type Status = "review" | "confirmed" | "editing" | "submitted";
+/**
+ * ⚠️ There is deliberately no `"confirmed"` state any more (#755).
+ *
+ * It used to exist and to record NOTHING: "Yes, everything is correct" flipped
+ * a local state flag, sent no request at all, and rendered a panel whose only
+ * control was "I need to make changes". Confirming now POSTs
+ * (`confirmed_only`) and then NAVIGATES to `/survey/{token}/help`, so the
+ * confirmation is a row in the database and the alum is asked to help rather
+ * than shown a wall. If you find yourself re-adding a local "confirmed" screen,
+ * you are re-adding the dead end.
+ */
+type Status = "review" | "editing" | "submitted";
 type LoadState = "loading" | "ready" | "invalid";
 type Respondent = components["schemas"]["SurveyRespondInfo"];
 type SubmitResult = components["schemas"]["SurveySubmitResult"];
@@ -53,6 +71,7 @@ export default function SurveyConfirmPage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = use(params);
+  const router = useRouter();
 
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [name, setName] = useState("");
@@ -68,6 +87,10 @@ export default function SurveyConfirmPage({
   const [photoFailed, setPhotoFailed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // The confirmation POST (#755), tracked separately from `submitting` because
+  // it belongs to a different screen and a different request.
+  const [confirming, setConfirming] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
 
   // Opportunity links (#441). One blank entry to start, so opening the section
   // shows a form rather than an empty page with a button on it; a blank entry
@@ -176,6 +199,58 @@ export default function SurveyConfirmPage({
   // rejected url — must never cost them the corrections they came to make. Each
   // step records that it landed, so pressing Submit again after a failure
   // retries ONLY what failed.
+  // "Yes, everything is correct" (#755). It used to set a local status flag and
+  // nothing else — a client-side flip that recorded nothing — and it now
+  // RECORDS the confirmation before taking the alum to the ways-to-help page.
+  //
+  // Sent as a bare `confirmed_only` body with NO fields and NO photo, because
+  // the backend ignores that flag whenever the body carries content: a
+  // confirmation folded in with anything else is silently filed as an ordinary
+  // staged response instead. Involvement answers therefore go as a second,
+  // ordinary POST from the ways-to-help page.
+  //
+  // FAILURE IS NEVER SWALLOWED and never dressed up as success. The alum stays
+  // on this screen, with their information still in front of them and the
+  // reason under the buttons, and can press again — "I need to make changes"
+  // never depended on this request, so there is always a way forward. A dead
+  // token is the one unretryable case: nothing about it improves on a second
+  // press, so it shows `InvalidPanel` instead of a message to keep pressing.
+  const handleConfirm = async () => {
+    if (token === "demo") {
+      router.push(waysToHelpHref(token));
+      return;
+    }
+    setConfirming(true);
+    setConfirmError(null);
+    let status: number | null = null;
+    try {
+      const res = await fetch(
+        `${API_URL}/survey/respond/${encodeURIComponent(token)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(confirmOnlyBody()),
+        },
+      );
+      status = res.status;
+    } catch {
+      // Network/CORS failure — no status to reason about.
+      status = null;
+    }
+    if (status !== null && status >= 200 && status < 300) {
+      // `confirming` stays true on purpose: the navigation is in flight and the
+      // buttons must not go live again underneath it.
+      router.push(waysToHelpHref(token));
+      return;
+    }
+    setConfirming(false);
+    if (isDeadTokenStatus(status)) {
+      setLoadState("invalid");
+      return;
+    }
+    setConfirmError(confirmErrorMessage(status));
+  };
+
   const handleSubmit = async () => {
     if (token === "demo") {
       setStatus("submitted");
@@ -290,16 +365,6 @@ export default function SurveyConfirmPage({
             .filter(Boolean)
             .join(" ")}
         />
-      ) : status === "confirmed" ? (
-        <SuccessPanel
-          title={`Thanks for confirming, ${firstName}`}
-          body="Your information is up to date. We appreciate you helping us keep in touch about events, mentoring, and opportunities."
-          action={
-            <Button variant="secondary" onClick={() => setStatus("editing")}>
-              I need to make changes
-            </Button>
-          }
-        />
       ) : status === "editing" ? (
         <EditFlow
           firstName={firstName}
@@ -369,9 +434,10 @@ export default function SurveyConfirmPage({
                 variant="navy"
                 size="lg"
                 className="w-full sm:w-auto"
-                onClick={() => setStatus("confirmed")}
+                onClick={handleConfirm}
+                disabled={confirming}
               >
-                Yes, everything is correct
+                {confirming ? "Confirming…" : "Yes, everything is correct"}
               </Button>
               <Button
                 type="button"
@@ -382,10 +448,16 @@ export default function SurveyConfirmPage({
                   setOpenSection(null);
                   setStatus("editing");
                 }}
+                disabled={confirming}
               >
                 I need to make changes
               </Button>
             </div>
+            {confirmError ? (
+              <p role="alert" className="mt-4 text-sm text-danger-600">
+                {confirmError}
+              </p>
+            ) : null}
           </div>
 
           <TrustNote />

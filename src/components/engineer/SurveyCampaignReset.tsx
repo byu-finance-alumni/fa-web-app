@@ -9,7 +9,7 @@ import {
 } from "@/app/(app)/engineer/surveys/actions";
 import { clientGet, ApiClientError } from "@/lib/api-client";
 import { useToast } from "@/components/ui/Toast";
-import { Badge } from "@/components/ui/badge";
+import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -50,19 +50,43 @@ function alumniName(a: Alumni): string {
  * Each note now describes what the row IS, not what a reset would do to it —
  * because a reset does nothing to it. The old copy ("deleting it throws the
  * submission away unreviewed") described behaviour that no longer exists.
+ *
+ * ⚠️ EVERY value `survey_responses.status` can hold must appear here. The
+ * lookup falls back to the raw DB word, which is how `confirmed` (#755) would
+ * have shown up in the engineer console as a bare lowercase "confirmed" with no
+ * explanation next to three neighbours that all have one. The tone lives here
+ * too, so a new status can never render with a colour chosen by an `else`
+ * branch that has never heard of it.
  */
-const RESPONSE_STATUS: Record<string, { label: string; note: string }> = {
+export const RESPONSE_STATUS: Record<
+  string,
+  { label: string; note: string; tone: BadgeProps["variant"] }
+> = {
   pending: {
     label: "Awaiting review",
     note: "still in the review queue — a reset leaves it there, and it can still be applied to their profile",
+    tone: "warning",
   },
   applied: {
     label: "Applied",
     note: "already written to their profile",
+    tone: "success",
   },
   rejected: {
     label: "Rejected",
     note: "staff discarded it, so nothing reached their profile",
+    tone: "muted",
+  },
+  // Added by #755: pressing "Yes, everything is correct" now POSTs
+  // (`confirmed_only`) instead of flipping a client-side flag that recorded
+  // nothing. It is a REPLY — it proves we reached them and that the record is
+  // right — but it carries no changes, so there is nothing in it for a reviewer
+  // to accept or discard. Hence `neutral` rather than `warning` (nothing is
+  // waiting on anyone) or `muted` (it is not a dud).
+  confirmed: {
+    label: "Confirmed — no changes",
+    note: "they replied to say everything we hold was already correct, so there is nothing to review or apply",
+    tone: "neutral",
   },
 };
 
@@ -385,7 +409,7 @@ export function SurveyCampaignReset() {
                   {responses.map((r) => {
                     const meaning =
                       RESPONSE_STATUS[r.status] ??
-                      { label: r.status, note: "" };
+                      { label: r.status, note: "", tone: "neutral" as const };
                     return (
                       <li key={r.survey_response_id}>
                         <span className="flex flex-wrap items-baseline gap-2">
@@ -396,17 +420,7 @@ export function SurveyCampaignReset() {
                           <span className="text-xs text-gray-500">
                             {formatDateTime(r.submitted_at)}
                           </span>
-                          <Badge
-                            variant={
-                              r.status === "pending"
-                                ? "warning"
-                                : r.status === "applied"
-                                  ? "success"
-                                  : "muted"
-                            }
-                          >
-                            {meaning.label}
-                          </Badge>
+                          <Badge variant={meaning.tone}>{meaning.label}</Badge>
                           {r.blocks_resend ? (
                             <Badge variant="danger">blocking</Badge>
                           ) : null}
