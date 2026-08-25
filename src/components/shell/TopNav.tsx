@@ -14,6 +14,8 @@ import {
 } from "@/components/shell/nav";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { NavSearch } from "@/components/shell/NavSearch";
+import { BrandPhotoBackdrop } from "@/components/shell/BrandPhotoBackdrop";
+import { BrandWordmark } from "@/components/shell/BrandWordmark";
 
 /**
  * EXPERIMENT ONLY — horizontal navigation across the top, over the Marriott
@@ -111,51 +113,14 @@ export function TopNav({
       {/* The photo and its scrims, clipped to the bar. Same two-layer treatment
           the dashboard hero uses — a flat wash plus a left-heavy gradient — so
           the brand and the nav labels keep their contrast wherever the photo
-          happens to be bright. */}
-      <div className="absolute inset-0 overflow-hidden">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/images/dashboard-hero.jpg"
-          srcSet="/images/dashboard-hero-960.jpg 960w, /images/dashboard-hero-1280.jpg 1280w, /images/dashboard-hero.jpg 1920w"
-          sizes="100vw"
-          alt=""
-          aria-hidden="true"
-          /* FIXED 240px, anchored to the top of the bar — NOT `h-full`.
-             `object-cover` frames against the box it is in, so a 240px header
-             (dashboard, with the masthead) and a 64px one (everywhere else)
-             showed different slices of the photo and the bar looked like a
-             different image page to page. At a constant height the top 64px is
-             always the same pixels; the short header just clips the rest. */
-          className="absolute inset-x-0 top-0 h-60 w-full object-cover"
-          /* SAME framing as the band below it (45%), not the bar's own 55%. Two
-             strips of the same photo showing different parts of it is what read
-             as "not matching".
+          happens to be bright.
 
-             ⚠️ They still are not CONTINUOUS — the bar and the band are separate
-             elements of different heights, so a single percentage cannot make
-             the band start exactly where the bar stops, and the offset needed to
-             do it changes with window width. Same crop is as close as two
-             elements get; the only way to a genuinely unbroken photo is one
-             image spanning both, which means the band moving into the shell. */
-          style={{ objectPosition: "center 45%" }}
-        />
-        {/* ONE TREATMENT, EVERYWHERE (Jake, 2026-08-21). It was two: a soft
-            scrim on the dashboard so the bar matched the masthead beneath it,
-            and a much heavier one elsewhere so a strip of building would not
-            compete with the links. The heavier version hid the photo almost
-            completely, which was the complaint — so every route now uses the
-            softer pair and the photo actually reads.
-
-            ⚠️ These two opacities are the contrast, not decoration. A bare photo
-            was tried on the dashboard and the links vanished into the atrium
-            skylight. Lighten either layer and check the labels over the
-            brightest part of the image before keeping it. */}
-        <div aria-hidden="true" className="absolute inset-0 bg-navy-900/45" />
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 bg-gradient-to-r from-navy-900/80 via-navy-900/60 to-navy-900/35"
-        />
-      </div>
+          Lives in `BrandPhotoBackdrop` since #756, because the PUBLIC survey
+          shell wears the same background and a second copy of these opacities
+          would drift from this one. Editing it changes the survey too — check
+          both. Note it is the background ONLY: the nav below stays here, and
+          must, since none of it is reachable for a survey respondent. */}
+      <BrandPhotoBackdrop />
 
       {/* 96px, brand left, links RIGHT — the Silver Fund proportions. The links
           being right-aligned rather than packed against the brand is most of
@@ -166,13 +131,11 @@ export function TopNav({
           box and pushed the links ~16px lower off the dashboard than on it. */}
       <div className="relative">
       <div className="flex h-16 items-center gap-6 px-8">
+        {/* The type lives in `BrandWordmark` since #756 — the public survey
+            shell shows the same lockup with a different descriptor and no link,
+            since a stranger with a survey token has nowhere in the app to go. */}
         <Link href="/dashboard" className="shrink-0">
-          <span className="text-2xl font-bold tracking-tight text-white">
-            BYU
-          </span>
-          <span className="ml-2 text-2xl font-normal text-white">
-            Alumni Database
-          </span>
+          <BrandWordmark trail="Alumni Database" />
         </Link>
 
         <nav ref={navRef} className="ml-auto flex min-w-0 items-center gap-8">
