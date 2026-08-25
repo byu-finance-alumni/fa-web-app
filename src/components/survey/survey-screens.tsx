@@ -515,25 +515,26 @@ export const ENGAGEMENT_SECTION: Section = {
 export const EDIT_SECTIONS: Section[] = [...INFO_SECTIONS, ENGAGEMENT_SECTION];
 
 /**
- * The involvement questions the WAYS-TO-HELP page asks (#755) — the same
- * `ENGAGEMENT_SECTION` list the edit flow uses, minus anything carrying a
- * `donateUrl`.
+ * The involvement questions the WAYS-TO-HELP page asks (#755) — the WHOLE
+ * `ENGAGEMENT_SECTION` list the edit flow uses, giving question included.
  *
- * That filter is how the Pay It Forward question stays OFF this page. Jake's
- * 2026-08-25 note scoped the page to involvement and jobs/internships only, and
- * a giving question with its donate button stripped out would be worse than not
- * asking: "Would you like to donate?" with no way to donate is the same
- * dead-end this issue exists to remove. The question is untouched in the edit
- * flow, where the donate link is right underneath it.
+ * Jake's call, 2026-08-25, asked explicitly: the Pay It Forward question stays
+ * ON this page, with its donate button. His meeting note scoped the page to
+ * "ways to get involved" and jobs/internships, and giving lives INSIDE the
+ * section carrying that name — its own blurb reads "mentoring, speaking,
+ * giving". The alumni who reach this page confirmed their details in one click,
+ * so they are the most willing audience the survey ever has; asking them costs
+ * nothing.
  *
- * Derived rather than hand-listed on purpose — the edit flow and this page ask
- * the same questions in the same order by construction, and a new giving
- * question added to `ENGAGEMENT_SECTION` later is excluded here automatically
- * instead of quietly appearing on a page that was scoped not to carry one.
+ * Note the question is only worth asking WITH `donateUrl` rendered beneath it.
+ * "Would you like to donate?" with no way to donate would recreate the exact
+ * dead end #755 exists to remove.
+ *
+ * Aliased rather than hand-listed on purpose — the edit flow and this page ask
+ * the same questions in the same order by construction, so a question added to
+ * `ENGAGEMENT_SECTION` later cannot silently diverge between the two.
  */
-export const WAYS_TO_HELP_FIELDS: EditField[] = ENGAGEMENT_SECTION.fields.filter(
-  (f) => !f.donateUrl,
-);
+export const WAYS_TO_HELP_FIELDS: EditField[] = ENGAGEMENT_SECTION.fields;
 
 /**
  * The ONLY field keys the ways-to-help page may submit. Passed to
