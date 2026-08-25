@@ -24,6 +24,7 @@ import {
   ReviewSections,
   SuccessPanel,
   TrustNote,
+  WaysToHelp,
   initialsOf,
   type Fields,
 } from "@/components/survey/survey-screens";
@@ -127,7 +128,13 @@ export function SurveyPreview() {
   );
 }
 
-type PreviewStatus = "review" | "confirmed" | "editing" | "submitted";
+/**
+ * `helping` is where "Yes, everything is correct" leads (#755) — the real
+ * survey POSTs the confirmation and navigates to `/survey/{token}/help`, and
+ * the preview walks the same screen so staff see the ask an alum who confirms
+ * actually gets. Nothing is posted from here.
+ */
+type PreviewStatus = "review" | "helping" | "editing" | "submitted";
 
 function PreviewBody() {
   const fields: Fields = SAMPLE_ALUM;
@@ -208,15 +215,24 @@ function PreviewBody() {
           title="Thank you — your updates are in"
           body="Our team will review your response before any changes are applied to your record. You can safely close this page."
         />
-      ) : status === "confirmed" ? (
-        <SuccessPanel
-          title={`Thanks for confirming, ${firstName}`}
-          body="Your information is up to date. We appreciate you helping us keep in touch about events, mentoring, and opportunities."
-          action={
-            <Button variant="secondary" onClick={() => setStatus("editing")}>
-              I need to make changes
-            </Button>
-          }
+      ) : status === "helping" ? (
+        // The same component the real ways-to-help page renders (#755), over
+        // the sample record. "I need to make changes" is a state flip here
+        // rather than a route push, for the same reason section open/close is:
+        // navigating inside the dialog would take the console page with it.
+        <WaysToHelp
+          firstName={firstName}
+          valueOf={valueOf}
+          setEdit={setEdit}
+          links={links}
+          setLinks={setLinks}
+          onNeedChanges={() => {
+            setOpenSection(null);
+            setStatus("editing");
+          }}
+          onSubmit={() => setStatus("submitted")}
+          submitting={false}
+          submitError={null}
         />
       ) : status === "editing" ? (
         // Section open/close is plain state here, not history entries: inside a
@@ -286,7 +302,7 @@ function PreviewBody() {
                 variant="navy"
                 size="lg"
                 className="w-full sm:w-auto"
-                onClick={() => setStatus("confirmed")}
+                onClick={() => setStatus("helping")}
               >
                 Yes, everything is correct
               </Button>
