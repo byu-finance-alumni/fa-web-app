@@ -3912,6 +3912,14 @@ export interface paths {
          *     Nothing is applied to the record here.
          *
          *     An over-cap payload is a 413 and stages nothing — see `_oversized_submission`.
+         *
+         *     ALSO records a "yes, everything is correct" confirmation (#755): post
+         *     `{"fields": {}, "confirmed_only": true}` and the alum's reply goes on record
+         *     with nothing to review. Deliberately the SAME endpoint rather than a sibling
+         *     of `/links` and `/photo`: those two carry a different KIND of thing (rows in
+         *     another table, bytes in a bucket), while a confirmation is the same survey
+         *     reply with an empty payload — same token check, same limiter budget, same
+         *     caps, no second public write path to keep in step with this one.
          */
         post: operations["survey_submit_survey_respond__token__post"];
         delete?: never;
@@ -6848,6 +6856,11 @@ export interface components {
         /**
          * DashboardStateCount
          * @description One state bucket in the by-state distribution.
+         *
+         *     ``state`` is the CANONICAL FULL state name ("Utah", "District of Columbia") —
+         *     never a 2-letter code and never a non-US region. The stored column is free
+         *     text; the query folds it before grouping (#754), so a record entered as "UT"
+         *     and one entered as "Utah" land in this one bucket.
          */
         DashboardStateCount: {
             /** State */
@@ -6881,6 +6894,8 @@ export interface components {
             distinct_employers: number;
             /** Employer States */
             employer_states: number;
+            /** Employer Countries */
+            employer_countries: number;
             /** Not Contacted 6Mo */
             not_contacted_6mo: number;
             /** Not Contacted 12Mo */
@@ -9581,6 +9596,11 @@ export interface components {
              * @default 0
              */
             rejected: number;
+            /**
+             * Confirmed
+             * @default 0
+             */
+            confirmed: number;
         };
         /**
          * SurveySchedulePauseAllResult
@@ -9733,6 +9753,11 @@ export interface components {
              * @default false
              */
             has_photo: boolean;
+            /**
+             * Confirmed Only
+             * @default false
+             */
+            confirmed_only: boolean;
         };
         /**
          * SurveySubmitResult
@@ -9749,6 +9774,11 @@ export interface components {
             change_count: number;
             /** Survey Response Id */
             survey_response_id: number | null;
+            /**
+             * Confirmed
+             * @default false
+             */
+            confirmed: boolean;
         };
         /**
          * SurveyUnreachableAlum
