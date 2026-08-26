@@ -26,6 +26,7 @@ import type { UserContext } from "@/types/alumni";
 import type { FilterOptions } from "@/types/filters";
 import { EMPTY_FILTER_OPTIONS } from "@/lib/emptyFilterOptions";
 import { sortIndustryRows } from "@/lib/industryBreakdown";
+import { employerReachSub } from "@/lib/employerReach";
 
 /**
  * Hand-written shape for `/dashboard/summary` — keep it in sync with the API
@@ -49,8 +50,23 @@ interface Summary {
    * to "—" rather than rendering `undefined` against an older API.
    */
   distinct_employers?: number;
-  /** How many states those companies are in — the Companies tile's sub-line. */
+  /**
+   * How many US states those companies are in — half of the Companies tile's
+   * sub-line. Since #754 this is DISTINCT US STATES + DC, folded through the
+   * backend's canonical state list, so it cannot exceed 51. It used to be a
+   * raw `COUNT(DISTINCT lower(trim(current_state)))` over free text, which
+   * counted "UT" and "Utah" twice and counted non-US regions as states — hence
+   * the tile reading "Across 70 states".
+   */
   employer_states?: number;
+  /**
+   * #754: the distinct NON-US countries those same companies are in, the
+   * figure that used to be silently inflating `employer_states`. Optional for
+   * the same reason as the edit counts below — a backend without the #754
+   * change omits it, and the sub-line falls back to naming states only rather
+   * than claiming zero countries.
+   */
+  employer_countries?: number;
   contacted_this_month: number;
   /**
    * #606: active alumni whose `updated_at` falls in the CURRENT CALENDAR month
@@ -81,6 +97,12 @@ interface Summary {
   guest_speakers_this_month: number;
   by_graduation_year: { year: number; count: number }[];
   top_employers: { employer: string; count: number }[];
+  /**
+   * #754: `state` is the CANONICAL FULL state name ("Utah", "District of
+   * Columbia") — never a 2-letter code and never a non-US region. Nothing in
+   * the app renders this list today; the note is here so whatever panel picks
+   * it up next sizes its labels for "District of Columbia" rather than "DC".
+   */
   by_state: { state: string; count: number }[];
   /**
    * Industry breakdown (#351/#352/#353). `industries` covers EVERY canonical
@@ -590,17 +612,18 @@ export default async function DashboardPage() {
                   value={s?.distinct_employers ?? "—"}
                   /* Mirrors the industries line under Total alumni: a count is
                      hard to size on its own, and the second dimension is what
-                     turns "42" into "42, spread over 12 states". Null rather
-                     than a guess when the backend has not sent it — a tile that
-                     invents a denominator is worse than one that shows only its
-                     number. */
-                  sub={
-                    s?.employer_states == null
-                      ? null
-                      : `Across ${s.employer_states} ${
-                          s.employer_states === 1 ? "state" : "states"
-                        }`
-                  }
+                     turns "42" into "42, spread over 12 states and 4
+                     countries". Null rather than a guess when the backend has
+                     not sent it — a tile that invents a denominator is worse
+                     than one that shows only its number.
+
+                     The wording, the singular/zero cases and the
+                     older-backend fallback all live in `employerReachSub` so
+                     they can be tested; see src/lib/employerReach.ts. */
+                  sub={employerReachSub(
+                    s?.employer_states,
+                    s?.employer_countries,
+                  )}
                   /* Deep-links to the same population the number counts —
                      alumni WITH a current employer — rather than to the whole
                      list. A tile whose drill-down is wider than its own count is

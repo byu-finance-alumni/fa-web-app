@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { SAMPLE_ALUM, SAMPLE_ALUM_NAME } from "@/lib/sampleAlumni";
@@ -20,6 +21,13 @@ import {
   initialsOf,
   type Fields,
 } from "@/components/survey/survey-screens";
+import { SurveyPageShell } from "@/components/survey/SurveyPageShell";
+import {
+  confirmErrorMessage,
+  confirmOnlyBody,
+  isDeadTokenStatus,
+  waysToHelpHref,
+} from "@/lib/surveyConfirm";
 import type { components } from "@/types/api.gen";
 
 /**
@@ -39,7 +47,18 @@ import type { components } from "@/types/api.gen";
  * the record directly (that's the admin's confirm step).
  */
 
-type Status = "review" | "confirmed" | "editing" | "submitted";
+/**
+ * ⚠️ There is deliberately no `"confirmed"` state any more (#755).
+ *
+ * It used to exist and to record NOTHING: "Yes, everything is correct" flipped
+ * a local state flag, sent no request at all, and rendered a panel whose only
+ * control was "I need to make changes". Confirming now POSTs
+ * (`confirmed_only`) and then NAVIGATES to `/survey/{token}/help`, so the
+ * confirmation is a row in the database and the alum is asked to help rather
+ * than shown a wall. If you find yourself re-adding a local "confirmed" screen,
+ * you are re-adding the dead end.
+ */
+type Status = "review" | "editing" | "submitted";
 type LoadState = "loading" | "ready" | "invalid";
 type Respondent = components["schemas"]["SurveyRespondInfo"];
 type SubmitResult = components["schemas"]["SurveySubmitResult"];
@@ -52,6 +71,7 @@ export default function SurveyConfirmPage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = use(params);
+  const router = useRouter();
 
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [name, setName] = useState("");
@@ -67,6 +87,10 @@ export default function SurveyConfirmPage({
   const [photoFailed, setPhotoFailed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // The confirmation POST (#755), tracked separately from `submitting` because
+  // it belongs to a different screen and a different request.
+  const [confirming, setConfirming] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
 
   // Opportunity links (#441). One blank entry to start, so opening the section
   // shows a form rather than an empty page with a button on it; a blank entry
@@ -175,6 +199,58 @@ export default function SurveyConfirmPage({
   // rejected url — must never cost them the corrections they came to make. Each
   // step records that it landed, so pressing Submit again after a failure
   // retries ONLY what failed.
+  // "Yes, everything is correct" (#755). It used to set a local status flag and
+  // nothing else — a client-side flip that recorded nothing — and it now
+  // RECORDS the confirmation before taking the alum to the ways-to-help page.
+  //
+  // Sent as a bare `confirmed_only` body with NO fields and NO photo, because
+  // the backend ignores that flag whenever the body carries content: a
+  // confirmation folded in with anything else is silently filed as an ordinary
+  // staged response instead. Involvement answers therefore go as a second,
+  // ordinary POST from the ways-to-help page.
+  //
+  // FAILURE IS NEVER SWALLOWED and never dressed up as success. The alum stays
+  // on this screen, with their information still in front of them and the
+  // reason under the buttons, and can press again — "I need to make changes"
+  // never depended on this request, so there is always a way forward. A dead
+  // token is the one unretryable case: nothing about it improves on a second
+  // press, so it shows `InvalidPanel` instead of a message to keep pressing.
+  const handleConfirm = async () => {
+    if (token === "demo") {
+      router.push(waysToHelpHref(token));
+      return;
+    }
+    setConfirming(true);
+    setConfirmError(null);
+    let status: number | null = null;
+    try {
+      const res = await fetch(
+        `${API_URL}/survey/respond/${encodeURIComponent(token)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(confirmOnlyBody()),
+        },
+      );
+      status = res.status;
+    } catch {
+      // Network/CORS failure — no status to reason about.
+      status = null;
+    }
+    if (status !== null && status >= 200 && status < 300) {
+      // `confirming` stays true on purpose: the navigation is in flight and the
+      // buttons must not go live again underneath it.
+      router.push(waysToHelpHref(token));
+      return;
+    }
+    setConfirming(false);
+    if (isDeadTokenStatus(status)) {
+      setLoadState("invalid");
+      return;
+    }
+    setConfirmError(confirmErrorMessage(status));
+  };
+
   const handleSubmit = async () => {
     if (token === "demo") {
       setStatus("submitted");
@@ -261,145 +337,132 @@ export default function SurveyConfirmPage({
   };
 
   return (
-    <main className="min-h-screen bg-white text-gray-900">
-      <header className="bg-navy-800">
-        <div className="flex h-16 items-center px-5 sm:px-8">
-          <span className="text-base font-semibold text-white sm:text-lg">
-            BYU Finance Alumni Update
-          </span>
+    /* The masthead, the reading column and the sign-off all come from the shell
+       (#756), so every state below — loading, invalid, review, confirmed,
+       editing, submitted — is framed identically, and the ways-to-help page
+       (#755) can wear the same one. */
+    <SurveyPageShell>
+      {loadState === "loading" ? (
+        <div className="space-y-4">
+          <div className="h-9 w-2/3 animate-pulse rounded bg-gray-100" />
+          <div className="h-48 animate-pulse rounded-lg bg-gray-100" />
         </div>
-      </header>
-
-      <div className="mx-auto max-w-[800px] px-5 pb-16 pt-10 sm:px-8">
-        {loadState === "loading" ? (
-          <div className="space-y-4">
-            <div className="h-9 w-2/3 animate-pulse rounded bg-gray-100" />
-            <div className="h-48 animate-pulse rounded-lg bg-gray-100" />
+      ) : loadState === "invalid" ? (
+        <InvalidPanel />
+      ) : status === "submitted" ? (
+        <SuccessPanel
+          title="Thank you — your updates are in"
+          body={[
+            "Our team will review your response before any changes are applied to your record.",
+            photoFailed
+              ? "We couldn't upload your new photo this time, but the rest of your updates were received."
+              : null,
+            linkCount > 0
+              ? `We've also received the ${linkCount === 1 ? "opportunity" : `${linkCount} opportunities`} you shared — our team checks each one before passing it on to students.`
+              : null,
+            "You can safely close this page.",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        />
+      ) : status === "editing" ? (
+        <EditFlow
+          firstName={firstName}
+          name={name}
+          valueOf={valueOf}
+          onFileValueOf={onFileValueOf}
+          setEdit={setEdit}
+          openSection={openSection}
+          openSectionNav={openSectionNav}
+          closeSectionNav={closeSectionNav}
+          photoPreview={photoPreview}
+          setPhotoPreview={setPhotoPreview}
+          setPhotoFile={setPhotoFile}
+          links={links}
+          setLinks={setLinks}
+          onBack={() => setStatus("review")}
+          onSubmit={handleSubmit}
+          submitting={submitting}
+          submitError={submitError}
+        />
+      ) : (
+        /* review */
+        <>
+          <div>
+            <div className="flex items-center gap-4">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-navy-800 text-base font-semibold text-white">
+                {initialsOf(name)}
+              </span>
+              <div className="min-w-0">
+                <h1 className="text-3xl font-semibold leading-tight tracking-tight text-navy-800">
+                  Hi, {firstName}
+                </h1>
+                <p className="mt-1 truncate text-sm text-gray-500">
+                  {name} · BYU Finance · Marriott School of Business
+                </p>
+              </div>
+            </div>
+            <p className="mt-4 max-w-prose text-base leading-relaxed text-gray-600">
+              Please review the information we currently have on file. This
+              should take less than a minute.
+            </p>
           </div>
-        ) : loadState === "invalid" ? (
-          <InvalidPanel />
-        ) : status === "submitted" ? (
-          <SuccessPanel
-            title="Thank you — your updates are in"
-            body={[
-              "Our team will review your response before any changes are applied to your record.",
-              photoFailed
-                ? "We couldn't upload your new photo this time, but the rest of your updates were received."
-                : null,
-              linkCount > 0
-                ? `We've also received the ${linkCount === 1 ? "opportunity" : `${linkCount} opportunities`} you shared — our team checks each one before passing it on to students.`
-                : null,
-              "You can safely close this page.",
-            ]
-              .filter(Boolean)
-              .join(" ")}
-          />
-        ) : status === "confirmed" ? (
-          <SuccessPanel
-            title={`Thanks for confirming, ${firstName}`}
-            body="Your information is up to date. We appreciate you helping us keep in touch about events, mentoring, and opportunities."
-            action={
-              <Button variant="secondary" onClick={() => setStatus("editing")}>
+
+          <section
+            className="mt-8 rounded-lg border border-gray-200"
+            aria-labelledby="your-info-heading"
+          >
+            <div className="border-b border-gray-200 px-5 py-3 sm:px-6">
+              <h2 id="your-info-heading" className="text-sm font-semibold text-gray-900">
+                Your information
+              </h2>
+            </div>
+            <ReviewSections
+              sections={INFO_SECTIONS}
+              fields={fields}
+              className="sm:px-6"
+            />
+          </section>
+
+          <div className="mt-8">
+            <p className="text-base font-medium text-gray-900">
+              Is this information correct?
+            </p>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <Button
+                type="button"
+                variant="navy"
+                size="lg"
+                className="w-full sm:w-auto"
+                onClick={handleConfirm}
+                disabled={confirming}
+              >
+                {confirming ? "Confirming…" : "Yes, everything is correct"}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="lg"
+                className="w-full sm:w-auto"
+                onClick={() => {
+                  setOpenSection(null);
+                  setStatus("editing");
+                }}
+                disabled={confirming}
+              >
                 I need to make changes
               </Button>
-            }
-          />
-        ) : status === "editing" ? (
-          <EditFlow
-            firstName={firstName}
-            name={name}
-            valueOf={valueOf}
-            onFileValueOf={onFileValueOf}
-            setEdit={setEdit}
-            openSection={openSection}
-            openSectionNav={openSectionNav}
-            closeSectionNav={closeSectionNav}
-            photoPreview={photoPreview}
-            setPhotoPreview={setPhotoPreview}
-            setPhotoFile={setPhotoFile}
-            links={links}
-            setLinks={setLinks}
-            onBack={() => setStatus("review")}
-            onSubmit={handleSubmit}
-            submitting={submitting}
-            submitError={submitError}
-          />
-        ) : (
-          /* review */
-          <>
-            <div>
-              <div className="flex items-center gap-4">
-                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-navy-800 text-base font-semibold text-white">
-                  {initialsOf(name)}
-                </span>
-                <div className="min-w-0">
-                  <h1 className="text-3xl font-semibold leading-tight tracking-tight text-navy-800">
-                    Hi, {firstName}
-                  </h1>
-                  <p className="mt-1 truncate text-sm text-gray-500">
-                    {name} · BYU Finance · Marriott School of Business
-                  </p>
-                </div>
-              </div>
-              <p className="mt-4 max-w-prose text-base leading-relaxed text-gray-600">
-                Please review the information we currently have on file. This
-                should take less than a minute.
-              </p>
             </div>
-
-            <section
-              className="mt-8 rounded-lg border border-gray-200"
-              aria-labelledby="your-info-heading"
-            >
-              <div className="border-b border-gray-200 px-5 py-3 sm:px-6">
-                <h2 id="your-info-heading" className="text-sm font-semibold text-gray-900">
-                  Your information
-                </h2>
-              </div>
-              <ReviewSections
-                sections={INFO_SECTIONS}
-                fields={fields}
-                className="sm:px-6"
-              />
-            </section>
-
-            <div className="mt-8">
-              <p className="text-base font-medium text-gray-900">
-                Is this information correct?
+            {confirmError ? (
+              <p role="alert" className="mt-4 text-sm text-danger-600">
+                {confirmError}
               </p>
-              <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                <Button
-                  type="button"
-                  variant="navy"
-                  size="lg"
-                  className="w-full sm:w-auto"
-                  onClick={() => setStatus("confirmed")}
-                >
-                  Yes, everything is correct
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="lg"
-                  className="w-full sm:w-auto"
-                  onClick={() => {
-                    setOpenSection(null);
-                    setStatus("editing");
-                  }}
-                >
-                  I need to make changes
-                </Button>
-              </div>
-            </div>
+            ) : null}
+          </div>
 
-            <TrustNote />
-          </>
-        )}
-
-        <footer className="mt-12 text-center">
-          <p className="text-xs text-gray-400">BYU Marriott School of Business</p>
-        </footer>
-      </div>
-    </main>
+          <TrustNote />
+        </>
+      )}
+    </SurveyPageShell>
   );
 }

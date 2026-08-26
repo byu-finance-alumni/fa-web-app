@@ -3,7 +3,6 @@
 import { useMemo } from "react";
 import { Search } from "lucide-react";
 import { useUrlQueryParam } from "@/lib/useUrlQueryParam";
-import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
 import { RoleManager } from "@/components/admin/RoleManager";
 import { UserActiveToggle } from "@/components/admin/UserActiveToggle";
 import { UnlockResetPassword } from "@/components/admin/UnlockResetPassword";
@@ -129,7 +128,6 @@ export function UsersAdmin({
             {filtered.map((u) => (
               <Card key={u.user_id} className="p-3">
                 <div className="flex items-center gap-3">
-                  <InitialsAvatar name={displayName(u)} size="sm" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="truncate font-medium text-gray-900">
@@ -201,8 +199,7 @@ export function UsersAdmin({
                     className="border-b border-gray-200 last:border-0 hover:bg-gray-50"
                   >
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <InitialsAvatar name={displayName(u)} size="sm" />
+                      <div className="flex items-center gap-2">
                         <span className="font-medium text-gray-900">
                           {[u.first_name, u.last_name]
                             .filter(Boolean)
