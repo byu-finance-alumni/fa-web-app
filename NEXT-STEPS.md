@@ -1,5 +1,14 @@
 # NEXT-STEPS.md — fa-web-app
 
+> ⚠️ **HISTORICAL — not the tracker.** Work is tracked on the GitHub Project board
+> (https://github.com/orgs/byu-finance-alumni/projects/4), which replaced the local checklists on
+> 2026-06-15.
+>
+> The unchecked boxes below are **done**: the authenticated app shell shipped, then
+> was redesigned, then replaced entirely by the top nav over the Marriott photo
+> (2026-08-21) — so the "sidebar + top bar" item describes an architecture the app
+> no longer has. `UX-UI.md` is the live design source of truth.
+
 Running checklist of what's done and what's next for the BYU Finance Alumni Database frontend.
 Update as work progresses. Scope and rules live in `CLAUDE.md` (architecture) and `UX-UI.md` (design).
 

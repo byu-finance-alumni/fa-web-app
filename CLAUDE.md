@@ -165,15 +165,16 @@ The application must also work well on:
 * Smaller laptops
 * Mobile devices
 
-Do not build desktop-only experiences.
+⚠️ **Mobile is DEFERRED — desktop first.** This overrides the aspiration below. Mobile polish is its
+own phase, tracked as **fa-web-app #35 ("Mobile phase")**, and is not part of ordinary feature work.
+Do not spend effort on touch ergonomics, bottom sheets or PWA install unless the task says so.
 
-**Mobile is not an afterthought.** On a phone the app must feel like a polished native app — not a
-shrunk-down website. Staff will use it on their phones between meetings and at events, so it has to
-be genuinely good: touch-first ergonomics, native navigation patterns (bottom tab bar, bottom
-sheets), dense tables that collapse to cards, instant tap feedback, and an installable PWA.
+Practically: don't build something that *breaks* on a phone, and don't blank the phone-only `Topbar`
+(it carries Sign out — see `UX-UI.md`). Beyond that, build for desktop and move on.
 
-See the **Mobile experience** section in `UX-UI.md` for the concrete bar and patterns — follow it
-for any mobile/responsive work.
+When the mobile phase does start, the target is a polished native feel rather than a shrunk-down
+website — touch-first ergonomics, native navigation patterns, dense tables collapsing to cards, an
+installable PWA. The **Mobile experience** section in `UX-UI.md` holds the concrete bar.
 
 ---
 
@@ -199,27 +200,26 @@ Backend remains the source of truth.
 
 # Authorization
 
-The frontend should recognize two roles.
+⚠️ **There are FIVE roles, not two.** `src/constants/roles.ts` is the single source of truth on the
+frontend — import from it rather than writing role literals. It mirrors the backend's
+`app/core/roles.py`.
 
-## Full Access
+| Id | Label shown to users | Broadly |
+| --- | --- | --- |
+| `engineer` | Engineer | Highest — engineer console, DB + editable-vocabulary admin |
+| `super_admin` | Super admin | Everything `full_access` has, plus user management |
+| `full_access` | Full access | Edit, import, export, events, duplicates |
+| `student` | Student | Limited editor |
+| `view_only` | **Professor** | Read-only |
 
-Can access:
+Note `view_only` displays as **"Professor"** — the id and the label deliberately differ, so never
+render the raw id.
 
-* Edit screens
-* Import screens
-* Export actions
-* Event management
-* Duplicate management
+Hide editing controls when appropriate, but the backend must still enforce permissions. The frontend
+never enforces security.
 
-## View Only
-
-Can access:
-
-* Read-only pages
-
-Hide editing controls when appropriate.
-
-The backend must still enforce permissions.
+⚠️ **`view_only` seeing email and phone is INTENTIONAL** — faculty need them for outreach. Do not
+"fix" it as a PII leak.
 
 ---
 
@@ -498,12 +498,17 @@ vars the app reads. Pull them from the Vercel project matching your target with
 `vercel env pull` — they are browser-safe (publishable) keys, matching the same
 environment's `fa-web-api`.
 
-> **Database split (in progress):** `dev` and `prod` now use **separate Supabase
-> projects**, so their `NEXT_PUBLIC_SUPABASE_URL` / `…_PUBLISHABLE_KEY` differ —
-> `dev-fa-web-app` uses the dev project, `finance-alumni-database` (prod) uses the
-> new dedicated project. ⏳ Until the split completes both still resolve to the
-> original project, so `vercel env pull .env --environment=production` from
-> `finance-alumni-database` (scope `gunnjakes-projects`) is unchanged for now.
+> **Database split: DONE (2026-07-09).** `dev` and `prod` use **separate Supabase
+> projects**, so their `NEXT_PUBLIC_SUPABASE_URL` / `…_PUBLISHABLE_KEY` genuinely
+> differ — `dev-fa-web-app` uses the dev project, `finance-alumni-database` (prod)
+> uses the dedicated prod project. Pull from the project matching your target.
+>
+> ⚠️ **The committed `.env` points `NEXT_PUBLIC_API_URL` at PROD**, not dev. Before
+> trusting any API base URL, `curl <url>/health` and read the `environment` field.
+> More than one confusing afternoon has started here.
+>
+> ⚠️ **prod is real alumni data.** Never point local work at it for anything
+> destructive, and never run scratch queries against the prod database.
 
 The landing page (`/`) renders an **`ApiStatus`** badge that pings the API's
 `/health` and shows "API connected" / "API not reachable" — a quick visual check
@@ -565,11 +570,19 @@ See `UX-UI.md` for the concrete color, typography, and component specifications.
 Do not build unless specifically requested:
 
 * Public alumni directory
-* Alumni self-service portal
-* Email campaign tools
-* Survey systems
 * Social networking features
 * Public-facing marketing pages
+
+⚠️ **Three items were removed from this list because they were subsequently requested and BUILT.**
+Do not treat them as out of scope:
+
+* **Survey system** — live at `/survey/[token]`. The app's one genuinely public surface: the root
+  middleware's `isNoAuthPath` makes `/survey/*` skip authentication entirely, so a visitor is a
+  stranger holding a signed token, not a user. Never import auth/session/user code into it, and never
+  reuse `TopNav` there — every link would bounce them to login.
+* **Email campaign tools** — survey campaigns, scheduling, reminders and a send cap live in the
+  engineer console.
+* **Alumni self-service** — alumni update their own record through the survey.
 
 ---
 
