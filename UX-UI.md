@@ -59,7 +59,7 @@ Derived directly from the brand logos:
 | Token | Hex | Use |
 | --- | --- | --- |
 | `navy-900` | `#0F1B33` | Darkest — text on light, deepest backgrounds |
-| `navy-800` | `#1C2E54` | **Primary brand navy** (header, sidebar, primary buttons) — from primary logo |
+| `navy-800` | `#1C2E54` | **Primary brand navy** (header, top nav, primary buttons) — from primary logo |
 | `navy-700` | `#243B6B` | Hover/active on navy surfaces |
 | `royal-700` | `#002E5D` | BYU official navy — deep accents, gradients |
 | `blue-600` | `#2E4A86` | Primary interactive (buttons, links, active nav) |
@@ -158,16 +158,24 @@ JSX**.
 
 ## Layout & UX conventions
 
-- **App shell:** fixed left sidebar (navy `navy-800`) + top bar; content area on `gray-100`.
-- **Breadcrumbs:** every screen below the top level shows a breadcrumb trail in the top bar so users
-  always know where they are in the hierarchy (e.g. `Alumni / Jane Smith`, `Events / Spring Mixer /
-  Attendance`). Conventions: render with the shadcn/ui `Breadcrumb` component; the **last crumb is
-  the current page** (not a link, `gray-900`), ancestor crumbs are links (`blue-600`); separators are
-  the Lucide `chevron-right` icon; the first crumb is the section root (the sidebar item), not
-  "Home"; truncate long middle crumbs with an ellipsis rather than wrapping. Top-level section pages
-  (Dashboard, Alumni list, Events list) show no breadcrumb. On mobile, collapse to a single
-  **back affordance** (`‹ Parent`) instead of the full trail — it pairs with the full-screen drill-down
-  pushes in the Mobile experience section.
+- **App shell:** horizontal **`TopNav`** over the Marriott School photo; content area on `gray-100`.
+  ⚠️ **There is no sidebar.** The navy left sidebar was replaced by the top nav on 2026-08-21.
+  (`components/shell/Sidebar.tsx` still exists but is imported nowhere — dead code, do not revive it.)
+  Below `md` the top nav does not render; phones fall back to `Topbar` + `MobileNav`.
+- **Breadcrumbs: removed.** ⚠️ Jake, 2026-08-22 — *"i dont like the breadcrumps"*. No screen renders
+  a trail. `Topbar` still accepts a `breadcrumb?: Crumb[]` prop, but only its **last item** is used,
+  as the plain page title — that is why ~55 call sites still pass one. Do not restore the trail, and
+  do not add chevron separators (see **No icons**).
+- ⚠️ **Never put a full-width strip between the photo and the page content.** On desktop a per-page
+  row renders *only* when there is a Back button or an actual control to hold it (`DesktopPageRow`);
+  a strip carrying just a page title still reads as a pale band under the dark photo. This has
+  regressed **five** times — as a white topbar, a zero-height overlay, a breadcrumb line, a per-page
+  search slot, and a bare title row. Verify by probing the DOM for a full-width element beginning
+  just below the header, not by eye.
+- **Phones keep the white `Topbar`** and it carries **Sign out**. The top nav is `md:` and up and the
+  sidebar never existed there, so blanking that bar strands a phone user with no way to log out.
+- **Back affordance:** on mobile, a single `‹ Parent` link rather than any trail — it pairs with the
+  full-screen drill-down pushes in the Mobile experience section.
 - **Density:** this is a data-heavy CRM for 10,000+ records — favor compact tables, sticky table
   headers, and server-side pagination over spacious marketing layouts.
 - **Cards/surfaces:** white on `gray-100`, `gray-300` 1px borders, subtle shadow, ~8px radius.
@@ -245,9 +253,16 @@ it isn't finished.
 
 ## Iconography
 
-Use **Lucide** (consistent, MIT-licensed, React-ready, pairs with shadcn/ui). Do not import multiple
-icon sets. Common: search, sliders/filter, edit, archive, upload, download, map-pin, users, calendar,
-bar-chart, tag, alert-triangle (missing data), copy/merge (duplicates), history (audit).
+> ⚠️ **NO ICONS ON BUTTONS, INPUTS OR CONTROLS.** Jake, explicitly: *"use no icons anymore."* A
+> "Search" button reads just **Search** — no leading glyph; search inputs get no magnifying-glass
+> decoration. This is a **forward-going default for all new and edited UI**.
+>
+> Scope, so this is not over-applied: the ask was about **controls**. Decorative and semantic icons
+> already living elsewhere in the app were not part of it — strip those only when you are already
+> touching that code, or when asked. Do not launch a sweep.
+
+Where an icon is still warranted (not a control), use **Lucide** (consistent, MIT-licensed,
+React-ready, pairs with shadcn/ui). Do not import multiple icon sets.
 
 ---
 
@@ -255,6 +270,7 @@ bar-chart, tag, alert-triangle (missing data), copy/merge (duplicates), history 
 
 - Maintain WCAG AA contrast: navy `navy-800`/`royal-700` on white and white on navy all pass; never
   put `blue-300` text on white for body copy.
-- Don't encode meaning by color alone — pair status colors with an icon or label (missing-data badge
-  has both a color and text).
+- Don't encode meaning by color alone — pair status colors with a **text label** (the missing-data
+  badge has both a color and text). Prefer the label over an icon here: controls are text-only, and
+  a word is readable by a screen reader without extra markup.
 - All interactive elements keyboard-reachable with a visible focus ring (`blue-500`).
