@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
-import { loginPathWithNext } from "@/lib/urlSafety";
+import { currentReturnPath, loginPathWithNext } from "@/lib/urlSafety";
 import { Button } from "@/components/ui/button";
 
 const ACTIVITY_EVENTS = [
@@ -27,10 +27,12 @@ const ACTIVITY_EVENTS = [
  * user must explicitly click to stay (genuine activity in another tab still
  * cancels it).
  *
- * Signing out carries the page the user was on to `/login` as `?next=`, the same
- * way the middleware does for a cold navigation, so "put me back where I was"
- * works however the session ended (#682). Each tab carries ITS OWN path, which
- * is what you want when the sign-out arrives over the channel from another tab.
+ * Signing out carries the page the user was on to `/login` as `?next=` — query
+ * string included, so a filtered list comes back filtered (#791) — the same way
+ * the middleware does for a cold navigation, so "put me back where I was" works
+ * however the session ended (#682). Each tab reads its OWN `window.location`,
+ * which is what you want when the sign-out arrives over the channel from
+ * another tab.
  *
  * Mounted once in the authenticated app layout, so it only runs for signed-in
  * users.
@@ -51,15 +53,11 @@ export function SessionTimeout({
   const stayRef = useRef<() => void>(() => {});
   const leaveRef = useRef<() => void>(() => {});
 
-  // The current path, held in a ref rather than an effect dependency. The effect
-  // owns the idle timer, the countdown and the BroadcastChannel; adding pathname
-  // to its deps would tear all three down and re-arm the idle clock on every
-  // navigation — and would reset an open warning dialog mid-countdown.
-  const pathname = usePathname();
-  const pathRef = useRef(pathname);
-  useEffect(() => {
-    pathRef.current = pathname;
-  }, [pathname]);
+  // The return path is read from `window.location` at the moment of the
+  // redirect (see currentReturnPath) rather than held as an effect dependency.
+  // The effect owns the idle timer, the countdown and the BroadcastChannel;
+  // depending on the URL would tear all three down and re-arm the idle clock on
+  // every navigation — and would reset an open warning dialog mid-countdown.
 
   useEffect(() => {
     let phase: "active" | "warning" = "active";
@@ -91,7 +89,9 @@ export function SessionTimeout({
         await createClient().auth.signOut();
       } finally {
         // Refresh so the middleware re-evaluates the (now empty) session.
-        router.replace(loginPathWithNext(pathRef.current, { reason: "timeout" }));
+        router.replace(
+          loginPathWithNext(currentReturnPath(), { reason: "timeout" }),
+        );
         router.refresh();
       }
     };
@@ -165,7 +165,7 @@ export function SessionTimeout({
           clearIdle();
           clearTick();
           router.replace(
-            loginPathWithNext(pathRef.current, { reason: "timeout" }),
+            loginPathWithNext(currentReturnPath(), { reason: "timeout" }),
           );
           router.refresh();
         }

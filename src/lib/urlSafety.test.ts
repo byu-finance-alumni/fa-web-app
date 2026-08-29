@@ -8,6 +8,7 @@ import {
   isReturnablePath,
   isSafeHref,
   loginPathWithNext,
+  returnPathFor,
   safeExternalHref,
   safeNextPath,
   validateLinkedinUrl,
@@ -457,6 +458,225 @@ describe("loginPathWithNext — every expiry path carries the same URL shape", (
   });
 });
 
+/* ==================================================================== *
+ * The return path keeps its query string (#791)
+ * ==================================================================== */
+
+/**
+ * Guards for the WRITE side of the redirect rule (#791).
+ *
+ * `safeNextPath` always preserved a query string; every producer of `?next=`
+ * threw it away, handing over a bare pathname. So a session that died mid-flow
+ * on a filtered list — the whole of the Reports tab, and Data quality — came
+ * back from the login screen as the SAME page showing ALL rows, with nothing on
+ * screen to say a filter had been dropped. It reads as a wrong report, not as a
+ * lost filter, which is why it went unnoticed.
+ *
+ * Preserving the query string widens what rides on an attacker-influenceable
+ * parameter, so the hostile shapes are asserted here in their query-string form
+ * too: `returnPathFor` must refuse everything `safeNextPath` refuses, and must
+ * never emit a value the login action would then drop.
+ */
+describe("returnPathFor — a filtered destination survives the login bounce", () => {
+  it.each([
+    ["a single filter", "/alumni?grad_year=2020"],
+    ["several filters", "/alumni?grad_year=2020&industry=Banking&sort=name"],
+    ["an encoded value", "/alumni?state=New%20York"],
+    ["a repeated key", "/alumni?tag=cfa&tag=mentor"],
+    ["an empty value", "/alumni?q="],
+    ["a deep-linked report", "/reports?metric=placement&ymin=2018&ymax=2024"],
+    ["a data-quality tile", "/data-quality?issue=missing_phone"],
+    ["a path with a hash", "/alumni?grad_year=2020#row-42"],
+  ])("carries %s through untouched", (_label, path) => {
+    expect(returnPathFor(path)).toBe(path);
+    // The half that was silently broken: what we emit must be exactly what the
+    // login action honours.
+    expect(safeNextPath(returnPathFor(path))).toBe(path);
+  });
+
+  it("round-trips a filtered path through the URL the middleware builds", () => {
+    // End to end in the shape the bug actually took: protected URL → ?next= →
+    // LoginForm reads it → the login action redirects.
+    const path = "/alumni?grad_year=2020&industry=Banking";
+    const loginUrl = `/login?next=${encodeURIComponent(returnPathFor(path)!)}`;
+    const carried = new URL(loginUrl, APP_ORIGIN).searchParams.get("next");
+    expect(carried).toBe(path);
+    expect(safeNextPath(carried)).toBe(path);
+    // And the filter is genuinely still there, not merely the string.
+    expect(new URL(carried!, APP_ORIGIN).searchParams.get("grad_year")).toBe(
+      "2020",
+    );
+  });
+
+  it("pins the pathname-only behaviour this replaces", () => {
+    // The old producers did `set("next", pathname)`. Executable evidence of the
+    // silent failure: the destination came back UNFILTERED.
+    const dropped = new URL("/alumni?grad_year=2020", APP_ORIGIN).pathname;
+    expect(dropped).toBe("/alumni");
+    expect(
+      new URL(dropped, APP_ORIGIN).searchParams.get("grad_year"),
+    ).toBeNull();
+    expect(returnPathFor("/alumni?grad_year=2020")).toBe(
+      "/alumni?grad_year=2020",
+    );
+  });
+
+  it.each([
+    ["an absolute https URL", "https://evil.com/alumni?grad_year=2020"],
+    ["an absolute http URL", "http://evil.com/?a=1"],
+    ["protocol-relative", "//evil.com/alumni?grad_year=2020"],
+    ["protocol-relative, no path", "//evil.com"],
+    ["a backslash authority", "/\\evil.com?a=1"],
+    ["backslash then slash", "/\\/evil.com?a=1"],
+    ["a leading backslash", "\\\\evil.com?a=1"],
+    ["an embedded TAB", "/\t/evil.com?a=1"],
+    ["an embedded NEWLINE", "/\n/evil.com?a=1"],
+    ["userinfo smuggling", "https://finance.alumni.byu.edu@evil.com/?a=1"],
+    ["javascript:", "javascript:alert(1)"],
+    ["data:", "data:text/html,<script>alert(1)</script>"],
+    ["a bare relative segment", "alumni?grad_year=2020"],
+    ["a percent-encoded absolute URL", "https%3A%2F%2Fevil.com?a=1"],
+    ["/login itself", "/login?next=%2Falumni"],
+    ["an absent value", null],
+    ["an empty value", ""],
+  ])("refuses %s", (_label, path) => {
+    expect(returnPathFor(path)).toBeNull();
+  });
+
+  it("never emits a value that resolves off-origin, in one sweep", () => {
+    // The property, not a table: a hostile `next` that got through here would
+    // be handed straight to a redirect.
+    const hosts = ["evil.com", "finance.alumni.byu.edu.evil.com"];
+    const authorities = ["//", "/\\", "\\/", "\\\\", "/\t/", "/\n/", "///"];
+    for (const host of hosts) {
+      for (const authority of authorities) {
+        for (const query of ["", "?a=1", "/x?y=1#z"]) {
+          const path = `${authority}${host}${query}`;
+          expect(returnPathFor(path), JSON.stringify(path)).toBeNull();
+          // …and the fallback the caller then uses is still on-origin.
+          expect(
+            new URL(safeNextPath(returnPathFor(path)), APP_ORIGIN).origin,
+          ).toBe(APP_ORIGIN);
+        }
+      }
+    }
+  });
+
+  it("a hostile-looking value inside the QUERY STRING is harmless", () => {
+    // Only the authority decides the origin, so these are kept rather than
+    // refused — which pins that the refusal is scoped to the right part.
+    for (const path of [
+      "/alumni?redirect=//evil.com",
+      "/alumni?q=https://evil.com",
+      "/alumni?q=%2F%2Fevil.com",
+    ]) {
+      expect(new URL(returnPathFor(path)!, APP_ORIGIN).origin).toBe(APP_ORIGIN);
+    }
+  });
+
+  it("strips a credential that happened to be in the query string", () => {
+    // No protected page carries one today; the point is that a page which later
+    // grows one cannot leak it into a URL that then sits on the UNAUTHENTICATED
+    // login screen, in history, and in the referrer.
+    expect(returnPathFor("/alumni?grad_year=2020&token=abc123")).toBe(
+      "/alumni?grad_year=2020",
+    );
+    for (const name of [
+      "access_token",
+      "refresh_token",
+      "token_hash",
+      "id_token",
+      "code",
+      "secret",
+      "password",
+      "api_key",
+      "apikey",
+      "otp",
+      "session",
+      "signature",
+      "auth",
+    ]) {
+      const out = returnPathFor(`/alumni?${name}=leak&grad_year=2020`);
+      expect(out, name).toBe("/alumni?grad_year=2020");
+      expect(out, name).not.toContain("leak");
+    }
+  });
+
+  it("drops the query entirely when it was ONLY a credential", () => {
+    expect(returnPathFor("/alumni?token=abc123")).toBe("/alumni");
+  });
+
+  it("a stripped query is re-encoded but decodes to the same values", () => {
+    // Removing a parameter re-serialises the whole string, so `%20` comes back
+    // as `+`. Both decode to a space, so the assertion that matters is on the
+    // decoded values, not the bytes.
+    const out = returnPathFor("/alumni?state=New%20York&token=abc123")!;
+    const params = new URL(out, APP_ORIGIN).searchParams;
+    expect(params.get("state")).toBe("New York");
+    expect(params.get("token")).toBeNull();
+    expect(safeNextPath(out)).toBe(out);
+  });
+
+  it("leaves the public survey path out of this entirely", () => {
+    // `/survey/*` returns from the root middleware BEFORE auth runs, so it is
+    // never redirected and its signed token never reaches a `?next=`. The token
+    // is a PATH segment, so there is no query string to carry either way.
+    const src = read("src/middleware.ts");
+    expect(src).toContain("isNoAuthPath(request.nextUrl.pathname)");
+    expect(src.indexOf("isNoAuthPath(request.nextUrl.pathname)")).toBeLessThan(
+      src.indexOf("await updateSession("),
+    );
+    expect(read("src/utils/supabase/middleware.ts")).not.toContain("/survey");
+  });
+});
+
+describe("every sign-out path carries the query string (#791)", () => {
+  it("loginPathWithNext keeps the filter AND the notice", () => {
+    const url = loginPathWithNext("/alumni?grad_year=2020", {
+      reason: "timeout",
+    });
+    const params = new URL(url, APP_ORIGIN).searchParams;
+    expect(params.get("reason")).toBe("timeout");
+    expect(params.get("next")).toBe("/alumni?grad_year=2020");
+    expect(safeNextPath(params.get("next"))).toBe("/alumni?grad_year=2020");
+  });
+
+  it("loginPathWithNext still omits a hostile next while keeping the notice", () => {
+    for (const path of [
+      "//evil.com?a=1",
+      "https://evil.com/?a=1",
+      "/\\evil.com?a=1",
+    ]) {
+      const url = loginPathWithNext(path, { signedout: "other-device" });
+      expect(new URL(url, APP_ORIGIN).searchParams.get("next"), url).toBeNull();
+      expect(new URL(url, APP_ORIGIN).searchParams.get("signedout")).toBe(
+        "other-device",
+      );
+    }
+  });
+
+  it("the middleware builds next from the pathname AND the search", () => {
+    const src = read("src/utils/supabase/middleware.ts");
+    expect(src).toContain("request.nextUrl.search");
+    expect(src).toContain("returnPathFor(");
+    // The bug, verbatim: the producer that threw the query string away.
+    expect(src).not.toContain('set("next", pathname)');
+  });
+
+  it("both client sign-outs read the live URL, not a pathname-only ref", () => {
+    for (const path of [
+      "src/components/auth/SessionTimeout.tsx",
+      "src/components/auth/SessionGuard.tsx",
+    ]) {
+      const src = read(path);
+      expect(src, path).toContain("currentReturnPath()");
+      // usePathname reports only the pathname, and does not even re-render when
+      // a filter rewrites the query string — stale exactly when it matters.
+      expect(src, path).not.toContain("usePathname");
+    }
+  });
+});
+
 describe("all four sign-out paths share ONE redirect rule (#682)", () => {
   it("the login action validates with safeNextPath, not its own string test", () => {
     const src = read("src/app/login/actions.ts");
@@ -469,7 +689,9 @@ describe("all four sign-out paths share ONE redirect rule (#682)", () => {
   it("the middleware shares APP_HOME and the returnable-path gate", () => {
     const src = read("src/utils/supabase/middleware.ts");
     expect(src).toContain('from "@/lib/urlSafety"');
-    expect(src).toContain("isReturnablePath(pathname)");
+    expect(src).toContain("returnPathFor(");
+    // The pathname-only form is the #791 bug: it dropped the filter.
+    expect(src).not.toContain("isReturnablePath(pathname)");
     // A second copy of the destination is exactly the drift this prevents.
     expect(src).not.toContain('const APP_HOME = "/dashboard"');
   });

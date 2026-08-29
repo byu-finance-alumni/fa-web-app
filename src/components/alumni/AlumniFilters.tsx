@@ -288,6 +288,7 @@ export function AlumniFilters({
     });
   if (f.missingEmail) chips.push({ label: "Missing email", remove: () => set("missingEmail", false) });
   if (f.missingEmployer) chips.push({ label: "Missing employer", remove: () => set("missingEmployer", false) });
+  if (f.missingPhone) chips.push({ label: "Missing phone", remove: () => set("missingPhone", false) });
   if (f.duplicate) chips.push({ label: "Duplicate", remove: () => set("duplicate", false) });
   if (f.archived) chips.push({ label: "Including archived", remove: () => set("archived", false) });
   if (f.deceased)
@@ -297,7 +298,7 @@ export function AlumniFilters({
     });
 
   const checkboxRow = (
-    key: "attended" | "donor" | "mentor" | "speaker" | "cfa" | "cfp" | "graduateDegree" | "archived" | "neverContacted" | "missingEmail" | "missingEmployer" | "duplicate",
+    key: "attended" | "donor" | "mentor" | "speaker" | "cfa" | "cfp" | "graduateDegree" | "archived" | "neverContacted" | "missingEmail" | "missingEmployer" | "missingPhone" | "duplicate",
     label: string,
   ) => (
     <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -704,6 +705,7 @@ export function AlumniFilters({
                 <div className="space-y-2">
                   {checkboxRow("missingEmail", "Missing email")}
                   {checkboxRow("missingEmployer", "Missing employer")}
+                  {checkboxRow("missingPhone", "Missing phone")}
                   {checkboxRow("duplicate", "Possible duplicate")}
                 </div>
               </div>
