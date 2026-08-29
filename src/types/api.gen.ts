@@ -9510,6 +9510,7 @@ export interface components {
             fields: {
                 [key: string]: string;
             };
+            support_contact: components["schemas"]["SurveySupportContact"] | null;
         };
         /**
          * SurveyResponseItem
@@ -9856,6 +9857,32 @@ export interface components {
              * @default false
              */
             confirmed: boolean;
+        };
+        /**
+         * SurveySupportContact
+         * @description Who a survey respondent may email directly (#774) — a NAME and an ADDRESS,
+         *     and deliberately nothing else.
+         *
+         *     ⚠️ THIS IS A NARROW, DELIBERATE EXCEPTION to the support-contacts privacy
+         *     rule, not an oversight. `app/api/routes/support.py` says there is
+         *     "deliberately NO unauthenticated endpoint, so these names/emails are never
+         *     exposed on the public login page", and that still holds: the rule protects a
+         *     surface anyone on the internet can load. This one rides on
+         *     `GET /survey/respond/{token}`, which needs a valid HMAC-signed survey token
+         *     we mailed to one alum, and it carries exactly ONE contact — the row the
+         *     engineer labelled for the survey — never the list.
+         *
+         *     So the exposure is one chosen person's work name and work address, to someone
+         *     already holding a link addressed to them, on the page that asks them to reply.
+         *     Keep it that way: no `support_contact_id`, no `role_label`, no `sort_order`,
+         *     no second contact. Those would turn a mailbox we are advertising back into
+         *     the staff directory the rule exists to protect.
+         */
+        SurveySupportContact: {
+            /** Name */
+            name: string;
+            /** Email */
+            email: string;
         };
         /**
          * SurveyUnreachableAlum
