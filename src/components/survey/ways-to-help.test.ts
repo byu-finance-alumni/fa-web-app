@@ -95,7 +95,16 @@ describe("confirming records the confirmation", () => {
 
   it("has no local `confirmed` screen left to fall back into", () => {
     expect(source).not.toMatch(/status === "confirmed"/);
-    expect(source).toMatch(/type Status = "review" \| "editing" \| "submitted"/);
+    // Asserted against the union's MEMBERS rather than its exact text: #773
+    // added `helping` (the edit branch's ways-to-help step) and a literal
+    // string match would have failed for that, which is not the regression this
+    // guards. The regression is a local `confirmed` state coming back — a
+    // screen that records nothing and shows a thank-you anyway.
+    const union = source.match(/type Status = ([^\n;]+)/)?.[1] ?? "";
+    expect(union).toContain('"review"');
+    expect(union).toContain('"editing"');
+    expect(union).toContain('"submitted"');
+    expect(union).not.toContain('"confirmed"');
   });
 
   it("sends the alum on to the ways-to-help page", () => {

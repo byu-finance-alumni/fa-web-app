@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { SAMPLE_ALUM, SAMPLE_ALUM_NAME } from "@/lib/sampleAlumni";
 import { emptyLinkEntry, type LinkEntry } from "@/lib/opportunityLinks";
+import { type WaysToHelpMode } from "@/lib/surveyWaysToHelp";
 import {
   DEFAULT_SURVEY_CLOSING,
   DEFAULT_SURVEY_MESSAGE,
@@ -129,10 +130,15 @@ export function SurveyPreview() {
 }
 
 /**
- * `helping` is where "Yes, everything is correct" leads (#755) — the real
- * survey POSTs the confirmation and navigates to `/survey/{token}/help`, and
- * the preview walks the same screen so staff see the ask an alum who confirms
- * actually gets. Nothing is posted from here.
+ * `helping` is where BOTH branches of the fork end.
+ *
+ * "Yes, everything is correct" leads there (#755) — the real survey POSTs the
+ * confirmation and navigates to `/survey/{token}/help` — and so does Continue at
+ * the end of the edit flow (#773), where the real survey stays on the page and
+ * posts the edits and the involvement answers together. The preview walks the
+ * same screen from either direction, in the matching `WaysToHelpMode`, so staff
+ * see the ask an alum actually gets rather than the one branch that had it
+ * first. Nothing is posted from here.
  */
 type PreviewStatus = "review" | "helping" | "editing" | "submitted";
 
@@ -142,6 +148,10 @@ function PreviewBody() {
   const firstName = name.split(/\s+/)[0] || name;
 
   const [status, setStatus] = useState<PreviewStatus>("review");
+  // Which branch reached the ways-to-help screen, so the preview shows the copy
+  // that branch really carries (#773) — "you're already done" after a
+  // confirmation, "your updates aren't in yet" after edits.
+  const [helpMode, setHelpMode] = useState<WaysToHelpMode>("confirmed");
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [edits, setEdits] = useState<Fields>({});
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -222,6 +232,7 @@ function PreviewBody() {
         // navigating inside the dialog would take the console page with it.
         <WaysToHelp
           firstName={firstName}
+          mode={helpMode}
           valueOf={valueOf}
           setEdit={setEdit}
           links={links}
@@ -253,7 +264,13 @@ function PreviewBody() {
           links={links}
           setLinks={setLinks}
           onBack={() => setStatus("review")}
-          onSubmit={() => setStatus("submitted")}
+          // Continue leads to the ways-to-help screen, exactly as it does for an
+          // alum (#773) — the preview walks the ending, it doesn't skip to the
+          // thank-you.
+          onSubmit={() => {
+            setHelpMode("edited");
+            setStatus("helping");
+          }}
           submitting={false}
           submitError={null}
         />
@@ -302,7 +319,10 @@ function PreviewBody() {
                 variant="navy"
                 size="lg"
                 className="w-full sm:w-auto"
-                onClick={() => setStatus("helping")}
+                onClick={() => {
+                  setHelpMode("confirmed");
+                  setStatus("helping");
+                }}
               >
                 Yes, everything is correct
               </Button>
