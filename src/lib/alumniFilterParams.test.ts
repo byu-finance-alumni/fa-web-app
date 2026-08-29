@@ -112,6 +112,7 @@ const MAXIMAL: AlumniFilterState = {
   deceased: "exclude",
   missingEmail: true,
   missingEmployer: true,
+  missingPhone: true,
   missingLinkedin: true,
   missingPhoto: true,
   duplicate: true,
@@ -389,6 +390,36 @@ describe("the panel can re-apply what it now preserves", () => {
   });
 });
 
+/* ---------------------------------------- the Data quality deep link (#782) -- */
+
+describe("Data quality's Missing phone link narrows the list", () => {
+  // Both the "Missing phone" alert row and its coverage bar link to
+  // `/alumni?missing_phone=1`. The param had no home in the model, so the roster
+  // dropped it and the link opened the FULL list under a count that then read as
+  // wrong rather than as a broken link.
+  it("parses the deep link into the model", () => {
+    expect(parseAlumniFilters({ missing_phone: "1" }).missingPhone).toBe(true);
+  });
+
+  it("sends it to GET /alumni and to the export alike", () => {
+    const f = { ...EMPTY_FILTERS, missingPhone: true };
+    expect(toAlumniPopulationParams(f).get("missing_phone")).toBe("true");
+    expect(toExportFilters(f).missing_phone).toBe(true);
+    expect(exportParityGaps(f)).toEqual([]);
+  });
+
+  it("offers a tickbox so the panel can re-apply it", () => {
+    const panel = read("src/components/alumni/AlumniFilters.tsx");
+    expect(panel).toContain('checkboxRow("missingPhone", "Missing phone")');
+    expect(panel).toContain('label: "Missing phone", remove: () => set("missingPhone", false)');
+  });
+
+  it("is the href the Data quality page actually emits", () => {
+    const page = read("src/app/(app)/data-quality/page.tsx");
+    expect(page).toContain('href: "/alumni?missing_phone=1"');
+  });
+});
+
 /* ------------------------------------ employment status = a FIXED list (#593) -- */
 
 describe("the Employment status facet offers a fixed list, not the data", () => {
@@ -609,8 +640,9 @@ function exportBodyAsParams(e: AlumniExportFilters): URLSearchParams {
   flag("cpa", e.cpa);
   flag("missing_email", e.missing_email);
   flag("missing_employer", e.missing_employer);
-  // fa-web-api#775. Read here too, or the parity assertions silently stop
-  // covering the two newest filters -- exactly what the note below warns about.
+  // fa-web-api#775 / #782. Read here too, or the parity assertions silently
+  // stop covering the newest filters -- exactly what the note below warns about.
+  flag("missing_phone", e.missing_phone);
   flag("missing_linkedin", e.missing_linkedin);
   flag("missing_photo", e.missing_photo);
   flag("duplicate", e.duplicate);
@@ -621,7 +653,6 @@ function exportBodyAsParams(e: AlumniExportFilters): URLSearchParams {
   // assertions silently stop covering them.
   multi("designations", e.designations);
   flag("graduate_degree", e.graduate_degree);
-  flag("missing_phone", e.missing_phone);
   text("near", e.near);
   // Mirrors the builder: `radius` alone means nothing without `near`.
   if (e.near) text("radius", e.radius);
