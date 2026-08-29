@@ -108,15 +108,15 @@ export default async function ReportsPage() {
           /* Capped width on purpose (#814). Full-bleed rows put "Open the list"
              ~1,100px from the label it belongs to, so the eye had to cross the
              viewport to pair a count with its action. */
-          <div className="max-w-3xl space-y-5">
+          <div className="mx-auto max-w-3xl space-y-5">
             {sections.map((section) => (
               <Card key={section.id}>
-                <CardHeader className="pb-2">
+                <CardHeader className="flex-col items-start gap-1 pb-3">
                   <CardTitle>{section.title}</CardTitle>
                   {/* Said ONCE, for the whole section. It used to render
                       verbatim on every row it applied to. */}
                   {section.note ? (
-                    <p className="mt-1 text-xs leading-relaxed text-gray-500">
+                    <p className="text-xs leading-relaxed text-gray-500">
                       {section.note}
                     </p>
                   ) : null}
@@ -144,7 +144,7 @@ export default async function ReportsPage() {
                               (unavailable
                                 ? "text-warning-600"
                                 : settled
-                                  ? "text-gray-300"
+                                  ? "text-gray-400"
                                   : "text-gray-900")
                             }
                           >
@@ -208,7 +208,7 @@ export default async function ReportsPage() {
                  These are destinations, not reports — they carry no number, so
                  they should not look like something you read. */
               <Card>
-                <CardHeader className="pb-2">
+                <CardHeader className="flex-col items-start pb-3">
                   <CardTitle>Elsewhere</CardTitle>
                 </CardHeader>
                 <CardContent>
