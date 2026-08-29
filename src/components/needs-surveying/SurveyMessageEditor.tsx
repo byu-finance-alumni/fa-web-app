@@ -162,7 +162,7 @@ export function SurveyMessageEditor() {
             <div>
               <Label htmlFor="email-closing">Closing &amp; sign-off</Label>
               <p className="mt-0.5 text-xs text-gray-500">
-                Shown below their info and the button — confirm instructions and
+                Shown below their info and the button: confirm instructions and
                 the sign-off.
               </p>
               <Textarea
@@ -182,7 +182,7 @@ export function SurveyMessageEditor() {
               </p>
               <p className="mt-0.5 text-xs text-gray-500">
                 Pick which details to preview so they can spot anything wrong at
-                a glance. Adds PII to the email — keep it minimal.
+                a glance. Adds PII to the email, so keep it minimal.
               </p>
               <div className="mt-2 grid gap-3 sm:grid-cols-3">
                 {EMAIL_FIELD_GROUPS.map((g) => (
@@ -259,7 +259,7 @@ export function SurveyMessageEditor() {
                     </div>
                   ) : (
                     <p className="text-xs italic text-gray-400">
-                      No fields selected — the email shows no record preview.
+                      No fields selected, so the email shows no record preview.
                     </p>
                   )}
 
@@ -279,7 +279,7 @@ export function SurveyMessageEditor() {
               </div>
               <p className="mt-1.5 flex items-center gap-1.5 text-xs text-gray-400">
                 <Badge variant="warning">FERPA</Badge>
-                Emailing record fields is a privacy tradeoff — review before a
+                Emailing record fields is a privacy tradeoff. Review before a
                 real send.
               </p>
             </div>

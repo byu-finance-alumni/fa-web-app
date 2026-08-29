@@ -676,7 +676,7 @@ export function ArchiveControls({
             Are you sure you want to archive{" "}
             <span className="font-semibold text-gray-900">{name}</span>? The
             record will be hidden from the active alumni list. You can unarchive
-            it again at any time — nothing is deleted.
+            it again at any time. Nothing is deleted.
           </p>
           {error ? (
             <p className="mt-3 text-sm text-danger-600">{error}</p>

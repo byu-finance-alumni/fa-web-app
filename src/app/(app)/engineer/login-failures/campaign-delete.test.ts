@@ -141,7 +141,7 @@ describe("loginCampaignSummary", () => {
     // is a 200 of zeros. Reporting that as "deleted" is a lie the engineer then
     // acts on — it is the only way they learn they aimed at the wrong address.
     expect(loginCampaignSummary(result())).toBe(
-      `Nothing was recorded for ${IP} — there was nothing to delete.`,
+      `Nothing was recorded for ${IP}, so there was nothing to delete.`,
     );
   });
 

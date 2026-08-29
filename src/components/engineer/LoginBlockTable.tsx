@@ -119,7 +119,7 @@ export function LoginBlockTable({
       */}
       <p className="mt-3 text-xs text-gray-500">
         Blocks last {formatBlockLength(data?.block_seconds ?? 3600)} and end on
-        their own — lift one if it has caught a real person.
+        their own. Lift one if it has caught a real person.
       </p>
     </section>
   );

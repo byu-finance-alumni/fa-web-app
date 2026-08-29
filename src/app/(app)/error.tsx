@@ -49,7 +49,7 @@ export default function AppError({
   return (
     <ErrorScreen
       title="This page didn’t load"
-      message="We couldn’t load this data right now — the service may be temporarily unavailable. Try again in a moment."
+      message="We couldn’t load this data right now. The service may be temporarily unavailable. Try again in a moment."
       reset={reset}
       contacts={contacts}
       contactsPending={contactsPending}

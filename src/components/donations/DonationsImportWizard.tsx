@@ -205,7 +205,7 @@ export function DonationsImportWizard() {
                 <p className="mt-1 text-sm text-gray-500">
                   Bulk-add Pay It Forward donations. Columns: MSTID, First name,
                   Last name, Month, Year, Amount. Donors are matched to existing
-                  alumni by MSTID, falling back to first + last name — an
+                  alumni by MSTID, falling back to first + last name. An
                   unmatched or ambiguous donor, or a bad month / year / amount,
                   rejects that row. Start from the template so the columns line up.
                 </p>
@@ -360,7 +360,7 @@ export function DonationsImportWizard() {
                             OK
                             {r.match_method === "name" && (
                               <span className="ml-1 font-normal text-warning-600">
-                                (matched by name — verify)
+                                (matched by name; verify)
                               </span>
                             )}
                             {r.warnings.length > 0 && (
@@ -391,7 +391,7 @@ export function DonationsImportWizard() {
               </p>
               <p className="mt-1 text-sm text-gray-700">
                 Nothing has been imported yet. Download just these rows, fix
-                them, and upload that file — or import the{" "}
+                them, and upload that file, or import the{" "}
                 {preview.summary.importable} good row
                 {preview.summary.importable === 1 ? "" : "s"} now and come back
                 to the rest.

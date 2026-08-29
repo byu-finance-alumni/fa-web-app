@@ -219,7 +219,7 @@ export function buildEventWarnings(
     warnings.push({
       code: "past_date",
       message:
-        "This date is in the past. That is fine for an event you are recording after the fact — check it is the date you meant.",
+        "This date is in the past. That is fine for an event you are recording after the fact. Check it is the date you meant.",
     });
   }
 

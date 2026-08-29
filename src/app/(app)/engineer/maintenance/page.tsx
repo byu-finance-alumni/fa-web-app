@@ -188,7 +188,7 @@ export default async function EngineerMaintenancePage() {
                       <dd>
                         Every account with a live session, except engineers, is
                         signed out within about 20 seconds. Those sessions are
-                        gone for good — turning maintenance back off does not
+                        gone for good. Turning maintenance back off does not
                         restore them, so everyone signs in again.
                       </dd>
                     </div>
@@ -219,7 +219,7 @@ export default async function EngineerMaintenancePage() {
                       </dt>
                       <dd>
                         Engineers keep their session, keep full access, and can
-                        sign in normally throughout — which is what guarantees
+                        sign in normally throughout, which is what guarantees
                         this switch can always be turned back off. Super admins
                         are{" "}
                         <span className="font-medium text-gray-700">not</span>{" "}

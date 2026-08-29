@@ -89,7 +89,7 @@ export function LinksBulkDeleteBar() {
           ? blocked
           : count === 0
             ? "Tick the rows you want to remove. Only the links on this page can be selected."
-            : `Deleting is permanent — ${linkCountLabel(
+            : `Deleting is permanent. ${linkCountLabel(
                 count,
               )} will be removed for everyone.`}
       </p>

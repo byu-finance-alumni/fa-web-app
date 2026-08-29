@@ -384,14 +384,14 @@ export default function SurveyConfirmPage({
         <InvalidPanel />
       ) : status === "submitted" ? (
         <SuccessPanel
-          title="Thank you — your updates are in"
+          title="Thank you. Your updates are in"
           body={[
             "Our team will review your response before any changes are applied to your record.",
             photoFailed
               ? "We couldn't upload your new photo this time, but the rest of your updates were received."
               : null,
             linkCount > 0
-              ? `We've also received the ${linkCount === 1 ? "opportunity" : `${linkCount} opportunities`} you shared — our team checks each one before passing it on to students.`
+              ? `We've also received the ${linkCount === 1 ? "opportunity" : `${linkCount} opportunities`} you shared. Our team checks each one before passing it on to students.`
               : null,
             "You can safely close this page.",
           ]

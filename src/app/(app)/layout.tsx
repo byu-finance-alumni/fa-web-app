@@ -60,7 +60,7 @@ export default async function AppLayout({
           status={auth.httpStatus}
           noun="your access"
           title="We couldn’t check what your account can do"
-          message="The service that resolves your roles and permissions isn’t responding, so the app won’t show you a menu that would be wrong. Your access hasn’t changed — try again in a moment."
+          message="The service that resolves your roles and permissions isn’t responding, so the app won’t show you a menu that would be wrong. Your access hasn’t changed. Try again in a moment."
           className="max-w-xl"
         />
       </div>

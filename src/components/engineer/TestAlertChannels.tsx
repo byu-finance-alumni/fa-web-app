@@ -52,7 +52,7 @@ export function TestAlertChannels() {
         toast.success("Test alert sent. Check the channel.");
       } else {
         // NOT an error toast: the send did not fail, there was nowhere to send.
-        toast.error("Nothing was sent — no channel is configured for that kind.");
+        toast.error("Nothing was sent. No channel is configured for that kind.");
       }
     });
   }
@@ -113,8 +113,8 @@ export function TestAlertChannels() {
             {result.fell_back_to_error_channel ? (
               <p className="mt-3 text-sm text-warning-600">
                 Security alerts are going to the <strong>error</strong> channel:
-                no separate security webhook is set. That is deliberate — a
-                missing setting must never mean a missing attack alert — but it
+                no separate security webhook is set. That is deliberate, because a
+                missing setting must never mean a missing attack alert, but it
                 means attacks and 500s share one channel.
               </p>
             ) : null}

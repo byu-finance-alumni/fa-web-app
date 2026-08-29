@@ -167,7 +167,7 @@ export function AlertTemplates() {
       setCopied(name);
       window.setTimeout(() => setCopied(null), 2000);
     } catch {
-      toast.error(`Couldn't copy — the placeholder is ${token}.`);
+      toast.error(`Couldn't copy. The placeholder is ${token}.`);
     }
   }
 
@@ -183,7 +183,7 @@ export function AlertTemplates() {
       <Card className="p-5">
         <p className="text-sm text-gray-500">
           The wording of each alert that gets posted to Slack. Changes apply to
-          the next alert of that kind — they do not re-send anything that has
+          the next alert of that kind. They do not re-send anything that has
           already fired.
         </p>
 
@@ -337,7 +337,7 @@ export function AlertTemplates() {
                         </div>
                       ) : (
                         <p className="mt-4 text-sm text-gray-500">
-                          This message takes no placeholders — it is sent
+                          This message takes no placeholders. It is sent
                           exactly as written.
                         </p>
                       )}
@@ -353,7 +353,7 @@ export function AlertTemplates() {
                           {leftover.length > 0
                             ? `Example values, except ${leftover
                                 .map((n) => `{${n}}`)
-                                .join(", ")} — Slack will not fill ${
+                                .join(", ")}. Slack will not fill ${
                                 leftover.length === 1 ? "that" : "those"
                               } in and ${
                                 leftover.length === 1 ? "it" : "they"

@@ -56,7 +56,7 @@ export function CampaignProgressTable({
         </h2>
         <p className="mt-2 text-sm text-gray-700">
           Couldn&rsquo;t load the campaigns. Nothing was loaded, so this is not
-          &ldquo;no campaigns yet&rdquo; — do not schedule a year from this
+          &ldquo;no campaigns yet&rdquo;. Do not schedule a year from this
           screen until it reloads.
         </p>
       </Card>
@@ -213,7 +213,7 @@ export function CampaignProgressTable({
           &ldquo;Rejected&rdquo; say what has happened to the submissions that
           came back. Rejecting one discards it, so that alumnus still owes a
           reply and is counted under &ldquo;Rejected&rdquo; <em>and</em> under
-          &ldquo;No reply yet&rdquo; — that is deliberate, not a contradiction.
+          &ldquo;No reply yet&rdquo;. That is deliberate, not a contradiction.
         </p>
         <p>
           Each of those three columns counts alumni, so they do not add up to

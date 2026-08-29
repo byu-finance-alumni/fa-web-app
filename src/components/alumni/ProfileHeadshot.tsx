@@ -117,7 +117,7 @@ export function ProfileHeadshot({
         if (!res.ok) throw new Error();
         setCropSrc(URL.createObjectURL(await res.blob()));
       } catch {
-        toast.error("Couldn't open the photo to edit — try again.");
+        toast.error("Couldn't open the photo to edit. Try again.");
       }
     });
   };
@@ -146,12 +146,12 @@ export function ProfileHeadshot({
           toast.error(
             put.status === 413
               ? "That image is too large. Please use one under 50 MB."
-              : "Couldn't upload the photo — try again.",
+              : "Couldn't upload the photo. Try again.",
           );
           return;
         }
       } catch {
-        toast.error("Couldn't upload the photo — try again.");
+        toast.error("Couldn't upload the photo. Try again.");
         return;
       }
       const confirmed = await confirmHeadshotUpload(alumniId);

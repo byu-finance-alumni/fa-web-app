@@ -173,7 +173,7 @@ export function EventsImportWizard() {
                 </h2>
                 <p className="mt-1 text-sm text-gray-500">
                   Enter the event&rsquo;s details, then upload a CSV of its
-                  attendees — one row per person with{" "}
+                  attendees: one row per person with{" "}
                   <strong>Net ID</strong>, <strong>First name</strong>,{" "}
                   <strong>Last name</strong>, and an optional <strong>Notes</strong>{" "}
                   column. Attendees are matched to existing alumni by Net ID;
@@ -563,7 +563,7 @@ function AttendeeChip({ a }: { a: EventImportAttendee }) {
       title={
         (a.matched
           ? `Matched alumni #${a.alumni_id}`
-          : "No active alumnus for this Net ID — will be skipped") +
+          : "No active alumnus for this Net ID, so it will be skipped") +
         (a.notes ? ` · Notes: ${a.notes}` : "")
       }
     >

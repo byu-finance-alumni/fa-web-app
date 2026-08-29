@@ -274,7 +274,7 @@ export function SpousePicker({
         ) : null}
         {linkedId === null ? (
           <p className="mt-1 text-xs text-gray-500">
-            Optional — leave blank to just record a name.
+            Optional. Leave blank to just record a name.
           </p>
         ) : null}
       </div>

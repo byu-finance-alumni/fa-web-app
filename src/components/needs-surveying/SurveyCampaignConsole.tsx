@@ -264,7 +264,7 @@ export function zeroSendReason(result: SendResult): string {
   if (b.recipients > 0) {
     // People were available; something downstream stopped the send (the daily
     // cap, or a stage everyone has already had).
-    return `${b.recipients.toLocaleString()} can be emailed, but none were due — check today's send cap.`;
+    return `${b.recipients.toLocaleString()} can be emailed, but none were due. Check today's send cap.`;
   }
   const parts: string[] = [];
   if (b.already_responded > 0) {
@@ -690,7 +690,7 @@ export function SurveyCampaignConsole({
             result.sent === 1 ? "" : "s"
           } for graduation year ${selectedYear}` +
             (result.remaining > 0
-              ? ` — ${result.remaining.toLocaleString()} over today's cap; run Send again to continue.`
+              ? `, with ${result.remaining.toLocaleString()} over today's cap; run Send again to continue.`
               : ".") +
             campaignCreatedNote(result, selectedYear),
         );
@@ -709,7 +709,7 @@ export function SurveyCampaignConsole({
       const msg =
         err instanceof ApiClientError && err.message
           ? err.message
-          : "the request failed — check the backend Resend config.";
+          : "the request failed. Check the backend Resend config.";
       toast.error(`Couldn't send: ${msg}`);
     } finally {
       setSending(false);
@@ -804,8 +804,8 @@ export function SurveyCampaignConsole({
       setCapsOpen(false);
       toast.success(
         capEnabledDraft
-          ? `Send cap updated — ${body.daily_limit.toLocaleString()}/day, ${body.monthly_limit.toLocaleString()}/month.`
-          : "Send cap turned off — sends are now limited only by Resend.",
+          ? `Send cap updated: ${body.daily_limit.toLocaleString()}/day, ${body.monthly_limit.toLocaleString()}/month.`
+          : "Send cap turned off. Sends are now limited only by Resend.",
       );
     } catch (err) {
       const msg =
@@ -846,8 +846,8 @@ export function SurveyCampaignConsole({
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-3">
           <p className="text-xs text-gray-400">
             {capEnabled
-              ? `Send limits are account-wide across every graduation year — ${dailyLimit.toLocaleString()} emails per day, ${monthlyLimit.toLocaleString()} per month.`
-              : "No send cap — sends are limited only by Resend."}
+              ? `Send limits are account-wide across every graduation year: ${dailyLimit.toLocaleString()} emails per day, ${monthlyLimit.toLocaleString()} per month.`
+              : "No send cap. Sends are limited only by Resend."}
           </p>
           <Button
             type="button"
@@ -1076,7 +1076,7 @@ export function SurveyCampaignConsole({
             {/* Per-stage sent counts from the real schedule (0s if none yet). */}
             <div className="mt-4 border-t border-gray-200 pt-4">
               <p className="text-xs font-medium text-gray-500">
-                Emails sent — initial, then 1-week &amp; 2-week reminders to
+                Emails sent: initial, then 1-week &amp; 2-week reminders to
                 non-responders
               </p>
               <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -1112,7 +1112,7 @@ export function SurveyCampaignConsole({
               <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-sm font-medium text-navy-800">
-                    Cannot be reached —{" "}
+                    Cannot be reached:{" "}
                     <span className="tabular-nums">
                       {breakdown.unreachable.toLocaleString()}
                     </span>{" "}
@@ -1190,7 +1190,7 @@ export function SurveyCampaignConsole({
               <div className="mt-4 rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-sm font-medium text-navy-800">
-                    Already replied —{" "}
+                    Already replied:{" "}
                     <span className="tabular-nums">
                       {breakdown.already_responded.toLocaleString()}
                     </span>{" "}
@@ -1212,7 +1212,7 @@ export function SurveyCampaignConsole({
                 </div>
                 <p className="mt-1 text-xs text-gray-500">
                   A reply holds someone out of the survey for 365 days,
-                  whatever happens to the campaign that asked — cancelling or
+                  whatever happens to the campaign that asked. Cancelling or
                   deleting it does not release them.
                 </p>
                 {!isEngineer || heldOutDenied ? (
@@ -1257,7 +1257,7 @@ export function SurveyCampaignConsole({
                 {breakdown.suppressed.toLocaleString()} more{" "}
                 {breakdown.suppressed === 1 ? "alumnus is" : "alumni are"}{" "}
                 marked Deceased or Do Not Contact and are never emailed. This
-                is separate from the alumni above — no action needed.
+                is separate from the alumni above, and no action is needed.
               </p>
             ) : null}
 
@@ -1350,7 +1350,7 @@ export function SurveyCampaignConsole({
       {/* Send dialog */}
       <Dialog open={sendOpen} onOpenChange={setSendOpen}>
         <DialogContent
-          title={`Send survey — graduation year ${selectedYear ?? ""}`}
+          title={`Send survey: graduation year ${selectedYear ?? ""}`}
           description="Emails each recipient their personal survey link."
         >
           <DialogBody className="space-y-4">
@@ -1362,7 +1362,7 @@ export function SurveyCampaignConsole({
                   {(recipientCount ?? 0).toLocaleString()}
                 </span>{" "}
                 alumni in graduation year {selectedYear} who haven&apos;t replied
-                this cycle and have an email we can send to — their personal
+                this cycle and have an email we can send to: their personal
                 address, or their work address when there is no personal one.{" "}
                 {breakdown && breakdown.work_email_fallback > 0
                   ? `${breakdown.work_email_fallback.toLocaleString()} will be reached at a work address. `
@@ -1371,8 +1371,8 @@ export function SurveyCampaignConsole({
                   ? `${breakdown.unreachable.toLocaleString()} cannot be reached at all and are listed under "Cannot be reached". `
                   : ""}
                 {capEnabled
-                  ? `Sends are capped at ${dailyLimit.toLocaleString()}/day — rerun to continue if there's a remainder; everything goes out in a single same-day batch when it fits.`
-                  : "No send cap — everything goes out in a single same-day batch, limited only by Resend."}
+                  ? `Sends are capped at ${dailyLimit.toLocaleString()}/day. Rerun to continue if there's a remainder; everything goes out in a single same-day batch when it fits.`
+                  : "No send cap. Everything goes out in a single same-day batch, limited only by Resend."}
               </span>
             </div>
           </DialogBody>
@@ -1417,7 +1417,7 @@ export function SurveyCampaignConsole({
                   Enforce daily &amp; monthly send cap
                 </span>
                 <span className="mt-0.5 block text-xs text-gray-400">
-                  Turn this off if you upgrade your Resend plan — sends will then
+                  Turn this off if you upgrade your Resend plan. Sends will then
                   be limited only by Resend.
                 </span>
               </span>
@@ -1537,7 +1537,7 @@ function HeldOutRow({
       setReset(true);
       setState(null);
       toast.success(
-        `${result?.name ?? alum.name} can be surveyed again — their earlier ` +
+        `${result?.name ?? alum.name} can be surveyed again, and their earlier ` +
           `answers and send history are kept.`,
       );
       onReset();
@@ -1574,7 +1574,7 @@ function HeldOutRow({
           </span>
           {reset ? (
             <span className="text-xs text-success-600">
-              Reset — in the next send
+              Reset, in the next send
             </span>
           ) : state ? null : (
             <Button
@@ -1622,7 +1622,7 @@ function HeldOutRow({
             </p>
           ) : null}
           <p className="mt-2 text-xs text-gray-500">
-            Resetting sends them another survey email. Nothing is deleted — their{" "}
+            Resetting sends them another survey email. Nothing is deleted: their{" "}
             {state.responses.length === 1
               ? "reply stays"
               : "replies stay"}{" "}
@@ -1768,7 +1768,7 @@ function CapacityMeters({
       title={
         enabled
           ? `Send cap: ${dailyTotal.toLocaleString()} emails/day · ${monthlyTotal.toLocaleString()}/month`
-          : "No send cap — limited only by Resend"
+          : "No send cap, limited only by Resend"
       }
     >
       <CapacityMeter
