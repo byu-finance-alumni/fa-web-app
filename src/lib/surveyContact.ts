@@ -21,23 +21,18 @@
  * entirely. A survey respondent is a stranger holding a signed token and has no
  * session to authenticate with.
  *
- * So the address is configured instead. `NEXT_PUBLIC_SURVEY_CONTACT_EMAIL` /
- * `NEXT_PUBLIC_SURVEY_CONTACT_NAME` are set per Vercel project, which keeps the
- * address out of the source and out of a code change when Tanya's mailbox moves
- * or someone else takes the role — but a change does need a redeploy to take
- * effect, because `NEXT_PUBLIC_*` values are inlined at build time.
+ * So the contact is passed IN as a prop rather than fetched here. It reaches
+ * the real screens on `support_contact` from the public, token-gated
+ * `GET /survey/respond/{token}` they already read (fa-web-api#506), and reaches
+ * the staff sample survey from the authenticated support-contacts list, which
+ * that dialog can see. Both resolve the same row -- the frontend's
+ * `surveySupportContact` mirrors the backend's `SURVEY_CONTACT_LABEL` rule.
  *
- * ⚠️ THE PROPER FIX IS ONE FIELD ON THE BACKEND, and it belongs in fa-web-api:
- * add an optional `support_contact: {name, email} | null` to `SurveyRespondInfo`
- * (`app/schemas/survey.py`), resolved from `support_contacts` by `role_label`
- * the way `engineerSupportContact` does it. It then arrives on the SAME public,
- * token-gated `GET /survey/respond/{token}` the pages already read, the address
- * becomes editable in the app with no deploy, and nothing else here changes:
- * feed the payload's value into `surveyContactFrom` instead of the environment
- * (`SurveyContactLink` is the only caller) and every function below still applies.
- *
- * Nothing in this module imports anything. Keep it that way — it is on the
- * public path.
+ * ⚠️ The address is EDITABLE IN THE APP: engineer console -> Support contacts,
+ * on the row whose role label contains "survey". No env var, no redeploy. An
+ * earlier version of this used `NEXT_PUBLIC_SURVEY_CONTACT_*`; those vars are
+ * gone and must not come back, because a second source for the address is how
+ * the survey ends up pointing somewhere nobody reads.
  */
 
 /** A contact we are willing to put behind a `mailto:`. */
