@@ -57,7 +57,7 @@ export default async function MaintenancePage() {
           {status.message ?? FALLBACK_MESSAGE}
         </p>
         <p className="mt-4 text-sm leading-relaxed text-gray-500">
-          You have been signed out. Nothing you saved has been lost — sign in
+          You have been signed out. Nothing you saved has been lost. Sign in
           again once maintenance is finished.
         </p>
 

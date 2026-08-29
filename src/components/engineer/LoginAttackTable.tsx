@@ -154,7 +154,7 @@ export function LoginAttackTable({
         may already have happened, and the row that says so is directly below.
       */}
       <p className="mt-3 text-xs text-gray-500">
-        IP and location are self-reported and can be spoofed — treat a source as
+        IP and location are self-reported and can be spoofed. Treat a source as
         a lead, not proof.
       </p>
     </section>

@@ -41,6 +41,13 @@ export type WaysToHelpCopy = {
   backLabel: string;
   submitLabel: string;
   submittingLabel: string;
+  /**
+   * The line directly ABOVE the submit button, or `null` when there is nothing
+   * unsent to warn about. Above rather than below on purpose: on the edit
+   * branch it is the only thing telling the alum their changes are still in the
+   * browser, and the press underneath it is what sends them.
+   */
+  submitNote: string | null;
   /** The line under the submit button, for the alum who wants to add nothing. */
   footerNote: string;
 };
@@ -48,23 +55,29 @@ export type WaysToHelpCopy = {
 /**
  * What the ways-to-help screen says, per branch.
  *
- * The `confirmed` strings are the ones #755 shipped, moved here verbatim so the
- * two modes are one screen with one set of questions rather than two screens
- * that can drift. If you change them, you are changing the confirm path.
+ * The `confirmed` strings came from #755, moved here so the two modes are one
+ * screen with one set of questions rather than two screens that can drift. They
+ * were trimmed alongside the edited ones on 2026-08-28 (Jake) to keep the two
+ * branches the same weight: neither intro is a paragraph any more. If you
+ * change them, you are changing the confirm path.
  *
- * The `edited` strings carry three facts the confirmed ones do not, each of
- * which has a cost if it goes missing:
+ * The `edited` strings carry two facts the confirmed ones do not, each of which
+ * has a cost if it goes missing:
  *
- *  1. THE UPDATES ARE NOT IN YET. They are sent by the button at the bottom of
- *     this page — one POST carrying the edits and anything answered here, which
+ *  1. THE UPDATES ARE NOT IN YET. They are sent by the button at the foot of
+ *     this page: one POST carrying the edits and anything answered here, which
  *     is what keeps the alum to a single response row. An alum who thinks they
  *     already submitted may close the tab, and a written-but-never-sent
- *     response is indistinguishable from a link that was never opened.
+ *     response is indistinguishable from a link that was never opened. This is
+ *     `submitNote`, and it is deliberately NOT in `intro`: Jake cut the intro
+ *     paragraph on 2026-08-28, and a warning at the top of a page is not where
+ *     someone looks before pressing a button at the bottom of it.
  *  2. NOTHING HERE IS REQUIRED. The button works with the page untouched.
- *  3. ANSWERS ALREADY GIVEN ARE FILLED IN. The involvement section is also a
- *     choice in the edit menu, so an alum may have answered these questions
- *     minutes ago; a blank form would read as though their edits were thrown
- *     away.
+ *
+ * A third fact went with the paragraph — that answers already given are filled
+ * in below — because the form shows it: `valueOf` pre-fills the involvement
+ * questions from the same staged `edits` map, so an alum who answered them in
+ * the section menu meets them already answered rather than blank.
  */
 export function waysToHelpCopy(
   mode: WaysToHelpMode,
@@ -74,23 +87,25 @@ export function waysToHelpCopy(
     return {
       heading: `Almost done, ${firstName}`,
       intro:
-        "Your updates aren't in yet — they're sent when you press the button at the bottom of this page. While you're here, there are two optional ways you can help our finance students. Anything you've already answered is filled in below.",
+        "While you're here, two optional ways you can help our finance students.",
       backLabel: "Back to my updates",
       submitLabel: "Submit my updates",
       submittingLabel: "Submitting…",
+      submitNote: "Your updates aren't sent yet.",
       footerNote:
-        "Nothing to add? Press the button above — your updates go in either way, and nothing on this page is required.",
+        "Nothing to add? Press the button above. Your updates go in either way, and nothing on this page is required.",
     };
   }
   return {
     heading: `Thanks for confirming, ${firstName}`,
     intro:
-      "Your information is up to date — that's everything we needed from you. While you're here, there are two optional ways you can help our finance students.",
+      "Your information is up to date, so that's everything we needed. While you're here, two optional ways you can help our finance students.",
     backLabel: "I need to make changes",
     submitLabel: "Send this to the Finance team",
     submittingLabel: "Sending…",
+    submitNote: null,
     footerNote:
-      "Nothing to add? You're already done — your confirmation is recorded and you can close this page.",
+      "Nothing to add? You're already done. Your confirmation is recorded and you can close this page.",
   };
 }
 

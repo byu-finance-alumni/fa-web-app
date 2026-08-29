@@ -128,7 +128,7 @@ export default async function SessionsPage({
         <p className="mb-4 max-w-2xl text-sm text-gray-500">
           Everyone signed in right now, <span className="font-medium text-gray-700">oldest
           first</span>. Sign-ins stay valid for a long time on their own, so a
-          session can sit open for weeks — revoking one deletes the sign-in so it
+          session can sit open for weeks. Revoking one deletes the sign-in so it
           can never be refreshed and stops the token already in the browser
           within seconds. Times are shown in{" "}
           <span className="font-medium text-gray-700">Utah time (Mountain)</span>.

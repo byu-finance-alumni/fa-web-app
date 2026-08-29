@@ -349,7 +349,7 @@ export const FAILED_ROWS_UNREADABLE =
 
 /** The one-line explanation of the trailing unnamed column, for the UI. */
 export const REASON_COLUMN_NOTE =
-  "You get the original columns with only the skipped rows, plus a last, unnamed column holding the reason each was skipped. Fix the rows and upload the file as it is — the importer ignores that extra column.";
+  "You get the original columns with only the skipped rows, plus a last, unnamed column holding the reason each was skipped. Fix the rows and upload the file as it is; the importer ignores that extra column.";
 
 /**
  * The same explanation for the PREVIEW step, where nothing has been imported
@@ -358,12 +358,12 @@ export const REASON_COLUMN_NOTE =
  * skipped, they WILL be if the import runs as it stands.
  */
 export const REASON_COLUMN_NOTE_PREVIEW =
-  "You get the original columns with only the rows that won't import, plus a last, unnamed column holding the reason each will be skipped. Fix the rows and upload the file as it is — the importer ignores that extra column.";
+  "You get the original columns with only the rows that won't import, plus a last, unnamed column holding the reason each will be skipped. Fix the rows and upload the file as it is; the importer ignores that extra column.";
 
 /** "3 of 12 skipped rows" style note when some rejects have no row to export. */
 export function unmatchedNote(result: FailedRowsExport): string | null {
   const missing = result.unmatched.length;
   if (missing === 0) return null;
   const total = result.exported + missing;
-  return `${missing} of the ${total} skipped rows aren't in the download — they were rejected before any row was read (see the reasons above).`;
+  return `${missing} of the ${total} skipped rows aren't in the download. They were rejected before any row was read (see the reasons above).`;
 }

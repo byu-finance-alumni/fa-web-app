@@ -268,7 +268,7 @@ export function VocabularyManager({
           title="Hide this option?"
           description={
             hideTarget
-              ? `“${hideTarget.value}” will no longer be offered for new entries. Existing records that already use it keep it — you can restore it later.`
+              ? `“${hideTarget.value}” will no longer be offered for new entries. Existing records that already use it keep it, and you can restore it later.`
               : undefined
           }
         >
@@ -302,7 +302,7 @@ export function VocabularyManager({
           title="Delete this option permanently?"
           description={
             deleteTarget
-              ? `“${deleteTarget.value}” will be removed for good — it can’t be restored. Existing records that already use it keep the value; it just won’t be offered anywhere. To keep it recoverable instead, hide it.`
+              ? `“${deleteTarget.value}” will be removed for good and can’t be restored. Existing records that already use it keep the value; it just won’t be offered anywhere. To keep it recoverable instead, hide it.`
               : undefined
           }
         >

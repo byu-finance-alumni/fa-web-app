@@ -108,7 +108,7 @@ export function DeleteUser({
               <>
                 <p id="del-user-desc" className="text-sm text-gray-600">
                   This <strong>permanently</strong> removes the account and its
-                  login — it cannot be undone. To suspend access reversibly,
+                  login. It cannot be undone. To suspend access reversibly,
                   deactivate the user instead. Activity history and audit records
                   are kept.
                 </p>

@@ -60,13 +60,13 @@ describe("sessionTone", () => {
 describe("describeSession", () => {
   it("names the account and how long it has been open", () => {
     expect(describeSession("colleague@byu.edu", 35 * DAY)).toBe(
-      "colleague@byu.edu — open for 5 weeks",
+      "colleague@byu.edu, open for 5 weeks",
     );
   });
 
   it("still reads sensibly for a session with no matching app user", () => {
     expect(describeSession(null, HOUR)).toBe(
-      "an unrecognised account — open for 1 hour",
+      "an unrecognised account, open for 1 hour",
     );
   });
 });

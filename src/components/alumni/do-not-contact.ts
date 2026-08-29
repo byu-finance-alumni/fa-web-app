@@ -101,7 +101,7 @@ export function doNotContactCopy(active: boolean): DoNotContactCopy {
       buttonLabel: "Allow contact again",
       confirmTitle: "Allow contact again",
       confirmBody: (name) =>
-        `${subject(name)} is currently marked "Do Not Contact" — someone recorded that they asked not to be contacted. ` +
+        `${subject(name)} is currently marked "Do Not Contact": someone recorded that they asked not to be contacted. ` +
         "Removing the label puts them back into survey sends and follow-up worklists. " +
         "Only do this if you know the request has been withdrawn. " +
         "This change is recorded in the audit trail under your name.",

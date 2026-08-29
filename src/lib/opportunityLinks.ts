@@ -683,14 +683,14 @@ export function linkSubmitErrorMessage(status: number | null): string {
     case 410:
       return "This survey link has expired, so we couldn't save your opportunities. Your other updates were received. Please ask the BYU Finance team for a fresh link.";
     case 429:
-      return "We've had too many submissions from this link in a short time. Please wait a few minutes and press submit again — nothing was sent twice.";
+      return "We've had too many submissions from this link in a short time. Please wait a few minutes and press submit again. Nothing was sent twice.";
     case 400:
     case 422:
-      return "One of your opportunities couldn't be saved — please check the link and the details, then press submit again. None of them were saved yet.";
+      return "One of your opportunities couldn't be saved. Please check the link and the details, then press submit again. None of them were saved yet.";
     case 413:
       return "Your opportunity details are too long to save. Please shorten them and press submit again.";
     default:
-      return "We couldn't save your opportunities just now. Your other updates were received — please press submit again to retry just the opportunities.";
+      return "We couldn't save your opportunities just now. Your other updates were received. Please press submit again to retry just the opportunities.";
   }
 }
 
@@ -972,7 +972,7 @@ export function linksExportErrorMessage(status: number | null): string {
     return "You can export approved links, but pending and rejected ones need review access. Set the status filter back to Approved, or ask a Super Admin for review access.";
   }
   if (status === 413) {
-    return `That selection is too big for one file (the limit is ${MAX_EXPORT_ROWS.toLocaleString()} links). Narrow the date range — or add a company or status filter — and export again.`;
+    return `That selection is too big for one file (the limit is ${MAX_EXPORT_ROWS.toLocaleString()} links). Narrow the date range, or add a company or status filter, and export again.`;
   }
   if (status === 422) {
     // The only 422 this screen can produce is the inverted range, so say that
@@ -985,7 +985,7 @@ export function linksExportErrorMessage(status: number | null): string {
   if (status === 429) {
     return "Too many requests just now, so the export didn’t run. Wait a few seconds and try again.";
   }
-  return "The export didn’t run, so no file was downloaded. Nothing has changed — try again in a moment.";
+  return "The export didn’t run, so no file was downloaded. Nothing has changed. Try again in a moment.";
 }
 
 /**
@@ -1569,7 +1569,7 @@ export function bulkDeleteBlockedReason(
   const count = toBulkDeleteIds(ids).length;
   if (count === 0) return "Select at least one link to delete.";
   if (count > MAX_LINKS_PER_BULK_DELETE)
-    return `You can delete ${MAX_LINKS_PER_BULK_DELETE} links at a time. ${count} are selected — clear some and try again.`;
+    return `You can delete ${MAX_LINKS_PER_BULK_DELETE} links at a time. ${count} are selected. Clear some and try again.`;
   return null;
 }
 
@@ -1588,7 +1588,7 @@ export function selectionCountLabel(count: number): string {
  * order, because those are the two facts that should stop a mis-click.
  */
 export function bulkDeleteConfirmMessage(count: number): string {
-  return `Permanently delete ${linkCountLabel(count)}? This cannot be undone — the ${
+  return `Permanently delete ${linkCountLabel(count)}? This cannot be undone. The ${
     count === 1 ? "link is" : "links are"
   } removed from the list for everyone.`;
 }
@@ -1614,7 +1614,7 @@ export function bulkDeleteOutcomeMessage(
   if (deleted === 0) {
     return {
       tone: "warning",
-      message: `Nothing was deleted — ${linkCountLabel(
+      message: `Nothing was deleted: ${linkCountLabel(
         missing,
       )} had already been removed by someone else. The list has been refreshed.`,
     };

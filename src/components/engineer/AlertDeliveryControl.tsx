@@ -105,7 +105,7 @@ export function AlertDeliveryControl({ state }: { state: AlertDeliveryState }) {
         */}
         <p className="mt-4 border-t border-gray-200 pt-4 text-sm text-gray-500">
           Either way, an alert still reaches the mailbox if the Slack post
-          fails — a revoked webhook, a Slack outage, or no channel set up. The
+          fails: a revoked webhook, a Slack outage, or no channel set up. The
           setting decides whether e-mail is a{" "}
           <span className="font-medium text-gray-700">copy</span> or a{" "}
           <span className="font-medium text-gray-700">backstop</span>, never

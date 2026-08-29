@@ -73,7 +73,7 @@ export function SearchHero() {
           that a sentence is allowed, so it's set in bold near-black rather than
           left as quiet grey text alongside the lead-in. */}
       <p className="mt-3 text-xs text-gray-500">
-        Try plain English — e.g.{" "}
+        Try plain English, e.g.{" "}
         <span className="font-semibold text-gray-900">
           “Find me all alumni in investment banking near Seattle”
         </span>

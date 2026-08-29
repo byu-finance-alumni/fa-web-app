@@ -576,7 +576,7 @@ function ReviewStep({
           </ul>
           <p className="mt-2 text-sm text-gray-700">
             Fix the header row (download the template for the exact columns) and
-            re-upload — no rows can be imported until the columns match.
+            re-upload. No rows can be imported until the columns match.
           </p>
         </div>
       )}
@@ -598,7 +598,7 @@ function ReviewStep({
           </p>
           <p className="mt-1 text-sm text-gray-700">
             Nothing has been imported yet. Download just these rows, fix them,
-            and upload that file — or import the {summary.importable} good row
+            and upload that file, or import the {summary.importable} good row
             {summary.importable === 1 ? "" : "s"} now and come back to the rest.
           </p>
           <div className="mt-4">

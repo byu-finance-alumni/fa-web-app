@@ -48,19 +48,19 @@ export default function PrivacyPage() {
           </p>
           <ul className="mt-2 list-disc space-y-1 pl-6">
             <li>
-              <span className="font-semibold">Contact</span> — name, email and
+              <span className="font-semibold">Contact:</span> name, email and
               phone numbers, mailing address, and LinkedIn profile.
             </li>
             <li>
-              <span className="font-semibold">Education</span> — graduation
+              <span className="font-semibold">Education:</span> graduation
               year, degrees, majors, and Finance program participation.
             </li>
             <li>
-              <span className="font-semibold">Employment</span> — current and
+              <span className="font-semibold">Employment:</span> current and
               past employers, titles, industry, and location.
             </li>
             <li>
-              <span className="font-semibold">Engagement</span> — event
+              <span className="font-semibold">Engagement:</span> event
               attendance, logged interactions, mentoring and speaking interests,
               leadership roles, tags, and staff notes.
             </li>
@@ -83,8 +83,8 @@ export default function PrivacyPage() {
             3. Who can access it
           </h2>
           <p className="mt-2">
-            Access is role-based and follows the principle of least privilege —
-            each person sees only what their role requires:
+            Access is role-based and follows the principle of least privilege.
+            Each person sees only what their role requires:
           </p>
           <ul className="mt-2 list-disc space-y-1 pl-6">
             <li>
@@ -108,7 +108,7 @@ export default function PrivacyPage() {
             </li>
           </ul>
           <p className="mt-2">
-            Every role boundary is enforced on the server — the interface only
+            Every role boundary is enforced on the server. The interface only
             reflects what a given user is permitted to do.
           </p>
 

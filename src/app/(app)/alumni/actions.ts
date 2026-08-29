@@ -621,8 +621,8 @@ export async function previewAlumni(formData: FormData): Promise<PreviewState> {
     );
     return { ok: true, preview };
   } catch (e) {
-    const fs = toFormState(e, "Couldn't run the check — try again.");
-    return { ok: false, error: fs?.error ?? "Couldn't run the check — try again." };
+    const fs = toFormState(e, "Couldn't run the check. Try again.");
+    return { ok: false, error: fs?.error ?? "Couldn't run the check. Try again." };
   }
 }
 
@@ -638,8 +638,8 @@ export async function previewAlumniUpdate(
     );
     return { ok: true, preview };
   } catch (e) {
-    const fs = toFormState(e, "Couldn't run the check — try again.");
-    return { ok: false, error: fs?.error ?? "Couldn't run the check — try again." };
+    const fs = toFormState(e, "Couldn't run the check. Try again.");
+    return { ok: false, error: fs?.error ?? "Couldn't run the check. Try again." };
   }
 }
 
@@ -1138,10 +1138,10 @@ export async function previewImport(
     );
     return { ok: true, data };
   } catch (e) {
-    const fs = toFormState(e, "Couldn't read the file — try again.");
+    const fs = toFormState(e, "Couldn't read the file. Try again.");
     return {
       ok: false,
-      error: fs?.error ?? "Couldn't read the file — try again.",
+      error: fs?.error ?? "Couldn't read the file. Try again.",
     };
   }
 }
@@ -1166,8 +1166,8 @@ export async function commitImport(
     revalidateTag("geography");
     return { ok: true, data };
   } catch (e) {
-    const fs = toFormState(e, "Import failed — try again.");
-    return { ok: false, error: fs?.error ?? "Import failed — try again." };
+    const fs = toFormState(e, "Import failed. Try again.");
+    return { ok: false, error: fs?.error ?? "Import failed. Try again." };
   }
 }
 
@@ -1225,10 +1225,10 @@ export async function previewUpdateImport(
     );
     return { ok: true, data };
   } catch (e) {
-    const fs = toFormState(e, "Couldn't read the file — try again.");
+    const fs = toFormState(e, "Couldn't read the file. Try again.");
     return {
       ok: false,
-      error: fs?.error ?? "Couldn't read the file — try again.",
+      error: fs?.error ?? "Couldn't read the file. Try again.",
     };
   }
 }
@@ -1254,8 +1254,8 @@ export async function commitUpdateImport(
     revalidateTag("geography");
     return { ok: true, data };
   } catch (e) {
-    const fs = toFormState(e, "Update failed — try again.");
-    return { ok: false, error: fs?.error ?? "Update failed — try again." };
+    const fs = toFormState(e, "Update failed. Try again.");
+    return { ok: false, error: fs?.error ?? "Update failed. Try again." };
   }
 }
 
@@ -1343,7 +1343,7 @@ export async function downloadCohortUpdateCsv(
       }
       return { ok: false, error: e.message };
     }
-    return { ok: false, error: "Couldn't export that cohort — try again." };
+    return { ok: false, error: "Couldn't export that cohort. Try again." };
   }
 }
 
@@ -1406,7 +1406,7 @@ export async function exportAlumni(
   } catch (e) {
     return {
       ok: false,
-      error: e instanceof ApiError ? e.message : "Export failed — try again.",
+      error: e instanceof ApiError ? e.message : "Export failed. Try again.",
     };
   }
 }
@@ -1610,7 +1610,7 @@ export async function uploadHeadshot(
       }
       return { ok: false, error: e.message };
     }
-    return { ok: false, error: "Couldn't upload the photo — try again." };
+    return { ok: false, error: "Couldn't upload the photo. Try again." };
   }
 }
 
@@ -1637,7 +1637,7 @@ export async function getHeadshotUploadUrl(
     return {
       ok: false,
       error:
-        e instanceof ApiError ? e.message : "Couldn't start the upload — try again.",
+        e instanceof ApiError ? e.message : "Couldn't start the upload. Try again.",
     };
   }
 }
@@ -1659,7 +1659,7 @@ export async function confirmHeadshotUpload(
   } catch (e) {
     return {
       ok: false,
-      error: e instanceof ApiError ? e.message : "Couldn't save the photo — try again.",
+      error: e instanceof ApiError ? e.message : "Couldn't save the photo. Try again.",
     };
   }
 }
@@ -1730,9 +1730,9 @@ function bulkImportError(e: unknown): string {
     if (e.status === 401 || e.status === 403) {
       return "You don't have permission to import photos, or your session expired. Sign in again and retry.";
     }
-    return e.message || "Couldn't import the photos — please try again.";
+    return e.message || "Couldn't import the photos. Please try again.";
   }
-  return "Couldn't import the photos — please try again.";
+  return "Couldn't import the photos. Please try again.";
 }
 
 /** Remove an alumnus's headshot (DELETE /alumni/{id}/headshot, full_access+). */

@@ -30,7 +30,7 @@ const TOOLS: Tool[] = [
     href: "/engineer/preview",
     title: "Preview as role",
     description:
-      "See the app the way a given role sees it — navigation and access — without leaving your own account. Read-only.",
+      "See the app the way a given role sees it, navigation and access included, without leaving your own account. Read-only.",
   },
   {
     href: "/vocabulary",
@@ -42,31 +42,31 @@ const TOOLS: Tool[] = [
     href: "/engineer/surveys",
     title: "Surveys",
     description:
-      "What survey campaigns are running, who started each one and when — pause and resume any of them, or stop them all.",
+      "What survey campaigns are running, who started each one and when. Pause and resume any of them, or stop them all.",
   },
   {
     href: "/engineer/logins",
     title: "Logins",
     description:
-      "Every sign-in with its captured location, newest first — the security history behind each account.",
+      "Every sign-in with its captured location, newest first: the security history behind each account.",
   },
   {
     href: "/engineer/login-failures",
     title: "Login failures",
     description:
-      "Every failed sign-in attempt — who, when, from what IP, and why — newest first. The attempted email may not match any account.",
+      "Every failed sign-in attempt, newest first: who, when, from what IP, and why. The attempted email may not match any account.",
   },
   {
     href: "/engineer/sessions",
     title: "Sessions",
     description:
-      "Everyone signed in right now, oldest first — how long each session has been open, and the control to end one or sign an account out everywhere.",
+      "Everyone signed in right now, oldest first: how long each session has been open, and the control to end one or sign an account out everywhere.",
   },
   {
     href: "/engineer/maintenance",
     title: "Maintenance mode",
     description:
-      "Close the site for maintenance: signs out everyone except engineers, blocks their sign-in, and shows a maintenance page. Reversible from the same screen — engineers stay signed in.",
+      "Close the site for maintenance: signs out everyone except engineers, blocks their sign-in, and shows a maintenance page. Reversible from the same screen, because engineers stay signed in.",
   },
   {
     href: "/engineer/support-contacts",

@@ -86,7 +86,7 @@ export function templateProblem(
   // were 2000 here and 500 in the database CHECK, so a long message passed this
   // check and came back a 422 with the draft still in the box.
   if (template.length > maxLength) {
-    return `That’s ${template.length} characters — the limit is ${maxLength}.`;
+    return `That’s ${template.length} characters. The limit is ${maxLength}.`;
   }
   const unknown = unknownPlaceholders(template, allowed);
   if (unknown.length > 0) {

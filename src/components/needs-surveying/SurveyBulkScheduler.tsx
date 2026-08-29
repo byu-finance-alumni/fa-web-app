@@ -202,7 +202,7 @@ export function SurveyBulkScheduler() {
                 />
               </div>
               <p className="flex-1 text-xs text-gray-500">
-                Fills every year below — adjust individual rows afterward.
+                Fills every year below. Adjust individual rows afterward.
               </p>
             </div>
 
@@ -215,7 +215,7 @@ export function SurveyBulkScheduler() {
               ) : loadFailed ? (
                 <p className="bg-danger-50 px-4 py-6 text-sm text-gray-700">
                   Couldn&rsquo;t load the graduation years. Nothing was loaded,
-                  so this is not an empty list — close this and try again in a
+                  so this is not an empty list. Close this and try again in a
                   moment.
                 </p>
               ) : years.length === 0 ? (

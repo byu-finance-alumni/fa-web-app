@@ -142,7 +142,7 @@ export async function saveAlertTemplate(
       ok: false,
       error:
         e instanceof ApiError && e.status === 404
-          ? "That message no longer exists — reload the page."
+          ? "That message no longer exists. Reload the page."
           : e instanceof ApiError && e.status === 429
             ? "Too many changes at once. Wait a moment and save again."
             : e instanceof ApiError
@@ -176,7 +176,7 @@ export async function resetAlertTemplate(
       ok: false,
       error:
         e instanceof ApiError && e.status === 404
-          ? "That message no longer exists — reload the page."
+          ? "That message no longer exists. Reload the page."
           : e instanceof ApiError
             ? e.message
             : "Couldn't reset that message.",
@@ -279,7 +279,7 @@ export async function liftLoginIpBlock(
       ok: false,
       error:
         e instanceof ApiError && e.status === 404
-          ? "That block is no longer active — it was lifted or it expired."
+          ? "That block is no longer active. It was lifted or it expired."
           : e instanceof ApiError
             ? e.message
             : "Couldn't lift that block.",
@@ -317,7 +317,7 @@ export async function sendTestAlert(
       ok: false,
       error:
         e instanceof ApiError && e.status === 429
-          ? "Too many test alerts. Six an hour is the limit — try again later."
+          ? "Too many test alerts. Six an hour is the limit. Try again later."
           : e instanceof ApiError
             ? e.message
             : "Couldn't send the test alert.",

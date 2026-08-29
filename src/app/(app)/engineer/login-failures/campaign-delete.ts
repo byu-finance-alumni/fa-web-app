@@ -103,7 +103,7 @@ export function loginCampaignConfirm({
       },
       {
         text:
-          "Cannot be undone — to clear a block you think is wrong, use Lift " +
+          "Cannot be undone. To clear a block you think is wrong, use Lift " +
           "instead, which keeps the record and stops automatic re-blocking for " +
           "24 hours.",
       },
@@ -141,7 +141,7 @@ export function loginCampaignSummary(result: LoginCampaignDeleted): string {
   } = result;
 
   if (failures === 0 && incidents === 0 && blocks === 0) {
-    return `Nothing was recorded for ${ip} — there was nothing to delete.`;
+    return `Nothing was recorded for ${ip}, so there was nothing to delete.`;
   }
 
   const parts = [count(failures, "failed sign-in")];

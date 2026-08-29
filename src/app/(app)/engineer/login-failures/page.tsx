@@ -247,7 +247,7 @@ export default async function LoginFailuresPage({
 
         <div className="mb-4 flex items-start justify-between gap-4">
           <p className="max-w-2xl text-sm text-gray-500">
-            Every failed attempt, newest first — the email is as typed and may
+            Every failed attempt, newest first. The email is as typed and may
             match no account; times are{" "}
             <span className="font-medium text-gray-700">Utah time</span>.
           </p>

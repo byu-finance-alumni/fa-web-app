@@ -24,7 +24,7 @@ type Option = {
 const ALL_OPTIONS: Option[] = [
   {
     value: "alumni",
-    label: "CSV — Alumni",
+    label: "CSV: Alumni",
     description: "Bulk-add alumni from a spreadsheet.",
   },
   {
@@ -32,13 +32,13 @@ const ALL_OPTIONS: Option[] = [
     // someone who came here to import a spreadsheet shouldn't have to know that
     // — the two ways of getting a CSV into the database belong side by side.
     value: "alumni-update",
-    label: "CSV — Update existing alumni",
+    label: "CSV: Update existing alumni",
     description:
       "Update profiles that already exist, matched by Net ID. Every change is shown for review before anything is applied.",
   },
   {
     value: "friends",
-    label: "CSV — Friends",
+    label: "CSV: Friends",
     description:
       "Bulk-add or update non-alumni friends of the program from a spreadsheet.",
   },
