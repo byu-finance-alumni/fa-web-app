@@ -22,6 +22,7 @@ import {
   type Fields,
 } from "@/components/survey/survey-screens";
 import { SurveyPageShell } from "@/components/survey/SurveyPageShell";
+import { SurveyContactLink } from "@/components/survey/SurveyContactLink";
 import {
   confirmErrorMessage,
   confirmOnlyBody,
@@ -463,6 +464,13 @@ export default function SurveyConfirmPage({
           <TrustNote />
         </>
       )}
+
+      {/* Outside the state switch on purpose (#774): the way to reach a human
+          must be there while the alum is reviewing, while they are editing,
+          when the link turns out to be dead, and on the thank-you panel —
+          especially the last one, which is where someone realises they have
+          something else to say. Renders nothing when no contact is configured. */}
+      <SurveyContactLink />
     </SurveyPageShell>
   );
 }
