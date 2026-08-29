@@ -102,6 +102,7 @@ export interface AlumniFilterState {
   deceased: "" | "only" | "exclude";
   missingEmail: boolean;
   missingEmployer: boolean;
+  missingPhone: boolean;
   /** fa-web-api#775. `missingPhoto` is answered from a listing of the headshots
    *  bucket, not a column -- an alumnus with NO net ID counts as missing one,
    *  because there is no key to store a photo under. */
@@ -167,6 +168,7 @@ export const EMPTY_FILTERS: AlumniFilterState = {
   deceased: "",
   missingEmail: false,
   missingEmployer: false,
+  missingPhone: false,
   missingLinkedin: false,
   missingPhoto: false,
   duplicate: false,
@@ -285,6 +287,7 @@ export const BOOLEAN_FLAGS: {
     | "archived"
     | "missingEmail"
     | "missingEmployer"
+    | "missingPhone"
     | "missingLinkedin"
     | "missingPhoto"
     | "duplicate"
@@ -304,6 +307,7 @@ export const BOOLEAN_FLAGS: {
   { key: "archived", param: "archived", api: "include_archived" },
   { key: "missingEmail", param: "missing_email", api: "missing_email" },
   { key: "missingEmployer", param: "missing_employer", api: "missing_employer" },
+  { key: "missingPhone", param: "missing_phone", api: "missing_phone" },
   { key: "missingLinkedin", param: "missing_linkedin", api: "missing_linkedin" },
   { key: "missingPhoto", param: "missing_photo", api: "missing_photo" },
   { key: "duplicate", param: "duplicate", api: "duplicate" },

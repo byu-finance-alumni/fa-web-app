@@ -122,6 +122,7 @@ const EXPORT_MAPPING: Record<string, ParamExport> = {
   cpa: { as: "flag", field: "cpa" },
   missing_email: { as: "flag", field: "missing_email" },
   missing_employer: { as: "flag", field: "missing_employer" },
+  missing_phone: { as: "flag", field: "missing_phone" },
   missing_linkedin: { as: "flag", field: "missing_linkedin" },
   missing_photo: { as: "flag", field: "missing_photo" },
   duplicate: { as: "flag", field: "duplicate" },
@@ -203,8 +204,9 @@ const NO_PREDICATE: AlumniExportFilters = {
   cpa: false,
   missing_email: false,
   missing_employer: false,
+  missing_phone: false,
   // fa-web-api#775. Non-nullable server-side, so `false` IS "no predicate" --
-  // the same shape as the two above.
+  // the same shape as the three above.
   //
   // `missing_photo` is answered from a LISTING of the headshots bucket rather
   // than a column, so an unreachable bucket makes the export fail (502) rather
@@ -222,8 +224,6 @@ const NO_PREDICATE: AlumniExportFilters = {
   graduate_degree: false,
   spoke_after: null,
   spoke_before: null,
-  // Supported by GET /alumni and by the export, but no UI surfaces it today.
-  missing_phone: false,
   sort: "name",
 };
 
