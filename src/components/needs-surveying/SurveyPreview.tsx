@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { SAMPLE_ALUM, SAMPLE_ALUM_NAME } from "@/lib/sampleAlumni";
 import { emptyLinkEntry, type LinkEntry } from "@/lib/opportunityLinks";
 import { type WaysToHelpMode } from "@/lib/surveyWaysToHelp";
+import { SurveyContactLink } from "@/components/survey/SurveyContactLink";
 import {
   DEFAULT_SURVEY_CLOSING,
   DEFAULT_SURVEY_MESSAGE,
@@ -344,6 +345,13 @@ function PreviewBody() {
           <TrustNote />
         </>
       )}
+
+      {/* The real survey renders this as the last child of `SurveyPageShell` on
+          EVERY screen (#774), so the sample has to carry it too or staff are
+          previewing a survey the alum does not get. It reads the same config and
+          renders nothing when no contact is set — so an unconfigured preview
+          showing no link is correct, not a bug. */}
+      <SurveyContactLink />
 
       <EmailCopyBlock
         id="preview-email-closing"

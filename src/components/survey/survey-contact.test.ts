@@ -226,3 +226,41 @@ describe("nothing here reaches for auth", () => {
     expect(specs).toEqual(["@/lib/surveyContact"]);
   });
 });
+
+/**
+ * The STAFF SAMPLE SURVEY has to show what the alum actually gets (#774).
+ *
+ * `SurveyPreview` is the console's "what will they see" dialog. It is a
+ * hand-assembled replica of the real screens rather than the screens
+ * themselves, which is what makes it useful — and what makes it silently
+ * driftable. The whole failure mode is invisible: the preview keeps looking
+ * fine while the real survey has moved on, and staff sign off on a survey
+ * nobody is sent.
+ *
+ * This shipped that way once already: #774 added the contact link to both real
+ * survey screens and not to the preview.
+ */
+describe("the sample survey stays in step with the real one", () => {
+  const previewSource = readFileSync(
+    fileURLToPath(
+      new URL("../needs-surveying/SurveyPreview.tsx", import.meta.url),
+    ),
+    "utf8",
+  );
+
+  it("renders the same contact link the real survey does", () => {
+    expect(previewSource).toContain(
+      'import { SurveyContactLink } from "@/components/survey/SurveyContactLink"',
+    );
+    expect(previewSource).toContain("<SurveyContactLink />");
+  });
+
+  it("walks the ways-to-help ending from BOTH directions, not just confirm", () => {
+    // An alum reaches that screen two ways: pressing "everything is correct"
+    // (#755) and pressing Continue after edits (#773). The preview must be able
+    // to show either, or staff never see the edited-path copy.
+    expect(previewSource).toContain("<WaysToHelp");
+    expect(previewSource).toMatch(/setHelpMode\(\s*"edited"\s*\)/);
+    expect(previewSource).toContain('useState<WaysToHelpMode>("confirmed")');
+  });
+});
