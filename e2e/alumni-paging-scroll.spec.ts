@@ -65,11 +65,41 @@ test.describe("#806 — paging the alumni list returns you to the top", () => {
 
     await next.click();
     await page.waitForURL(/offset=/, { timeout: 30_000 });
-    // Let the navigation settle so we measure the post-render position.
-    await page.waitForTimeout(1_500);
 
-    const after = await scrollPosition(page);
-    expect(after.main ?? 0).toBeLessThanOrEqual(5);
-    expect(after.window).toBeLessThanOrEqual(5);
+    // Poll rather than sleeping a fixed interval: the scroll lands in an effect
+    // after the navigation renders, and a fixed wait races it. An earlier
+    // version of this spec used waitForTimeout and flaked for exactly that
+    // reason -- it reported a stale scrollTop, not a real regression.
+    await expect
+      .poll(async () => (await scrollPosition(page)).main ?? 0, {
+        timeout: 15_000,
+      })
+      .toBeLessThanOrEqual(5);
+    expect((await scrollPosition(page)).window).toBeLessThanOrEqual(5);
+
+    // Prev is the same component and the same offset prop, so it works by
+    // construction -- but it is half of what was actually reported, so it is
+    // half of what gets asserted.
+    await page.evaluate(() => {
+      document.querySelector("main")?.scrollTo({ top: 100_000 });
+      window.scrollTo({ top: 100_000 });
+    });
+    expect((await scrollPosition(page)).main ?? 0).toBeGreaterThan(0);
+
+    const prev = page.getByRole("link", { name: /Prev/ });
+    await expect(prev).toBeVisible({ timeout: 30_000 });
+    await prev.click();
+    // Paging back to the first page DROPS the param rather than setting
+    // offset=0, so wait for it to disappear -- not for it to change.
+    await page.waitForURL((url) => !url.search.includes("offset="), {
+      timeout: 30_000,
+    });
+
+    await expect
+      .poll(async () => (await scrollPosition(page)).main ?? 0, {
+        timeout: 15_000,
+      })
+      .toBeLessThanOrEqual(5);
+    expect((await scrollPosition(page)).window).toBeLessThanOrEqual(5);
   });
 });
