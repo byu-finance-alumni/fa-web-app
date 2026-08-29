@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ScrollToTopOnPageChange } from "@/components/shared/ScrollToTopOnPageChange";
 import { redirect } from "next/navigation";
 import { apiGet, ApiError } from "@/lib/api";
 import { readAuthContext } from "@/lib/auth-context";
@@ -124,6 +125,7 @@ export default async function SessionsPage({
         ]}
       />
       <main className="flex-1 overflow-auto p-6">
+        <ScrollToTopOnPageChange offset={offset} />
         <h1 className="sr-only">Active sessions</h1>
         <p className="mb-4 max-w-2xl text-sm text-gray-500">
           Everyone signed in right now, <span className="font-medium text-gray-700">oldest

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -65,4 +65,50 @@ describe("scroll to top when the page of results changes", () => {
     expect(layout).toMatch(/\[overflow:clip\]/);
     expect(roster).toMatch(/<main className="[^"]*overflow-auto/);
   });
+});
+
+/**
+ * EVERY paginated screen, not just the alumni list.
+ *
+ * The fix landed on the alumni roster first and the other seven screens kept
+ * the same annoyance for a while. This walks the app and derives the list of
+ * paginated screens from the source rather than hard-coding it, so a NEW
+ * paginated page fails here instead of silently shipping without the scroll.
+ */
+function tsxFilesUnder(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = resolve(dir, entry.name);
+    if (entry.isDirectory()) out.push(...tsxFilesUnder(full));
+    else if (entry.name.endsWith(".tsx")) out.push(full);
+  }
+  return out;
+}
+
+const SRC = resolve(__dirname, "../..");
+
+/** A screen is "paginated" if it renders the Prev/Next pair. */
+const paginated = tsxFilesUnder(SRC)
+  .map((file) => ({ file, text: readFileSync(file, "utf-8") }))
+  .filter(({ text }) => text.includes('label="Next ›"'));
+
+describe("every paginated screen scrolls back to the top", () => {
+  it("finds the paginated screens", () => {
+    // Guards the guard: if the Prev/Next markup is ever restyled, this drops to
+    // zero and the assertion below would pass vacuously.
+    expect(paginated.length).toBeGreaterThanOrEqual(8);
+  });
+
+  it.each(paginated.map(({ file }) => file.replace(SRC, "src")))(
+    "%s mounts ScrollToTopOnPageChange",
+    (relative) => {
+      const found = paginated.find(({ file }) =>
+        file.replace(SRC, "src") === relative,
+      )!;
+      expect(found.text).toContain("<ScrollToTopOnPageChange offset={offset} />");
+      expect(found.text).toContain(
+        'import { ScrollToTopOnPageChange } from "@/components/shared/ScrollToTopOnPageChange"',
+      );
+    },
+  );
 });
