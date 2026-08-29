@@ -122,6 +122,8 @@ const EXPORT_MAPPING: Record<string, ParamExport> = {
   cpa: { as: "flag", field: "cpa" },
   missing_email: { as: "flag", field: "missing_email" },
   missing_employer: { as: "flag", field: "missing_employer" },
+  missing_linkedin: { as: "flag", field: "missing_linkedin" },
+  missing_photo: { as: "flag", field: "missing_photo" },
   duplicate: { as: "flag", field: "duplicate" },
   include_archived: { as: "flag", field: "include_archived" },
   needs_survey: { as: "flag", field: "needs_survey" },
@@ -201,6 +203,14 @@ const NO_PREDICATE: AlumniExportFilters = {
   cpa: false,
   missing_email: false,
   missing_employer: false,
+  // fa-web-api#775. Non-nullable server-side, so `false` IS "no predicate" --
+  // the same shape as the two above.
+  //
+  // `missing_photo` is answered from a LISTING of the headshots bucket rather
+  // than a column, so an unreachable bucket makes the export fail (502) rather
+  // than quietly returning everyone. That refusal is the parity guarantee.
+  missing_linkedin: false,
+  missing_photo: false,
   duplicate: false,
   is_alumni: true,
   include_archived: false,

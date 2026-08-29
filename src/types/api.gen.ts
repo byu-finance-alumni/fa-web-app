@@ -3510,6 +3510,14 @@ export interface paths {
          *     DEFAULTS TO APPROVED. An unfiltered read is the safe read: a caller who does
          *     not ask for unmoderated rows does not get them, whatever their role. A
          *     moderator asking for the queue passes ``?status=pending``.
+         *
+         *     ``submitted_from`` / ``submitted_to`` are the DATE RECEIVED range (#771) —
+         *     what the owner asked for as "listed in a report by date they were given to
+         *     us". They bound ``submitted_at``, not ``application_deadline``, and both ends
+         *     are inclusive whole days.
+         *
+         *     ``GET /opportunity-links/export`` takes these EXACT parameters and returns
+         *     exactly this population as CSV.
          */
         get: operations["list_opportunity_links_opportunity_links_get"];
         put?: never;
@@ -3520,6 +3528,61 @@ export interface paths {
          *     field fails the shared validation rules.
          */
         post: operations["create_opportunity_link_opportunity_links_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/opportunity-links/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Opportunity Links
+         * @description The dated report (#771): the filtered Links list as a CSV download.
+         *
+         *     ⚠️ DECLARED BEFORE ``/{link_id}`` — route matching is declaration-ordered, so
+         *     a literal path that comes after a ``/{param}`` pattern is never reached and
+         *     ``/export`` would 404 as "link id 'export'".
+         *
+         *     TAKES THE SAME PARAMETERS AS ``GET /opportunity-links`` AND RETURNS THE SAME
+         *     POPULATION. Identical names, identical types, identical defaults, resolved by
+         *     the same :func:`_resolve_filters` and run through the same
+         *     ``build_population_query`` — the only difference is that a report has no
+         *     ``limit``/``offset``, because it is the whole set rather than a page. That is
+         *     a structural guarantee, not a promise:
+         *     ``tests/test_opportunity_link_export_parity.py`` compiles both statements and
+         *     asserts the SQL and the binds match.
+         *
+         *     AUTHORIZATION IS EXACTLY THE LIST'S, deliberately: any view-access role may
+         *     export, and asking for ``pending``/``rejected`` needs ``surveys.manage`` here
+         *     too. Exporting what you can already see on screen is not an escalation, and
+         *     giving the export its own rule is how the two drift.
+         *
+         *     Over ``MAX_EXPORT_ROWS`` matches the caller gets a 413 asking them to narrow
+         *     the dates. Deliberately NOT a silent truncation: a report missing its tail
+         *     reads exactly like a complete one.
+         *
+         *     The cap is a SOFT bound and knowingly so: rows inserted between the count and
+         *     the fetch ride along, so a file can exceed it by however many postings arrived
+         *     in that window. Closing that would mean holding a lock across the whole export
+         *     for a limit whose only job is to keep the response inside the serverless body
+         *     cap — the wrong trade, and the drift is bounded by the submit rate limiter.
+         *
+         *     Audit-logged as ``export_opportunity_links`` with the row count and the
+         *     applied filters — what left the system and under which selection, never the
+         *     rows.
+         *
+         *     Returns ``text/csv`` with a ``Content-Disposition: attachment`` filename of
+         *     ``opportunity_links_<YYYY-MM-DD>.csv``.
+         */
+        get: operations["export_opportunity_links_opportunity_links_export_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5250,6 +5313,16 @@ export interface components {
              */
             missing_phone: boolean;
             /**
+             * Missing Linkedin
+             * @default false
+             */
+            missing_linkedin: boolean;
+            /**
+             * Missing Photo
+             * @default false
+             */
+            missing_photo: boolean;
+            /**
              * Duplicate
              * @default false
              */
@@ -6941,6 +7014,10 @@ export interface components {
             missing_employer: number;
             /** Missing Phone */
             missing_phone: number;
+            /** Missing Linkedin */
+            missing_linkedin: number;
+            /** Missing Photo */
+            missing_photo: number | null;
             /** Duplicate Count */
             duplicate_count: number;
         };
@@ -10497,6 +10574,10 @@ export interface operations {
                 missing_employer?: boolean;
                 /** @description Only alumni with no phone number on file. */
                 missing_phone?: boolean;
+                /** @description Only alumni with no LinkedIn URL on file (#775). A blank or whitespace-only value counts as missing. */
+                missing_linkedin?: boolean;
+                /** @description Only alumni with no headshot stored (#775). A headshot is an object in the private 'headshots' bucket keyed by the alumnus's net ID, so this is answered from ONE cached bucket listing (up to 5 minutes stale), never a per-row storage check. NOTE: alumni with NO net ID are INCLUDED - there is no key to store a photo under, so they cannot have one. Staged survey photos awaiting review do not count as a headshot. */
+                missing_photo?: boolean;
                 /** @description Only alumni flagged as duplicate candidates. */
                 duplicate?: boolean;
                 include_archived?: boolean;
@@ -14491,6 +14572,10 @@ export interface operations {
                 company?: string | null;
                 /** @description Free-text search over company, details, location and url. */
                 q?: string | null;
+                /** @description DATE RECEIVED, inclusive lower bound: only links submitted on or after this date. Matches submitted_at, NOT application_deadline. */
+                submitted_from?: string | null;
+                /** @description DATE RECEIVED, inclusive upper bound: only links submitted on or before this date. The whole day counts — a link that arrived at 23:59 UTC on this date is included. */
+                submitted_to?: string | null;
                 limit?: number;
                 offset?: number;
             };
@@ -14540,6 +14625,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OpportunityLinkRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_opportunity_links_opportunity_links_export_get: {
+        parameters: {
+            query?: {
+                /** @description Moderation state. Omit for approved links only. 'pending' / 'rejected' require the surveys.manage capability. */
+                status?: ("pending" | "approved" | "rejected") | null;
+                /** @description Internship / full-time / both. */
+                role_type?: ("internship" | "full_time" | "both") | null;
+                /** @description Substring match on the company the link is listed under — the typed name, or the alum's employer for 'my company' entries. */
+                company?: string | null;
+                /** @description Free-text search over company, details, location and url. */
+                q?: string | null;
+                /** @description DATE RECEIVED, inclusive lower bound: only links submitted on or after this date. Matches submitted_at, NOT application_deadline. */
+                submitted_from?: string | null;
+                /** @description DATE RECEIVED, inclusive upper bound: only links submitted on or before this date. The whole day counts — a link that arrived at 23:59 UTC on this date is included. */
+                submitted_to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
