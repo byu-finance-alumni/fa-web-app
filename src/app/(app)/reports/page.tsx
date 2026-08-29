@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { apiGet, ApiError } from "@/lib/api";
 import { readAuthContext } from "@/lib/auth-context";
+import { CAPABILITY } from "@/constants/capabilities";
 import { Topbar } from "@/components/shell/Topbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,11 +9,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoadError } from "@/components/shared/LoadError";
 import {
   MISSING_PHOTO_UNAVAILABLE_NOTE,
+  SURVEY_COUNT_UNAVAILABLE_NOTE,
+  quotedCampaign,
   reportCount,
+  surveyCount,
+  surveyCountLabel,
   visibleRelatedSurfaces,
   visibleReportSections,
   type DataQuality,
   type Report,
+  type SurveySchedule,
 } from "@/lib/reports";
 
 export const metadata = {
@@ -29,9 +35,16 @@ export const metadata = {
  * `@/lib/reports`, where the list-backed hrefs are SERIALIZED from the filter
  * model rather than typed by hand.
  *
- * It also deliberately does NOT recompute anything: the counts come from the
- * same `GET /dashboard/data-quality` the Data quality page reads, and the survey
- * entries link to the campaign console instead of restating its arithmetic.
+ * It also deliberately does NOT recompute anything: the data-quality counts come
+ * from the same `GET /dashboard/data-quality` the Data quality page reads, and
+ * the survey figures are quoted straight off ONE campaign row from
+ * `GET /survey/schedules` — never summed across classes, because campaigns are
+ * per graduation year and a grand total would mean nothing (see
+ * `quotedCampaign`).
+ *
+ * ⚠️ NOTHING ON THIS PAGE NAMES AN ENDPOINT (Jake, review of #775). The
+ * provenance of every number is in the comments here and in `@/lib/reports`; a
+ * staff screen does not carry HTTP methods and routes.
  *
  * Gated (nav + backend) on `reports.advanced`, the capability that already
  * covers Data quality, Activity and Tasks — and the one `/dashboard/data-quality`
@@ -66,9 +79,25 @@ export default async function ReportsPage() {
   const sections = visibleReportSections(capabilities);
   const related = visibleRelatedSurfaces(capabilities);
 
+  // The campaign figures, fetched ONLY for accounts that may read them — the
+  // survey rows are hidden without `surveys.manage`, and the endpoint 403s
+  // without it, so an unconditional call would be a guaranteed error for every
+  // reports.advanced-only account. A failure degrades to "no number", never to a
+  // zero: nobody has replied and we could not ask are different facts.
+  const schedules = capabilities.includes(CAPABILITY.SURVEYS_MANAGE)
+    ? await apiGet<SurveySchedule[]>("/survey/schedules", {
+        revalidate: 60,
+        tags: ["survey-schedules"],
+      }).catch(() => null)
+    : null;
+  const campaign = quotedCampaign(schedules);
+
   /** A report's headline figure — null is UNKNOWN, never zero. */
-  const countFor = (report: Report) =>
-    report.countKey ? reportCount(dq?.[report.countKey]) : null;
+  const countFor = (report: Report) => {
+    if (report.countKey) return reportCount(dq?.[report.countKey]);
+    if (report.surveyCountKey) return surveyCount(campaign, report.surveyCountKey);
+    return null;
+  };
 
   return (
     <>
@@ -78,28 +107,17 @@ export default async function ReportsPage() {
           <LoadError status={error.status} noun="the reports" />
         ) : (
           <div className="space-y-5">
-            <Card>
-              <CardContent className="px-5 py-4">
-                <p className="max-w-3xl text-sm leading-relaxed text-gray-700">
-                  The reports staff run most often, each one a link to the list
-                  behind it. These are shortcuts, not the whole set — the alumni
-                  list filters on nearly every field and exports exactly the rows
-                  it shows, so a report that is not here is a filter away.
-                </p>
-              </CardContent>
-            </Card>
-
             {sections.map((section) => (
               <Card key={section.id}>
-                <CardHeader className="flex-col items-start gap-1">
+                <CardHeader>
                   <CardTitle>{section.title}</CardTitle>
-                  <p className="text-xs text-gray-500">{section.blurb}</p>
                 </CardHeader>
                 <CardContent>
                   <ul className="divide-y divide-gray-100">
                     {section.reports.map((report) => {
                       const count = countFor(report);
                       const unavailable = count?.unavailable ?? false;
+                      const surveyKey = report.surveyCountKey;
                       return (
                         <li
                           key={report.id}
@@ -128,6 +146,19 @@ export default async function ReportsPage() {
                             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-gray-600">
                               {report.description}
                             </p>
+                            {/* WHOSE number it is. A survey figure without the
+                                class year reads as "the survey", which is the
+                                one thing no campaign count is. */}
+                            {surveyKey && campaign ? (
+                              <p className="mt-1 max-w-2xl text-xs leading-relaxed text-gray-500">
+                                {surveyCountLabel(campaign, surveyKey)}
+                              </p>
+                            ) : null}
+                            {surveyKey && !campaign ? (
+                              <p className="mt-1 max-w-2xl text-xs leading-relaxed text-gray-500">
+                                {SURVEY_COUNT_UNAVAILABLE_NOTE}
+                              </p>
+                            ) : null}
                             {report.note ? (
                               <p className="mt-1 max-w-2xl text-xs leading-relaxed text-gray-500">
                                 {report.note}
@@ -138,9 +169,6 @@ export default async function ReportsPage() {
                                 {MISSING_PHOTO_UNAVAILABLE_NOTE}
                               </p>
                             ) : null}
-                            <p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-gray-500">
-                              {report.source}
-                            </p>
                           </div>
                           <div className="shrink-0">
                             <Button asChild variant="secondary" size="sm">
@@ -162,13 +190,8 @@ export default async function ReportsPage() {
 
             {related.length > 0 && (
               <Card>
-                <CardHeader className="flex-col items-start gap-1">
+                <CardHeader>
                   <CardTitle>Where the rest lives</CardTitle>
-                  <p className="text-xs text-gray-500">
-                    These screens own their own numbers. Reports links to them
-                    rather than repeating the counts, so there is never a second
-                    answer to the same question.
-                  </p>
                 </CardHeader>
                 <CardContent>
                   <ul className="divide-y divide-gray-100">
