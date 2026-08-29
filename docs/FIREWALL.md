@@ -1,9 +1,8 @@
 # Vercel Firewall — Configuration Record
 
-> **Last verified against the Vercel dashboard: NEVER.**
-> No entry in the inventory below has been read off a live Vercel project. Every
-> row is **UNVERIFIED** until someone opens the dashboard and fills it in with a
-> date and their name.
+> **Last verified against the live Vercel config: 2026-08-29.**
+> §3 was read directly off all four projects with `vercel firewall rules list
+> --expand`. Re-verify and re-date after any dashboard change.
 
 Vercel Firewall rules — custom WAF rules, IP blocks, system bypasses, Attack
 Challenge Mode, managed bot rulesets — are **dashboard state**. They live in
@@ -91,127 +90,174 @@ Vercel dashboard.
 
 ---
 
-## 3. Rule inventory — **UNVERIFIED / EMPTY**
+## 3. Rule inventory — **CONFIRMED 2026-08-29**
 
-Nothing here is filled in, because nothing has been read off the dashboard. Do not
-populate these tables from `PRE-LAUNCH.md`, from `SECURITY-MONITORING.md`, or from
-memory. Populate them **only** from the Firewall tab or `vercel firewall` CLI
-output, and date each row.
+Read directly off the live Vercel config with `vercel firewall rules list --expand`
+(scope `byu-finance-db`) on **2026-08-29**, during the investigation of the second
+403 (app #796). Re-confirm after any dashboard change.
 
 ### 3.1 `finance-alumni-database` (prod app)
 
-| Rule name | Condition | Action | Threshold / window | Scope (path, env, host) | Enabled? | Last verified |
-| --- | --- | --- | --- | --- | --- | --- |
-| _UNKNOWN — not yet read from dashboard_ | UNKNOWN | UNKNOWN | UNKNOWN | UNKNOWN | UNKNOWN | never |
+| Rule name | Condition | Action | Threshold / window | Enabled? | Last verified |
+| --- | --- | --- | --- | --- | --- |
+| Rate limit 1000 requests per minute per IP (excludes static assets) | `path pre /` AND NOT `path pre /_next/` | Rate Limit, **deny** on exceed | **1000 req / 60s**, `fixed_window`, key `ip` | Yes | 2026-08-29 |
+
+Rule id: `rule_rate_limit_100_requests_per_minute_per_ip_qRViSF` (the id still carries
+"100" from its original creation; ids are immutable, so **never read the limit off the id**).
+
+⚠️ **This rule was the cause of both 403s.** Until 2026-08-29 its live limit was
+**60 req/60s** while its own name and description both said 300. See §4.
 
 | Setting | Value | Last verified |
 | --- | --- | --- |
-| Attack Challenge Mode | UNKNOWN | never |
-| IP blocks | UNKNOWN | never |
-| System bypass entries | UNKNOWN | never |
-| Managed rulesets (Bot Protection / AI Bots) | UNKNOWN | never |
-| Unpublished draft rules | UNKNOWN | never |
+| Attack Challenge Mode | Not enabled (no rule present) | 2026-08-29 |
+| IP blocks | none | 2026-08-29 |
+| System bypass entries | none | 2026-08-29 |
+| Managed rulesets (Bot Protection / AI Bots) | none configured | 2026-08-29 |
+| Unpublished draft rules | none (`firewall diff` clean) | 2026-08-29 |
 
 ### 3.2 `finance-alumni-database-api` (prod API)
 
-| Rule name | Condition | Action | Threshold / window | Scope (path, env, host) | Enabled? | Last verified |
-| --- | --- | --- | --- | --- | --- | --- |
-| _UNKNOWN — not yet read from dashboard_ | UNKNOWN | UNKNOWN | UNKNOWN | UNKNOWN | UNKNOWN | never |
+| Rule name | Condition | Action | Threshold / window | Enabled? | Last verified |
+| --- | --- | --- | --- | --- | --- |
+| Rate limit 1000 requests per minute per IP | `path pre /` (ALL paths) | Rate Limit, **deny** on exceed | **1000 req / 60s**, `fixed_window`, key `ip` | Yes | 2026-08-29 |
+
+Rule id: `rule_rate_limit_100_requests_per_minute_per_ip_8QXxgz`. Raised 100 → 1000 on
+2026-08-29 alongside the app rule. Note this rule does **not** exclude any path.
 
 | Setting | Value | Last verified |
 | --- | --- | --- |
-| Attack Challenge Mode | UNKNOWN | never |
-| IP blocks | UNKNOWN | never |
-| System bypass entries | UNKNOWN | never |
-| Managed rulesets (Bot Protection / AI Bots) | UNKNOWN | never |
-| Unpublished draft rules | UNKNOWN | never |
+| Attack Challenge Mode | Not enabled (no rule present) | 2026-08-29 |
+| IP blocks | none | 2026-08-29 |
+| System bypass entries | none | 2026-08-29 |
+| Managed rulesets (Bot Protection / AI Bots) | none configured | 2026-08-29 |
+| Unpublished draft rules | none (`firewall diff` clean) | 2026-08-29 |
 
-### 3.3 Dev projects (`dev-fa-web-app`, `dev-fa-web-api`)
+### 3.3 Dev projects
 
-Not in scope for issue #796 (the incident was on production), but record them the
-same way when convenient — a dev/prod difference is itself a useful signal.
+| Project | Rule | Threshold / window | Action | Last verified |
+| --- | --- | --- | --- | --- |
+| `dev-fa-web-app` | Rate limit 300 … (excludes static assets) | **300 req / 60s** | deny | 2026-08-29 |
+| `dev-fa-web-api` | Rate limit 100 … | **100 req / 60s** | deny | 2026-08-29 |
 
-| Project | Rules | Attack Challenge Mode | Last verified |
-| --- | --- | --- | --- |
-| `dev-fa-web-app` | UNKNOWN | UNKNOWN | never |
-| `dev-fa-web-api` | UNKNOWN | UNKNOWN | never |
+⚠️ **Dev was correct all along.** `dev-fa-web-app` carried the intended 300 while prod
+sat at 60 — which is exactly why the misconfiguration survived two months: every test
+on dev passed. **A firewall change applied to dev is not applied to prod.** Verify each
+project separately, by reading the value back.
 
-### 3.4 Claims awaiting confirmation or refutation
+Dev is deliberately left at its old numbers for now; raise it if testing ever trips it.
 
-Carry these into §6 step 2 and mark each **CONFIRMED** or **REFUTED** with a date.
-They are hypotheses, not inventory.
+### 3.4 Claims — resolved
 
-| Claim | Where it comes from | Verdict |
+| Claim | Where it came from | Verdict |
 | --- | --- | --- |
-| App projects have a rate-limit rule at `300 req / 60s`, excluding `/_next/*` | `SECURITY-MONITORING.md` assertion, 2026-06-18 | **UNVERIFIED** |
-| API projects have a rate-limit rule at `100 req / 60s` | `SECURITY-MONITORING.md` assertion, 2026-06-18 | **UNVERIFIED** |
-| A per-IP rule exists on `/auth/login/precheck` + `/auth/login/record` | `fa-web-api#43`; last evidence (2026-06-29) says **likely missing** | **UNVERIFIED** |
-| Attack Challenge Mode is OFF on all four projects | `SECURITY-MONITORING.md` monitoring step | **UNVERIFIED** |
+| App projects have a rate-limit rule at `300 req / 60s`, excluding `/_next/*` | `SECURITY-MONITORING.md` assertion, 2026-06-18 | **PARTLY REFUTED 2026-08-29** — the condition/exclusion was right and dev was at 300, but **prod was live at 60**. The assertion was true of dev and false of prod. |
+| API projects have a rate-limit rule at `100 req / 60s` | `SECURITY-MONITORING.md` assertion, 2026-06-18 | **CONFIRMED 2026-08-29** (both projects were at 100; prod since raised to 1000) |
+| A per-IP rule exists on `/auth/login/precheck` + `/auth/login/record` | `fa-web-api#43`; last evidence (2026-06-29) says likely missing | **REFUTED 2026-08-29** — no such rule exists on either API project. The only rule is the blanket `path pre /` one. fa-web-api#43 was closed as done and the work was never performed. |
+| Attack Challenge Mode is OFF on all four projects | `SECURITY-MONITORING.md` monitoring step | **CONFIRMED 2026-08-29** |
 | Automatic DDoS mitigation is on | Vercel platform default on every plan | Platform behaviour, no per-project config to record |
 
----
+### 3.5 The standing design problem: per-IP keying behind campus NAT
+
+Every rule above keys on `ip`. Staff reach the site through BYU's network, where many
+people share a small pool of egress addresses, so a "per-IP" limit behaves as a
+**single shared bucket for everyone working at once**. The effective per-person ceiling
+is the limit divided by the number of concurrent users, and it tightens as the team
+gets busier — which is why this surfaced on an ordinary afternoon rather than under
+anything resembling attack traffic.
+
+Raising the number treats the symptom. The structurally correct fixes, if this recurs:
+scope the rate limit to unauthenticated paths only (`/login`, `/auth/*`), where per-IP
+abuse is the actual threat, and leave authenticated browsing to the app's own login
+lockout and session controls; or add a system bypass for known campus ranges.
 
 ## 4. Incident: 2026-08-29 — staff 403 while paging the alumni list (#796)
 
-| Field | Value |
+**RESOLVED 2026-08-29.** Root cause: the prod app rate-limit rule was live at
+**60 req/60s** while its own name and description said 300. Raised to 1000/60s.
+
+### The two occurrences
+
+| # | Request ID | Time (UTC) | Time (Mountain) | Action |
+| --- | --- | --- | --- | --- |
+| 1 | `sfo1::6v84k-1787975045568-a4078d8a1bb8` | 2026-08-29 03:44:05 | 2026-08-28 21:44:05 | Paging the alumni list, signed in as staff |
+| 2 | `sfo1::5nr8v-1788031855123-c4ace11bb60d` | 2026-08-29 19:30:55 | 2026-08-29 13:30:55 | Same — clicking "next" on the alumni list |
+
+Both on **production** (`https://finance.alumni.byu.edu`), both reported by Jake,
+both showing Vercel's edge page: `Error: Forbidden / 403: Forbidden`.
+
+**The request ID encodes the timestamp.** Its middle segment read as epoch
+milliseconds gives the exact time — `1787975045568` → `2026-08-29T03:44:05.568Z`,
+`1788031855123` → `2026-08-29T19:30:55.123Z`. `sfo1` is the San Francisco edge.
+Useful join key when searching the firewall log.
+
+### Root cause
+
+The prod app rule (`…_qRViSF`), read live on 2026-08-29:
+
+```
+Name:        "Rate limit 300 requests per minute per IP (excludes static assets)"
+Description: "Limit dynamic requests to 300/min per IP; deny on exceed…"
+Conditions:  path pre /  AND NOT path pre /_next/
+Action:      Rate Limit  ->  limit: 60, window: 60, algo: fixed_window, keys: [ip]
+If exceeded: deny
+```
+
+**The name said 300. The description said 300. The live value was 60.** The
+`/_next/*` exclusion from the 2026-06-18 fix was applied correctly; only the number
+was wrong. 60 dynamic requests per minute is very low — a single alumni-list "next"
+click costs the RSC payload plus several API calls, so a dozen clicks inside a
+minute exhausts it, and the `deny` action returns a bare 403 from the edge.
+
+### Why it survived two months undetected
+
+`dev-fa-web-app` was at the correct **300**. Only prod was at 60. Every test on dev
+passed, so nothing contradicted the assertion in `SECURITY-MONITORING.md` that the
+rule was at 300 — and that document was itself written from the *intended* change,
+not from a read-back of prod.
+
+⚠️ **The lesson: applying a firewall change to dev does not apply it to prod, and a
+rule's name is not its configuration.** Read the value back, per project, after
+every change.
+
+### Why it looked like an outage rather than a security control
+
+Edge blocks produce **no runtime logs at all**, so nothing appeared in either
+project's logs and the application's error boundaries could not catch it — the
+request never reached the app. The `sfo1::` prefix is Vercel's own error page, not
+our error envelope.
+
+### Also ruled out along the way
+
+| Hypothesis | Evidence |
 | --- | --- |
-| Reported by | Jake |
-| Environment | **Production** (`https://finance.alumni.byu.edu`) |
-| Action being performed | Clicking "next" through the alumni list, signed in as staff |
-| Error shown | `Error: Forbidden / 403: Forbidden` |
-| Request ID | `sfo1::6v84k-1787975045568-a4078d8a1bb8` |
-| Time | **2026-08-29 03:44:05 UTC** |
-| Issue | `fa-web-app#796` (opened 2026-08-29 18:44:47 UTC) |
-| Status | **Root cause not identified.** Dashboard lookup outstanding. |
+| The application returned the 403 | No runtime 403 in either prod project across either window; edge blocks are unlogged. |
+| Deployment Protection / SSO | SSO is `all_except_custom_domains`; `finance.alumni.byu.edu` is exempt. Both hostnames redirect normally rather than 403. |
+| Attack Challenge Mode | Not enabled on any project (confirmed 2026-08-29). A challenge would also serve a challenge page, not a bare 403. |
+| A managed bot ruleset | None configured (confirmed 2026-08-29). |
 
-**The request ID corroborates the timestamp.** Its middle segment,
-`1787975045568`, read as epoch milliseconds is `2026-08-29T03:44:05.568Z` — an
-exact match for the reported time. `sfo1` is the San Francisco edge region. Use
-`03:44:05–03:44:06 UTC` as the search window; the ID is the join key.
+A useful discriminator, recorded before the config was read and borne out by it:
+Vercel's `rate_limit` action returns **429** by default and returns **403** only when
+configured to `deny` on breach. A bare 403 therefore pointed at a `deny` action
+specifically — which is what both rules turned out to use.
 
-### Ruled out
+### Resolution
 
-| Hypothesis | Evidence it was ruled out on |
-| --- | --- |
-| **The application returned the 403** | No runtime log line from either prod project across that window contains a 403. Edge blocks produce **no runtime logs at all**, so the absence is itself consistent with an edge block. The `sfo1::` prefix is Vercel's edge error page — it is not our error envelope, which the API generates and which would have been logged. |
-| **Deployment Protection / SSO** | SSO is set to `all_except_custom_domains` and `finance.alumni.byu.edu` is exempt. Both hostnames were observed to redirect normally rather than 403. |
+| Project | Before | After | Published |
+| --- | --- | --- | --- |
+| `finance-alumni-database` | 60 req/60s, deny | **1000 req/60s, deny** | 2026-08-29 |
+| `finance-alumni-database-api` | 100 req/60s, deny | **1000 req/60s, deny** | 2026-08-29 |
 
-### Still suspected
+Conditions, keys and the `deny` action were left unchanged; only the limit moved.
+The `/_next/*` exclusion on the app rule was preserved and verified by read-back.
+Dev projects were left at 300 / 100.
 
-The **Vercel Firewall** — one of: a custom rule with a `deny` action, an IP block, a
-rate-limit rule configured to deny on breach, Attack Challenge Mode, or a managed
-bot ruleset.
+1000/60s was chosen to clear roughly 15 staff browsing hard behind a single shared
+NAT address while still capping scraping. See §3.5 — per-IP keying is the underlying
+design problem, and the number is a mitigation rather than a fix.
 
-**Leading candidate: a rate-limit rule.** Paging the alumni list fires several
-requests in quick succession — the document, the API call for the page of records,
-and static assets — all from one IP. `docs/PRE-LAUNCH.md` §8 recommends precisely
-`100 req / 60s per IP → Deny or Challenge`. A staff member paging briskly crosses
-that without doing anything unusual. Whether such a rule exists is exactly what
-§3 does not know.
-
-### ⚠️ Reasoning that narrows the field — inference, not evidence
-
-Recorded so the dashboard check can confirm or kill it. **Do not treat as fact.**
-
-- A plain **403** is the signature of a `deny` action. Vercel's `rate_limit` action
-  returns **429** by default; it returns 403 only when explicitly configured with a
-  deny action on breach. So either a `deny` custom rule / IP block fired, or a rate
-  limit was deliberately set to deny.
-- **Attack Challenge Mode serves a challenge page, not a bare 403.** That makes ACM
-  a weaker fit for this symptom — but check its state anyway, since a challenge that
-  fails can present unhelpfully and the toggle's state is worth knowing regardless.
-- **Rate-limit counters are per edge region.** A limit can be breached in one region
-  while global request volume looks well under the configured threshold. `sfo1`
-  alone counted this request. Do not dismiss a rate limit because "he can't have
-  made 100 requests".
-
-### Done means (from #796)
-
-- [ ] The rule that fired is identified **by name**
-- [ ] Ordinary paging by a signed-in staff member cannot trigger it
-- [ ] What is configured is written down in this file, with a date
-
----
+⚠️ Neither rule carries an `actionDuration`, so no lingering block persists after the
+change; anyone currently blocked is released at the next window.
 
 ## 5. Standing hazards
 
