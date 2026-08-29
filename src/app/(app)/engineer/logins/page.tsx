@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ScrollToTopOnPageChange } from "@/components/shared/ScrollToTopOnPageChange";
 import { apiGet, ApiError } from "@/lib/api";
 import { readAuthContext } from "@/lib/auth-context";
 import { AccessCheckError } from "@/components/shared/AccessCheckError";
@@ -120,6 +121,7 @@ export default async function LoginsPage({
     <>
       <Topbar breadcrumb={[{ label: "Engineer", href: "/engineer" }, { label: "Logins" }]} />
       <main className="flex-1 overflow-auto p-6">
+        <ScrollToTopOnPageChange offset={offset} />
         <h1 className="sr-only">Login history</h1>
         <div className="mb-4 flex items-start justify-between gap-4">
           <p className="max-w-2xl text-sm text-gray-500">
