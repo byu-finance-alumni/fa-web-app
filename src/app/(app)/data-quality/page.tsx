@@ -40,7 +40,7 @@ export default async function DataQualityPage() {
           label: "Missing email",
           count: dq.missing_email,
           description:
-            "Active alumni with no personal or work email on file — can't be reached for outreach.",
+            "Active alumni with no personal or work email on file. They can't be reached for outreach.",
           href: "/alumni?missing_email=1",
           linkLabel: "Review alumni missing an email",
           /** UX-UI.md: missing-data = warning */
@@ -50,7 +50,7 @@ export default async function DataQualityPage() {
           label: "Missing employer",
           count: dq.missing_employer,
           description:
-            "Active alumni with no current employer recorded — career data needs enrichment.",
+            "Active alumni with no current employer recorded. Career data needs enrichment.",
           href: "/alumni?missing_employer=1",
           linkLabel: "Review alumni missing an employer",
           /** UX-UI.md: missing-data = warning */
@@ -60,7 +60,7 @@ export default async function DataQualityPage() {
           label: "Missing phone",
           count: dq.missing_phone,
           description:
-            "Active alumni with no phone number on file — can't be reached by phone for outreach.",
+            "Active alumni with no phone number on file. They can't be reached by phone for outreach.",
           href: "/alumni?missing_phone=1",
           linkLabel: "Review alumni missing a phone number",
           /** UX-UI.md: missing-data = warning */
@@ -70,7 +70,7 @@ export default async function DataQualityPage() {
           label: "Duplicate records",
           count: dq.duplicate_count,
           description:
-            "Alumni flagged as potential duplicates — review and merge candidates manually.",
+            "Alumni flagged as potential duplicates. Review and merge candidates manually.",
           href: "/alumni?duplicate=1",
           linkLabel: "Review potential duplicate records",
           /** UX-UI.md: duplicate = danger */

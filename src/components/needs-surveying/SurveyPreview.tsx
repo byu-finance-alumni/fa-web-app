@@ -84,7 +84,7 @@ export function SurveyPreview({
         <DialogContent
           className="max-w-3xl"
           title="Sample survey"
-          description="The email message, then exactly what an alum sees, using a sample record. Click through it — no email is sent and no record is touched."
+          description="The email message, then exactly what an alum sees, using a sample record. Click through it: no email is sent and no record is touched."
         >
           {/*
             Open the real survey page in a new tab, on the sample record, landing
@@ -112,7 +112,7 @@ export function SurveyPreview({
               rel="noopener noreferrer"
               className="inline-block text-sm font-medium text-brand-blue-600 underline underline-offset-2 hover:text-brand-blue-500"
             >
-              Open the full survey in a new tab — as an alum sees it after &ldquo;I
+              Open the full survey in a new tab, as an alum sees it after &ldquo;I
               need to make changes&rdquo;
             </a>
           </div>
@@ -212,7 +212,7 @@ function PreviewBody({
   return (
     <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
       <p className="mb-5 rounded-md border border-brand-blue-300/50 bg-brand-blue-50 px-4 py-2 text-xs text-navy-800">
-        Preview — top to bottom, in the order an alum meets it: the email intro,
+        Preview, top to bottom, in the order an alum meets it: the email intro,
         the survey itself, then the closing. Nothing you type in the survey is
         saved or sent; the email copy is real and saves as you type.
       </p>
@@ -235,7 +235,7 @@ function PreviewBody({
 
       {status === "submitted" ? (
         <SuccessPanel
-          title="Thank you — your updates are in"
+          title="Thank you. Your updates are in"
           body="Our team will review your response before any changes are applied to your record. You can safely close this page."
         />
       ) : status === "helping" ? (
@@ -369,7 +369,7 @@ function PreviewBody({
         id="preview-email-closing"
         step="3 · Email"
         title="Closing & sign-off"
-        hint="Read last, below their details and the button — confirm instructions and the sign-off."
+        hint="Read last, below their details and the button: confirm instructions and the sign-off."
         value={closing}
         onChange={setClosing}
         placeholder={DEFAULT_SURVEY_CLOSING}

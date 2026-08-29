@@ -158,7 +158,7 @@ export function LinksTable({
         >
           <caption className="sr-only">
             Opportunity links submitted by alumni, newest first. Every cell is
-            shortened to one line — open a row for the full record.
+            shortened to one line. Open a row for the full record.
           </caption>
           {/* Fixed layout + explicit shares: without a definite width a cell
               cannot ellipsise, and without ellipsising the rows grow back. */}
@@ -270,7 +270,7 @@ export function LinksTable({
                             setDetail(link);
                           }}
                           className="rounded-sm text-left font-semibold text-gray-900 hover:text-brand-blue-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500"
-                          title={`${company.label} — open the full record`}
+                          title={`Open the full record for ${company.label}`}
                         >
                           {company.label}
                         </button>

@@ -66,7 +66,7 @@ function StepHeader({
   return (
     <div className="space-y-2">
       <h2 className="text-lg font-semibold text-navy-900">
-        Match attendees to alumni — {eventName}
+        Match attendees to alumni: {eventName}
       </h2>
       <ol className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
         {steps.map((s) => (
@@ -231,7 +231,7 @@ function ReviewRow({
           {row.status === "ambiguous" ? (
             <p className="mt-3 text-sm text-warning-700">
               Several people could be this attendee. Choose the right one, or
-              leave them all unticked and decide later — nothing is recorded
+              leave them all unticked and decide later. Nothing is recorded
               until you approve it.
             </p>
           ) : null}
@@ -251,7 +251,7 @@ function ReviewRow({
         </>
       ) : (
         <p className="mt-3 text-sm text-gray-600">
-          Nobody in the database plausibly matches this attendee — most likely
+          Nobody in the database plausibly matches this attendee. Most likely
           they didn&apos;t graduate from BYU.
         </p>
       )}
@@ -421,8 +421,8 @@ export function AttendeeMatchWizard({
         <Card className="space-y-4 p-6">
           <div className="space-y-2 text-sm text-gray-600">
             <p>
-              Upload the conference registration list. Net IDs are not needed —
-              attendees are matched on their <strong>email</strong> when the
+              Upload the conference registration list. Net IDs are not needed.
+              Attendees are matched on their <strong>email</strong> when the
               file has one, and on their <strong>name</strong> when it
               doesn&apos;t, with the company used as supporting evidence.
             </p>
@@ -548,7 +548,7 @@ export function AttendeeMatchWizard({
 
           <p className="text-sm text-gray-600">
             Nothing below is selected for you, and there is no “approve
-            everything” button on purpose — a wrong match silently credits the
+            everything” button on purpose: a wrong match silently credits the
             wrong person. Tick the record you are confident about, or tick
             “create a friend record” for someone who isn&apos;t in the database.
           </p>

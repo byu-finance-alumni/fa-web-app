@@ -54,7 +54,7 @@ export function UnlockResetPassword({
   function run() {
     if (!active) {
       toast.error(
-        `${name} is deactivated — reactivate the account before resetting its password.`,
+        `${name} is deactivated. Reactivate the account before resetting its password.`,
       );
       return;
     }
@@ -74,7 +74,7 @@ export function UnlockResetPassword({
       await navigator.clipboard.writeText(tempPassword);
       toast.success("Temporary password copied.");
     } catch {
-      toast.error("Couldn't copy — select and copy it manually.");
+      toast.error("Couldn't copy. Select and copy it manually.");
     }
   }
 
@@ -95,7 +95,7 @@ export function UnlockResetPassword({
           aria-disabled={!active}
           title={
             !active
-              ? `${name} is deactivated — reactivate the account to reset its password`
+              ? `${name} is deactivated. Reactivate the account to reset its password`
               : locked
                 ? `Unlock ${name} and reset their password`
                 : `Reset ${name}'s password`

@@ -183,22 +183,45 @@ describe("an alum can finish from the step without adding anything", () => {
 });
 
 describe("the copy tells each branch the truth", () => {
-  it("tells an editing alum their updates are not in yet", () => {
+  it("tells an editing alum their updates are not sent yet", () => {
     // The one thing this copy must never do is imply the submission already
     // happened: it happens on the button at the foot of THIS page, and an alum
     // who believes they are done closes the tab. A response that was written
     // and never sent is indistinguishable from a link that was never opened.
+    //
+    // Jake cut the intro paragraph that used to carry this (2026-08-28), so the
+    // warning is now `submitNote` and it is a short line of its own. What is
+    // asserted is unchanged: this branch says the updates are not in yet, and
+    // never says the alum is done.
     const edited = waysToHelpCopy("edited", "Dallin");
-    expect(edited.intro).toContain("aren't in yet");
+    expect(edited.submitNote).toContain("aren't sent yet");
     expect(edited.intro.toLowerCase()).not.toContain("close this page");
     expect(edited.footerNote.toLowerCase()).not.toContain("close this page");
     expect(edited.footerNote).not.toContain("already done");
     expect(edited.submitLabel).toBe("Submit my updates");
   });
 
-  it("promises the pre-fill the step actually delivers", () => {
-    const edited = waysToHelpCopy("edited", "Dallin");
-    expect(edited.intro).toContain("filled in below");
+  it("puts the warning where the submit button is, not at the top", () => {
+    // A warning an alum has already scrolled past is not a warning. The confirm
+    // branch has nothing unsent, so it gets no note at all rather than a line
+    // that would be untrue.
+    expect(waysToHelpCopy("confirmed", "Dallin").submitNote).toBeNull();
+    const screens = read(SCREENS);
+    const waysToHelp = functionBody(screens, "export function WaysToHelp");
+    const note = waysToHelp.indexOf("copy.submitNote");
+    const button = waysToHelp.indexOf("copy.submitLabel");
+    expect(note).toBeGreaterThan(0);
+    expect(button).toBeGreaterThan(note);
+  });
+
+  it("keeps each branch's ending to one line, not a paragraph", () => {
+    // Jake, 2026-08-28: "no need to have a paragraph under almost done jordan."
+    // Both branches, so a trim on one does not leave the other looking verbose.
+    for (const mode of ["edited", "confirmed"] as const) {
+      const intro = waysToHelpCopy(mode, "Dallin").intro;
+      expect(intro.split(". ").length).toBeLessThanOrEqual(2);
+      expect(intro.length).toBeLessThanOrEqual(140);
+    }
   });
 
   it("offers a way back to the form, not back to the review screen", () => {
@@ -214,22 +237,25 @@ describe("the copy tells each branch the truth", () => {
 });
 
 /**
- * ⚠️ #755's behaviour was agreed with Jake on 2026-08-25. #773 adds the mirror
- * of it; it does not edit it. The confirmed copy moved into `waysToHelpCopy`
- * so both branches render one screen — these assert it moved WORD FOR WORD.
+ * ⚠️ #755's behaviour was agreed with Jake on 2026-08-25, and #773 mirrored it
+ * rather than editing it. Jake then trimmed BOTH branches on 2026-08-28, so
+ * these pin the current wording rather than the original: the confirm branch is
+ * still one screen with the edit branch, and it still says the alum is done and
+ * may close the page.
  */
-describe("the confirm branch is untouched", () => {
-  it("says exactly what it said before", () => {
+describe("the confirm branch still says the alum is done", () => {
+  it("says exactly what it says now", () => {
     const confirmed = waysToHelpCopy("confirmed", "Dallin");
     expect(confirmed.heading).toBe("Thanks for confirming, Dallin");
     expect(confirmed.intro).toBe(
-      "Your information is up to date — that's everything we needed from you. While you're here, there are two optional ways you can help our finance students.",
+      "Your information is up to date, so that's everything we needed. While you're here, two optional ways you can help our finance students.",
     );
     expect(confirmed.backLabel).toBe("I need to make changes");
     expect(confirmed.submitLabel).toBe("Send this to the Finance team");
     expect(confirmed.submittingLabel).toBe("Sending…");
+    expect(confirmed.submitNote).toBeNull();
     expect(confirmed.footerNote).toBe(
-      "Nothing to add? You're already done — your confirmation is recorded and you can close this page.",
+      "Nothing to add? You're already done. Your confirmation is recorded and you can close this page.",
     );
   });
 

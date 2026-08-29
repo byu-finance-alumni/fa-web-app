@@ -160,7 +160,7 @@ export function RevokeSession({
                 <p id={`${id}-desc`} className="text-sm text-gray-600">
                   {scope === "session" ? (
                     <>
-                      Ends one session —{" "}
+                      Ends one session:{" "}
                       <span className="font-medium text-gray-900">
                         {describeSession(email, ageSeconds)}
                       </span>
@@ -176,7 +176,7 @@ export function RevokeSession({
                     </>
                   )}{" "}
                   Their sign-in is deleted so it can never be refreshed, and the
-                  token already in their browser stops working immediately —
+                  token already in their browser stops working immediately, so
                   they are signed out within seconds and have to sign in again.
                   Nothing about the account itself changes: the password still
                   works and no data is touched.
@@ -219,7 +219,7 @@ export function RevokeSession({
                   <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-xs text-gray-900">
                     {CONFIRM_WORD}
                   </code>{" "}
-                  to sign yourself out. You can sign straight back in — your
+                  to sign yourself out. You can sign straight back in: your
                   password is unchanged and the account is not locked.
                 </p>
                 <Input

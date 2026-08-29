@@ -145,7 +145,7 @@ describe("attendees can be brought later, from the event (#611)", () => {
   it("the event offers BOTH after-the-fact attendee routes", () => {
     const src = read(ATTENDEE_MANAGER);
     // One at a time…
-    expect(src).toContain("Add attendee — search alumni");
+    expect(src).toContain("Add attendee: search alumni");
     // …and by uploading a list onto THIS event (never creating another).
     expect(src).toContain("Upload attendee list");
     expect(src).toContain("/attendees/import");

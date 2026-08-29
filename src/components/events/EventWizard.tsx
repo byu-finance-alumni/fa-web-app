@@ -207,8 +207,8 @@ export function EventWizard({
       <fieldset className="space-y-4">
         <legend className="sr-only">What to do about attendees</legend>
         <p className="text-sm text-gray-700">
-          An attendee list is never required. The event is created either way —
-          this only decides where you land next, and you can change your mind
+          An attendee list is never required. The event is created either way. This
+          only decides where you land next, and you can change your mind
           from the event at any time.
         </p>
         <div className="space-y-2">
@@ -237,7 +237,7 @@ export function EventWizard({
         {importHref ? (
           <p className="text-xs text-gray-500">
             Bulk-importing a whole batch of events from a spreadsheet is a
-            different job —{" "}
+            different job:{" "}
             <Link
               href={importHref}
               className="font-medium text-brand-blue-600 hover:underline"
@@ -291,8 +291,8 @@ export function EventWizard({
               <dt className="text-xs font-medium text-gray-700">Attendees</dt>
               <dd className="text-sm text-gray-900 sm:col-span-2">
                 {plan === ATTENDEE_PLAN.UPLOAD
-                  ? "None yet — you'll go straight to the attendee upload."
-                  : "None yet — add them from the event whenever you're ready."}
+                  ? "None yet. You'll go straight to the attendee upload."
+                  : "None yet. Add them from the event whenever you're ready."}
               </dd>
             </div>
           </dl>
@@ -315,7 +315,7 @@ export function EventWizard({
               {previewError}
             </p>
             <p className="mt-1 text-sm text-gray-700">
-              You can still create the event — the check is only advisory.
+              You can still create the event; the check is only advisory.
             </p>
             <Button
               type="button"
@@ -364,7 +364,7 @@ export function EventWizard({
                 ))}
               </ul>
               <p className="mt-3 text-sm text-gray-700">
-                None of this stops you — create the event if it all looks right.
+                None of this stops you. Create the event if it all looks right.
               </p>
             </div>
           ) : (

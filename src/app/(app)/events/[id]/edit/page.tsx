@@ -85,7 +85,7 @@ export default async function EditEventPage({
               fill the roster and makes clear neither is due now. */}
           {created ? (
             <p className="rounded-lg border border-brand-blue-300 bg-brand-blue-50 px-4 py-3 text-sm text-navy-800">
-              Event created with no attendees. Add them below whenever you like —
+              Event created with no attendees. Add them below whenever you like:
               one at a time, or by uploading a list. Nothing else is needed to
               keep this event.
             </p>

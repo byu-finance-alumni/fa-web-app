@@ -120,7 +120,7 @@ export function resetPointerSentence(pointer: ResetPointer): string {
     return `To clear it for one person, use “${RESET_CONTROL_LABEL}” ${pointer.at}.`;
   }
   return (
-    "Only an engineer can clear it for one person — contact " +
+    "Only an engineer can clear it for one person. Contact " +
     `${resetContactPhrase(pointer.contact)}.`
   );
 }
@@ -195,19 +195,19 @@ export function campaignRemoveConfirm(
         {
           text:
             "Sending stops now, reminders included, and the campaign stays " +
-            "listed with its counts. A cancelled campaign never resumes — " +
-            "running this cohort again means starting a new campaign for it.",
+            "listed with its counts. A cancelled campaign never resumes. " +
+            "Running this cohort again means starting a new campaign for it.",
         },
         {
           text:
-            "Nothing is deleted — the emails already sent and every answer " +
+            "Nothing is deleted: the emails already sent and every answer " +
             "alumni submitted are kept.",
           emphasis: true,
         },
         {
           text:
             "Alumni who have already answered stay out of the next survey for a " +
-            `year — cancelling doesn’t change that. ` +
+            `year, and cancelling doesn’t change that. ` +
             resetPointerSentence(resetPointer),
         },
       ],
@@ -222,7 +222,7 @@ export function campaignRemoveConfirm(
         text:
           emailsSentAllTime > 0
             ? `The record of the ${emailCount} it sent is kept, and so is every ` +
-              "answer alumni submitted — including any still waiting to be " +
+              "answer alumni submitted, including any still waiting to be " +
               "reviewed."
             : "This campaign never sent an email. Every answer alumni submitted " +
               "for this graduation year is kept, on their profiles and in the " +

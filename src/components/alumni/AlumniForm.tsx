@@ -622,7 +622,7 @@ export function AlumniForm({
             error={errors["contact.work_email"]}
             hint={
               workEmailCleared
-                ? "Cleared — the previous work email was tied to the old employer. Add the new one."
+                ? "Cleared. The previous work email was tied to the old employer. Add the new one."
                 : undefined
             }
           />
@@ -739,7 +739,7 @@ export function AlumniForm({
             }}
             hint={
               industrySuggested
-                ? "Suggested from Employment status — change or clear it if that's not right."
+                ? "Suggested from Employment status. Change or clear it if that's not right."
                 : undefined
             }
             error={errors["career.current_industry"]}
@@ -756,7 +756,7 @@ export function AlumniForm({
             }}
             hint={
               secondarySuggested
-                ? "Suggested from Employment status — change or clear it if that's not right."
+                ? "Suggested from Employment status. Change or clear it if that's not right."
                 : undefined
             }
             error={errors["career.current_industry_secondary"]}
@@ -927,7 +927,7 @@ export function AlumniForm({
     <Section title="Secondary affiliations">
       <div className="space-y-4">
         <p className="text-sm text-gray-700">
-          Optional narrative context — entrepreneurial ventures, board or
+          Optional narrative context: entrepreneurial ventures, board or
           advisory positions, and any employment beyond the current role.
         </p>
         <div>

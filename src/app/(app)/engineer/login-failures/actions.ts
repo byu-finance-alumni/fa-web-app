@@ -71,7 +71,7 @@ export async function deleteLoginCampaign(
       ok: false,
       error:
         e instanceof ApiError && e.status === 429
-          ? "Too many deletions. Ten per ten minutes is the limit — try again shortly."
+          ? "Too many deletions. Ten per ten minutes is the limit. Try again shortly."
           : e instanceof ApiError
             ? e.message
             : "Couldn't delete that campaign.",

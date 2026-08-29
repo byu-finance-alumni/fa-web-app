@@ -493,7 +493,7 @@ export const INFO_SECTIONS: Section[] = [
         key: "profile.other_designations",
         label: "Other designations",
         kind: "otherDesignations",
-        helpText: "Anything else you hold — ex: Series 7, Series 65, FRM.",
+        helpText: "Anything else you hold, for example Series 7, Series 65, FRM.",
       },
     ],
   },
@@ -502,7 +502,7 @@ export const INFO_SECTIONS: Section[] = [
 export const ENGAGEMENT_SECTION: Section = {
   id: "engagement",
   title: "Ways to get involved",
-  blurb: "Optional — mentoring, speaking, giving",
+  blurb: "Optional: mentoring, speaking, giving",
   fields: [
     { key: "program.mentor_willing", label: "Willing to mentor students?", kind: "boolean" },
     { key: "program.women_in_finance_mentor_willing", label: "Willing to mentor for Women in Finance?", kind: "boolean" },
@@ -1027,7 +1027,7 @@ export function EditFlow({
         </h1>
         <p className="mt-3 max-w-prose text-base leading-relaxed text-gray-600">
           Pick a section to edit. Change anything that&apos;s out of date, then
-          submit — our team reviews updates before they&apos;re applied.
+          submit. Our team reviews updates before they&apos;re applied.
         </p>
       </div>
 
@@ -1054,7 +1054,7 @@ export function EditFlow({
         */}
         <SectionRow
           title="Jobs & internships"
-          blurb="Optional — share an opening students can apply to"
+          blurb="Optional: share an opening students can apply to"
           onClick={() => openSectionNav(OPPORTUNITY_LINKS_SECTION_ID)}
         />
       </ul>
@@ -1099,9 +1099,12 @@ export function EditFlow({
         those answers in one body so the alum ends with one response row. A
         button that said "Submit my updates" and then showed another page would
         be the #648 failure in a new shape: the alum who believes they are done
-        closes the tab, and everything they typed is lost. The label and the
-        line beneath it are load-bearing; do not "restore" the old wording
-        without moving the POST back to this press.
+        closes the tab, and everything they typed is lost. The label is
+        load-bearing; do not "restore" the old wording without moving the POST
+        back to this press. The explanatory line that used to sit under this
+        button was cut on Jake's review (2026-08-28); the "not sent yet" warning
+        it carried now sits on the next screen, directly above the button that
+        does the sending (`WaysToHelpCopy.submitNote`).
       */}
       <div className="mt-10 border-t border-gray-200 pt-8">
         <div className="flex">
@@ -1139,10 +1142,6 @@ export function EditFlow({
         >
           Continue
         </Button>
-        <p className="mt-3 text-sm leading-relaxed text-gray-500">
-          One last step — two optional ways to help — and then your updates are
-          sent.
-        </p>
       </div>
 
       <TrustNote />
@@ -1277,7 +1276,7 @@ export function WaysToHelp({
         </h2>
         <p className="mt-1 max-w-prose text-sm leading-relaxed text-gray-500">
           Say yes to anything you&apos;d be open to. Nothing here commits you to
-          a date — someone from the Finance team gets in touch first.
+          a date. Someone from the Finance team gets in touch first.
         </p>
         <div className="mt-4 space-y-5 rounded-lg border border-gray-200 bg-white p-5 sm:p-6">
           {WAYS_TO_HELP_FIELDS.map((f) => (
@@ -1332,6 +1331,17 @@ export function WaysToHelp({
       <div className="mt-10 border-t border-gray-200 pt-8">
         {submitError ? (
           <p className="mb-4 text-sm text-danger-600">{submitError}</p>
+        ) : null}
+        {/*
+          ABOVE the button, not under it: this is the only thing telling an
+          editing alum that what they typed is still in the browser, and the
+          press right below it is what sends it. `null` on the confirm branch,
+          which has nothing unsent.
+        */}
+        {copy.submitNote ? (
+          <p className="mb-3 text-base font-semibold leading-relaxed text-navy-800">
+            {copy.submitNote}
+          </p>
         ) : null}
         <Button
           type="button"
@@ -1545,7 +1555,7 @@ function PhotoSection({
             <p className="text-xs text-danger-600">{error}</p>
           ) : (
             <p className="text-xs text-gray-500">
-              JPG, PNG, or WebP — you&apos;ll position it in the circle. Replaces
+              JPG, PNG, or WebP. You&apos;ll position it in the circle. Replaces
               the photo we have on file.
             </p>
           )}
@@ -1650,7 +1660,7 @@ export function OpportunityLinksSection({
             : "mt-1 max-w-prose text-sm leading-relaxed text-gray-500"
         }
       >
-        Know of a job or internship our students should see? Share the link — our
+        Know of a job or internship our students should see? Share the link. Our
         team reviews everything before it&apos;s shared.
       </p>
 
@@ -1974,7 +1984,7 @@ function OpportunityLinkCard({
         <LinkField
           id={`${base}-deadline`}
           label="Application deadline"
-          help="Optional — leave blank if it's open until filled."
+          help="Optional. Leave blank if it's open until filled."
           error={errors.deadline}
         >
           {(props) => (
@@ -1995,7 +2005,7 @@ function OpportunityLinkCard({
           id={`${base}-details`}
           label="Anything else students should know"
           error={errors.details}
-          help="Optional — timing, the team, who to mention, how to apply."
+          help="Optional: timing, the team, who to mention, how to apply."
         >
           {(props) => (
             <Textarea
@@ -2279,7 +2289,7 @@ function IndustryControl({
             <p id={hintId} className="mt-1 text-xs leading-relaxed text-gray-500">
               {showsValueOnFile
                 ? "This is the industry we have on file, and we'll keep it as it is. To change it, pick one from the list above."
-                : "We can only save industries from the list above — if yours isn't there, pick the closest match."}
+                : "We can only save industries from the list above. If yours isn't there, pick the closest match."}
             </p>
           )}
         </>
