@@ -40,6 +40,14 @@ import {
   TAG_OPTIONS,
 } from "@/constants/dropdowns";
 import { chipTone } from "@/components/alumni/tag-tone";
+import {
+  DO_NOT_CONTACT,
+  DO_NOT_CONTACT_BANNER_TITLE,
+  doNotContactBannerBody,
+  doNotContactCopy,
+  isDoNotContact,
+  type DoNotContactCopy,
+} from "@/components/alumni/do-not-contact";
 import { clientGet } from "@/lib/api-client";
 import { useVocabOptions, withValue } from "@/hooks/useVocabOptions";
 import { useToast } from "@/components/ui/Toast";
@@ -706,6 +714,162 @@ export function ArchiveControls({
         </Modal>
       ) : null}
     </>
+  );
+}
+
+/* --------------------------------------------------- do not contact (#772) -- */
+
+/**
+ * The confirm step shared by every place the `Do Not Contact` label can be
+ * flipped — the header control, the mobile FAB, and the chip manager's own
+ * add/remove buttons. One dialog so no route to the label is the unguarded one:
+ * turning it off anywhere re-opens contact to someone who asked not to be
+ * contacted, and that must never be a single stray click.
+ */
+function DoNotContactConfirm({
+  copy,
+  name,
+  pending,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  copy: DoNotContactCopy;
+  name: string;
+  pending: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Modal title={copy.confirmTitle} onClose={onCancel}>
+      <p className="text-sm leading-relaxed text-gray-600">
+        {copy.confirmBody(name)}
+      </p>
+      {error ? <p className="mt-3 text-sm text-danger-600">{error}</p> : null}
+      <div className="mt-5 flex justify-end gap-2">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={onCancel}
+          disabled={pending}
+        >
+          Cancel
+        </Button>
+        <Button
+          type="button"
+          variant={copy.confirmVariant}
+          disabled={pending}
+          onClick={onConfirm}
+        >
+          {pending ? copy.pendingLabel : copy.confirmCta}
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * The record's "Do not contact" switch (#772).
+ *
+ * Sets and clears the EXISTING `Do Not Contact` status label through the same
+ * `addStatusLabel` / `removeStatusLabel` actions the chip manager uses — no new
+ * field, no second suppression path. The survey already honours that label
+ * (`_suppressed_from_send()` in fa-web-api), so this is an affordance, not new
+ * behaviour: today the only way to set it is to hunt through the status field.
+ *
+ * Both directions confirm and both are audited server-side with the acting user
+ * (`add_status_label` / `remove_status_label` rows). Gate the caller on the same
+ * `canEdit` that mirrors the backend's `RequireAlumniEdit` — the frontend never
+ * enforces this, but it must not offer a button the API will reject.
+ */
+export function DoNotContactControl({
+  alumniId,
+  name,
+  statusLabels,
+}: {
+  alumniId: number;
+  name: string;
+  statusLabels: string[];
+}) {
+  const { toast } = useToast();
+  const router = useRouter();
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const active = isDoNotContact(statusLabels);
+  const copy = doNotContactCopy(active);
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="secondary"
+        aria-pressed={active}
+        onClick={() => {
+          setError(null);
+          setConfirming(true);
+        }}
+        // Red only in the direction that TURNS IT ON; once it is on, the banner
+        // above carries the red and a second red control beside it would read as
+        // "this button is the warning" rather than "this button undoes it".
+        className={cn(!active && "text-danger-600 hover:bg-danger-50")}
+      >
+        {copy.buttonLabel}
+      </Button>
+      {confirming ? (
+        <DoNotContactConfirm
+          copy={copy}
+          name={name}
+          pending={pending}
+          error={error}
+          onCancel={() => setConfirming(false)}
+          onConfirm={() =>
+            startTransition(async () => {
+              const res = active
+                ? await removeStatusLabel(alumniId, DO_NOT_CONTACT)
+                : await addStatusLabel(alumniId, DO_NOT_CONTACT);
+              if (res?.error) {
+                setError(res.error);
+                toast.error(res.error);
+              } else {
+                setConfirming(false);
+                toast.success(copy.successToast(name));
+                router.refresh();
+              }
+            })
+          }
+        />
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * The full-width "do not contact" banner (#772).
+ *
+ * The red chip in the tag row already existed and is easy to skim past in a row
+ * of blue ones. This states the exclusion in words, at the top of the record,
+ * for EVERY role — a view-only professor about to email someone needs to see it
+ * as much as an editor does. Renders nothing when the label is absent.
+ */
+export function DoNotContactBanner({
+  name,
+  statusLabels,
+}: {
+  name: string;
+  statusLabels: string[];
+}) {
+  if (!isDoNotContact(statusLabels)) return null;
+  return (
+    <div
+      role="status"
+      className="rounded-lg border border-danger-600 bg-danger-50 p-4 text-sm text-danger-600"
+    >
+      <p className="font-semibold">{DO_NOT_CONTACT_BANNER_TITLE}</p>
+      <p className="mt-1 leading-relaxed">{doNotContactBannerBody(name)}</p>
+    </div>
   );
 }
 
@@ -1640,6 +1804,7 @@ export function AddEventButton({
 /** One add/remove control group for either Tags or Status labels. */
 function ChipManager({
   alumniId,
+  name,
   heading,
   current,
   options,
@@ -1647,6 +1812,7 @@ function ChipManager({
   removeAction,
 }: {
   alumniId: number;
+  name: string;
   heading: string;
   current: string[];
   options: readonly string[];
@@ -1660,24 +1826,48 @@ function ChipManager({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState<string | null>(null);
+  // The `Do Not Contact` chip flips through the same confirm the header control
+  // uses (#772). `removing` is also the label's CURRENT state, which is what
+  // `doNotContactCopy` is asked for.
+  const [confirming, setConfirming] = useState<{
+    value: string;
+    removing: boolean;
+  } | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
   const available = options.filter((o) => !current.includes(o));
 
-  function run(
-    value: string,
-    action: (id: number, v: string) => Promise<{ error?: string } | null>,
-    okMsg: string,
-  ) {
+  /** Run the add/remove for real. */
+  function apply(value: string, removing: boolean) {
+    const action = removing ? removeAction : addAction;
+    const okMsg = isDoNotContact([value])
+      ? doNotContactCopy(removing).successToast(name)
+      : removing
+        ? `Removed ${value}.`
+        : `Added ${value}.`;
     setBusy(value);
     startTransition(async () => {
       const res = await action(alumniId, value);
       setBusy(null);
-      if (res?.error) toast.error(res.error);
-      else {
+      if (res?.error) {
+        setConfirmError(res.error);
+        toast.error(res.error);
+      } else {
+        setConfirming(null);
         toast.success(okMsg);
         // Refresh so the chip list reflects the add/remove immediately.
         router.refresh();
       }
     });
+  }
+
+  /** Click handler: `Do Not Contact` confirms first, everything else applies. */
+  function request(value: string, removing: boolean) {
+    if (isDoNotContact([value])) {
+      setConfirmError(null);
+      setConfirming({ value, removing });
+      return;
+    }
+    apply(value, removing);
   }
 
   return (
@@ -1704,7 +1894,7 @@ function ChipManager({
                 aria-label={`Remove ${v}`}
                 title={`Remove ${v}`}
                 disabled={pending && busy === v}
-                onClick={() => run(v, removeAction, `Removed ${v}.`)}
+                onClick={() => request(v, true)}
                 className="-mr-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full hover:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 disabled:opacity-50"
               >
                 <X className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1722,13 +1912,23 @@ function ChipManager({
               key={v}
               type="button"
               disabled={pending && busy === v}
-              onClick={() => run(v, addAction, `Added ${v}.`)}
+              onClick={() => request(v, false)}
               className="inline-flex min-h-[32px] items-center rounded-md border border-dashed border-gray-300 px-3 py-1 text-xs font-medium text-gray-600 hover:border-brand-blue-600 hover:bg-brand-blue-50 hover:text-brand-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 disabled:opacity-50"
             >
               + {v}
             </button>
           ))}
         </div>
+      ) : null}
+      {confirming ? (
+        <DoNotContactConfirm
+          copy={doNotContactCopy(confirming.removing)}
+          name={name}
+          pending={pending}
+          error={confirmError}
+          onCancel={() => setConfirming(null)}
+          onConfirm={() => apply(confirming.value, confirming.removing)}
+        />
       ) : null}
     </div>
   );
@@ -1737,10 +1937,12 @@ function ChipManager({
 /** Tag + status-label add/remove controls for the Engagement & tags drawer. */
 export function TagStatusManager({
   alumniId,
+  name,
   tags,
   statusLabels,
 }: {
   alumniId: number;
+  name: string;
   tags: string[];
   statusLabels: string[];
 }) {
@@ -1748,6 +1950,7 @@ export function TagStatusManager({
     <div className="space-y-5">
       <ChipManager
         alumniId={alumniId}
+        name={name}
         heading="Tags"
         current={tags}
         options={TAG_OPTIONS}
@@ -1756,6 +1959,7 @@ export function TagStatusManager({
       />
       <ChipManager
         alumniId={alumniId}
+        name={name}
         heading="Status labels"
         current={statusLabels}
         options={STATUS_OPTIONS}
