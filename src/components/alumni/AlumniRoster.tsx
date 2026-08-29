@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ScrollToTopOnPageChange } from "@/components/shared/ScrollToTopOnPageChange";
 import { apiGet, apiGetWithRetry, ApiError } from "@/lib/api";
 import { readAuthContext, type AuthContextResult } from "@/lib/auth-context";
 import type { Alumni, AlumniPage } from "@/types/alumni";
@@ -285,6 +286,8 @@ export async function AlumniRoster({
               basePath={basePath}
               sp={sp}
             />
+
+            <ScrollToTopOnPageChange offset={offset} />
 
             <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
               <span>
