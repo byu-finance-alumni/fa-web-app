@@ -19,6 +19,7 @@ import {
   MISSING_PHOTO_UNAVAILABLE_NOTE,
   RELATED_SURFACES,
   REPORT_SECTIONS,
+  SURVEY_SCOPE_NOTE,
   listReportFilters,
   listReportHref,
   quotedCampaign,
@@ -218,8 +219,13 @@ describe("the survey reports point at the campaign console", () => {
   });
 
   it("says the campaign is per graduation class rather than guessing one", () => {
+    // The fact still has to be stated — a survey figure read as "the survey"
+    // is the one thing no campaign count is. It moved from EACH ROW to the
+    // section (#814), where it is said once instead of rendering verbatim
+    // twice, but it must still be said.
+    const survey = REPORT_SECTIONS.find((s) => s.id === "survey");
+    expect(survey?.note).toMatch(/graduation year/i);
     for (const report of surveyReports) {
-      expect(report.note).toMatch(/graduation year/i);
       expect(report.capability).toBe(CAPABILITY.SURVEYS_MANAGE);
     }
   });
@@ -485,13 +491,12 @@ describe("the Reports page renders an unknown count as unknown", () => {
     const renderable = [
       ...ALL_REPORTS.flatMap((r) => [
         r.title,
-        r.description,
         r.action,
         r.linkLabel,
         r.note ?? "",
       ]),
-      ...REPORT_SECTIONS.map((s) => s.title),
-      ...RELATED_SURFACES.flatMap((s) => [s.title, s.description]),
+      ...REPORT_SECTIONS.flatMap((s) => [s.title, s.note ?? ""]),
+      ...RELATED_SURFACES.map((s) => s.title),
       MISSING_PHOTO_NET_ID_NOTE,
       MISSING_PHOTO_UNAVAILABLE_NOTE,
     ];
@@ -513,22 +518,64 @@ describe("the Reports page renders an unknown count as unknown", () => {
     expect(src).not.toContain("section.blurb");
   });
 
-  it("keeps every row short enough to scan", () => {
-    // Not style policing: the review note was that a title, a description, a
-    // caveat, a warning AND a provenance line per row made the page unreadable.
-    // A ceiling is the only thing that stops the prose growing back.
+  /**
+   * ⚠️ STRUCTURAL, not a word count — and that is the whole point.
+   *
+   * The first answer to "too much text" (Jake's #775 review) capped
+   * `description.length` at 80. The descriptions stayed, every row kept
+   * stacking a title, a sentence, a scope line and a caveat, and the page still
+   * read as machine-written when he looked at it again (#814). A cap on prose
+   * lets the prose grow back in the same shape while the suite stays green.
+   *
+   * So the rule is now about SHAPE: a report row is a number, a name and a
+   * link. If someone needs to explain a row, the row's title is wrong.
+   */
+  it("report rows carry no description at all", () => {
     for (const report of ALL_REPORTS) {
-      expect({ id: report.id, len: report.description.length }).toEqual({
-        id: report.id,
-        len: expect.any(Number),
-      });
-      expect(report.description.length).toBeLessThanOrEqual(80);
-      if (report.note) expect(report.note.length).toBeLessThanOrEqual(130);
+      expect(Object.keys(report)).not.toContain("description");
     }
     for (const surface of RELATED_SURFACES) {
-      expect(surface.description.length).toBeLessThanOrEqual(90);
+      expect(Object.keys(surface)).not.toContain("description");
     }
-    expect(MISSING_PHOTO_UNAVAILABLE_NOTE.length).toBeLessThanOrEqual(130);
+    // …and the page cannot reintroduce one by rendering some other field as a
+    // sentence under the title.
+    expect(src).not.toContain("report.description");
+    expect(src).not.toContain("surface.description");
+  });
+
+  it("says a section's caveat once, under the section — not on every row", () => {
+    // SURVEY_SCOPE_NOTE used to hang off BOTH survey rows and rendered verbatim
+    // twice on screen. It describes the section, so it lives on the section.
+    const survey = REPORT_SECTIONS.find((s) => s.id === "survey");
+    expect(survey?.note).toBe(SURVEY_SCOPE_NOTE);
+    for (const report of ALL_REPORTS) {
+      expect({ id: report.id, note: report.note }).not.toEqual({
+        id: report.id,
+        note: SURVEY_SCOPE_NOTE,
+      });
+    }
+    expect(src).toContain("section.note");
+  });
+
+  it("leads each row with the count, not with prose", () => {
+    // "Hard to tell what you are looking at" was partly that the number — the
+    // only reason the row exists — rendered as a small pill mid-sentence.
+    expect(src).toContain("tabular-nums");
+    expect(src).not.toContain("<Badge");
+  });
+
+  it("keeps the row's action beside the row", () => {
+    // Full-bleed rows put the button ~1,100px from its label at 1440px wide.
+    expect(src).toContain("max-w-3xl");
+  });
+
+  it("keeps a note only where one stops a wrong conclusion", () => {
+    // Trimmed to the two that earn it. A note on every row is how this started.
+    const withNotes = ALL_REPORTS.filter((r) => r.note);
+    expect(withNotes.map((r) => r.id)).toEqual(["missing-photo"]);
+    for (const report of withNotes) {
+      expect(report.note!.length).toBeLessThanOrEqual(130);
+    }
   });
 
   it("keeps the two facts that stop a wrong conclusion", () => {
