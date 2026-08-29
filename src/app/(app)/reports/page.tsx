@@ -3,6 +3,7 @@ import { apiGet, ApiError } from "@/lib/api";
 import { readAuthContext } from "@/lib/auth-context";
 import { CAPABILITY } from "@/constants/capabilities";
 import { Topbar } from "@/components/shell/Topbar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoadError } from "@/components/shared/LoadError";
@@ -105,16 +106,17 @@ export default async function ReportsPage() {
         {error ? (
           <LoadError status={error.status} noun="the reports" />
         ) : (
-          /* Capped width on purpose (#814). Full-bleed rows put "Open the list"
-             ~1,100px from the label it belongs to, so the eye had to cross the
-             viewport to pair a count with its action. */
-          <div className="mx-auto max-w-3xl space-y-5">
+          /* FULL WIDTH, like every other screen. An earlier pass capped this at
+             max-w-3xl to pull the action closer to its label; it fixed that and
+             made the page look like half a page (Jake, 2026-08-29). The row
+             below solves the same problem the way Data quality already does. */
+          <div className="space-y-5">
             {sections.map((section) => (
               <Card key={section.id}>
-                <CardHeader className="flex-col items-start gap-1 pb-3">
+                <CardHeader className="flex-col items-start gap-1">
                   <CardTitle>{section.title}</CardTitle>
-                  {/* Said ONCE, for the whole section. It used to render
-                      verbatim on every row it applied to. */}
+                  {/* Said ONCE, under the section. It used to render verbatim on
+                      every row it applied to. */}
                   {section.note ? (
                     <p className="text-xs leading-relaxed text-gray-500">
                       {section.note}
@@ -122,79 +124,75 @@ export default async function ReportsPage() {
                   ) : null}
                 </CardHeader>
                 <CardContent>
-                  <ul className="divide-y divide-gray-100">
+                  {/* Same row as Data quality's "Open alerts": a tinted, rounded
+                      band per row with the count badged on the left and the
+                      action on the right. Reused rather than reinvented so the
+                      two screens read as one product — and because the band is
+                      what makes a row scannable at full width, without capping
+                      the page to bring the button closer. */}
+                  <ul className="space-y-2">
                     {section.reports.map((report) => {
                       const count = countFor(report);
                       const unavailable = count?.unavailable ?? false;
                       const surveyKey = report.surveyCountKey;
-                      // A satisfied row recedes. 0 and 247 carrying identical
-                      // weight was half of "hard to tell what you're looking at".
-                      const settled = count?.tone === "success";
+                      const detail =
+                        surveyKey && campaign
+                          ? surveyCountLabel(campaign, surveyKey)
+                          : surveyKey && !campaign
+                            ? SURVEY_COUNT_UNAVAILABLE_NOTE
+                            : unavailable
+                              ? MISSING_PHOTO_UNAVAILABLE_NOTE
+                              : (report.note ?? null);
                       return (
                         <li
                           key={report.id}
-                          className="flex items-start gap-4 py-3 first:pt-0 last:pb-0"
+                          className="flex items-center justify-between gap-3 rounded-md bg-gray-50 px-3 py-2.5"
                         >
-                          {/* The number leads. Fixed width + tabular-nums so the
-                              figures form one column you can read straight down
-                              (UX-UI.md Typography). */}
-                          <div
-                            className={
-                              "w-14 shrink-0 pt-0.5 text-right text-2xl font-semibold leading-none tabular-nums " +
-                              (unavailable
-                                ? "text-warning-600"
-                                : settled
-                                  ? "text-gray-400"
-                                  : "text-gray-900")
-                            }
-                          >
-                            {unavailable ? "?" : (count?.value ?? "")}
-                          </div>
-
-                          <div className="min-w-0 flex-1">
-                            <p
-                              className={
-                                "text-sm font-semibold " +
-                                (settled ? "text-gray-500" : "text-gray-900")
-                              }
-                            >
-                              {report.title}
-                            </p>
-                            {/* No description line. The title is the description
-                                — see the note on `Report` in lib/reports.ts. */}
-                            {surveyKey && campaign ? (
-                              <p className="mt-0.5 text-xs leading-relaxed text-gray-500">
-                                {surveyCountLabel(campaign, surveyKey)}
-                              </p>
-                            ) : null}
-                            {surveyKey && !campaign ? (
-                              <p className="mt-0.5 text-xs leading-relaxed text-gray-500">
-                                {SURVEY_COUNT_UNAVAILABLE_NOTE}
-                              </p>
-                            ) : null}
-                            {/* Kept: without it the photo figure reads as a bug. */}
-                            {report.note ? (
-                              <p className="mt-0.5 text-xs leading-relaxed text-gray-500">
-                                {report.note}
-                              </p>
-                            ) : null}
-                            {unavailable ? (
-                              <p className="mt-0.5 text-xs leading-relaxed text-warning-600">
-                                {MISSING_PHOTO_UNAVAILABLE_NOTE}
-                              </p>
-                            ) : null}
-                          </div>
-
-                          <div className="shrink-0 pt-0.5">
-                            <Button asChild variant="secondary" size="sm">
-                              <Link
-                                href={report.href}
-                                aria-label={report.linkLabel}
+                          <div className="flex min-w-0 items-center gap-2.5">
+                            {count ? (
+                              // Text, not colour alone (UX-UI.md Accessibility):
+                              // "Unavailable" reads the same to a screen reader
+                              // and cannot be mistaken for a count of zero.
+                              <Badge
+                                variant={count.tone}
+                                className={
+                                  unavailable
+                                    ? "shrink-0"
+                                    : "shrink-0 tabular-nums"
+                                }
                               >
-                                {report.action}
-                              </Link>
-                            </Button>
+                                {count.value}
+                              </Badge>
+                            ) : null}
+                            <div className="min-w-0">
+                              <p className="text-sm text-gray-900">
+                                {report.title}
+                              </p>
+                              {/* One line at most, and only where it stops a
+                                  wrong conclusion. There is no `description`:
+                                  see the note on `Report` in lib/reports.ts. */}
+                              {detail ? (
+                                <p
+                                  className={
+                                    "truncate text-xs " +
+                                    (unavailable
+                                      ? "text-warning-600"
+                                      : "text-gray-500")
+                                  }
+                                >
+                                  {detail}
+                                </p>
+                              ) : null}
+                            </div>
                           </div>
+                          <Button asChild variant="link" size="sm">
+                            <Link
+                              href={report.href}
+                              aria-label={report.linkLabel}
+                            >
+                              {report.action}
+                            </Link>
+                          </Button>
                         </li>
                       );
                     })}
@@ -204,11 +202,10 @@ export default async function ReportsPage() {
             ))}
 
             {related.length > 0 && (
-              /* A row of screen names, not titled rows with a sentence each.
-                 These are destinations, not reports — they carry no number, so
-                 they should not look like something you read. */
+              /* Destinations, not reports — they carry no number, so they are a
+                 row of names rather than something to read. */
               <Card>
-                <CardHeader className="flex-col items-start pb-3">
+                <CardHeader className="flex-col items-start">
                   <CardTitle>Elsewhere</CardTitle>
                 </CardHeader>
                 <CardContent>

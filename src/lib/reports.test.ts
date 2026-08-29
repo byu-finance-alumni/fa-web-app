@@ -557,16 +557,35 @@ describe("the Reports page renders an unknown count as unknown", () => {
     expect(src).toContain("section.note");
   });
 
-  it("leads each row with the count, not with prose", () => {
-    // "Hard to tell what you are looking at" was partly that the number — the
-    // only reason the row exists — rendered as a small pill mid-sentence.
+  it("leads each row with the count", () => {
+    // The number is the only reason the row exists, so it comes first and its
+    // digits line up (UX-UI.md Typography).
     expect(src).toContain("tabular-nums");
-    expect(src).not.toContain("<Badge");
+    expect(src).toContain("<Badge");
   });
 
-  it("keeps the row's action beside the row", () => {
-    // Full-bleed rows put the button ~1,100px from its label at 1440px wide.
-    expect(src).toContain("max-w-3xl");
+  /**
+   * ⚠️ FULL WIDTH — and this assertion exists because the first attempt wasn't.
+   *
+   * Capping the page at `max-w-3xl` did pull the action next to its label, but
+   * it left the content in a narrow strip with the rest of the viewport empty:
+   * *"stop doing the half page crap. make it look professional like the rest of
+   * the site"* (Jake, 2026-08-29). Every other screen — Dashboard, Data quality
+   * — runs edge to edge.
+   *
+   * The scanning problem is solved the way Data quality already solves it: a
+   * tinted, rounded band per row, count badged left, action right. Reused, not
+   * reinvented, so the two screens read as one product.
+   */
+  it("runs full width and uses the house row, like Data quality", () => {
+    // Match the CLASS, not the word: both are named in the comment above the
+    // container explaining why they are gone. (Same trap as the
+    // `useSearchParams` assertion in scrollToTopOnPageChange.test.ts.)
+    expect(src).not.toMatch(/className="[^"]*max-w-3xl/);
+    expect(src).not.toMatch(/className="[^"]*mx-auto/);
+    // The row band, matching data-quality's "Open alerts".
+    expect(src).toContain("rounded-md bg-gray-50");
+    expect(src).toContain("flex items-center justify-between");
   });
 
   it("keeps a note only where one stops a wrong conclusion", () => {
