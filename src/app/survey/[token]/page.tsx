@@ -153,6 +153,16 @@ export default function SurveyConfirmPage({
       setFirstName(SAMPLE_ALUM_NAME.split(/\s+/)[0] || SAMPLE_ALUM_NAME);
       setFields(SAMPLE_ALUM);
       setLoadState("ready");
+      // ⚠️ The demo renders sample data and never calls `/respond/{token}`,
+      // so it cannot pick the contact off that payload the way the real
+      // screens do. Fetch it on its own instead: without this the demo
+      // silently omits a control the real survey shows, which is exactly the
+      // sample-survey drift that keeps costing us. Best-effort -- a failure
+      // leaves the contact null and the link simply does not render.
+      fetch(`${API_URL}/survey/contact`, { cache: "no-store" })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((c) => setSupportContact(c ?? null))
+        .catch(() => {});
       return;
     }
     let cancelled = false;
