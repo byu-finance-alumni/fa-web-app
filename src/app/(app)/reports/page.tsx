@@ -95,7 +95,8 @@ export default async function ReportsPage() {
   /** A report's headline figure — null is UNKNOWN, never zero. */
   const countFor = (report: Report) => {
     if (report.countKey) return reportCount(dq?.[report.countKey]);
-    if (report.surveyCountKey) return surveyCount(campaign, report.surveyCountKey);
+    if (report.surveyCountKey)
+      return surveyCount(campaign, report.surveyCountKey);
     return null;
   };
 
@@ -111,6 +112,11 @@ export default async function ReportsPage() {
              made the page look like half a page (Jake, 2026-08-29). The row
              below solves the same problem the way Data quality already does. */
           <div className="space-y-5">
+            {/* STACKED, in reading order: Missing data, then Survey, then
+                Elsewhere (Jake, 2026-08-29). A two-column grid was tried and
+                rejected — the sections are a sequence, not peers to compare
+                side by side. Each card is fluid, so the page still fills
+                whatever width it is given. */}
             {sections.map((section) => (
               <Card key={section.id}>
                 <CardHeader className="flex-col items-start gap-1">
@@ -130,7 +136,7 @@ export default async function ReportsPage() {
                       two screens read as one product — and because the band is
                       what makes a row scannable at full width, without capping
                       the page to bring the button closer. */}
-                  <ul className="space-y-2">
+                  <ul className="space-y-2.5">
                     {section.reports.map((report) => {
                       const count = countFor(report);
                       const unavailable = count?.unavailable ?? false;
@@ -146,9 +152,9 @@ export default async function ReportsPage() {
                       return (
                         <li
                           key={report.id}
-                          className="flex items-center justify-between gap-3 rounded-md bg-gray-50 px-3 py-2.5"
+                          className="flex items-center justify-between gap-4 rounded-md bg-gray-50 px-4 py-4"
                         >
-                          <div className="flex min-w-0 items-center gap-2.5">
+                          <div className="flex min-w-0 items-center gap-3">
                             {count ? (
                               // Text, not colour alone (UX-UI.md Accessibility):
                               // "Unavailable" reads the same to a screen reader
@@ -165,16 +171,21 @@ export default async function ReportsPage() {
                               </Badge>
                             ) : null}
                             <div className="min-w-0">
-                              <p className="text-sm text-gray-900">
+                              <p className="text-sm font-medium text-gray-900">
                                 {report.title}
                               </p>
                               {/* One line at most, and only where it stops a
                                   wrong conclusion. There is no `description`:
                                   see the note on `Report` in lib/reports.ts. */}
+                              {/* NOT `truncate`, unlike Data quality: its
+                                    descriptions are short, whereas the one note
+                                    left here is the net-ID caveat -- the single
+                                    line that stops 247 being read as a bug.
+                                    Half of it is worse than none. */}
                               {detail ? (
                                 <p
                                   className={
-                                    "truncate text-xs " +
+                                    "text-xs leading-relaxed " +
                                     (unavailable
                                       ? "text-warning-600"
                                       : "text-gray-500")
