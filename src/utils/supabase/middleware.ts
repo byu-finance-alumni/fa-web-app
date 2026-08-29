@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
-import { APP_HOME, isReturnablePath } from "@/lib/urlSafety";
+import { APP_HOME, returnPathFor } from "@/lib/urlSafety";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -32,7 +32,8 @@ function withCookies(from: NextResponse, to: NextResponse): NextResponse {
 
 // Refreshes the user's auth session on every matched request, syncs rotated
 // cookies onto the response, and enforces route protection:
-//   - unauthenticated + protected route  → redirect to /login (with ?next=)
+//   - unauthenticated + protected route  → redirect to /login (with ?next=,
+//     query string included)
 //   - authenticated + on /login          → redirect to the app home
 // Called from the root middleware.
 export const updateSession = async (
@@ -118,11 +119,16 @@ export const updateSession = async (
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.search = "";
-    // `pathname` came off a parsed NextURL so it is already a real path, but it
-    // still goes through the shared gate: the login action honours `next` only
-    // when isReturnablePath agrees, so emitting one it would drop would put a
-    // promise in the address bar that the other end silently breaks.
-    if (isReturnablePath(pathname)) loginUrl.searchParams.set("next", pathname);
+    // The QUERY STRING is part of the destination, not decoration: every
+    // deep-linked report and Data-quality tile is a filtered list URL, and
+    // carrying the pathname alone returned the user to the same page showing
+    // ALL rows with nothing on screen to say a filter had been dropped (#791).
+    // `pathname` and `search` came off a parsed NextURL so they are already
+    // real, but they still go through the shared gate: it strips anything
+    // sensitive and only yields a value the login action will honour, so the
+    // address bar can't promise a return the other end silently breaks.
+    const next = returnPathFor(`${pathname}${request.nextUrl.search}`);
+    if (next) loginUrl.searchParams.set("next", next);
     return withCsp(withCookies(supabaseResponse, NextResponse.redirect(loginUrl)));
   }
 

@@ -25,6 +25,22 @@ test.describe("auth navigation (unauthenticated)", () => {
     expect(next, "the login bounce should carry ?next=").toBe("/alumni/42");
   });
 
+  test("the bounce keeps the FILTER, not just the page (#791)", async ({
+    page,
+  }) => {
+    // The query string is the filter. Carrying the pathname alone returned the
+    // user to the same list showing ALL rows, with nothing on screen to say a
+    // filter had been dropped — it reads as a wrong report, not a lost filter,
+    // which is why it went unnoticed. Every deep link on Reports and Data
+    // quality is a URL of this shape.
+    await page.goto("/alumni?grad_year=2020&industry=Banking");
+    await expect(page).toHaveURL(/\/login/);
+    const next = new URL(page.url()).searchParams.get("next");
+    expect(next, "the login bounce should carry the query string").toBe(
+      "/alumni?grad_year=2020&industry=Banking",
+    );
+  });
+
   test("a crafted ?next= never moves the browser off-origin (#682)", async ({
     page,
   }) => {
@@ -145,6 +161,17 @@ test.describe("post-login destination (#682)", () => {
   test("an honest ?next= returns the user to that page", async ({ page }) => {
     await signInFrom(page, "/login?next=%2Falumni");
     await expect(page).toHaveURL(/\/alumni/);
+  });
+
+  test("signing back in restores the filter, not a bare list (#791)", async ({
+    page,
+  }) => {
+    const dest = "/alumni?grad_year=2020&industry=Banking";
+    await signInFrom(page, `/login?next=${encodeURIComponent(dest)}`);
+    await expect(page).toHaveURL(/\/alumni/);
+    const params = new URL(page.url()).searchParams;
+    expect(params.get("grad_year")).toBe("2020");
+    expect(params.get("industry")).toBe("Banking");
   });
 
   test("no ?next= lands on the dashboard", async ({ page }) => {

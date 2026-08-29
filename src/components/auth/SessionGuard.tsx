@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { clientGet } from "@/lib/api-client";
-import { loginPathWithNext } from "@/lib/urlSafety";
+import { currentReturnPath, loginPathWithNext } from "@/lib/urlSafety";
 
 // How often to ask the backend "is this still the account's active session?".
 // Short enough that a superseded device is signed out promptly, long enough to
@@ -19,7 +19,8 @@ const POLL_MS = 20_000;
  * `GET /auth/session/active` on an interval (and on tab focus); when the backend
  * says this session was superseded, it signs the device out and sends it to the
  * login page with an explanatory notice — carrying the page they were on as
- * `?next=`, exactly as the middleware does for a cold navigation (#682).
+ * `?next=`, query string and all, exactly as the middleware does for a cold
+ * navigation (#682, #791).
  *
  * Renders nothing. Mounted once in the app shell layout.
  */
@@ -27,15 +28,10 @@ export function SessionGuard() {
   const router = useRouter();
   const kicked = useRef(false);
 
-  // The current path, read through a ref rather than an effect dependency: the
-  // effect owns a long-lived interval and listeners, and re-running it on every
-  // navigation would restart the poll clock. The ref keeps the redirect using
-  // the page the user is on NOW without touching the effect's lifetime.
-  const pathname = usePathname();
-  const pathRef = useRef(pathname);
-  useEffect(() => {
-    pathRef.current = pathname;
-  }, [pathname]);
+  // The return path is read from `window.location` at the moment of the
+  // redirect (see currentReturnPath), not tracked in React state: the effect
+  // owns a long-lived interval and listeners, and a dependency on the URL would
+  // restart the poll clock on every navigation.
 
   useEffect(() => {
     let cancelled = false;
@@ -55,7 +51,9 @@ export function SessionGuard() {
           /* best-effort — redirect regardless */
         }
         router.replace(
-          loginPathWithNext(pathRef.current, { signedout: "other-device" }),
+          loginPathWithNext(currentReturnPath(), {
+            signedout: "other-device",
+          }),
         );
       } catch {
         // Transient/network/auth error — ignore and retry next tick. A truly
