@@ -115,6 +115,16 @@ export function AlumniFilters({
   // lives in a hidden-trigger ExportAlumniButton below the toolbar).
   const [mobileExportOpen, setMobileExportOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+  // ⚠️ SEEDED FROM THE MODEL, NOT FROM THE URL — and the browser Back button
+  // depends on it. On the first render `serialized` is `toQs(initial)` too, so
+  // the live-navigation effect below always short-circuits on ARRIVAL: landing
+  // on a deep link (a Reports row, a Data quality tile, a pasted URL) never
+  // navigates, whatever spelling the incoming query used. Seed this from the
+  // raw querystring instead and any link whose spelling differs from the
+  // canonical one (`?missing=employer`, `?missing_employer=true`) would fire a
+  // navigation the moment the page mounts — an entry the user never asked for,
+  // sitting between where they came from and where they are, so Back would
+  // land them back on the list instead of on the page they clicked from.
   const lastPushedRef = useRef(toQs(initial));
 
   const serialized = toQs(f);

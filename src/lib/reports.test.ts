@@ -7,6 +7,7 @@ import {
   BOOLEAN_FLAGS,
   countActiveFilters,
   parseAlumniFilters,
+  toAlumniFilterQs,
   toAlumniPopulationParams,
   type SearchParamMap,
 } from "@/lib/alumniFilterParams";
@@ -15,13 +16,19 @@ import {
   ALL_REPORTS,
   COUNT_UNAVAILABLE,
   MISSING_PHOTO_NET_ID_NOTE,
+  MISSING_PHOTO_UNAVAILABLE_NOTE,
+  RELATED_SURFACES,
   REPORT_SECTIONS,
   listReportFilters,
   listReportHref,
+  quotedCampaign,
   reportCount,
+  surveyCount,
+  surveyCountLabel,
   visibleReportSections,
   visibleRelatedSurfaces,
   type Report,
+  type SurveySchedule,
 } from "@/lib/reports";
 import { LEAF_HREFS, getVisibleNav, leafHrefs } from "@/components/shell/nav";
 import { ROLE } from "@/constants/roles";
@@ -216,6 +223,146 @@ describe("the survey reports point at the campaign console", () => {
       expect(report.capability).toBe(CAPABILITY.SURVEYS_MANAGE);
     }
   });
+
+  it("takes its number from a campaign row, never from a list filter", () => {
+    expect(surveyReports.map((r) => r.surveyCountKey)).toEqual([
+      "replied",
+      "silent",
+    ]);
+    for (const report of surveyReports) expect(report.countKey).toBeUndefined();
+  });
+});
+
+/* ===========================================================================
+ * ⚠️ The survey figure is ONE class's, and it has to say so.
+ *
+ * There is no global "most recent survey": `survey_schedule` is one row per
+ * graduation year, each with its own start date, cycle and status, and several
+ * can be live at once. Summing them would add a campaign that finished months
+ * ago to one emailed yesterday, count cancelled rows, and omit every class never
+ * scheduled — a number nobody could act on, read by everybody as "the survey".
+ * So the reports quote a single, nameable campaign. These tests pin which one,
+ * and that its owner is always stated.
+ * ======================================================================== */
+describe("quotedCampaign: one nameable campaign, never a grand total", () => {
+  const row = (over: Partial<SurveySchedule>): SurveySchedule =>
+    ({
+      survey_schedule_id: 1,
+      graduation_year: 2020,
+      start_date: "2026-01-01",
+      status: "active",
+      cycle_seq: 1,
+      last_run_at: null,
+      created_at: null,
+      created_by: null,
+      paused_at: null,
+      sent_initial: 0,
+      sent_reminder_1: 0,
+      sent_reminder_2: 0,
+      non_responders: 0,
+      emails_sent_all_time: 0,
+      recipients: 100,
+      replied: 10,
+      awaiting_review: 0,
+      applied: 0,
+      rejected: 0,
+      confirmed: 0,
+      ...over,
+    }) as SurveySchedule;
+
+  it("has nothing to quote with no campaigns at all", () => {
+    expect(quotedCampaign(null)).toBeNull();
+    expect(quotedCampaign(undefined)).toBeNull();
+    expect(quotedCampaign([])).toBeNull();
+  });
+
+  it("picks the most recently STARTED campaign", () => {
+    const c = quotedCampaign([
+      row({ graduation_year: 2018, start_date: "2026-02-01" }),
+      row({ graduation_year: 2019, start_date: "2026-06-01", replied: 42 }),
+      row({ graduation_year: 2020, start_date: "2026-03-01" }),
+    ]);
+    expect(c?.graduationYear).toBe(2019);
+    expect(c?.replied).toBe(42);
+  });
+
+  it("skips a scheduled campaign that has emailed nobody", () => {
+    // "0 of 0 replied" is not a fact about anybody. An unsent campaign must not
+    // put a zero on screen — it must put nothing there.
+    const c = quotedCampaign([
+      row({ graduation_year: 2021, start_date: "2026-09-01", recipients: 0, replied: 0 }),
+      row({ graduation_year: 2019, start_date: "2026-06-01" }),
+    ]);
+    expect(c?.graduationYear).toBe(2019);
+    expect(quotedCampaign([row({ recipients: 0, replied: 0 })])).toBeNull();
+  });
+
+  it("never quotes a cancelled campaign", () => {
+    expect(
+      quotedCampaign([row({ status: "cancelled", start_date: "2026-09-01" })]),
+    ).toBeNull();
+  });
+
+  it("breaks a shared start date on the newest cohort, stably", () => {
+    const rows = [
+      row({ graduation_year: 2017 }),
+      row({ graduation_year: 2022 }),
+      row({ graduation_year: 2019 }),
+    ];
+    expect(quotedCampaign(rows)?.graduationYear).toBe(2022);
+    expect(quotedCampaign([...rows].reverse())?.graduationYear).toBe(2022);
+  });
+
+  it("NEVER sums across classes — the figure is one row's", () => {
+    const c = quotedCampaign([
+      row({ graduation_year: 2018, recipients: 500, replied: 200 }),
+      row({ graduation_year: 2019, start_date: "2026-06-01", recipients: 310, replied: 42 }),
+    ]);
+    // 42, not 242. A total across campaigns is the number this page refuses to
+    // invent, because no campaign it describes ever happened.
+    expect(c?.replied).toBe(42);
+    expect(c?.emailed).toBe(310);
+    expect(c?.silent).toBe(268);
+  });
+
+  it("clamps a silent count that would otherwise go negative", () => {
+    const c = quotedCampaign([row({ recipients: 10, replied: 12 })]);
+    expect(c?.silent).toBe(0);
+  });
+
+  it("shows no survey number when there is no campaign to name", () => {
+    expect(surveyCount(null, "replied")).toBeNull();
+    expect(surveyCount(null, "silent")).toBeNull();
+  });
+
+  it("renders each side of the same campaign, in a neutral tone", () => {
+    const c = quotedCampaign([row({ recipients: 310, replied: 42 })])!;
+    expect(surveyCount(c, "replied")?.value).toBe((42).toLocaleString());
+    expect(surveyCount(c, "silent")?.value).toBe((268).toLocaleString());
+    // A reply is not a data-quality defect and the call sheet is not a failure,
+    // so neither side wears the missing-data warning colour.
+    expect(surveyCount(c, "replied")?.tone).toBe("muted");
+    expect(surveyCount(c, "silent")?.tone).toBe("muted");
+    expect(surveyCount(c, "replied")?.unavailable).toBe(false);
+  });
+
+  it("labels each figure with the class AND the side it belongs to", () => {
+    const c = quotedCampaign([
+      row({ graduation_year: 2019, recipients: 310, replied: 42 }),
+    ])!;
+    const replied = surveyCountLabel(c, "replied");
+    const silent = surveyCountLabel(c, "silent");
+    for (const label of [replied, silent]) {
+      expect(label).toMatch(/Class of 2019/);
+      expect(label).toMatch(/310/);
+    }
+    // Each side states its OWN number. Printing "42 have replied" beside a
+    // badge reading 268 makes the reader do the subtraction.
+    expect(replied).toMatch(/^42\b/);
+    expect(replied).toMatch(/have replied/);
+    expect(silent).toMatch(/^268\b/);
+    expect(silent).toMatch(/have not replied/);
+  });
 });
 
 /* ===========================================================================
@@ -318,5 +465,145 @@ describe("the Reports page renders an unknown count as unknown", () => {
 
   it("shows each report's own note (the net-ID caveat travels with it)", () => {
     expect(src).toContain("report.note");
+  });
+
+  it("names the class beside every survey figure", () => {
+    // A campaign count with no owner reads as "the survey", which is exactly
+    // what it is not.
+    expect(src).toContain("surveyCountLabel");
+    expect(src).toContain("SURVEY_COUNT_UNAVAILABLE_NOTE");
+  });
+
+  /* -------------------------------------------------------------------------
+   * Jake's review of #775: no plumbing, and fewer words.
+   * ---------------------------------------------------------------------- */
+
+  it("prints no HTTP method or route anywhere it can be read", () => {
+    // The provenance of each number belongs in a comment, not on a staff
+    // screen. Checked over the DATA rather than the JSX so a route pasted into
+    // a description is caught too.
+    const renderable = [
+      ...ALL_REPORTS.flatMap((r) => [
+        r.title,
+        r.description,
+        r.action,
+        r.linkLabel,
+        r.note ?? "",
+      ]),
+      ...REPORT_SECTIONS.map((s) => s.title),
+      ...RELATED_SURFACES.flatMap((s) => [s.title, s.description]),
+      MISSING_PHOTO_NET_ID_NOTE,
+      MISSING_PHOTO_UNAVAILABLE_NOTE,
+    ];
+    for (const text of renderable) {
+      expect({ text }).toEqual({
+        text: expect.not.stringMatching(
+          /\b(GET|POST|PUT|PATCH|DELETE)\s+\/|\/dashboard\/data-quality/,
+        ),
+      });
+    }
+    // …and the row that used to carry it is gone from the model entirely.
+    for (const report of ALL_REPORTS) {
+      expect(Object.keys(report)).not.toContain("source");
+    }
+  });
+
+  it("has no intro paragraph — the page title already says Reports", () => {
+    expect(src).not.toContain("The reports staff run most often");
+    expect(src).not.toContain("section.blurb");
+  });
+
+  it("keeps every row short enough to scan", () => {
+    // Not style policing: the review note was that a title, a description, a
+    // caveat, a warning AND a provenance line per row made the page unreadable.
+    // A ceiling is the only thing that stops the prose growing back.
+    for (const report of ALL_REPORTS) {
+      expect({ id: report.id, len: report.description.length }).toEqual({
+        id: report.id,
+        len: expect.any(Number),
+      });
+      expect(report.description.length).toBeLessThanOrEqual(80);
+      if (report.note) expect(report.note.length).toBeLessThanOrEqual(130);
+    }
+    for (const surface of RELATED_SURFACES) {
+      expect(surface.description.length).toBeLessThanOrEqual(90);
+    }
+    expect(MISSING_PHOTO_UNAVAILABLE_NOTE.length).toBeLessThanOrEqual(130);
+  });
+
+  it("keeps the two facts that stop a wrong conclusion", () => {
+    // Trimmed, not deleted. Without these the photo figure looks like a bug and
+    // "Unavailable" looks like "nobody is missing one".
+    expect(MISSING_PHOTO_NET_ID_NOTE).toMatch(/net ID/i);
+    expect(MISSING_PHOTO_UNAVAILABLE_NOTE).toMatch(/unknown/i);
+    expect(MISSING_PHOTO_UNAVAILABLE_NOTE).toMatch(/not zero/i);
+  });
+});
+
+/* ===========================================================================
+ * ⚠️ BACK, FROM A REPORT, RETURNS TO REPORTS.
+ *
+ * Clicking a report must add exactly ONE history entry. The thing that could
+ * add a second is the alumni Filters panel: it re-serializes its state into the
+ * URL, and it navigates whenever that serialization differs from what it last
+ * wrote. Two properties keep it silent on arrival, and both are load-bearing:
+ *
+ *   1. the panel seeds its "last written" ref from `toQs(initial)` — the MODEL,
+ *      not the raw querystring — so the first render can never see a
+ *      difference, whatever spelling the incoming link used; and
+ *   2. every report href is ALREADY the canonical serialization, so there is
+ *      nothing to rewrite even if (1) were seeded from the URL.
+ *
+ * Live filtering additionally uses `replace`, not `push`, so typing in the
+ * search box does not stack one entry per keystroke between the user and the
+ * page they came from.
+ *
+ * Verified in a real browser against the dev deploy (Chromium, Firefox, WebKit;
+ * history entries read via CDP `Page.getNavigationHistory`): /reports →
+ * /alumni?missing_photo=1 adds exactly one entry, and Back renders Reports.
+ * `e2e/reports-back.spec.ts` is the end-to-end version of that walk.
+ * ======================================================================== */
+describe("clicking a report costs exactly one history entry", () => {
+  const filtersSrc = readFileSync(
+    resolve(process.cwd(), "src/components/alumni/AlumniFilters.tsx"),
+    "utf8",
+  );
+
+  it.each(listReports.map((r): [string, Report] => [r.id, r]))(
+    "%s: the href is already what the panel would write, so nothing is rewritten",
+    (_id, report) => {
+      const qs = report.href.slice(report.href.indexOf("?") + 1);
+      // The fixed point: re-serializing the parsed URL reproduces it byte for
+      // byte. A report link that did NOT satisfy this would make the panel
+      // navigate on arrival — an entry between Reports and the list, and Back
+      // would land on the list again instead of on Reports.
+      expect(toAlumniFilterQs(parseAlumniFilters(searchParams(report.href)))).toBe(
+        qs,
+      );
+    },
+  );
+
+  it("seeds the panel's last-written ref from the MODEL, not the URL", () => {
+    // If this becomes `useRef(searchParams.toString())` (or anything else
+    // derived from the raw URL), a link spelled differently from the canonical
+    // form fires a navigation on mount and Back stops returning to Reports.
+    expect(filtersSrc).toContain("useRef(toQs(initial))");
+  });
+
+  it("syncs live filtering with replace(), never push()", () => {
+    const effect = filtersSrc.slice(
+      filtersSrc.indexOf("if (serialized === lastPushedRef.current) return;"),
+    );
+    const body = effect.slice(0, effect.indexOf("// Re-seed only when"));
+    expect(body).toContain("router.replace(");
+    // A push here stacks one history entry per debounced keystroke, burying the
+    // page the user came from under a pile of filter states.
+    expect(body).not.toContain("router.push(");
+  });
+
+  it("guards the sync so an unchanged serialization navigates nowhere", () => {
+    expect(filtersSrc).toContain(
+      "if (serialized === lastPushedRef.current) return;",
+    );
   });
 });
