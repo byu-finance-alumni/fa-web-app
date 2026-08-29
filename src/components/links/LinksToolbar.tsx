@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { LinksExportButton } from "@/components/links/LinksExportButton";
 import { LinksSelectionToggle } from "@/components/links/LinksSelection";
 import {
   DEFAULT_STATUS,
@@ -17,6 +18,7 @@ import {
   STATUSES,
   STATUS_LABELS,
   hasActiveLinkFilters,
+  linksDateRangeError,
   toLinksQs,
   type LinksFilterState,
 } from "@/lib/opportunityLinks";
@@ -109,9 +111,17 @@ export function LinksToolbar({
   const activeCount =
     (f.status !== DEFAULT_STATUS ? 1 : 0) +
     (f.role_type ? 1 : 0) +
-    (f.company.trim() ? 1 : 0);
+    (f.company.trim() ? 1 : 0) +
+    // The range counts as ONE filter however many ends are set — "1 to 2 filters
+    // depending on whether you bounded both sides" is not a distinction the
+    // badge is trying to draw.
+    (f.submitted_from || f.submitted_to ? 1 : 0);
 
   const isDirty = hasActiveLinkFilters(f);
+  // Shown under the inputs as you type, which is the only place the mistake can
+  // be corrected. The page renders its own copy where the rows would be, so an
+  // inverted range in a deep link is explained even with the menu closed.
+  const rangeError = linksDateRangeError(f);
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white p-3 shadow-card">
@@ -168,6 +178,11 @@ export function LinksToolbar({
           context, which the page seeds from the capability and which is absent
           (so the button is absent) for everyone else. */}
       <LinksSelectionToggle />
+
+      {/* The export covers what the LIST is showing, so it is handed `initial`
+          — the page's own filter state — and never the local `f` above, which
+          runs 300 ms ahead of the rows on screen while someone is typing. */}
+      <LinksExportButton filters={initial} />
 
       <div ref={menuRef} className="relative shrink-0">
         <Button
@@ -246,6 +261,56 @@ export function LinksToolbar({
                   placeholder="e.g. Goldman"
                   className="min-w-0"
                 />
+              </div>
+
+              <div>
+                <Label className="mb-1.5">Date received</Label>
+                {/* DATE RECEIVED, not the application deadline — the report
+                    Tanya asked for is "by date they were given to us". Both ends
+                    are inclusive whole days, and either may be left open.
+
+                    grid + min-w-0 so the date inputs (large intrinsic min width)
+                    cannot overflow the w-80 panel — same as the audit toolbar. */}
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    type="date"
+                    value={f.submitted_from}
+                    onChange={(e) => set("submitted_from", e.target.value)}
+                    aria-label="Received on or after"
+                    aria-invalid={rangeError !== null}
+                    aria-describedby={
+                      rangeError ? "links-date-range-error" : undefined
+                    }
+                    className="min-w-0"
+                    style={{ colorScheme: "light" }}
+                  />
+                  <Input
+                    type="date"
+                    value={f.submitted_to}
+                    onChange={(e) => set("submitted_to", e.target.value)}
+                    aria-label="Received on or before"
+                    aria-invalid={rangeError !== null}
+                    aria-describedby={
+                      rangeError ? "links-date-range-error" : undefined
+                    }
+                    className="min-w-0"
+                    style={{ colorScheme: "light" }}
+                  />
+                </div>
+                {rangeError ? (
+                  <p
+                    id="links-date-range-error"
+                    role="alert"
+                    className="mt-1.5 text-sm leading-relaxed text-danger-600"
+                  >
+                    {rangeError}
+                  </p>
+                ) : (
+                  <p className="mt-1.5 text-xs text-gray-500">
+                    When the posting reached us, not its application deadline.
+                    Both dates are included.
+                  </p>
+                )}
               </div>
 
               <Button
