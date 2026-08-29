@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { SurveyContactLink } from "./SurveyContactLink";
 import {
+  SURVEY_CONTACT_PROMPT,
   SURVEY_CONTACT_SUBJECT,
   isPlausibleEmail,
   surveyContactFrom,
@@ -125,12 +126,12 @@ describe("a contact is configured", () => {
       email: "tanya@byu.edu",
     });
     expect(contact).not.toBeNull();
-    expect(surveyContactLinkText(contact!)).toBe("Email Tanya Harmon");
+    expect(surveyContactLinkText(contact!)).toBe("email Tanya Harmon");
   });
 
   it("falls back to the address as the label when no name is set", () => {
     const contact = surveyContactFrom({ email: "tanya@byu.edu" });
-    expect(surveyContactLinkText(contact!)).toBe("Email tanya@byu.edu");
+    expect(surveyContactLinkText(contact!)).toBe("email tanya@byu.edu");
   });
 
   it("trims stray whitespace around the configured values", () => {
@@ -269,5 +270,55 @@ describe("the sample survey stays in step with the real one", () => {
     expect(previewSource).toContain("<WaysToHelp");
     expect(previewSource).toMatch(/setHelpMode\(\s*"edited"\s*\)/);
     expect(previewSource).toContain('useState<WaysToHelpMode>("confirmed")');
+  });
+});
+
+/**
+ * The link is ALSO the only opt-out route (Amy, 2026-08-29). Alumni get no
+ * unsubscribe button: an opt-out is a message to Tanya, and staff set Do Not
+ * Contact from inside the app afterwards.
+ *
+ * That makes the wording load-bearing rather than decorative. If the sentence
+ * only offers "a question", someone who wants these emails stopped has no way
+ * to tell that this is where they say so, and they simply stop reading instead.
+ */
+describe("the prompt covers opting out, not just asking a question", () => {
+  it("names opting out", () => {
+    expect(SURVEY_CONTACT_PROMPT.toLowerCase()).toContain("rather not receive");
+  });
+
+  it("names reaching the career director about anything else", () => {
+    expect(SURVEY_CONTACT_PROMPT.toLowerCase()).toContain("career director");
+  });
+
+  it("does not use bare 'click here' as the link text", () => {
+    // "click here" tells a screen-reader user nothing about the destination,
+    // and this is the only link on the page.
+    const contact = surveyContactFrom({
+      name: "Tanya Harmon",
+      email: "tharmon@byu.edu",
+    });
+    expect(surveyContactLinkText(contact!).toLowerCase()).not.toContain(
+      "click here",
+    );
+    expect(surveyContactLinkText(contact!)).toContain("Tanya Harmon");
+  });
+
+  it("has NO unsubscribe control anywhere under /survey", () => {
+    // The absence is the requirement, not an oversight. A future reader seeing
+    // an email link where an unsubscribe button usually goes must not "restore"
+    // one.
+    const pages = [
+      "src/app/survey/[token]/page.tsx",
+      "src/app/survey/[token]/help/page.tsx",
+      "src/components/survey/survey-screens.tsx",
+    ];
+    for (const rel of pages) {
+      const source = readFileSync(
+        fileURLToPath(new URL(`../../../${rel}`, import.meta.url)),
+        "utf8",
+      );
+      expect(source.toLowerCase()).not.toContain("unsubscribe");
+    }
   });
 });

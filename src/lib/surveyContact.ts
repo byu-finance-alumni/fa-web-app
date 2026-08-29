@@ -114,11 +114,28 @@ export function surveyContactMailtoHref(contact: SurveyContact): string {
 /**
  * The sentence around the link. Kept here beside the subject so the two read as
  * one thought, and so the copy can be checked without a DOM.
+ *
+ * ⚠️ THIS LINK IS ALSO THE ONLY WAY AN ALUM CAN OPT OUT. Amy, 2026-08-29:
+ * alumni must NOT get a button that switches these emails off by itself. An
+ * opt-out is a message to Tanya, and staff then set Do Not Contact from inside
+ * the app. So the sentence has to name opting out explicitly; if it only offers
+ * "a question", nobody who wants out will find their way here.
+ *
+ * ⚠️ Do not "restore" a missing unsubscribe control. There is no unsubscribe
+ * button anywhere under `/survey`, and its absence is the requirement, not an
+ * oversight.
  */
 export const SURVEY_CONTACT_PROMPT =
-  "Have a question, or something you'd rather tell us directly?";
+  "If you would rather not receive these updates, or want to reach the BYU Finance Career Director about anything else,";
 
-/** The link's own text — "Email Tanya Harmon", from configuration. */
+/**
+ * The link's own text, e.g. "email Tanya Harmon".
+ *
+ * Amy's wording said "please click here". Deliberately not that: "click here"
+ * tells a screen-reader user nothing about where the link goes, and it is the
+ * one link on the page. Naming the destination keeps her sentence intact and
+ * reads the same aloud as it does on screen.
+ */
 export function surveyContactLinkText(contact: SurveyContact): string {
-  return `Email ${contact.name}`;
+  return `email ${contact.name}`;
 }
