@@ -79,7 +79,7 @@ Vercel dashboard.
 | Prod API (backend) | `finance-alumni-database-api` | `docs/PRE-LAUNCH.md` §1 and §8, `fa-web-api/docs/SECURITY-MONITORING.md` | **Confirmed in repo docs** (multiple independent files) |
 | Dev app | `dev-fa-web-app` | `README.md`, `NEXT-STEPS.md`, `fa-web-api/docs/SECURITY-MONITORING.md` | **Confirmed in repo docs** |
 | Dev API | `dev-fa-web-api` | `fa-web-api/docs/SECURITY-MONITORING.md` | **Confirmed in repo docs** (single source) |
-| Team / scope slug | `gunnjakes-projects` | `fa-web-api/docs/SECURITY-MONITORING.md` (a `vercel link --scope` example) | **Assumed** — single source, never independently checked |
+| Team / scope slug | `byu-finance-db` | GitHub Actions Vercel check URLs on `fa-web-app` PR #797, 2026-08-29 | **CONFIRMED** — read off live deployment URLs. Note `fa-web-api/docs/SECURITY-MONITORING.md` documents `gunnjakes-projects`, which is **stale/wrong** and should be corrected. |
 
 > ⚠️ **Vercel project names do not match repository names.** The prod API project is
 > `finance-alumni-database-api`, *not* `fa-web-api`. Any script or poll that filters
@@ -254,9 +254,10 @@ or "off" — a confirmed absence is as valuable as a confirmed rule.
 ### Step 0 — Confirm you are looking at the right projects
 
 1. Go to <https://vercel.com> and sign in.
-2. Confirm the **team/scope** selector at the top left. The repo documents it as
-   `gunnjakes-projects`, but that is assumed, not confirmed. **Write down the scope
-   name you actually see.**
+2. Confirm the **team/scope** selector at the top left. It should read
+   `byu-finance-db` — confirmed 2026-08-29 from the live Vercel deployment URLs on
+   PR #797. (`fa-web-api/docs/SECURITY-MONITORING.md` says `gunnjakes-projects`;
+   that is stale.) **If what you see differs, write it down — that is a finding.**
 3. Confirm both prod projects exist and note their exact names:
    - the app project, expected `finance-alumni-database`
    - the API project, expected `finance-alumni-database-api`
@@ -269,7 +270,7 @@ Do this on the **app project first** (`finance-alumni-database`).
 1. Open the project → the **Firewall** tab in the top project nav.
 2. Within Firewall, open the traffic / log view. Direct URL, substituting your
    scope name:
-   `https://vercel.com/<scope>/finance-alumni-database/firewall/traffic`
+   `https://vercel.com/byu-finance-db/finance-alumni-database/firewall/traffic`
 3. Set the time range to cover **2026-08-29 03:44 UTC**. Check whether the view is
    showing times in **UTC or your local time** and adjust — 03:44 UTC is 21:44 on
    2026-08-28 in Mountain Daylight Time. Widen to the full hour if the minute
@@ -322,7 +323,7 @@ throwaway directory so the repo's Vercel link is never touched:
 
 ```bash
 tmp="$TEMP/wf-check"; mkdir -p "$tmp"
-vercel link --yes --project finance-alumni-database --scope <scope> --cwd "$tmp"
+vercel link --yes --project finance-alumni-database --scope byu-finance-db --cwd "$tmp"
 vercel firewall overview --cwd "$tmp"
 vercel firewall rules list --expand --cwd "$tmp"
 vercel firewall ip-blocks list --cwd "$tmp"
