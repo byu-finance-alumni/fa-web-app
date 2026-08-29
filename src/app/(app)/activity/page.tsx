@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ScrollToTopOnPageChange } from "@/components/shared/ScrollToTopOnPageChange";
 import { apiGet, ApiError } from "@/lib/api";
 import { humanize } from "@/lib/format";
 import { Topbar } from "@/components/shell/Topbar";
@@ -133,6 +134,7 @@ export default async function ActivityPage({
     <>
       <Topbar title="Activity" />
       <main className="flex-1 overflow-auto p-6">
+        <ScrollToTopOnPageChange offset={offset} />
         {/* Search + filter bar */}
         <ActivityToolbar initial={filters} types={data?.types ?? []} />
 

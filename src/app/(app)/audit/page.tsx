@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ScrollToTopOnPageChange } from "@/components/shared/ScrollToTopOnPageChange";
 import { redirect } from "next/navigation";
 import {
   Eye,
@@ -244,6 +245,7 @@ export default async function AuditPage({
         ]}
       />
       <main className="flex-1 overflow-auto p-6">
+        <ScrollToTopOnPageChange offset={offset} />
         <h1 className="sr-only">Audit log</h1>
         <AuditToolbar
           initial={filters}

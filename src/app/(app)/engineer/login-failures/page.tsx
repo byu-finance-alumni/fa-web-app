@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ScrollToTopOnPageChange } from "@/components/shared/ScrollToTopOnPageChange";
 import { ApiError } from "@/lib/api";
 import { readAuthContext } from "@/lib/auth-context";
 import { AccessCheckError } from "@/components/shared/AccessCheckError";
@@ -189,6 +190,7 @@ export default async function LoginFailuresPage({
         ]}
       />
       <main className="flex-1 overflow-auto p-6">
+        <ScrollToTopOnPageChange offset={offset} />
         <h1 className="sr-only">Login failures</h1>
 
         {/*

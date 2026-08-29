@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ScrollToTopOnPageChange } from "@/components/shared/ScrollToTopOnPageChange";
 import { apiGet, ApiError } from "@/lib/api";
 import type { AdminTaskPage } from "@/types/tasks";
 import { Topbar } from "@/components/shell/Topbar";
@@ -123,6 +124,7 @@ export default async function TasksPage({
     <>
       <Topbar title="Tasks" />
       <main className="flex-1 overflow-auto p-6">
+        <ScrollToTopOnPageChange offset={offset} />
         <TaskFilters initial={filters} assignees={assignees} />
 
         {error ? (
