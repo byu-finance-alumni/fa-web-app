@@ -50,10 +50,10 @@ export function StopAllSurveys({ activeYears }: { activeYears: number[] }) {
       const { cancelled, graduation_years } = res.result;
       if (cancelled === 0) {
         // Someone else stopped them between the page render and the click.
-        toast.success("No campaigns were running — nothing to stop.");
+        toast.success("No campaigns were running, so there was nothing to stop.");
       } else {
         toast.success(
-          `Stopped ${cancelled} campaign${cancelled === 1 ? "" : "s"} — ` +
+          `Stopped ${cancelled} campaign${cancelled === 1 ? "" : "s"} for ` +
             `graduation year${cancelled === 1 ? "" : "s"} ${graduation_years.join(", ")}. No further emails will send.`,
         );
       }
@@ -107,7 +107,7 @@ export function StopAllSurveys({ activeYears }: { activeYears: number[] }) {
                   <span className="font-medium text-gray-900">
                     {activeYears.join(", ")}
                   </span>
-                  . No further survey emails — initial or reminder — will be
+                  . No further survey emails, initial or reminder, will be
                   sent for {count === 1 ? "it" : "them"}. Cancelled campaigns do
                   not resume; each one has to be re-scheduled by hand. Emails
                   already delivered and replies already collected are kept.

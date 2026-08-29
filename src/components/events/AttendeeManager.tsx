@@ -280,7 +280,7 @@ export function AttendeeManager({
               onFocus={() => {
                 if (matches.length > 0 || searchFailed) setOpen(true);
               }}
-              placeholder="Add attendee — search alumni…"
+              placeholder="Add attendee: search alumni…"
               aria-label="Search alumni to add as attendee"
               autoComplete="off"
               className="w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"

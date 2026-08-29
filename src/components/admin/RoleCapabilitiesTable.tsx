@@ -34,8 +34,8 @@ export function RoleCapabilitiesTable({ matrix }: { matrix: PermissionMatrix }) 
         <span className="text-sm text-gray-700">
           <span className="font-semibold text-gray-900">
             What each role can do
-          </span>{" "}
-          — the capabilities assigned to every role except engineer.
+          </span>
+          : the capabilities assigned to every role except engineer.
         </span>
         <span className="shrink-0 text-xs font-semibold text-brand-blue-600">
           {open ? "Hide" : "Show"}

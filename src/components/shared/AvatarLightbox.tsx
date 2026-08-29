@@ -41,7 +41,7 @@ export function AvatarLightbox({
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label={`${alt} — enlarged photo`}
+      aria-label={`${alt}, enlarged photo`}
     >
       <button
         type="button"

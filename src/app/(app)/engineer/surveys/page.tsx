@@ -190,8 +190,8 @@ export default async function EngineerSurveysPage() {
                     <p className="mt-2 max-w-xl text-sm text-gray-500">
                       <span className="font-medium text-warning-600">
                         {pausedYears.length} paused
-                      </span>{" "}
-                      — graduation year
+                      </span>
+                      , graduation year
                       {pausedYears.length === 1 ? " " : "s "}
                       <span className="font-medium text-gray-700">
                         {pausedYears.join(", ")}
@@ -230,8 +230,8 @@ export default async function EngineerSurveysPage() {
                 and cancel-is-terminal explanations moved into the confirms,
                 which is where someone is actually deciding. */}
             <p className="mb-4 mt-4 max-w-3xl text-sm text-gray-500">
-              Every campaign the scheduler knows about, newest cohort first —
-              only <span className="font-medium text-gray-700">scheduled</span>{" "}
+              Every campaign the scheduler knows about, newest cohort first.
+              Only <span className="font-medium text-gray-700">scheduled</span>{" "}
               and <span className="font-medium text-gray-700">active</span> ones
               send, and times are{" "}
               <span className="font-medium text-gray-700">
@@ -302,7 +302,7 @@ export default async function EngineerSurveysPage() {
                         <th className="w-56 px-4 py-3">Created (Utah)</th>
                         <th className="w-56 px-4 py-3">Last run (Utah)</th>
                         <th className="w-40 px-4 py-3 text-right">
-                          Sent — init / 1wk / 2wk
+                          Sent (init / 1wk / 2wk)
                         </th>
                         <th className="w-44 px-4 py-3 text-right">
                           <span className="sr-only">

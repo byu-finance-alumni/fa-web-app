@@ -15,7 +15,7 @@ export function PreviewBanner({ roleLabel }: { roleLabel: string }) {
   return (
     <div className="flex items-center justify-center gap-3 bg-warning-600 px-4 py-3 text-center text-sm font-semibold text-white shadow-sm">
       <span className="tracking-wide">
-        PREVIEW MODE — viewing as{" "}
+        PREVIEW MODE: viewing as{" "}
         <span className="font-bold uppercase">{roleLabel}</span>. You are still
         signed in as yourself.
       </span>

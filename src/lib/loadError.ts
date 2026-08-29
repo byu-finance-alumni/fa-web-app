@@ -74,7 +74,7 @@ export function describeLoadFailure(
     return {
       kind: "unreachable",
       title: "Couldn’t reach the service",
-      message: `The app couldn’t connect to the service, so ${noun} could not be loaded. This is a connection fault, not an empty result — try again in a moment.`,
+      message: `The app couldn’t connect to the service, so ${noun} could not be loaded. This is a connection fault, not an empty result. Try again in a moment.`,
       retryable: true,
       reference: null,
     };
@@ -86,7 +86,7 @@ export function describeLoadFailure(
     return {
       kind: "timeout",
       title: `Loading ${noun} timed out`,
-      message: `The service didn’t answer in time, so nothing was loaded. Nothing is missing from the data — try again in a moment.`,
+      message: `The service didn’t answer in time, so nothing was loaded. Nothing is missing from the data. Try again in a moment.`,
       retryable: true,
       reference: status,
     };
@@ -127,7 +127,7 @@ export function describeLoadFailure(
     return {
       kind: "server",
       title: `Couldn’t load ${noun}`,
-      message: `The service returned an error, so nothing was loaded — this is a fault, not an empty result. Try again in a moment.`,
+      message: `The service returned an error, so nothing was loaded. This is a fault, not an empty result. Try again in a moment.`,
       retryable: true,
       reference: status,
     };
@@ -138,7 +138,7 @@ export function describeLoadFailure(
   return {
     kind: "rejected",
     title: `Couldn’t load ${noun}`,
-    message: `The request was rejected, so nothing was loaded — this is a fault, not an empty result. Reload the page, and let the Finance Department know if it keeps happening.`,
+    message: `The request was rejected, so nothing was loaded. This is a fault, not an empty result. Reload the page, and let the Finance Department know if it keeps happening.`,
     retryable: false,
     reference: status,
   };

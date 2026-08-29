@@ -66,5 +66,5 @@ export function formatAge(seconds: number): string {
  * what they are ending rather than just a session id.
  */
 export function describeSession(email: string | null, seconds: number): string {
-  return `${email ?? "an unrecognised account"} — open for ${formatAge(seconds)}`;
+  return `${email ?? "an unrecognised account"}, open for ${formatAge(seconds)}`;
 }

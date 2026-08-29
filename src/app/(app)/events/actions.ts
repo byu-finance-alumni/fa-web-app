@@ -298,7 +298,7 @@ export async function previewEventsImport(
   } catch (e) {
     return {
       ok: false,
-      error: e instanceof ApiError ? e.message : "Couldn't read the file — try again.",
+      error: e instanceof ApiError ? e.message : "Couldn't read the file. Try again.",
     };
   }
 }
@@ -317,7 +317,7 @@ export async function commitEventsImport(
   } catch (e) {
     return {
       ok: false,
-      error: e instanceof ApiError ? e.message : "Import failed — try again.",
+      error: e instanceof ApiError ? e.message : "Import failed. Try again.",
     };
   }
 }
@@ -420,7 +420,7 @@ export async function previewAttendeeMatch(
       error:
         e instanceof ApiError
           ? e.message
-          : "Couldn't read the file — try again.",
+          : "Couldn't read the file. Try again.",
     };
   }
 }
@@ -451,7 +451,7 @@ export async function approveAttendeeMatches(
   } catch (e) {
     return {
       ok: false,
-      error: e instanceof ApiError ? e.message : "Couldn't save — try again.",
+      error: e instanceof ApiError ? e.message : "Couldn't save. Try again.",
     };
   }
 }
@@ -489,7 +489,7 @@ export async function createAttendeeFriends(
     return {
       ok: false,
       error:
-        e instanceof ApiError ? e.message : "Couldn't create friends — try again.",
+        e instanceof ApiError ? e.message : "Couldn't create friends. Try again.",
     };
   }
 }

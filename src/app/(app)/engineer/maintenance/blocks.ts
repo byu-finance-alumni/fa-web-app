@@ -135,7 +135,7 @@ export function blockReason(block: LoginIpBlock): string {
         : shape === "guessing"
           ? "Hammered one account"
           : "Repeated failed sign-ins";
-  return `${kind} — ${attempts} attempt${
+  return `${kind}: ${attempts} attempt${
     attempts === 1 ? "" : "s"
   } across ${emails} address${emails === 1 ? "" : "es"}`;
 }

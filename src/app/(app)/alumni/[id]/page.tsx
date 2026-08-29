@@ -741,7 +741,7 @@ export async function AlumniProfileView({
               className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"
             >
               <p className="font-semibold">
-                Saved — but this name is now shared.
+                Saved. This name is now shared.
               </p>
               <p className="mt-1">
                 {duplicates.length === 1
@@ -1621,7 +1621,7 @@ export async function AlumniProfileView({
                         // ledger to record a gift. Secondary text-only action.
                         <Button asChild variant="secondary" size="sm">
                           <Link href="/pay-it-forward">
-                            Pay It Forward — record a donation
+                            Record a Pay It Forward donation
                           </Link>
                         </Button>
                       }

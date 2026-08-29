@@ -58,7 +58,7 @@ export function CampaignPauseControl({
       toast.success(
         mode === "pause"
           ? `Class of ${graduationYear} paused. No survey emails will send for it until it is resumed.`
-          : `Class of ${graduationYear} resumed. It picks up at the stage it was on when it was paused — ` +
+          : `Class of ${graduationYear} resumed. It picks up at the stage it was on when it was paused, and ` +
               `the time it spent paused doesn’t count against its reminder schedule.`,
       );
       setConfirming(false);
@@ -79,7 +79,7 @@ export function CampaignPauseControl({
         size="sm"
         onClick={() => run("pause")}
         disabled={pending}
-        title={`Pause the ${graduationYear} campaign — reversible`}
+        title={`Pause the ${graduationYear} campaign (reversible)`}
       >
         {pending ? "Pausing…" : "Pause"}
       </Button>
@@ -123,7 +123,7 @@ export function CampaignPauseControl({
                 {graduationYear}
               </span>{" "}
               start going out again on the next daily run. It picks up at the
-              stage it was on when it was paused — the time it spent paused
+              stage it was on when it was paused, and the time it spent paused
               doesn’t count against its reminder schedule, so no reminder is
               skipped and nobody already emailed is emailed twice.
             </p>

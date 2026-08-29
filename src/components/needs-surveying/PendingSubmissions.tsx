@@ -124,7 +124,7 @@ export function PendingSubmissions({
 
               {r.changes.length === 0 ? (
                 <p className="mt-2 text-xs italic text-gray-400">
-                  Confirmed — nothing changed.
+                  Confirmed, nothing changed.
                 </p>
               ) : (
                 <dl className="mt-2 space-y-1.5">

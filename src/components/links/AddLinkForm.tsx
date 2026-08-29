@@ -330,7 +330,7 @@ export function AddLinkForm() {
               />
               <FieldError message={errors.url} />
               <p className="mt-1 text-xs text-gray-500">
-                A bare domain is fine — type <code>jakegunnell.com</code> and
+                A bare domain is fine: type <code>jakegunnell.com</code> and
                 it&apos;s saved as <code>https://jakegunnell.com/</code>. A
                 careers page outlasts a single posting.
               </p>

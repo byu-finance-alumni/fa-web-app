@@ -669,7 +669,7 @@ export function GeographyExplorer({
           const shown = geo.spannedStates.slice(0, 5).join(", ");
           const more = geo.spannedStates.length > 5 ? ", …" : "";
           setGeoNote(
-            `"${geo.label.split(",")[0]}" is also in ${shown}${more}. Showing ${geo.label} — add a state to pick another.`,
+            `"${geo.label.split(",")[0]}" is also in ${shown}${more}. Showing ${geo.label}. Add a state to pick another.`,
           );
         }
         setMapView("us");
@@ -1135,7 +1135,7 @@ export function GeographyExplorer({
             >
               <span className="min-w-0 truncate text-xs font-semibold text-gray-900">
                 {focusedState
-                  ? `Top cities — ${stateNames?.[focusedState.code] ?? focusedState.code}`
+                  ? `Top cities in ${stateNames?.[focusedState.code] ?? focusedState.code}`
                   : "Top states by alumni"}
               </span>
               <span className="shrink-0 text-xs font-medium text-brand-blue-600">
