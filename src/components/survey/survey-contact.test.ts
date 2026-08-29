@@ -42,14 +42,21 @@ import {
 const root = fileURLToPath(new URL("../../..", import.meta.url));
 const read = (rel: string) => readFileSync(`${root}/${rel}`, "utf8");
 
-const NAME_VAR = "NEXT_PUBLIC_SURVEY_CONTACT_NAME";
-const EMAIL_VAR = "NEXT_PUBLIC_SURVEY_CONTACT_EMAIL";
+/**
+ * The contact now arrives as a PROP, not from the environment (#774): the real
+ * screens read it off the public token-gated survey payload, and the staff
+ * sample resolves the same row from the authenticated list. So "configure" here
+ * means "what the server sent", which is what the component actually sees.
+ */
+let current: { name?: string | null; email?: string | null } | null = null;
 
 function configure(email?: string, name?: string) {
-  if (email === undefined) delete process.env[EMAIL_VAR];
-  else process.env[EMAIL_VAR] = email;
-  if (name === undefined) delete process.env[NAME_VAR];
-  else process.env[NAME_VAR] = name;
+  current = email === undefined && name === undefined ? null : { email, name };
+}
+
+/** Render with whatever `configure` last set. */
+function render() {
+  return SurveyContactLink({ contact: current });
 }
 
 afterEach(() => configure(undefined, undefined));
@@ -70,30 +77,30 @@ describe("no contact configured", () => {
     // believes they have emailed a human stops looking for another way to
     // reach one, and we never find out the message went nowhere.
     configure(undefined, undefined);
-    expect(SurveyContactLink()).toBeNull();
+    expect(render()).toBeNull();
   });
 
   it("renders nothing for a blank or whitespace-only address", () => {
     configure("");
-    expect(SurveyContactLink()).toBeNull();
+    expect(render()).toBeNull();
     configure("   ");
-    expect(SurveyContactLink()).toBeNull();
+    expect(render()).toBeNull();
   });
 
   it("renders nothing for an address it cannot trust", () => {
     // A name with no address is not a contact — it is a label on a link that
     // goes nowhere.
     configure("not-an-address", "Tanya Harmon");
-    expect(SurveyContactLink()).toBeNull();
+    expect(render()).toBeNull();
     configure(undefined, "Tanya Harmon");
-    expect(SurveyContactLink()).toBeNull();
+    expect(render()).toBeNull();
   });
 });
 
 describe("a contact is configured", () => {
   it("renders one mailto with the subject already filled in", () => {
     configure("tanya_harmon@byu.edu", "Tanya Harmon");
-    const hrefs = hrefsIn(SurveyContactLink());
+    const hrefs = hrefsIn(render());
     expect(hrefs).toEqual([
       "mailto:tanya_harmon@byu.edu?subject=Finance%20Alumni%20Survey%20response",
     ]);
@@ -109,7 +116,7 @@ describe("a contact is configured", () => {
     // `%40` in place of `@` is surfaced verbatim by some mail clients. The
     // validation below is what makes leaving it literal safe.
     configure("tanya@byu.edu");
-    expect(hrefsIn(SurveyContactLink())[0]).toContain("mailto:tanya@byu.edu?");
+    expect(hrefsIn(render())[0]).toContain("mailto:tanya@byu.edu?");
   });
 
   it("labels the link with the configured name", () => {
@@ -128,7 +135,7 @@ describe("a contact is configured", () => {
 
   it("trims stray whitespace around the configured values", () => {
     configure("  tanya@byu.edu  ", "  Tanya Harmon  ");
-    const rendered = SurveyContactLink();
+    const rendered = render();
     expect(rendered).not.toBeNull();
     expect(hrefsIn(rendered)[0]).toBe(
       "mailto:tanya@byu.edu?subject=Finance%20Alumni%20Survey%20response",
@@ -180,11 +187,11 @@ describe("where the control appears", () => {
   for (const page of [REVIEW_PAGE, HELP_PAGE]) {
     it(`${page} renders it OUTSIDE the state switch`, () => {
       const source = read(page);
-      expect(source).toContain("<SurveyContactLink />");
+      expect(source).toContain("<SurveyContactLink contact={supportContact} />");
       // Last child of the shell, not a branch of the loading/invalid/success
       // ternary: it must survive the thank-you panel, which is the last screen
       // the survey ever shows anyone.
-      const control = source.indexOf("<SurveyContactLink />");
+      const control = source.indexOf("<SurveyContactLink contact={supportContact} />");
       expect(control).toBeGreaterThan(-1);
       expect(source.indexOf("</SurveyPageShell>")).toBeGreaterThan(control);
     });
@@ -252,7 +259,7 @@ describe("the sample survey stays in step with the real one", () => {
     expect(previewSource).toContain(
       'import { SurveyContactLink } from "@/components/survey/SurveyContactLink"',
     );
-    expect(previewSource).toContain("<SurveyContactLink />");
+    expect(previewSource).toContain("<SurveyContactLink contact={");
   });
 
   it("walks the ways-to-help ending from BOTH directions, not just confirm", () => {

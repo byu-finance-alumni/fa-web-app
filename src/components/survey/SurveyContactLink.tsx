@@ -25,9 +25,15 @@ import {
  * so this file and everything it imports must stay clear of sessions, users and
  * the Supabase client. `@/lib/surveyContact` imports nothing at all, and
  * `ways-to-help.test.ts` walks both survey pages' imports transitively to keep
- * it that way. That is also why the address comes from configuration rather
- * than from `GET /support-contacts`, which needs a signed-in caller — the long
- * version of that reasoning is in `@/lib/surveyContact`.
+ * it that way.
+ *
+ * The contact is a PROP rather than something this component fetches, and that
+ * is what keeps the above true. `GET /support-contacts` needs a signed-in
+ * caller and has no unauthenticated sibling on purpose, so the real screens
+ * take the contact from `GET /survey/respond/{token}` — the public, token-gated
+ * endpoint they already read — and pass it down. The staff sample survey has no
+ * token, so it resolves the same row from the authenticated list instead
+ * (`surveySupportContact`). Both land here as the same two fields.
  *
  * ⚠️ NO WRAPPER, NO RULE, NO BAND. This is a single paragraph inside the shell's
  * 800px column. Do not give it a full-width container, a top border or a
@@ -35,13 +41,14 @@ import {
  * the review screen's `TrustNote` already carries the only rule that belongs
  * near the foot of the page.
  */
-export function SurveyContactLink() {
-  // `process.env.NEXT_PUBLIC_*` is inlined by Next at build time and only at a
-  // literal reference, so the two names have to be spelled out right here.
-  const contact = surveyContactFrom({
-    name: process.env.NEXT_PUBLIC_SURVEY_CONTACT_NAME,
-    email: process.env.NEXT_PUBLIC_SURVEY_CONTACT_EMAIL,
-  });
+export function SurveyContactLink({
+  contact: raw,
+}: {
+  /** Straight from `support_contact` on the survey payload, or the row the
+   *  sample survey resolved. `null`/absent renders nothing. */
+  contact?: { name?: string | null; email?: string | null } | null;
+}) {
+  const contact = surveyContactFrom(raw ?? {});
   if (!contact) return null;
 
   return (

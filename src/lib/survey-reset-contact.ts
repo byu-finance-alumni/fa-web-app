@@ -47,6 +47,40 @@ export function engineerSupportContact(
   )[0];
 }
 
+/**
+ * The label the SURVEY's public contact row carries (#774).
+ *
+ * Matched loosely for the same reason as the engineer's, and it must stay in
+ * step with the backend's own rule (`SURVEY_CONTACT_LABEL` in
+ * `services/survey_email.py`), which serves this contact to the public survey.
+ * Two different answers to "who is the survey contact?" is a wrong address on a
+ * page strangers read.
+ *
+ * ⚠️ Deliberately NOT the seeded Engineer / Super Admin rows: nothing is
+ * exposed publicly until someone opts a row in by labelling it.
+ */
+const SURVEY_LABEL = "survey";
+
+/**
+ * The survey's public contact row, or null when none is configured.
+ *
+ * Used ONLY by the staff sample survey, which has no token and so cannot read
+ * the public endpoint the real survey gets this from. The real screens take it
+ * from `GET /survey/respond/{token}`.
+ */
+export function surveySupportContact(
+  contacts: readonly SupportContact[] | null | undefined,
+): SupportContact | null {
+  const matches = (contacts ?? []).filter((c) =>
+    c.role_label.toLowerCase().includes(SURVEY_LABEL),
+  );
+  if (matches.length === 0) return null;
+  return [...matches].sort(
+    (a, b) =>
+      a.sort_order - b.sort_order || a.support_contact_id - b.support_contact_id,
+  )[0];
+}
+
 /** Jake's fallback wording. Plain text — deliberately NOT an email address. */
 export const FINANCE_DEPARTMENT = "the Finance Department";
 
