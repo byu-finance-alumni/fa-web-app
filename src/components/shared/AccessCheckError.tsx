@@ -51,7 +51,7 @@ export function AccessCheckError({
           // passed anyway so the component keeps one contract.
           noun="this screen"
           title="We couldn’t check what your account can do"
-          message="The service that resolves your roles and permissions isn’t responding, so this screen wasn’t opened — showing it without checking could hand you a control your account isn’t entitled to. Your access hasn’t changed. Try again in a moment."
+          message="The service that resolves your roles and permissions isn’t responding, so this screen wasn’t opened. Showing it without checking could hand you a control your account isn’t entitled to. Your access hasn’t changed. Try again in a moment."
           className="mx-auto max-w-xl"
         />
       </main>

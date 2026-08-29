@@ -332,7 +332,7 @@ export function EmploymentSectionForm({
           }}
           hint={
             industrySuggested
-              ? "Suggested from Employment Status — change or clear it if that's not right."
+              ? "Suggested from Employment Status. Change or clear it if that's not right."
               : undefined
           }
           error={errors["career.current_industry"]}
@@ -352,7 +352,7 @@ export function EmploymentSectionForm({
           }}
           hint={
             secondarySuggested
-              ? "Suggested from Employment Status — change or clear it if that's not right."
+              ? "Suggested from Employment Status. Change or clear it if that's not right."
               : undefined
           }
           error={errors["career.current_industry_secondary"]}
@@ -398,7 +398,7 @@ export function EmploymentSectionForm({
           error={errors["contact.region"]}
           hint={
             regionAutoFilled
-              ? "Set from Employment State — change it if that's not right."
+              ? "Set from Employment State. Change it if that's not right."
               : "Follows the Employment State. You can override it."
           }
         />

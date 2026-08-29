@@ -85,6 +85,18 @@ export const NAV: NavItem[] = [
     label: "Insights",
     children: [
       { href: "/map", label: "Map" },
+      // Reports (#775): named shortcuts to the lists staff run often. It sits
+      // here rather than under Manage because it is a place you go to LOOK at
+      // something — it changes nothing and every entry is a link out.
+      //
+      // Gated on REPORTS_ADVANCED, the same capability as Data quality, Tasks
+      // and Activity: the page reads `GET /dashboard/data-quality`, which the
+      // backend gates on exactly that code, so a wider gate here would render a
+      // screen whose numbers 403. It is deliberately NOT gated on
+      // `surveys.manage` even though two entries need it — those two rows hide
+      // themselves, and hiding the whole page would take the missing-data
+      // reports away from everyone who cannot run a survey campaign.
+      { href: "/reports", label: "Reports", capability: CAPABILITY.REPORTS_ADVANCED },
       { href: "/statistics", label: "Statistics" },
       {
         href: "/activity",

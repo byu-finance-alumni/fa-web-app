@@ -107,7 +107,7 @@ export default async function VocabularyAdminPage() {
           <div className="mx-auto max-w-3xl space-y-4">
             <p className="text-sm text-gray-500">
               Add, rename, or hide the options that appear in the app’s
-              dropdowns. Hiding a value keeps it valid on existing records — it
+              dropdowns. Hiding a value keeps it valid on existing records. It
               just won’t be offered for new entries.
             </p>
             {/* One tab per category instead of a long stacked list. */}

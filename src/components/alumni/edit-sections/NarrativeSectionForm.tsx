@@ -30,7 +30,7 @@ export function NarrativeSectionForm({
   return (
     <FocusedEditForm
       title="Narrative"
-      note="Provisional — the secondary-affiliation fields below are free-text context and may be reworked."
+      note="Provisional: the secondary-affiliation fields below are free-text context and may be reworked."
       formAction={formAction}
       pending={pending}
       error={state?.error}

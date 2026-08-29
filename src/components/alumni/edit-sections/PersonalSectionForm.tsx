@@ -180,7 +180,7 @@ export function PersonalSectionForm({
         defaultValue={defaults.birth_name}
         error={errors.birth_name}
         onBlur={(n, v) => handleNameBlur(n, v, false)}
-        hint="Maiden or former last name. Record it when a last name changes — searches match it too, so the alumna stays findable under her previous name."
+        hint="Maiden or former last name. Record it when a last name changes. Searches match it too, so the alumna stays findable under her previous name."
       />
       <div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-4">
         <Field

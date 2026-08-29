@@ -88,7 +88,7 @@ export function MaintenanceModeControl({ state }: { state: MaintenanceState }) {
         return;
       }
       toast.success(
-        "Maintenance mode is off. Everyone can sign in again — they will need " +
+        "Maintenance mode is off. Everyone can sign in again, and they will need " +
           "to, since their sessions were ended.",
       );
       setConfirmOff(false);
@@ -110,7 +110,7 @@ export function MaintenanceModeControl({ state }: { state: MaintenanceState }) {
             <p className="mt-2 text-sm text-gray-500">
               Nobody except engineers can sign in or use the site. Everyone else
               sees the maintenance page. You are still signed in because
-              engineers are exempt — that is what lets you turn this off.
+              engineers are exempt, which is what lets you turn this off.
             </p>
             <p className="mt-3 text-sm text-gray-500">
               Visitors are being shown:{" "}
@@ -142,8 +142,8 @@ export function MaintenanceModeControl({ state }: { state: MaintenanceState }) {
               <p id="maint-off-desc" className="text-sm text-gray-600">
                 The site comes back for everyone and normal sign-in resumes.
                 Sessions ended when maintenance started are{" "}
-                <span className="font-medium text-gray-900">not</span> restored —
-                everyone signs in again.
+                <span className="font-medium text-gray-900">not</span> restored.
+                Everyone signs in again.
               </p>
               <div className="mt-5 flex justify-end gap-2">
                 <Button
@@ -221,9 +221,9 @@ export function MaintenanceModeControl({ state }: { state: MaintenanceState }) {
                   off. Unsaved work in someone&rsquo;s open form will be lost.{" "}
                   <span className="font-medium text-gray-900">
                     Your own session is not affected
-                  </span>{" "}
-                  — engineers are exempt, so you can always turn it back off from
-                  this page.
+                  </span>
+                  : engineers are exempt, so you can always turn it back off
+                  from this page.
                 </p>
                 <label
                   htmlFor="maint-message"
@@ -242,7 +242,7 @@ export function MaintenanceModeControl({ state }: { state: MaintenanceState }) {
                 />
                 <p className="mt-1 text-xs text-gray-500">
                   This is shown publicly to anyone who visits the site. Keep it
-                  general — no system detail.
+                  general, with no system detail.
                 </p>
                 <div className="mt-5 flex justify-end gap-2">
                   <Button type="button" variant="secondary" onClick={closeOn}>

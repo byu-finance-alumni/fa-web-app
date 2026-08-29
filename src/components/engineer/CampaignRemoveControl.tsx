@@ -102,7 +102,7 @@ export function CampaignRemoveControl({
           size="sm"
           onClick={() => setConfirming("cancel")}
           disabled={pending}
-          title={`Cancel the ${graduationYear} campaign — it stops sending but stays listed`}
+          title={`Cancel the ${graduationYear} campaign: it stops sending but stays listed`}
         >
           Cancel
         </Button>
@@ -115,7 +115,7 @@ export function CampaignRemoveControl({
           size="sm"
           onClick={() => setConfirming("delete")}
           disabled={pending}
-          title={`Delete the ${graduationYear} campaign — the emails already sent are kept`}
+          title={`Delete the ${graduationYear} campaign: the emails already sent are kept`}
         >
           Delete
         </Button>

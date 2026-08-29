@@ -7,7 +7,10 @@ import { SurveyCampaignConsole } from "@/components/needs-surveying/SurveyCampai
 import { apiGet } from "@/lib/api";
 import { getAuthContext } from "@/lib/auth-context";
 import { isEngineer } from "@/constants/roles";
-import { engineerSupportContact } from "@/lib/survey-reset-contact";
+import {
+  engineerSupportContact,
+  surveySupportContact,
+} from "@/lib/survey-reset-contact";
 import type { ResetContact } from "@/lib/survey-reset-contact";
 import type { SupportContact } from "@/types/support";
 
@@ -30,13 +33,17 @@ import type { SupportContact } from "@/types/support";
  * on click, and a control that fails on press is worse than one that explains
  * itself. This is UX only; the backend re-enforces `RequireEngineer` regardless.
  *
- * The support contacts are fetched ONLY for a non-engineer, because they are
- * only used to tell someone who to ask. An engineer needs no such sentence, and
- * the request would be pure overhead on the page's critical path.
+ * The support contacts are fetched for EVERYONE who can see this page, not just
+ * non-engineers. They used to be skipped for an engineer, who needs no "ask
+ * this person" sentence — but the sample survey now shows the survey's public
+ * contact too (#774), and an engineer previewing an empty contact line while
+ * alumni see a populated one is exactly the sample-survey drift this dialog
+ * exists to prevent. One request, both answers.
  */
 async function resetAudience(): Promise<{
   isEngineer: boolean;
   engineerContact: ResetContact | null;
+  surveyContact: ResetContact | null;
 }> {
   let engineer = false;
   try {
@@ -44,20 +51,26 @@ async function resetAudience(): Promise<{
   } catch {
     /* fail closed — see above */
   }
-  if (engineer) return { isEngineer: true, engineerContact: null };
 
   let contacts: SupportContact[] = [];
   try {
     contacts = await apiGet<SupportContact[]>("/support-contacts");
   } catch {
     // No contacts is a supported state, not an error: the copy falls back to
-    // the Finance Department by name, with no invented address.
+    // the Finance Department by name, with no invented address, and the sample
+    // survey's contact line renders nothing — matching what the alum would see.
   }
-  return { isEngineer: false, engineerContact: engineerSupportContact(contacts) };
+  return {
+    isEngineer: engineer,
+    // An engineer is the engineer; there is nobody to tell them to ask.
+    engineerContact: engineer ? null : engineerSupportContact(contacts),
+    surveyContact: surveySupportContact(contacts),
+  };
 }
 
 export default async function NeedsSurveyingPage() {
-  const { isEngineer: engineer, engineerContact } = await resetAudience();
+  const { isEngineer: engineer, engineerContact, surveyContact } =
+    await resetAudience();
 
   return (
     <>
@@ -81,7 +94,7 @@ export default async function NeedsSurveyingPage() {
             </div>
 
             <div className="flex shrink-0 flex-col gap-2">
-              <SurveyPreview />
+              <SurveyPreview surveyContact={surveyContact} />
               <SurveyMessageEditor />
               <SurveyBulkScheduler />
             </div>

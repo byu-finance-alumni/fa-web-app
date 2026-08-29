@@ -152,7 +152,7 @@ export function PhotoImportWizard() {
       setSkipped([...notes, ...trimmed]);
       setFileError(
         kept.length === 0
-          ? "None of those files can be imported — see the list below."
+          ? "None of those files can be imported. See the list below."
           : null,
       );
     };
@@ -183,8 +183,8 @@ export function PhotoImportWizard() {
             name: archive.name,
             reason:
               archive.size > MAX_ARCHIVE_BYTES
-                ? `Archive is over ${formatBytes(MAX_ARCHIVE_BYTES)} — split it into smaller zips.`
-                : "Couldn't read that .zip — re-create it and try again.",
+                ? `Archive is over ${formatBytes(MAX_ARCHIVE_BYTES)}. Split it into smaller zips.`
+                : "Couldn't read that .zip. Re-create it and try again.",
           });
         }
       }
@@ -212,7 +212,7 @@ export function PhotoImportWizard() {
         }
         // The backend reports one target per name, in the order we sent them.
         if (minted.targets.length !== batch.length) {
-          setUploadError("Couldn't import the photos — please try again.");
+          setUploadError("Couldn't import the photos. Please try again.");
           setProgress(null);
           return;
         }
@@ -249,13 +249,13 @@ export function PhotoImportWizard() {
                     message:
                       put.status === 413
                         ? "The photo is over the 20 MB limit."
-                        : "Storage rejected the upload — try this one again.",
+                        : "Storage rejected the upload. Try this one again.",
                   };
             } catch {
               outcome = {
                 filename: file.name,
                 uploaded: false,
-                message: "The upload didn't finish — check your connection.",
+                message: "The upload didn't finish. Check your connection.",
               };
             }
             done += 1;
@@ -383,8 +383,8 @@ export function PhotoImportWizard() {
                   } that didn't land (CSV)`}
                 </Button>
                 <p className="mt-2 max-w-xl text-xs text-gray-600">
-                  File name, net ID, what went wrong, and what to do about it —
-                  a net ID nobody holds is a roster problem, a failed upload is
+                  File name, net ID, what went wrong, and what to do about it. A net ID
+                  nobody holds is a roster problem; a failed upload is
                   worth simply dragging in again.
                 </p>
               </>
@@ -411,7 +411,7 @@ export function PhotoImportWizard() {
         <p className="mt-1 text-sm text-gray-500">
           Bulk-add alumni headshots. Drop in image files, a <strong>.zip</strong>{" "}
           of images, or both. Each photo is matched to an alumnus by the{" "}
-          <strong>net ID in its filename</strong> — e.g.{" "}
+          <strong>net ID in its filename</strong>, e.g.{" "}
           <code className="rounded bg-gray-100 px-1 py-0.5 text-xs text-gray-700">
             jsmith.jpg
           </code>{" "}
@@ -423,11 +423,11 @@ export function PhotoImportWizard() {
           uploaded.
         </p>
         <p className="mt-2 text-sm text-gray-500">
-          JPEG, PNG, or WebP — up to {formatBytes(MAX_FILE_BYTES)} per photo and{" "}
+          JPEG, PNG, or WebP, up to {formatBytes(MAX_FILE_BYTES)} per photo and{" "}
           {MAX_FILES.toLocaleString()} photos per import. Photos upload straight
           to storage, so there&apos;s no cap on the batch as a whole; a big batch
           just takes a while, so leave this page open until it finishes.{" "}
-          <strong>HEIC isn&apos;t supported</strong> — convert iPhone photos to
+          <strong>HEIC isn&apos;t supported</strong>: convert iPhone photos to
           JPEG first.
         </p>
 
@@ -464,7 +464,7 @@ export function PhotoImportWizard() {
             Drag photos or a .zip here, or click to choose
           </p>
           <p className="mt-1 text-xs text-gray-500">
-            Anything that isn&apos;t a JPEG, PNG, or WebP is listed and skipped —
+            Anything that isn&apos;t a JPEG, PNG, or WebP is listed and skipped;
             the rest of the batch still uploads
           </p>
         </label>
@@ -504,7 +504,7 @@ export function PhotoImportWizard() {
 
         <SkippedList
           skipped={skipped}
-          caption="Skipped — the rest of the batch is unaffected."
+          caption="Skipped. The rest of the batch is unaffected."
         />
 
         {progress && (

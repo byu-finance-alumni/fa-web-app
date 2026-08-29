@@ -363,7 +363,7 @@ function ExportStep({
         <p className="mt-1 text-sm text-gray-500">
           Pick a cohort by graduation year or class year and export it. The
           export already carries every column and each alumnus&apos;s current
-          values, so you only edit the cells you want changed — then upload it
+          values, so you only edit the cells you want changed, then upload it
           above.
         </p>
       </div>
@@ -475,14 +475,14 @@ function UploadStep({
           <h2 className="text-lg font-semibold text-gray-900">Import CSV</h2>
           <p className="mt-1 text-sm text-gray-500">
             Drop in any CSV that has a <strong>Net ID</strong> column (or BYU
-            ID). Column headings are matched against the fields we store —
-            headings we don&apos;t recognize are ignored and listed for you,
+            ID). Column headings are matched against the fields we store.
+            Headings we don&apos;t recognize are ignored and listed for you,
             and columns your file leaves out are left alone.
           </p>
           <p className="mt-2 text-sm text-gray-500">
             Nothing is written yet. The next screen shows every row that would
             change, old value to new value, plus any Net ID that matched no
-            profile — you confirm from there.
+            profile. You confirm from there.
           </p>
         </div>
 
@@ -633,7 +633,7 @@ function ReviewStep({
             ))}
           </ul>
           <p className="mt-2 text-sm text-gray-700">
-            Fix the heading row and upload it again — no profiles can be updated
+            Fix the heading row and upload it again. No profiles can be updated
             until then. Exporting a cohort below gives you a file with the right
             headings already in place.
           </p>
@@ -650,7 +650,7 @@ function ReviewStep({
           </p>
           <p className="mt-1 text-sm text-gray-700">
             These headings don&apos;t match a field we store, so they were
-            skipped — the rest of each row still applies. If one of them is a
+            skipped, but the rest of each row still applies. If one of them is a
             typo, fix the heading and upload again.
           </p>
           <ul className="mt-3 max-h-40 list-inside list-disc space-y-1 overflow-auto pl-1 text-sm text-gray-700">
@@ -744,8 +744,8 @@ function ManualEditWarning({ alert }: { alert: ManualEditAlertData }) {
       <p className="mt-1 text-sm text-gray-700">
         Someone corrected these profiles by hand recently, and this file holds a
         different value. If the file is older than the correction, applying it
-        puts the old value back. Nothing is blocked — Apply still updates every
-        row below — so open the ones that look wrong first.
+        puts the old value back. Nothing is blocked: Apply still updates every
+        row below, so open the ones that look wrong first.
       </p>
 
       {/* Guard rather than an empty list: the count comes from the summary and
@@ -811,7 +811,7 @@ function ManualEditWarning({ alert }: { alert: ManualEditAlertData }) {
                       )}
                     </>
                   ) : (
-                    <span className="text-gray-500"> — editor not recorded</span>
+                    <span className="text-gray-500"> (editor not recorded)</span>
                   )}
                 </p>
               </li>
@@ -896,7 +896,7 @@ function UnmatchedList({ rows }: { rows: UpdateImportRowReport[] }) {
         {rows.length} unmatched row{rows.length === 1 ? "" : "s"} (not updated)
       </p>
       <p className="mt-1 text-sm text-gray-700">
-        No active profile matched these rows by BYU or Net ID — they are skipped,
+        No active profile matched these rows by BYU or Net ID, so they are skipped,
         never created.
       </p>
       <ul className="mt-3 max-h-48 space-y-1 overflow-auto text-sm">

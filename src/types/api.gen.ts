@@ -3510,6 +3510,14 @@ export interface paths {
          *     DEFAULTS TO APPROVED. An unfiltered read is the safe read: a caller who does
          *     not ask for unmoderated rows does not get them, whatever their role. A
          *     moderator asking for the queue passes ``?status=pending``.
+         *
+         *     ``submitted_from`` / ``submitted_to`` are the DATE RECEIVED range (#771) —
+         *     what the owner asked for as "listed in a report by date they were given to
+         *     us". They bound ``submitted_at``, not ``application_deadline``, and both ends
+         *     are inclusive whole days.
+         *
+         *     ``GET /opportunity-links/export`` takes these EXACT parameters and returns
+         *     exactly this population as CSV.
          */
         get: operations["list_opportunity_links_opportunity_links_get"];
         put?: never;
@@ -3520,6 +3528,61 @@ export interface paths {
          *     field fails the shared validation rules.
          */
         post: operations["create_opportunity_link_opportunity_links_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/opportunity-links/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Opportunity Links
+         * @description The dated report (#771): the filtered Links list as a CSV download.
+         *
+         *     ⚠️ DECLARED BEFORE ``/{link_id}`` — route matching is declaration-ordered, so
+         *     a literal path that comes after a ``/{param}`` pattern is never reached and
+         *     ``/export`` would 404 as "link id 'export'".
+         *
+         *     TAKES THE SAME PARAMETERS AS ``GET /opportunity-links`` AND RETURNS THE SAME
+         *     POPULATION. Identical names, identical types, identical defaults, resolved by
+         *     the same :func:`_resolve_filters` and run through the same
+         *     ``build_population_query`` — the only difference is that a report has no
+         *     ``limit``/``offset``, because it is the whole set rather than a page. That is
+         *     a structural guarantee, not a promise:
+         *     ``tests/test_opportunity_link_export_parity.py`` compiles both statements and
+         *     asserts the SQL and the binds match.
+         *
+         *     AUTHORIZATION IS EXACTLY THE LIST'S, deliberately: any view-access role may
+         *     export, and asking for ``pending``/``rejected`` needs ``surveys.manage`` here
+         *     too. Exporting what you can already see on screen is not an escalation, and
+         *     giving the export its own rule is how the two drift.
+         *
+         *     Over ``MAX_EXPORT_ROWS`` matches the caller gets a 413 asking them to narrow
+         *     the dates. Deliberately NOT a silent truncation: a report missing its tail
+         *     reads exactly like a complete one.
+         *
+         *     The cap is a SOFT bound and knowingly so: rows inserted between the count and
+         *     the fetch ride along, so a file can exceed it by however many postings arrived
+         *     in that window. Closing that would mean holding a lock across the whole export
+         *     for a limit whose only job is to keep the response inside the serverless body
+         *     cap — the wrong trade, and the drift is bounded by the submit rate limiter.
+         *
+         *     Audit-logged as ``export_opportunity_links`` with the row count and the
+         *     applied filters — what left the system and under which selection, never the
+         *     rows.
+         *
+         *     Returns ``text/csv`` with a ``Content-Disposition: attachment`` filename of
+         *     ``opportunity_links_<YYYY-MM-DD>.csv``.
+         */
+        get: operations["export_opportunity_links_opportunity_links_export_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3889,6 +3952,49 @@ export interface paths {
          * @description Edit a support contact (engineer only). 404 if missing.
          */
         patch: operations["update_support_contact_admin_support_contacts__contact_id__patch"];
+        trace?: never;
+    };
+    "/survey/contact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Survey Contact
+         * @description PUBLIC, and unlike everything else here NOT token-gated: the one support
+         *     contact the survey may name, or ``null``.
+         *
+         *     ⚠️ WHY THIS EXISTS AT ALL. The same two fields already ride on
+         *     ``GET /respond/{token}``, and that is what the real survey screens read. This
+         *     endpoint exists for the DEMO survey (``/survey/demo``), which renders sample
+         *     data without a token and so can never call that one. Without it the demo
+         *     silently omits a control the real survey shows, which is the sample-survey
+         *     drift we keep having to fix: staff sign off on a survey the alum does not get.
+         *
+         *     ⚠️ WHY IT IS ACCEPTABLE TO SERVE THIS WITHOUT A TOKEN. It is one row, two
+         *     fields, and only for a row somebody deliberately labelled for the survey --
+         *     never the seeded Engineer / Super Admin rows. The same address is already
+         *     handed to every alumnus holding a survey link, and its whole purpose is to be
+         *     written to. Jake made this call explicitly (2026-08-29) so the public demo
+         *     matches what alumni see.
+         *
+         *     ⚠️ WHAT IT MUST NEVER BECOME. Not a list, not any other contact, and not any
+         *     other field. ``GET /support-contacts`` stays authenticated: this is a narrow,
+         *     named exception, not the start of a public directory of staff addresses.
+         *
+         *     Rate-limited by CLIENT IP, not by token -- there is no token here to key on,
+         *     which is exactly what makes this route different from every other public one
+         *     in this file.
+         */
+        get: operations["survey_contact_survey_contact_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/survey/respond/{token}": {
@@ -5249,6 +5355,16 @@ export interface components {
              * @default false
              */
             missing_phone: boolean;
+            /**
+             * Missing Linkedin
+             * @default false
+             */
+            missing_linkedin: boolean;
+            /**
+             * Missing Photo
+             * @default false
+             */
+            missing_photo: boolean;
             /**
              * Duplicate
              * @default false
@@ -6941,6 +7057,10 @@ export interface components {
             missing_employer: number;
             /** Missing Phone */
             missing_phone: number;
+            /** Missing Linkedin */
+            missing_linkedin: number;
+            /** Missing Photo */
+            missing_photo: number | null;
             /** Duplicate Count */
             duplicate_count: number;
         };
@@ -9433,6 +9553,7 @@ export interface components {
             fields: {
                 [key: string]: string;
             };
+            support_contact: components["schemas"]["SurveySupportContact"] | null;
         };
         /**
          * SurveyResponseItem
@@ -9779,6 +9900,32 @@ export interface components {
              * @default false
              */
             confirmed: boolean;
+        };
+        /**
+         * SurveySupportContact
+         * @description Who a survey respondent may email directly (#774) — a NAME and an ADDRESS,
+         *     and deliberately nothing else.
+         *
+         *     ⚠️ THIS IS A NARROW, DELIBERATE EXCEPTION to the support-contacts privacy
+         *     rule, not an oversight. `app/api/routes/support.py` says there is
+         *     "deliberately NO unauthenticated endpoint, so these names/emails are never
+         *     exposed on the public login page", and that still holds: the rule protects a
+         *     surface anyone on the internet can load. This one rides on
+         *     `GET /survey/respond/{token}`, which needs a valid HMAC-signed survey token
+         *     we mailed to one alum, and it carries exactly ONE contact — the row the
+         *     engineer labelled for the survey — never the list.
+         *
+         *     So the exposure is one chosen person's work name and work address, to someone
+         *     already holding a link addressed to them, on the page that asks them to reply.
+         *     Keep it that way: no `support_contact_id`, no `role_label`, no `sort_order`,
+         *     no second contact. Those would turn a mailbox we are advertising back into
+         *     the staff directory the rule exists to protect.
+         */
+        SurveySupportContact: {
+            /** Name */
+            name: string;
+            /** Email */
+            email: string;
         };
         /**
          * SurveyUnreachableAlum
@@ -10497,6 +10644,10 @@ export interface operations {
                 missing_employer?: boolean;
                 /** @description Only alumni with no phone number on file. */
                 missing_phone?: boolean;
+                /** @description Only alumni with no LinkedIn URL on file (#775). A blank or whitespace-only value counts as missing. */
+                missing_linkedin?: boolean;
+                /** @description Only alumni with no headshot stored (#775). A headshot is an object in the private 'headshots' bucket keyed by the alumnus's net ID, so this is answered from ONE cached bucket listing (up to 5 minutes stale), never a per-row storage check. NOTE: alumni with NO net ID are INCLUDED - there is no key to store a photo under, so they cannot have one. Staged survey photos awaiting review do not count as a headshot. */
+                missing_photo?: boolean;
                 /** @description Only alumni flagged as duplicate candidates. */
                 duplicate?: boolean;
                 include_archived?: boolean;
@@ -14491,6 +14642,10 @@ export interface operations {
                 company?: string | null;
                 /** @description Free-text search over company, details, location and url. */
                 q?: string | null;
+                /** @description DATE RECEIVED, inclusive lower bound: only links submitted on or after this date. Matches submitted_at, NOT application_deadline. */
+                submitted_from?: string | null;
+                /** @description DATE RECEIVED, inclusive upper bound: only links submitted on or before this date. The whole day counts — a link that arrived at 23:59 UTC on this date is included. */
+                submitted_to?: string | null;
                 limit?: number;
                 offset?: number;
             };
@@ -14540,6 +14695,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OpportunityLinkRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_opportunity_links_opportunity_links_export_get: {
+        parameters: {
+            query?: {
+                /** @description Moderation state. Omit for approved links only. 'pending' / 'rejected' require the surveys.manage capability. */
+                status?: ("pending" | "approved" | "rejected") | null;
+                /** @description Internship / full-time / both. */
+                role_type?: ("internship" | "full_time" | "both") | null;
+                /** @description Substring match on the company the link is listed under — the typed name, or the alum's employer for 'my company' entries. */
+                company?: string | null;
+                /** @description Free-text search over company, details, location and url. */
+                q?: string | null;
+                /** @description DATE RECEIVED, inclusive lower bound: only links submitted on or after this date. Matches submitted_at, NOT application_deadline. */
+                submitted_from?: string | null;
+                /** @description DATE RECEIVED, inclusive upper bound: only links submitted on or before this date. The whole day counts — a link that arrived at 23:59 UTC on this date is included. */
+                submitted_to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -15137,6 +15334,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    survey_contact_survey_contact_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveySupportContact"] | null;
                 };
             };
         };

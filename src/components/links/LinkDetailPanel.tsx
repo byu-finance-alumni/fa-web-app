@@ -140,7 +140,7 @@ function LinkDetailContent({ link, now }: { link: OpportunityLink; now: Date }) 
               <>
                 <span className="text-gray-700">{link.url}</span>
                 <span className="mt-1 block text-xs text-danger-600">
-                  Not a usable http(s) address — shown as text, not a link.
+                  Not a usable http(s) address, so it is shown as text, not a link.
                 </span>
               </>
             )}

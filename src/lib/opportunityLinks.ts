@@ -683,14 +683,14 @@ export function linkSubmitErrorMessage(status: number | null): string {
     case 410:
       return "This survey link has expired, so we couldn't save your opportunities. Your other updates were received. Please ask the BYU Finance team for a fresh link.";
     case 429:
-      return "We've had too many submissions from this link in a short time. Please wait a few minutes and press submit again — nothing was sent twice.";
+      return "We've had too many submissions from this link in a short time. Please wait a few minutes and press submit again. Nothing was sent twice.";
     case 400:
     case 422:
-      return "One of your opportunities couldn't be saved — please check the link and the details, then press submit again. None of them were saved yet.";
+      return "One of your opportunities couldn't be saved. Please check the link and the details, then press submit again. None of them were saved yet.";
     case 413:
       return "Your opportunity details are too long to save. Please shorten them and press submit again.";
     default:
-      return "We couldn't save your opportunities just now. Your other updates were received — please press submit again to retry just the opportunities.";
+      return "We couldn't save your opportunities just now. Your other updates were received. Please press submit again to retry just the opportunities.";
   }
 }
 
@@ -757,6 +757,27 @@ const isRoleType = (v: unknown): v is LinkRoleType =>
 const isStatus = (v: unknown): v is LinkStatus =>
   typeof v === "string" && (STATUSES as readonly string[]).includes(v);
 
+/**
+ * A real calendar date written `YYYY-MM-DD` — the shape both `<input type="date">`
+ * and the backend's `submitted_from` / `submitted_to` speak.
+ *
+ * The round-trip through `Date` is the point: the regex alone accepts
+ * `2026-02-30` and `2026-13-01`, which the backend answers with a 422 whose
+ * cause is invisible on screen. Anything that is not a date the calendar
+ * actually has is dropped back to "no bound" instead.
+ */
+export function isIsoDate(v: unknown): v is string {
+  if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const d = new Date(`${v}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
+}
+
+/**
+ * The row cap `GET /opportunity-links/export` enforces with a 413. Stated here
+ * so the message the user reads names the same number the backend refused on.
+ */
+export const MAX_EXPORT_ROWS = 10_000;
+
 /* ------------------------------------------------------------------ *
  * Filter state — URL in, backend query out
  * ------------------------------------------------------------------ */
@@ -771,6 +792,17 @@ export interface LinksFilterState {
   role_type: "" | LinkRoleType;
   /** Substring match on the company the link is listed under. */
   company: string;
+  /**
+   * DATE RECEIVED, inclusive lower bound as `YYYY-MM-DD`; "" for open-ended.
+   *
+   * ⚠️ This bounds `submitted_at` — when the posting reached US — and NOT
+   * `application_deadline`. Tanya asked for postings "listed in a report by date
+   * they were given to us" (#771); a range over the deadline would answer a
+   * different question with the same-looking screen.
+   */
+  submitted_from: string;
+  /** DATE RECEIVED, inclusive upper bound. The WHOLE day counts. */
+  submitted_to: string;
 }
 
 export const EMPTY_LINKS_FILTERS: LinksFilterState = {
@@ -778,6 +810,8 @@ export const EMPTY_LINKS_FILTERS: LinksFilterState = {
   status: DEFAULT_STATUS,
   role_type: "",
   company: "",
+  submitted_from: "",
+  submitted_to: "",
 };
 
 /** The raw `searchParams` shape the route hands us. */
@@ -786,6 +820,8 @@ export type LinksSearchParams = {
   status?: string;
   role_type?: string;
   company?: string;
+  submitted_from?: string;
+  submitted_to?: string;
   offset?: string;
 };
 
@@ -800,6 +836,10 @@ export function parseLinksFilters(sp: LinksSearchParams): LinksFilterState {
     status: isStatus(sp.status) ? sp.status : DEFAULT_STATUS,
     role_type: isRoleType(sp.role_type) ? sp.role_type : "",
     company: sp.company ?? "",
+    // Same rule as the enums above: a date the calendar does not have becomes
+    // "no bound" rather than a 422 nobody can see the cause of.
+    submitted_from: isIsoDate(sp.submitted_from) ? sp.submitted_from : "",
+    submitted_to: isIsoDate(sp.submitted_to) ? sp.submitted_to : "",
   };
 }
 
@@ -821,6 +861,8 @@ export function toLinksQs(f: LinksFilterState): string {
   if (f.status !== DEFAULT_STATUS) p.set("status", f.status);
   if (f.role_type) p.set("role_type", f.role_type);
   if (f.company.trim()) p.set("company", f.company.trim());
+  if (f.submitted_from) p.set("submitted_from", f.submitted_from);
+  if (f.submitted_to) p.set("submitted_to", f.submitted_to);
   return p.toString();
 }
 
@@ -833,25 +875,57 @@ export function linksHref(f: LinksFilterState, offset = 0): string {
 }
 
 /**
- * The backend query for a filter state — DERIVED from the same object the URL
- * round-trips, never assembled separately (see the module header).
+ * THE SELECTION. One function turns a `LinksFilterState` into backend params,
+ * and both readers of that population are built from it: the list
+ * ({@link toLinksApiQuery}) and the CSV report ({@link toLinksExportQuery}).
+ * They differ by paging and by nothing else.
+ *
+ * ⚠️ THIS IS THE EXPORT/LIST PARITY GUARD ON THIS SIDE OF THE WIRE. The backend
+ * makes the same promise structurally — one `_resolve_filters` feeding one
+ * `build_population_query` for the list, the count and the file — and the way to
+ * defeat it from here is to assemble the export's params separately and let the
+ * two drift by a filter. So there is only one assembler. A filter added here
+ * reaches both endpoints or neither; it cannot reach one.
  *
  * `status` is sent explicitly even when it equals the backend's default: the one
  * thing worse than a redundant param is a list whose contents depend on an
  * implicit default we then have to remember on both ends.
  */
-export function toLinksApiQuery(
-  f: LinksFilterState,
-  { limit = LINKS_PAGE_SIZE, offset = 0 }: { limit?: number; offset?: number } = {},
-): string {
+function linksFilterParams(f: LinksFilterState): URLSearchParams {
   const p = new URLSearchParams();
   p.set("status", f.status);
   if (f.role_type) p.set("role_type", f.role_type);
   if (f.company.trim()) p.set("company", f.company.trim());
   if (f.q.trim()) p.set("q", f.q.trim());
+  if (f.submitted_from) p.set("submitted_from", f.submitted_from);
+  if (f.submitted_to) p.set("submitted_to", f.submitted_to);
+  return p;
+}
+
+/**
+ * The backend query for one PAGE of a filter state — DERIVED from the same
+ * object the URL round-trips, never assembled separately (see the module
+ * header), and from the same selection the export uses.
+ */
+export function toLinksApiQuery(
+  f: LinksFilterState,
+  { limit = LINKS_PAGE_SIZE, offset = 0 }: { limit?: number; offset?: number } = {},
+): string {
+  const p = linksFilterParams(f);
   p.set("limit", String(limit));
   p.set("offset", String(offset));
   return p.toString();
+}
+
+/**
+ * The backend query for the CSV report: the list's query MINUS `limit` and
+ * `offset`, because a report is the whole selection rather than a page.
+ *
+ * That subtraction is the ONLY difference, and it is expressed as a subtraction
+ * rather than as a second builder on purpose — see {@link linksFilterParams}.
+ */
+export function toLinksExportQuery(f: LinksFilterState): string {
+  return linksFilterParams(f).toString();
 }
 
 /**
@@ -860,6 +934,67 @@ export function toLinksApiQuery(
  */
 export function hasActiveLinkFilters(f: LinksFilterState): boolean {
   return toLinksQs(f) !== "";
+}
+
+/**
+ * The one thing a user can type into the date range that the backend answers
+ * with a 422: a lower bound after the upper bound.
+ *
+ * ⚠️ It has to be SAID. An inverted range selects nothing, and the honest-looking
+ * rendering of "nothing" is the empty state — "No links match your filters" —
+ * which reads as a fact about the data rather than as a typo in the form. Every
+ * caller checks this before it asks: the page before it fetches, the export
+ * before it downloads, the toolbar under the inputs as you type.
+ *
+ * ISO dates compare correctly as strings — same length, most-significant field
+ * first — so no parsing is needed to order them.
+ */
+export function linksDateRangeError(
+  f: Pick<LinksFilterState, "submitted_from" | "submitted_to">,
+): string | null {
+  if (!f.submitted_from || !f.submitted_to) return null;
+  if (f.submitted_from <= f.submitted_to) return null;
+  return "The “received from” date is after the “received to” date, so nothing can match. Swap them, or clear one.";
+}
+
+/**
+ * What a failed CSV export tells the person who clicked the button.
+ *
+ * Every branch names something they can DO. Deliberately built from the status
+ * code alone and never from the backend's own text — same rule as
+ * `describeLoadFailure` (#688): upstream messages on this app can carry table
+ * names and record ids, and this one is going into a toast.
+ */
+export function linksExportErrorMessage(status: number | null): string {
+  if (status === 403) {
+    // The list already refuses to show pending/rejected without surveys.manage,
+    // so this is reachable mainly from a stale tab or a hand-edited URL.
+    return "You can export approved links, but pending and rejected ones need review access. Set the status filter back to Approved, or ask a Super Admin for review access.";
+  }
+  if (status === 413) {
+    return `That selection is too big for one file (the limit is ${MAX_EXPORT_ROWS.toLocaleString()} links). Narrow the date range, or add a company or status filter, and export again.`;
+  }
+  if (status === 422) {
+    // The only 422 this screen can produce is the inverted range, so say that
+    // rather than "invalid request".
+    return "The date range wasn’t accepted: check that the “received from” date is on or before the “received to” date.";
+  }
+  if (status === 401) {
+    return "Your session has expired, so the export didn’t run. Sign in again and try it once more.";
+  }
+  if (status === 429) {
+    return "Too many requests just now, so the export didn’t run. Wait a few seconds and try again.";
+  }
+  return "The export didn’t run, so no file was downloaded. Nothing has changed. Try again in a moment.";
+}
+
+/**
+ * Fallback download name, matching what the backend puts in its
+ * `Content-Disposition` header. Only used when that header is missing or
+ * unreadable; the server's own name wins whenever it is there.
+ */
+export function linksExportFilename(now: Date = new Date()): string {
+  return `opportunity_links_${now.toISOString().slice(0, 10)}.csv`;
 }
 
 /* ------------------------------------------------------------------ *
@@ -1434,7 +1569,7 @@ export function bulkDeleteBlockedReason(
   const count = toBulkDeleteIds(ids).length;
   if (count === 0) return "Select at least one link to delete.";
   if (count > MAX_LINKS_PER_BULK_DELETE)
-    return `You can delete ${MAX_LINKS_PER_BULK_DELETE} links at a time. ${count} are selected — clear some and try again.`;
+    return `You can delete ${MAX_LINKS_PER_BULK_DELETE} links at a time. ${count} are selected. Clear some and try again.`;
   return null;
 }
 
@@ -1453,7 +1588,7 @@ export function selectionCountLabel(count: number): string {
  * order, because those are the two facts that should stop a mis-click.
  */
 export function bulkDeleteConfirmMessage(count: number): string {
-  return `Permanently delete ${linkCountLabel(count)}? This cannot be undone — the ${
+  return `Permanently delete ${linkCountLabel(count)}? This cannot be undone. The ${
     count === 1 ? "link is" : "links are"
   } removed from the list for everyone.`;
 }
@@ -1479,7 +1614,7 @@ export function bulkDeleteOutcomeMessage(
   if (deleted === 0) {
     return {
       tone: "warning",
-      message: `Nothing was deleted — ${linkCountLabel(
+      message: `Nothing was deleted: ${linkCountLabel(
         missing,
       )} had already been removed by someone else. The list has been refreshed.`,
     };

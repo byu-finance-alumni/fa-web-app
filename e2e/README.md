@@ -13,6 +13,11 @@ a locally-built server — `playwright.config.ts` deliberately has **no
     control),
   - the public landing `/` responds without erroring (lenient — it may redirect),
   - browser **Back** on public routes stays sane (no error, login form intact).
+- **`reports-back.spec.ts`** — the authenticated walk for the **#775 review**:
+  from `/reports`, clicking a report must add **exactly one** history entry, so a
+  single Back returns to Reports rather than to the unfiltered alumni list; and
+  typing in the list's search box must **replace** that entry rather than stack
+  one per keystroke. It **self-skips** unless `E2E_USER` / `E2E_PASS` are set.
 - **`backbutton-logout.spec.ts`** — the authenticated repro for **issue #31**
   (back-button-logout). It logs in, navigates a few pages, then presses Back
   several times and asserts the user is never bounced to `/login`. It

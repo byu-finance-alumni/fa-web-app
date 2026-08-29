@@ -135,14 +135,14 @@ export function waysToHelpThanksBody({
   const parts: string[] = [];
   if (answerCount > 0) {
     parts.push(
-      "We've recorded what you're open to helping with — our team reviews every response before anything is added to your record, and someone will be in touch before you're asked to do anything.",
+      "We've recorded what you're open to helping with. Our team reviews every response before anything is added to your record, and someone will be in touch before you're asked to do anything.",
     );
   }
   if (linkCount > 0) {
     parts.push(
       linkCount === 1
-        ? "We've also received the opportunity you shared — our team checks each one before passing it on to students."
-        : `We've also received the ${linkCount} opportunities you shared — our team checks each one before passing them on to students.`,
+        ? "We've also received the opportunity you shared. Our team checks each one before passing it on to students."
+        : `We've also received the ${linkCount} opportunities you shared. Our team checks each one before passing them on to students.`,
     );
   }
   if (parts.length === 0) {

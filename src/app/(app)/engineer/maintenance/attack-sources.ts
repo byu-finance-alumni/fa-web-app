@@ -286,7 +286,7 @@ export const ATTACK_PANEL_HIDE_LABEL = "Hide failed sign-ins by source";
 
 /** The plain, joke-free line under the button. This one has to be unmissable. */
 export const ATTACK_PANEL_DESCRIPTION =
-  "Failed sign-ins grouped by source IP — who, from where, how many, and how fast.";
+  "Failed sign-ins grouped by source IP: who, from where, how many, and how fast.";
 
 /** The button's label for a given state. */
 export function attackPanelLabel(open: boolean): string {

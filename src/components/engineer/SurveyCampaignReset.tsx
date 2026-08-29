@@ -64,7 +64,7 @@ export const RESPONSE_STATUS: Record<
 > = {
   pending: {
     label: "Awaiting review",
-    note: "still in the review queue — a reset leaves it there, and it can still be applied to their profile",
+    note: "still in the review queue; a reset leaves it there, and it can still be applied to their profile",
     tone: "warning",
   },
   applied: {
@@ -84,7 +84,7 @@ export const RESPONSE_STATUS: Record<
   // to accept or discard. Hence `neutral` rather than `warning` (nothing is
   // waiting on anyone) or `muted` (it is not a dud).
   confirmed: {
-    label: "Confirmed — no changes",
+    label: "Confirmed, no changes",
     note: "they replied to say everything we hold was already correct, so there is nothing to review or apply",
     tone: "neutral",
   },
@@ -332,7 +332,7 @@ export function SurveyCampaignReset() {
               </ul>
             ) : (
               <p className="mt-1 text-sm text-gray-700">
-                Yes — nothing is holding them back, so a reset would change
+                Yes. Nothing is holding them back, so a reset would change
                 nothing.
               </p>
             )}
@@ -505,7 +505,7 @@ export function SurveyCampaignReset() {
                         ? "One of those is still awaiting review"
                         : `${unreviewed} of those are still awaiting review`}
                     </span>{" "}
-                    and stays in the review queue — you can still apply{" "}
+                    and stays in the review queue, so you can still apply{" "}
                     {unreviewed === 1 ? "it" : "them"} to their profile
                     afterwards, submitted photo included.
                   </li>

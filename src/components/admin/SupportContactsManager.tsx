@@ -35,7 +35,7 @@ export function SupportContactsManager({
     <div className="space-y-3">
       {contacts.length === 0 ? (
         <Card className="p-6 text-center text-sm text-gray-500">
-          No support contacts yet. Add one below — it’ll show to signed-in users
+          No support contacts yet. Add one below and it’ll show to signed-in users
           on the error screen.
         </Card>
       ) : (

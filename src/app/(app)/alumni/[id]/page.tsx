@@ -25,6 +25,8 @@ import {
   AddRoleButton,
   AddTaskButton,
   ArchiveControls,
+  DoNotContactBanner,
+  DoNotContactControl,
   EducationRowActions,
   EmploymentRowActions,
   LeadershipRowActions,
@@ -724,6 +726,11 @@ export async function AlumniProfileView({
 
       <main className="flex-1 overflow-y-auto bg-gray-100 p-4 md:p-6">
         <div className="mx-auto max-w-6xl space-y-4">
+          {/* #772 — the record's loudest fact, first, for EVERY role. The red
+              `Do Not Contact` chip in the tag row is easy to skim past; this
+              says the exclusion in words before anything else on the page. It
+              renders nothing when the label is absent. */}
+          <DoNotContactBanner name={name} statusLabels={profile.status_labels} />
           {/* #627 — the edit that just saved created a name + graduation-year
               collision. Advisory, never blocking: two alumni genuinely can share
               a name and a year, so this states the fact and links to the other
@@ -734,7 +741,7 @@ export async function AlumniProfileView({
               className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"
             >
               <p className="font-semibold">
-                Saved — but this name is now shared.
+                Saved. This name is now shared.
               </p>
               <p className="mt-1">
                 {duplicates.length === 1
@@ -914,6 +921,16 @@ export async function AlumniProfileView({
                       <Button asChild>
                         <Link href={`/alumni/${aid}/edit`}>Edit</Link>
                       </Button>
+                      {/* #772 — sets/clears the EXISTING `Do Not Contact`
+                          status label (the one the survey already suppresses on)
+                          in one click instead of hunting through the status
+                          field. Gated on canEdit, which mirrors the backend's
+                          RequireAlumniEdit on the status-label routes. */}
+                      <DoNotContactControl
+                        alumniId={aid}
+                        name={name}
+                        statusLabels={profile.status_labels}
+                      />
                       {canArchive ? (
                         <ArchiveControls
                           alumniId={aid}
@@ -1433,6 +1450,7 @@ export async function AlumniProfileView({
                   <div className="space-y-5">
                     <TagStatusManager
                       alumniId={aid}
+                      name={name}
                       tags={profile.tags}
                       statusLabels={profile.status_labels}
                     />
@@ -1603,7 +1621,7 @@ export async function AlumniProfileView({
                         // ledger to record a gift. Secondary text-only action.
                         <Button asChild variant="secondary" size="sm">
                           <Link href="/pay-it-forward">
-                            Pay It Forward — record a donation
+                            Record a Pay It Forward donation
                           </Link>
                         </Button>
                       }
@@ -2227,6 +2245,11 @@ export async function AlumniProfileView({
                     fileBaseName={`${name.replace(/\s+/g, "-").toLowerCase()}-${aid}`}
                   />
                 ) : null}
+                <DoNotContactControl
+                  alumniId={aid}
+                  name={name}
+                  statusLabels={profile.status_labels}
+                />
                 {canArchive ? (
                   <ArchiveControls
                     alumniId={aid}

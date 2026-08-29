@@ -153,8 +153,8 @@ export function LinksSelectionToggle() {
       {selection.active ? "Done" : "Edit"}
       <span className="sr-only">
         {selection.active
-          ? " — leave selection mode"
-          : " links — select rows to delete"}
+          ? " (leave selection mode)"
+          : " links (select rows to delete)"}
       </span>
     </Button>
   );

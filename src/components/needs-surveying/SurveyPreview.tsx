@@ -10,6 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { SAMPLE_ALUM, SAMPLE_ALUM_NAME } from "@/lib/sampleAlumni";
 import { emptyLinkEntry, type LinkEntry } from "@/lib/opportunityLinks";
+import { type WaysToHelpMode } from "@/lib/surveyWaysToHelp";
+import { SurveyContactLink } from "@/components/survey/SurveyContactLink";
 import {
   DEFAULT_SURVEY_CLOSING,
   DEFAULT_SURVEY_MESSAGE,
@@ -55,7 +57,15 @@ import {
  * Nothing is sent: no API call, no token, and Submit only advances to the
  * thank-you screen so the last step is visible too.
  */
-export function SurveyPreview() {
+export function SurveyPreview({
+  surveyContact,
+}: {
+  /** The row the survey's public endpoint would serve (#774). Resolved by the
+   *  page from the AUTHENTICATED support-contacts list, because this dialog has
+   *  no survey token to read the public payload with. Same row either way --
+   *  `surveySupportContact` mirrors the backend's label rule. */
+  surveyContact?: { name?: string | null; email?: string | null } | null;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -74,7 +84,7 @@ export function SurveyPreview() {
         <DialogContent
           className="max-w-3xl"
           title="Sample survey"
-          description="The email message, then exactly what an alum sees, using a sample record. Click through it — no email is sent and no record is touched."
+          description="The email message, then exactly what an alum sees, using a sample record. Click through it: no email is sent and no record is touched."
         >
           {/*
             Open the real survey page in a new tab, on the sample record, landing
@@ -102,7 +112,7 @@ export function SurveyPreview() {
               rel="noopener noreferrer"
               className="inline-block text-sm font-medium text-brand-blue-600 underline underline-offset-2 hover:text-brand-blue-500"
             >
-              Open the full survey in a new tab — as an alum sees it after &ldquo;I
+              Open the full survey in a new tab, as an alum sees it after &ldquo;I
               need to make changes&rdquo;
             </a>
           </div>
@@ -110,7 +120,7 @@ export function SurveyPreview() {
           {/* Remounting on each open resets the walkthrough, so the dialog
               always opens on the review screen rather than wherever the last
               viewer stopped. */}
-          {open ? <PreviewBody /> : null}
+          {open ? <PreviewBody surveyContact={surveyContact} /> : null}
 
           <DialogFooter>
             <Button
@@ -129,19 +139,32 @@ export function SurveyPreview() {
 }
 
 /**
- * `helping` is where "Yes, everything is correct" leads (#755) — the real
- * survey POSTs the confirmation and navigates to `/survey/{token}/help`, and
- * the preview walks the same screen so staff see the ask an alum who confirms
- * actually gets. Nothing is posted from here.
+ * `helping` is where BOTH branches of the fork end.
+ *
+ * "Yes, everything is correct" leads there (#755) — the real survey POSTs the
+ * confirmation and navigates to `/survey/{token}/help` — and so does Continue at
+ * the end of the edit flow (#773), where the real survey stays on the page and
+ * posts the edits and the involvement answers together. The preview walks the
+ * same screen from either direction, in the matching `WaysToHelpMode`, so staff
+ * see the ask an alum actually gets rather than the one branch that had it
+ * first. Nothing is posted from here.
  */
 type PreviewStatus = "review" | "helping" | "editing" | "submitted";
 
-function PreviewBody() {
+function PreviewBody({
+  surveyContact,
+}: {
+  surveyContact?: { name?: string | null; email?: string | null } | null;
+}) {
   const fields: Fields = SAMPLE_ALUM;
   const name = SAMPLE_ALUM_NAME;
   const firstName = name.split(/\s+/)[0] || name;
 
   const [status, setStatus] = useState<PreviewStatus>("review");
+  // Which branch reached the ways-to-help screen, so the preview shows the copy
+  // that branch really carries (#773) — "you're already done" after a
+  // confirmation, "your updates aren't in yet" after edits.
+  const [helpMode, setHelpMode] = useState<WaysToHelpMode>("confirmed");
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [edits, setEdits] = useState<Fields>({});
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -189,7 +212,7 @@ function PreviewBody() {
   return (
     <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
       <p className="mb-5 rounded-md border border-brand-blue-300/50 bg-brand-blue-50 px-4 py-2 text-xs text-navy-800">
-        Preview — top to bottom, in the order an alum meets it: the email intro,
+        Preview, top to bottom, in the order an alum meets it: the email intro,
         the survey itself, then the closing. Nothing you type in the survey is
         saved or sent; the email copy is real and saves as you type.
       </p>
@@ -212,7 +235,7 @@ function PreviewBody() {
 
       {status === "submitted" ? (
         <SuccessPanel
-          title="Thank you — your updates are in"
+          title="Thank you. Your updates are in"
           body="Our team will review your response before any changes are applied to your record. You can safely close this page."
         />
       ) : status === "helping" ? (
@@ -222,6 +245,7 @@ function PreviewBody() {
         // navigating inside the dialog would take the console page with it.
         <WaysToHelp
           firstName={firstName}
+          mode={helpMode}
           valueOf={valueOf}
           setEdit={setEdit}
           links={links}
@@ -253,7 +277,13 @@ function PreviewBody() {
           links={links}
           setLinks={setLinks}
           onBack={() => setStatus("review")}
-          onSubmit={() => setStatus("submitted")}
+          // Continue leads to the ways-to-help screen, exactly as it does for an
+          // alum (#773) — the preview walks the ending, it doesn't skip to the
+          // thank-you.
+          onSubmit={() => {
+            setHelpMode("edited");
+            setStatus("helping");
+          }}
           submitting={false}
           submitError={null}
         />
@@ -302,7 +332,10 @@ function PreviewBody() {
                 variant="navy"
                 size="lg"
                 className="w-full sm:w-auto"
-                onClick={() => setStatus("helping")}
+                onClick={() => {
+                  setHelpMode("confirmed");
+                  setStatus("helping");
+                }}
               >
                 Yes, everything is correct
               </Button>
@@ -325,11 +358,18 @@ function PreviewBody() {
         </>
       )}
 
+      {/* The real survey renders this as the last child of `SurveyPageShell` on
+          EVERY screen (#774), so the sample has to carry it too or staff are
+          previewing a survey the alum does not get. It reads the same config and
+          renders nothing when no contact is set — so an unconfigured preview
+          showing no link is correct, not a bug. */}
+      <SurveyContactLink contact={surveyContact} />
+
       <EmailCopyBlock
         id="preview-email-closing"
         step="3 · Email"
         title="Closing & sign-off"
-        hint="Read last, below their details and the button — confirm instructions and the sign-off."
+        hint="Read last, below their details and the button: confirm instructions and the sign-off."
         value={closing}
         onChange={setClosing}
         placeholder={DEFAULT_SURVEY_CLOSING}

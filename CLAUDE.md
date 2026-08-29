@@ -493,8 +493,15 @@ App runs at http://localhost:3000.
 
 **The middleware builds a Supabase client on every request**, so if
 `NEXT_PUBLIC_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` is missing,
-**every route returns 500**. These two (plus `NEXT_PUBLIC_API_URL`) are the only
-vars the app reads. Pull them from the Vercel project matching your target with
+**every route returns 500**. These two, plus `NEXT_PUBLIC_API_URL`, are the only
+vars the app reads.
+
+> ⚠️ The survey's "email us directly" address is **not** an env var. It is a row
+> in `support_contacts` whose role label contains "survey", edited in the
+> engineer console — no redeploy. `NEXT_PUBLIC_SURVEY_CONTACT_*` existed briefly
+> and were removed; do not reintroduce them.
+
+Pull them from the Vercel project matching your target with
 `vercel env pull` — they are browser-safe (publishable) keys, matching the same
 environment's `fa-web-api`.
 

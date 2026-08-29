@@ -107,7 +107,7 @@ export async function previewDonationsImport(
   } catch (e) {
     return {
       ok: false,
-      error: e instanceof ApiError ? e.message : "Couldn't read the file — try again.",
+      error: e instanceof ApiError ? e.message : "Couldn't read the file. Try again.",
     };
   }
 }
@@ -125,7 +125,7 @@ export async function commitDonationsImport(
   } catch (e) {
     return {
       ok: false,
-      error: e instanceof ApiError ? e.message : "Import failed — try again.",
+      error: e instanceof ApiError ? e.message : "Import failed. Try again.",
     };
   }
 }

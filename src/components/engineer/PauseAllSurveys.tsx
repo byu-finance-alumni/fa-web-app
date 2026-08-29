@@ -44,10 +44,10 @@ export function PauseAllSurveys({ activeYears }: { activeYears: number[] }) {
       const { paused, graduation_years } = res.result;
       if (paused === 0) {
         // Someone else stopped them between the page render and the click.
-        toast.success("No campaigns were running — nothing to pause.");
+        toast.success("No campaigns were running, so there was nothing to pause.");
       } else {
         toast.success(
-          `Paused ${paused} campaign${paused === 1 ? "" : "s"} — ` +
+          `Paused ${paused} campaign${paused === 1 ? "" : "s"} for ` +
             `graduation year${paused === 1 ? "" : "s"} ${graduation_years.join(", ")}. ` +
             `No emails will send until ${paused === 1 ? "it is" : "they are"} resumed.`,
         );
@@ -101,7 +101,7 @@ export function PauseAllSurveys({ activeYears }: { activeYears: number[] }) {
               <span className="font-medium text-gray-900">
                 This is reversible.
               </span>{" "}
-              Resuming picks each campaign up exactly where it left off — the
+              Resuming picks each campaign up exactly where it left off. The
               time spent paused doesn’t count against its reminder schedule, so
               nothing is skipped. To stop {count === 1 ? "it" : "them"} for good
               instead, use Stop all active surveys.

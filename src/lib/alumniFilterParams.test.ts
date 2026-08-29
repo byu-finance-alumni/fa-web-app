@@ -112,6 +112,8 @@ const MAXIMAL: AlumniFilterState = {
   deceased: "exclude",
   missingEmail: true,
   missingEmployer: true,
+  missingLinkedin: true,
+  missingPhoto: true,
   duplicate: true,
   needsSurvey: false,
   sort: "grad_desc",
@@ -607,6 +609,10 @@ function exportBodyAsParams(e: AlumniExportFilters): URLSearchParams {
   flag("cpa", e.cpa);
   flag("missing_email", e.missing_email);
   flag("missing_employer", e.missing_employer);
+  // fa-web-api#775. Read here too, or the parity assertions silently stop
+  // covering the two newest filters -- exactly what the note below warns about.
+  flag("missing_linkedin", e.missing_linkedin);
+  flag("missing_photo", e.missing_photo);
   flag("duplicate", e.duplicate);
   flag("include_archived", e.include_archived);
   flag("needs_survey", e.needs_survey);

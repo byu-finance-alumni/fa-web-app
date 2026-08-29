@@ -124,7 +124,7 @@ export function CreateUserDialog({
       await navigator.clipboard.writeText(tempPassword);
       toast.success("Temporary password copied.");
     } catch {
-      toast.error("Couldn't copy — select and copy it manually.");
+      toast.error("Couldn't copy. Select and copy it manually.");
     }
   }
 

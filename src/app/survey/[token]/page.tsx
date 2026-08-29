@@ -18,16 +18,19 @@ import {
   ReviewSections,
   SuccessPanel,
   TrustNote,
+  WaysToHelp,
   initialsOf,
   type Fields,
 } from "@/components/survey/survey-screens";
 import { SurveyPageShell } from "@/components/survey/SurveyPageShell";
+import { SurveyContactLink } from "@/components/survey/SurveyContactLink";
 import {
   confirmErrorMessage,
   confirmOnlyBody,
   isDeadTokenStatus,
   waysToHelpHref,
 } from "@/lib/surveyConfirm";
+import { editSubmitBody } from "@/lib/surveyWaysToHelp";
 import type { components } from "@/types/api.gen";
 
 /**
@@ -36,7 +39,8 @@ import type { components } from "@/types/api.gen";
  * The signed token in the URL resolves (via public `GET /survey/respond/{token}`)
  * to the alum's REAL on-file info. Review shows the full field list; "I need to
  * make changes" opens a section menu (Employment / Personal / …) the
- * alum drills into. `demo` shows the sample alum.
+ * alum drills into, and Continue there leads to the ways-to-help step every
+ * alum now ends on (#773). `demo` shows the sample alum.
  *
  * This file owns only the DATA: resolving the token, staging the response, and
  * uploading the photo. Every screen comes from
@@ -57,8 +61,24 @@ import type { components } from "@/types/api.gen";
  * confirmation is a row in the database and the alum is asked to help rather
  * than shown a wall. If you find yourself re-adding a local "confirmed" screen,
  * you are re-adding the dead end.
+ *
+ * `"helping"` is the EDIT branch's version of that same ending (#773): the
+ * involvement questions and the jobs/internships form, shown to everyone who
+ * makes changes, because those two asks are only CHOICES in the section menu
+ * and an alum who opened Employment to fix their employer never met either one.
+ *
+ * ⚠️ It is a state here rather than a route push to `/survey/{token}/help`, and
+ * that is the no-duplicate-rows decision, not a shortcut. The help ROUTE fetches
+ * the record fresh and posts its own answers — fine on the confirm branch, where
+ * the backend upgrades the confirmation row in place. On this branch a second
+ * POST would stage a SECOND pending row beside the submission (that is what the
+ * backend does with two real submissions on one token, deliberately). Staying on
+ * this page keeps the edits and the involvement answers in ONE `edits` map and
+ * sends them in ONE body — and it is also what pre-fills the questions for an
+ * alum who already answered them in the section menu, which a fresh fetch of
+ * the record could not do, because their answers are staged and not applied yet.
  */
-type Status = "review" | "editing" | "submitted";
+type Status = "review" | "editing" | "helping" | "submitted";
 type LoadState = "loading" | "ready" | "invalid";
 type Respondent = components["schemas"]["SurveyRespondInfo"];
 type SubmitResult = components["schemas"]["SurveySubmitResult"];
@@ -74,6 +94,10 @@ export default function SurveyConfirmPage({
   const router = useRouter();
 
   const [loadState, setLoadState] = useState<LoadState>("loading");
+  /** #774: the survey's public contact, served on the token-gated payload so
+   *  this page never has to reach an authenticated endpoint. */
+  const [supportContact, setSupportContact] =
+    useState<Respondent["support_contact"]>(null);
   const [name, setName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [fields, setFields] = useState<Fields>({});
@@ -129,6 +153,16 @@ export default function SurveyConfirmPage({
       setFirstName(SAMPLE_ALUM_NAME.split(/\s+/)[0] || SAMPLE_ALUM_NAME);
       setFields(SAMPLE_ALUM);
       setLoadState("ready");
+      // ⚠️ The demo renders sample data and never calls `/respond/{token}`,
+      // so it cannot pick the contact off that payload the way the real
+      // screens do. Fetch it on its own instead: without this the demo
+      // silently omits a control the real survey shows, which is exactly the
+      // sample-survey drift that keeps costing us. Best-effort -- a failure
+      // leaves the contact null and the link simply does not render.
+      fetch(`${API_URL}/survey/contact`, { cache: "no-store" })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((c) => setSupportContact(c ?? null))
+        .catch(() => {});
       return;
     }
     let cancelled = false;
@@ -144,6 +178,7 @@ export default function SurveyConfirmPage({
         setName(data.full_name);
         setFirstName(data.first_name);
         setFields(data.fields ?? {});
+        setSupportContact(data.support_contact ?? null);
         setLoadState("ready");
       })
       .catch(() => {
@@ -186,9 +221,16 @@ export default function SurveyConfirmPage({
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  // Stage the alum's edits for admin review (public, token-gated POST). If a new
-  // profile photo was chosen, upload it as a SECOND token-gated step keyed to the
-  // returned response id — a photo failure never loses the field submission.
+  // Stage the alum's edits for admin review (public, token-gated POST). Called
+  // from the ways-to-help step (#773), not from the section menu: the menu's
+  // Continue advances to that step and this runs when the alum presses the
+  // button there, so `edits` carries their profile changes AND anything they
+  // answered on it, in ONE body and therefore ONE response row. See
+  // `editSubmitBody` for why a second POST is not an option here.
+  //
+  // If a new profile photo was chosen, upload it as a SECOND token-gated step
+  // keyed to the returned response id — a photo failure never loses the field
+  // submission.
   //
   // Opportunity links are a THIRD call (#441), to their own endpoint, because
   // they are rows in their own table with their own moderation queue rather than
@@ -269,9 +311,10 @@ export default function SurveyConfirmPage({
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            // Flag a photo-only submission so the backend still creates a response
-            // row (and returns its id) even when `fields` is empty (#537).
-            body: JSON.stringify({ fields: edits, has_photo: photoFile != null }),
+            // `has_photo` flags a photo-only submission so the backend still
+            // creates a response row (and returns its id) even when `fields` is
+            // empty (#537).
+            body: JSON.stringify(editSubmitBody(edits, photoFile != null)),
           },
         );
         if (!res.ok) throw new Error(String(res.status));
@@ -338,9 +381,9 @@ export default function SurveyConfirmPage({
 
   return (
     /* The masthead, the reading column and the sign-off all come from the shell
-       (#756), so every state below — loading, invalid, review, confirmed,
-       editing, submitted — is framed identically, and the ways-to-help page
-       (#755) can wear the same one. */
+       (#756), so every state below — loading, invalid, review, editing,
+       helping, submitted — is framed identically, and the ways-to-help page
+       (#755) wears the same one. */
     <SurveyPageShell>
       {loadState === "loading" ? (
         <div className="space-y-4">
@@ -351,19 +394,51 @@ export default function SurveyConfirmPage({
         <InvalidPanel />
       ) : status === "submitted" ? (
         <SuccessPanel
-          title="Thank you — your updates are in"
+          title="Thank you. Your updates are in"
           body={[
             "Our team will review your response before any changes are applied to your record.",
             photoFailed
               ? "We couldn't upload your new photo this time, but the rest of your updates were received."
               : null,
             linkCount > 0
-              ? `We've also received the ${linkCount === 1 ? "opportunity" : `${linkCount} opportunities`} you shared — our team checks each one before passing it on to students.`
+              ? `We've also received the ${linkCount === 1 ? "opportunity" : `${linkCount} opportunities`} you shared. Our team checks each one before passing it on to students.`
               : null,
             "You can safely close this page.",
           ]
             .filter(Boolean)
             .join(" ")}
+        />
+      ) : status === "helping" ? (
+        /* The EDIT branch's ending (#773) — the same screen, the same question
+           list and the same links form the confirm branch reaches at
+           `/survey/{token}/help`, in `edited` mode because nothing has been sent
+           yet and the copy has to say so.
+
+           `valueOf` and `setEdit` are the SAME pair the edit flow was given, so
+           an alum who opened "Ways to get involved" in the section menu finds
+           their answers already filled in here rather than a blank form that
+           reads as though their edits were thrown away — and whatever they add
+           lands in the same `edits` map, which is what makes the submission one
+           request. `links` is shared for the same reason: entries added in the
+           "Jobs & internships" section are still here, and go out in the one
+           links call `handleSubmit` already makes. */
+        <WaysToHelp
+          firstName={firstName}
+          mode="edited"
+          valueOf={valueOf}
+          setEdit={setEdit}
+          links={links}
+          setLinks={setLinks}
+          // Back to the section menu they came from, with everything they typed
+          // still in it — not to the review screen, which would make an alum
+          // with one more change to make walk the whole fork again.
+          onNeedChanges={() => {
+            setOpenSection(null);
+            setStatus("editing");
+          }}
+          onSubmit={handleSubmit}
+          submitting={submitting}
+          submitError={submitError}
         />
       ) : status === "editing" ? (
         <EditFlow
@@ -381,7 +456,10 @@ export default function SurveyConfirmPage({
           links={links}
           setLinks={setLinks}
           onBack={() => setStatus("review")}
-          onSubmit={handleSubmit}
+          // Continue, not submit (#773). Everything the alum typed is valid, so
+          // take them to the ways-to-help step; `handleSubmit` runs from there,
+          // once, with the edits and the involvement answers in one body.
+          onSubmit={() => setStatus("helping")}
           submitting={submitting}
           submitError={submitError}
         />
@@ -463,6 +541,13 @@ export default function SurveyConfirmPage({
           <TrustNote />
         </>
       )}
+
+      {/* Outside the state switch on purpose (#774): the way to reach a human
+          must be there while the alum is reviewing, while they are editing,
+          when the link turns out to be dead, and on the thank-you panel —
+          especially the last one, which is where someone realises they have
+          something else to say. Renders nothing when no contact is configured. */}
+      <SurveyContactLink contact={supportContact} />
     </SurveyPageShell>
   );
 }

@@ -23,6 +23,7 @@ import {
   type Fields,
 } from "@/components/survey/survey-screens";
 import { SurveyPageShell } from "@/components/survey/SurveyPageShell";
+import { SurveyContactLink } from "@/components/survey/SurveyContactLink";
 import type { components } from "@/types/api.gen";
 
 /**
@@ -69,6 +70,9 @@ export default function SurveyWaysToHelpPage({
   const router = useRouter();
 
   const [loadState, setLoadState] = useState<LoadState>("loading");
+  /** #774: see the review page — same public payload, same reason. */
+  const [supportContact, setSupportContact] =
+    useState<Respondent["support_contact"]>(null);
   const [firstName, setFirstName] = useState("");
   const [fields, setFields] = useState<Fields>({});
   const [edits, setEdits] = useState<Fields>({});
@@ -92,6 +96,16 @@ export default function SurveyWaysToHelpPage({
       setFirstName(SAMPLE_ALUM_NAME.split(/\s+/)[0] || SAMPLE_ALUM_NAME);
       setFields(SAMPLE_ALUM);
       setLoadState("ready");
+      // ⚠️ The demo renders sample data and never calls `/respond/{token}`,
+      // so it cannot pick the contact off that payload the way the real
+      // screens do. Fetch it on its own instead: without this the demo
+      // silently omits a control the real survey shows, which is exactly the
+      // sample-survey drift that keeps costing us. Best-effort -- a failure
+      // leaves the contact null and the link simply does not render.
+      fetch(`${API_URL}/survey/contact`, { cache: "no-store" })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((c) => setSupportContact(c ?? null))
+        .catch(() => {});
       return;
     }
     let cancelled = false;
@@ -106,6 +120,7 @@ export default function SurveyWaysToHelpPage({
         if (cancelled) return;
         setFirstName(data.first_name);
         setFields(data.fields ?? {});
+        setSupportContact(data.support_contact ?? null);
         setLoadState("ready");
       })
       .catch(() => {
@@ -238,6 +253,11 @@ export default function SurveyWaysToHelpPage({
           submitError={submitError}
         />
       )}
+
+      {/* Outside the state switch on purpose (#774) — it stays on the
+          thank-you panel too, which is the last screen the survey ever shows
+          anyone. Renders nothing when no contact is configured. */}
+      <SurveyContactLink contact={supportContact} />
     </SurveyPageShell>
   );
 }

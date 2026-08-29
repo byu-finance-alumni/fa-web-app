@@ -14,6 +14,7 @@ import {
   LINKS_PAGE_SIZE,
   STATUS_LABELS,
   hasActiveLinkFilters,
+  linksDateRangeError,
   linksHref,
   parseLinksFilters,
   parseLinksOffset,
@@ -86,6 +87,12 @@ export default async function LinksPage({
     ? filters
     : { ...filters, status: "approved" as const };
 
+  // The one filter combination the backend answers with a 422 rather than an
+  // empty page: a received-from date after the received-to date. Caught here so
+  // the screen says "your dates are the wrong way round" instead of rendering
+  // the empty state, which reads as a fact about the data (#771).
+  const rangeError = linksDateRangeError(effectiveFilters);
+
   let data: OpportunityLinkPage | null = null;
   // An unreadable capability list is itself a load failure — surface it with the
   // same card rather than silently downgrading the page to the read-only view.
@@ -94,7 +101,7 @@ export default async function LinksPage({
       ? new ApiError(auth.httpStatus ?? 0, "Failed to read your access.")
       : null;
 
-  if (!error) {
+  if (!error && !rangeError) {
     try {
       data = await apiGet<OpportunityLinkPage>(
         `/opportunity-links?${toLinksApiQuery(effectiveFilters, {
@@ -122,13 +129,6 @@ export default async function LinksPage({
     <>
       <Topbar title="Internship Links" />
       <main className="flex-1 overflow-auto p-4 md:p-6">
-        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-          <p className="max-w-3xl text-sm text-gray-500">
-            Internship and full-time opportunities alumni have shared. Nothing
-            here expires on its own, so check the age before passing a link on.
-          </p>
-        </div>
-
         {/* Selection mode spans the toolbar (the Edit button), the bar under it
             (count + Delete) and the table (the checkboxes), so all three sit
             inside one provider. The state is ephemeral and deliberately NOT in
@@ -144,6 +144,20 @@ export default async function LinksPage({
 
           {error ? (
             <LoadError status={error.status} noun="links" />
+          ) : rangeError ? (
+            // Not a LoadError: nothing broke and there is nothing to retry — the
+            // dates just need swapping, and the card says which ones.
+            <Card
+              className="border-warning-600/40 bg-warning-50 p-10 text-center"
+              role="alert"
+            >
+              <p className="text-sm font-semibold text-gray-900">
+                Check the date range
+              </p>
+              <p className="mx-auto mt-1 max-w-lg text-sm leading-relaxed text-gray-600">
+                {rangeError}
+              </p>
+            </Card>
           ) : rows && rows.length === 0 ? (
             <Card className="p-10 text-center text-sm text-gray-500">
               {hasActiveLinkFilters(effectiveFilters)
