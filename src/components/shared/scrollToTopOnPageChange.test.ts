@@ -10,12 +10,18 @@ const roster = readFileSync(
   resolve(__dirname, "../alumni/AlumniRoster.tsx"),
   "utf-8",
 );
+const layout = readFileSync(
+  resolve(__dirname, "../../app/(app)/layout.tsx"),
+  "utf-8",
+);
 
 /**
- * Paging the alumni list used to leave you where you were — at the BOTTOM of the
- * previous page, now looking at the last row of the next one. These assertions
- * pin the three things that make the fix work; each of them is silently
- * undoable by an ordinary-looking edit.
+ * Paging the alumni list used to leave you at the BOTTOM of the next page.
+ *
+ * The first fix for this shipped to prod and did nothing, because it called
+ * `window.scrollTo` — and the document is not what scrolls in this app. These
+ * assertions pin the thing that actually made it work, and the layout fact the
+ * whole fix depends on.
  */
 describe("scroll to top when the page of results changes", () => {
   it("is mounted by the alumni roster and fed the offset", () => {
@@ -29,23 +35,34 @@ describe("scroll to top when the page of results changes", () => {
     expect(component.startsWith('"use client";')).toBe(true);
   });
 
-  it("scrolls the document to the top", () => {
+  it("scrolls the <main> container, not just the window", () => {
+    // THE regression this file exists for. `window.scrollTo` on its own is a
+    // no-op here and shipped to prod once already.
+    expect(component).toMatch(
+      /document\.querySelector\("main"\)\?\.scrollTo\(\{\s*top:\s*0/,
+    );
     expect(component).toMatch(/window\.scrollTo\(\{\s*top:\s*0/);
   });
 
-  it("does not scroll on first render, only when the offset changes", () => {
-    // A deep link or a bookmark already carrying ?offset= must not yank the
-    // viewport on arrival; the ref makes the initial render a no-op.
-    expect(component).toContain("useRef(offset)");
-    expect(component).toMatch(/if \(previous\.current === offset\) return;/);
+  it("re-runs when the offset changes", () => {
+    expect(component).toMatch(/\}, \[offset\]\);/);
   });
 
-  it("keys the effect on the offset prop, not on useSearchParams", () => {
+  it("keys off the offset prop rather than useSearchParams", () => {
     // useSearchParams would force a Suspense boundary onto every page that
     // mounts this; the offset is already known on the server. Match the CALL,
     // not the word — it is named in the doc comment explaining this choice.
     expect(component).not.toMatch(/useSearchParams\s*\(/);
     expect(component).not.toContain('from "next/navigation"');
-    expect(component).toMatch(/\}, \[offset\]\);/);
+  });
+
+  /**
+   * The premise of the fix, asserted against the layout itself. If the shell
+   * ever moves the scrollbar back onto the document, scrolling `<main>` becomes
+   * the no-op and this test is where that shows up.
+   */
+  it("the app shell really does put the scrollbar on an inner element", () => {
+    expect(layout).toMatch(/\[overflow:clip\]/);
+    expect(roster).toMatch(/<main className="[^"]*overflow-auto/);
   });
 });
