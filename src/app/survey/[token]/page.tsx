@@ -94,6 +94,10 @@ export default function SurveyConfirmPage({
   const router = useRouter();
 
   const [loadState, setLoadState] = useState<LoadState>("loading");
+  /** #774: the survey's public contact, served on the token-gated payload so
+   *  this page never has to reach an authenticated endpoint. */
+  const [supportContact, setSupportContact] =
+    useState<Respondent["support_contact"]>(null);
   const [name, setName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [fields, setFields] = useState<Fields>({});
@@ -164,6 +168,7 @@ export default function SurveyConfirmPage({
         setName(data.full_name);
         setFirstName(data.first_name);
         setFields(data.fields ?? {});
+        setSupportContact(data.support_contact ?? null);
         setLoadState("ready");
       })
       .catch(() => {
@@ -532,7 +537,7 @@ export default function SurveyConfirmPage({
           when the link turns out to be dead, and on the thank-you panel —
           especially the last one, which is where someone realises they have
           something else to say. Renders nothing when no contact is configured. */}
-      <SurveyContactLink />
+      <SurveyContactLink contact={supportContact} />
     </SurveyPageShell>
   );
 }

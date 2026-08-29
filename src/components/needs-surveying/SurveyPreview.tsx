@@ -57,7 +57,15 @@ import {
  * Nothing is sent: no API call, no token, and Submit only advances to the
  * thank-you screen so the last step is visible too.
  */
-export function SurveyPreview() {
+export function SurveyPreview({
+  surveyContact,
+}: {
+  /** The row the survey's public endpoint would serve (#774). Resolved by the
+   *  page from the AUTHENTICATED support-contacts list, because this dialog has
+   *  no survey token to read the public payload with. Same row either way --
+   *  `surveySupportContact` mirrors the backend's label rule. */
+  surveyContact?: { name?: string | null; email?: string | null } | null;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -112,7 +120,7 @@ export function SurveyPreview() {
           {/* Remounting on each open resets the walkthrough, so the dialog
               always opens on the review screen rather than wherever the last
               viewer stopped. */}
-          {open ? <PreviewBody /> : null}
+          {open ? <PreviewBody surveyContact={surveyContact} /> : null}
 
           <DialogFooter>
             <Button
@@ -143,7 +151,11 @@ export function SurveyPreview() {
  */
 type PreviewStatus = "review" | "helping" | "editing" | "submitted";
 
-function PreviewBody() {
+function PreviewBody({
+  surveyContact,
+}: {
+  surveyContact?: { name?: string | null; email?: string | null } | null;
+}) {
   const fields: Fields = SAMPLE_ALUM;
   const name = SAMPLE_ALUM_NAME;
   const firstName = name.split(/\s+/)[0] || name;
@@ -351,7 +363,7 @@ function PreviewBody() {
           previewing a survey the alum does not get. It reads the same config and
           renders nothing when no contact is set — so an unconfigured preview
           showing no link is correct, not a bug. */}
-      <SurveyContactLink />
+      <SurveyContactLink contact={surveyContact} />
 
       <EmailCopyBlock
         id="preview-email-closing"

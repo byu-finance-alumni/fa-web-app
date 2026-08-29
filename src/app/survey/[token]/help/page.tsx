@@ -70,6 +70,9 @@ export default function SurveyWaysToHelpPage({
   const router = useRouter();
 
   const [loadState, setLoadState] = useState<LoadState>("loading");
+  /** #774: see the review page — same public payload, same reason. */
+  const [supportContact, setSupportContact] =
+    useState<Respondent["support_contact"]>(null);
   const [firstName, setFirstName] = useState("");
   const [fields, setFields] = useState<Fields>({});
   const [edits, setEdits] = useState<Fields>({});
@@ -107,6 +110,7 @@ export default function SurveyWaysToHelpPage({
         if (cancelled) return;
         setFirstName(data.first_name);
         setFields(data.fields ?? {});
+        setSupportContact(data.support_contact ?? null);
         setLoadState("ready");
       })
       .catch(() => {
@@ -243,7 +247,7 @@ export default function SurveyWaysToHelpPage({
       {/* Outside the state switch on purpose (#774) — it stays on the
           thank-you panel too, which is the last screen the survey ever shows
           anyone. Renders nothing when no contact is configured. */}
-      <SurveyContactLink />
+      <SurveyContactLink contact={supportContact} />
     </SurveyPageShell>
   );
 }
