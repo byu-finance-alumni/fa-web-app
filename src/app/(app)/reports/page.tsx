@@ -3,7 +3,6 @@ import { apiGet, ApiError } from "@/lib/api";
 import { readAuthContext } from "@/lib/auth-context";
 import { CAPABILITY } from "@/constants/capabilities";
 import { Topbar } from "@/components/shell/Topbar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoadError } from "@/components/shared/LoadError";
@@ -106,11 +105,21 @@ export default async function ReportsPage() {
         {error ? (
           <LoadError status={error.status} noun="the reports" />
         ) : (
-          <div className="space-y-5">
+          /* Capped width on purpose (#814). Full-bleed rows put "Open the list"
+             ~1,100px from the label it belongs to, so the eye had to cross the
+             viewport to pair a count with its action. */
+          <div className="max-w-3xl space-y-5">
             {sections.map((section) => (
               <Card key={section.id}>
-                <CardHeader>
+                <CardHeader className="pb-2">
                   <CardTitle>{section.title}</CardTitle>
+                  {/* Said ONCE, for the whole section. It used to render
+                      verbatim on every row it applied to. */}
+                  {section.note ? (
+                    <p className="mt-1 text-xs leading-relaxed text-gray-500">
+                      {section.note}
+                    </p>
+                  ) : null}
                 </CardHeader>
                 <CardContent>
                   <ul className="divide-y divide-gray-100">
@@ -118,59 +127,65 @@ export default async function ReportsPage() {
                       const count = countFor(report);
                       const unavailable = count?.unavailable ?? false;
                       const surveyKey = report.surveyCountKey;
+                      // A satisfied row recedes. 0 and 247 carrying identical
+                      // weight was half of "hard to tell what you're looking at".
+                      const settled = count?.tone === "success";
                       return (
                         <li
                           key={report.id}
-                          className="flex flex-col gap-3 py-3.5 first:pt-0 last:pb-0 lg:flex-row lg:items-start lg:justify-between lg:gap-6"
+                          className="flex items-start gap-4 py-3 first:pt-0 last:pb-0"
                         >
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-baseline gap-2">
-                              <p className="text-sm font-semibold text-gray-900">
-                                {report.title}
-                              </p>
-                              {count ? (
-                                // Text, not colour alone (UX-UI.md
-                                // Accessibility): "Unavailable" reads the same
-                                // to a screen reader as it does on screen, and
-                                // cannot be mistaken for a count of zero.
-                                <Badge
-                                  variant={count.tone}
-                                  className={
-                                    unavailable ? undefined : "tabular-nums"
-                                  }
-                                >
-                                  {count.value}
-                                </Badge>
-                              ) : null}
-                            </div>
-                            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-gray-600">
-                              {report.description}
+                          {/* The number leads. Fixed width + tabular-nums so the
+                              figures form one column you can read straight down
+                              (UX-UI.md Typography). */}
+                          <div
+                            className={
+                              "w-14 shrink-0 pt-0.5 text-right text-2xl font-semibold leading-none tabular-nums " +
+                              (unavailable
+                                ? "text-warning-600"
+                                : settled
+                                  ? "text-gray-300"
+                                  : "text-gray-900")
+                            }
+                          >
+                            {unavailable ? "?" : (count?.value ?? "")}
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <p
+                              className={
+                                "text-sm font-semibold " +
+                                (settled ? "text-gray-500" : "text-gray-900")
+                              }
+                            >
+                              {report.title}
                             </p>
-                            {/* WHOSE number it is. A survey figure without the
-                                class year reads as "the survey", which is the
-                                one thing no campaign count is. */}
+                            {/* No description line. The title is the description
+                                — see the note on `Report` in lib/reports.ts. */}
                             {surveyKey && campaign ? (
-                              <p className="mt-1 max-w-2xl text-xs leading-relaxed text-gray-500">
+                              <p className="mt-0.5 text-xs leading-relaxed text-gray-500">
                                 {surveyCountLabel(campaign, surveyKey)}
                               </p>
                             ) : null}
                             {surveyKey && !campaign ? (
-                              <p className="mt-1 max-w-2xl text-xs leading-relaxed text-gray-500">
+                              <p className="mt-0.5 text-xs leading-relaxed text-gray-500">
                                 {SURVEY_COUNT_UNAVAILABLE_NOTE}
                               </p>
                             ) : null}
+                            {/* Kept: without it the photo figure reads as a bug. */}
                             {report.note ? (
-                              <p className="mt-1 max-w-2xl text-xs leading-relaxed text-gray-500">
+                              <p className="mt-0.5 text-xs leading-relaxed text-gray-500">
                                 {report.note}
                               </p>
                             ) : null}
                             {unavailable ? (
-                              <p className="mt-1 max-w-2xl text-xs leading-relaxed text-warning-600">
+                              <p className="mt-0.5 text-xs leading-relaxed text-warning-600">
                                 {MISSING_PHOTO_UNAVAILABLE_NOTE}
                               </p>
                             ) : null}
                           </div>
-                          <div className="shrink-0">
+
+                          <div className="shrink-0 pt-0.5">
                             <Button asChild variant="secondary" size="sm">
                               <Link
                                 href={report.href}
@@ -189,35 +204,23 @@ export default async function ReportsPage() {
             ))}
 
             {related.length > 0 && (
+              /* A row of screen names, not titled rows with a sentence each.
+                 These are destinations, not reports — they carry no number, so
+                 they should not look like something you read. */
               <Card>
-                <CardHeader>
-                  <CardTitle>Where the rest lives</CardTitle>
+                <CardHeader className="pb-2">
+                  <CardTitle>Elsewhere</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ul className="divide-y divide-gray-100">
+                  <ul className="flex flex-wrap gap-x-6 gap-y-2">
                     {related.map((surface) => (
-                      <li
-                        key={surface.href}
-                        className="flex flex-col gap-3 py-3.5 first:pt-0 last:pb-0 lg:flex-row lg:items-start lg:justify-between lg:gap-6"
-                      >
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-gray-900">
-                            {surface.title}
-                          </p>
-                          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-gray-600">
-                            {surface.description}
-                          </p>
-                        </div>
-                        <div className="shrink-0">
-                          <Button asChild variant="link" size="sm">
-                            <Link
-                              href={surface.href}
-                              aria-label={`Open ${surface.title}`}
-                            >
-                              Open
-                            </Link>
-                          </Button>
-                        </div>
+                      <li key={surface.href}>
+                        <Link
+                          href={surface.href}
+                          className="text-sm font-medium text-royal-600 underline-offset-4 hover:underline"
+                        >
+                          {surface.title}
+                        </Link>
                       </li>
                     ))}
                   </ul>

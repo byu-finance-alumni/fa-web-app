@@ -69,8 +69,15 @@ export type Report = {
   /** Stable id — React key, and what a test names when it fails. */
   id: string;
   title: string;
-  /** One short line: who is in this report. */
-  description: string;
+  /**
+   * NO `description`. Deliberate, and the second time it has been asked for
+   * (#814, and Jake's #775 review before it). A line reading "Active alumni
+   * with no LinkedIn URL on file." under a row titled "No LinkedIn" explains
+   * the obvious to someone who opens this page weekly, and explaining the
+   * obvious under every row is what made the page read as machine-written.
+   * The first fix capped the description LENGTH, which let the prose grow back
+   * in the same shape. The row is a number, a name and a link.
+   */
   /** Where clicking it goes. */
   href: string;
   /** Text on the link (text-only — UX-UI.md forbids icons on controls). */
@@ -96,6 +103,14 @@ export type ReportSection = {
   id: string;
   title: string;
   reports: Report[];
+  /**
+   * A caveat that belongs to the SECTION, said once under its heading.
+   *
+   * The survey scope note used to hang off both survey rows and rendered
+   * verbatim twice on screen (#814). Methodology is a property of the section,
+   * not of each row in it.
+   */
+  note?: string;
 };
 
 /* ------------------------------------------------------- list-backed hrefs -- */
@@ -304,7 +319,6 @@ const MISSING_DATA_REPORTS: Report[] = [
     // Count and predicate are the Data quality page's, read from the one
     // `GET /dashboard/data-quality` field — two screens, one definition.
     title: "No company or employer",
-    description: "Active alumni with no current employer on file.",
     href: listReportHref("missingEmployer"),
     flag: "missingEmployer",
     countKey: "missing_employer",
@@ -315,7 +329,6 @@ const MISSING_DATA_REPORTS: Report[] = [
     id: "missing-linkedin",
     // Blank and whitespace-only both count as missing, backend-side.
     title: "No LinkedIn",
-    description: "Active alumni with no LinkedIn URL on file.",
     href: listReportHref("missingLinkedin"),
     flag: "missingLinkedin",
     countKey: "missing_linkedin",
@@ -327,7 +340,6 @@ const MISSING_DATA_REPORTS: Report[] = [
     // Answered from one cached listing of the headshots bucket, so it can trail
     // an upload by up to five minutes.
     title: "No photo",
-    description: "Active alumni with no headshot stored.",
     href: listReportHref("missingPhoto"),
     flag: "missingPhoto",
     countKey: "missing_photo",
@@ -340,31 +352,32 @@ const MISSING_DATA_REPORTS: Report[] = [
 const SURVEY_REPORTS: Report[] = [
   {
     id: "survey-responded",
-    title: "Responded to the most recent survey",
-    description: "Replies to the class campaign, with the date each came in.",
+    title: "Responded",
     href: "/needs-surveying",
     action: "Open the campaign console",
     linkLabel: "Open the survey campaign console to see who responded",
     surveyCountKey: "replied",
     capability: CAPABILITY.SURVEYS_MANAGE,
-    note: SURVEY_SCOPE_NOTE,
   },
   {
     id: "survey-not-responded",
-    title: "Did not respond to the most recent survey",
-    description: "Emailed and still silent — the follow-up call sheet.",
+    title: "Did not respond",
     href: "/needs-surveying",
     action: "Open the campaign console",
     linkLabel: "Open the survey campaign console to see who did not respond",
     surveyCountKey: "silent",
     capability: CAPABILITY.SURVEYS_MANAGE,
-    note: SURVEY_SCOPE_NOTE,
   },
 ];
 
 export const REPORT_SECTIONS: ReportSection[] = [
   { id: "missing-data", title: "Missing data", reports: MISSING_DATA_REPORTS },
-  { id: "survey", title: "Survey", reports: SURVEY_REPORTS },
+  {
+    id: "survey",
+    title: "Survey",
+    reports: SURVEY_REPORTS,
+    note: SURVEY_SCOPE_NOTE,
+  },
 ];
 
 /** Every report, flattened — the order the page renders them in. */
@@ -376,7 +389,6 @@ export const ALL_REPORTS: Report[] = REPORT_SECTIONS.flatMap((s) => s.reports);
 export type RelatedSurface = {
   href: string;
   title: string;
-  description: string;
   capability?: string;
 };
 
@@ -384,22 +396,16 @@ export const RELATED_SURFACES: RelatedSurface[] = [
   {
     href: "/data-quality",
     title: "Data quality",
-    description:
-      "Missing email, missing phone and possible duplicates, with coverage bars.",
     capability: CAPABILITY.REPORTS_ADVANCED,
   },
   {
     href: "/needs-surveying",
     title: "Needs Surveying",
-    description:
-      "Schedule a class, then see who was emailed, who replied and who still needs chasing.",
     capability: CAPABILITY.SURVEYS_MANAGE,
   },
   {
     href: "/alumni",
     title: "Alumni list",
-    description:
-      "Anything else is a filter away, and Export downloads exactly the rows on screen.",
   },
 ];
 
