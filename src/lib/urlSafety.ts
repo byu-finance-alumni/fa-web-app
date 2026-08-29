@@ -24,13 +24,14 @@
  * still whatever they are, which is exactly why the render side has its own
  * guard.
  *
- *  3. `safeNextPath` / `loginPathWithNext` are the REDIRECT rule (#682) — "may
- *     we send the user to this place after they sign in?" Unlike the two above,
- *     this one IS the security control and has no backend behind it: the
- *     destination arrives as `?next=` on a URL an attacker can hand a victim,
- *     and nothing downstream re-checks it. Keeping it in this module rather than
- *     inline in the login action is what lets the login action, the middleware
- *     and the two client-side sign-out paths all apply the identical rule.
+ *  3. `safeNextPath` / `returnPathFor` / `loginPathWithNext` are the REDIRECT
+ *     rule (#682) — "may we send the user to this place after they sign in?"
+ *     Unlike the two above, this one IS the security control and has no backend
+ *     behind it: the destination arrives as `?next=` on a URL an attacker can
+ *     hand a victim, and nothing downstream re-checks it. Keeping it in this
+ *     module rather than inline in the login action is what lets the login
+ *     action, the middleware and the two client-side sign-out paths all apply
+ *     the identical rule.
  */
 
 /**
@@ -180,6 +181,93 @@ export function isReturnablePath(next: string | null | undefined): boolean {
 }
 
 /**
+ * Query parameters that are never carried into `?next=`.
+ *
+ * `next` round-trips a URL the user was on into a link that then sits in the
+ * address bar of a page that is, by definition, NOT yet authenticated — and in
+ * the browser history, the referrer and any log that records the login URL. A
+ * credential that happened to be in the original query string must not make
+ * that trip. No protected page reads any of these today (the survey token is a
+ * PATH segment on `/survey/*`, which never reaches this code — the middleware
+ * returns before auth for it — and Supabase recovery links carry their token in
+ * the URL FRAGMENT, which is never sent to the server); the list is here so a
+ * page that later grows such a parameter cannot leak it by default.
+ */
+const SENSITIVE_NEXT_PARAMS: readonly string[] = [
+  "access_token",
+  "api_key",
+  "apikey",
+  "auth",
+  "code",
+  "id_token",
+  "otp",
+  "password",
+  "refresh_token",
+  "secret",
+  "session",
+  "signature",
+  "token",
+  "token_hash",
+];
+
+/**
+ * The `?next=` value for a page the user was on, or `null` when there is
+ * nothing worth (or safe) carrying.
+ *
+ * THE WRITE SIDE of the redirect rule, and the fix for #791. Every sign-out
+ * path used to hand over a bare pathname, so a filtered link — the whole of the
+ * Reports tab, and Data quality — came back from the login screen as an
+ * UNFILTERED list with nothing on screen to say a filter had been dropped. The
+ * query string is part of the destination, so it travels with it.
+ *
+ * The value returned is the one `safeNextPath` will hand back unchanged: the
+ * last line re-asks the read side rather than assuming the two agree, because a
+ * `next` we emit but the login action then quietly drops is exactly the silent
+ * failure this whole module exists to prevent.
+ */
+export function returnPathFor(
+  current: string | null | undefined,
+): string | null {
+  if (typeof current !== "string" || current === "") return null;
+  if (!current.startsWith("/")) return null;
+
+  let url: URL;
+  try {
+    url = new URL(current, RESOLUTION_BASE);
+  } catch {
+    return null;
+  }
+  if (url.origin !== RESOLUTION_BASE) return null;
+  if (NON_RETURNABLE.has(url.pathname)) return null;
+
+  // Only rewrite the query when there is genuinely something to remove:
+  // mutating `searchParams` re-serialises the WHOLE string, which turns a
+  // `%20` into a `+`. Both decode to a space, so it is correct either way, but
+  // the common case — a filtered list with no credential in sight — should come
+  // back byte-for-byte as it went in.
+  if (SENSITIVE_NEXT_PARAMS.some((name) => url.searchParams.has(name)))
+    SENSITIVE_NEXT_PARAMS.forEach((name) => url.searchParams.delete(name));
+
+  const candidate = `${url.pathname}${url.search}${url.hash}`;
+  return isReturnablePath(candidate) ? candidate : null;
+}
+
+/**
+ * The page the browser is on right now, as a `?next=` value.
+ *
+ * For the CLIENT-side sign-out paths only. They read `window.location` at the
+ * moment of the redirect rather than tracking the URL in React state: a filter
+ * change on the alumni list rewrites only the query string, which `usePathname`
+ * does not report, so anything cached off it is stale exactly when the filter
+ * is the thing worth keeping (#791).
+ */
+export function currentReturnPath(): string | null {
+  if (typeof window === "undefined") return null;
+  const { pathname, search } = window.location;
+  return returnPathFor(`${pathname}${search}`);
+}
+
+/**
  * The `/login` URL to send a user to when their session ends, remembering the
  * page they were on.
  *
@@ -189,8 +277,8 @@ export function isReturnablePath(next: string | null | undefined): boolean {
  * two CLIENT-side sign-outs (idle timeout, signed-out-on-another-device) and
  * keeps their `?reason=` / `?signedout=` notices intact alongside `next`.
  *
- * Both callers pass `usePathname()`, so — as with the middleware, which clears
- * `search` before setting `next` — the value carried is the pathname alone.
+ * `currentPath` may carry a query string; both callers pass
+ * {@link currentReturnPath}, which supplies one.
  */
 export function loginPathWithNext(
   currentPath: string | null | undefined,
@@ -199,8 +287,8 @@ export function loginPathWithNext(
   const search = new URLSearchParams(params);
   // Only advertise a destination the login action would actually honour, so the
   // URL can never promise a return the other end quietly drops.
-  if (typeof currentPath === "string" && isReturnablePath(currentPath))
-    search.set("next", currentPath);
+  const next = returnPathFor(currentPath);
+  if (next) search.set("next", next);
   const query = search.toString();
   return query ? `/login?${query}` : "/login";
 }
