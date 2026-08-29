@@ -23,6 +23,7 @@ import {
   type Fields,
 } from "@/components/survey/survey-screens";
 import { SurveyPageShell } from "@/components/survey/SurveyPageShell";
+import { SurveyContactLink } from "@/components/survey/SurveyContactLink";
 import type { components } from "@/types/api.gen";
 
 /**
@@ -238,6 +239,11 @@ export default function SurveyWaysToHelpPage({
           submitError={submitError}
         />
       )}
+
+      {/* Outside the state switch on purpose (#774) — it stays on the
+          thank-you panel too, which is the last screen the survey ever shows
+          anyone. Renders nothing when no contact is configured. */}
+      <SurveyContactLink />
     </SurveyPageShell>
   );
 }
