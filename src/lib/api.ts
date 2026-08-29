@@ -230,6 +230,77 @@ export async function apiGetText(path: string): Promise<string> {
   return res.text();
 }
 
+/** A file download read server-side: the body plus the name to save it under. */
+export interface ApiFileResponse {
+  /** The response body, verbatim. */
+  text: string;
+  /** Filename from `Content-Disposition`, or null if the header was absent. */
+  filename: string | null;
+}
+
+/**
+ * Server-side GET for a file download that carries its own name — the
+ * opportunity-links CSV report, whose `Content-Disposition` filename is dated by
+ * the backend (`opportunity_links_<YYYY-MM-DD>.csv`).
+ *
+ * {@link apiGetText} exists for downloads where the caller already knows the
+ * name; this one is for the ones where the SERVER decides it, so the file on
+ * disk is named the same whoever downloads it.
+ *
+ * The header is a server-controlled string, but it still lands as a filename, so
+ * anything that could steer where the browser writes — a path separator, a
+ * traversal segment, a NUL — is rejected and the caller falls back to its own
+ * name rather than being handed a surprising one.
+ */
+export async function apiGetFile(path: string): Promise<ApiFileResponse> {
+  if (!API_URL) throw new ApiError(0, "API URL is not configured.");
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: await authHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    let message = res.statusText;
+    try {
+      const body = await res.json();
+      message = body?.error?.message ?? message;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new ApiError(res.status, message);
+  }
+  return {
+    text: await res.text(),
+    filename: parseContentDispositionFilename(
+      res.headers.get("content-disposition"),
+    ),
+  };
+}
+
+/** `attachment; filename="x.csv"` → `x.csv`, or null if there is nothing safe. */
+function parseContentDispositionFilename(header: string | null): string | null {
+  if (!header) return null;
+  const match =
+    /filename\*=UTF-8''([^;]+)/i.exec(header) ??
+    /filename="([^"]*)"/i.exec(header) ??
+    /filename=([^;]+)/i.exec(header);
+  if (!match) return null;
+  let name: string;
+  try {
+    name = decodeURIComponent(match[1].trim());
+  } catch {
+    name = match[1].trim();
+  }
+  const unsafe =
+    name === "" ||
+    name === "." ||
+    name === ".." ||
+    name.includes("/") ||
+    name.includes("\\") ||
+    Array.from(name).some((c) => c.charCodeAt(0) < 0x20);
+  if (unsafe) return null;
+  return name;
+}
+
 /**
  * Server-side JSON POST that returns the raw response body as TEXT (not JSON) —
  * used for the alumni CSV export, where the request carries the column + filter

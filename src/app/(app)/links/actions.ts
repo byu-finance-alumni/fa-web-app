@@ -11,12 +11,17 @@
  */
 
 import { revalidatePath } from "next/cache";
-import { apiGet, apiPost, ApiError } from "@/lib/api";
+import { apiGet, apiGetFile, apiPost, ApiError } from "@/lib/api";
 import type { Schema } from "@/types/api";
 import {
   bulkDeleteBlockedReason,
+  linksDateRangeError,
+  linksExportErrorMessage,
+  linksExportFilename,
+  parseLinksFilters,
   toBulkDeleteIds,
   toCreateBody,
+  toLinksExportQuery,
   validateAddLink,
   type AddLinkFormValues,
   type OpportunityLink,
@@ -186,5 +191,70 @@ export async function searchAlumniForLink(q: string): Promise<AlumnusOption[]> {
     // A failed lookup is an empty picker with the form's own "no matches" copy —
     // never a thrown action that blanks the page mid-typing.
     return [];
+  }
+}
+
+export type ExportLinksResult =
+  | { ok: true; csv: string; filename: string }
+  | { ok: false; error: string };
+
+/**
+ * The dated report (#771): the CURRENT list, as a CSV file.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * WHY THIS TAKES A QUERY STRING AND NOT A FILTER OBJECT
+ * ─────────────────────────────────────────────────────────────────────────────
+ * This app has a recurring class of bug where the export covers a different
+ * population than the list it was launched from — see the alumni export, where
+ * the fix was to DERIVE the export's params from the list's rather than to write
+ * them out twice. The same trap is here, and closing it takes two things:
+ *
+ *  1. THE ARGUMENT IS THE LIST'S OWN URL. `qs` is exactly what `toLinksQs` put
+ *     in the address bar — the same string the page parsed to decide which rows
+ *     to render. It is re-parsed here with the same `parseLinksFilters` the page
+ *     used, so the filter state this action exports from IS the filter state the
+ *     list rendered from. Accepting a hand-built object instead would let the
+ *     caller pass a selection that was never on screen, which is the bug.
+ *  2. THE BACKEND QUERY IS THE LIST'S, MINUS PAGING. `toLinksExportQuery` and
+ *     `toLinksApiQuery` are the same assembler; a filter cannot reach one and
+ *     miss the other.
+ *
+ * Re-parsing is also the hardening. A server action is a real endpoint anything
+ * can call, so a junk `status` or a `2026-02-30` becomes the default rather than
+ * a 422 the user cannot see the cause of. AUTHORIZATION is unchanged and stays
+ * the backend's: `pending`/`rejected` need `surveys.manage` there, exactly as
+ * for the list, and a caller who asks anyway gets the 403 message below.
+ *
+ * The CSV comes back as text and the browser turns it into a Blob download — the
+ * pattern the alumni export already uses — because the response has no JSON
+ * schema and a server action cannot stream a file. The name comes from the
+ * backend's `Content-Disposition` so every download of the same report is filed
+ * under the same dated name.
+ */
+export async function exportLinks(qs: string): Promise<ExportLinksResult> {
+  const filters = parseLinksFilters(
+    Object.fromEntries(new URLSearchParams(qs)),
+  );
+
+  // Refuse the doomed request rather than translating its 422 afterwards: an
+  // inverted range is a typo in a form, and the user should read that instead of
+  // a failed download.
+  const rangeError = linksDateRangeError(filters);
+  if (rangeError) return { ok: false, error: rangeError };
+
+  try {
+    const file = await apiGetFile(
+      `/opportunity-links/export?${toLinksExportQuery(filters)}`,
+    );
+    return {
+      ok: true,
+      csv: file.text,
+      filename: file.filename ?? linksExportFilename(),
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: linksExportErrorMessage(e instanceof ApiError ? e.status : null),
+    };
   }
 }

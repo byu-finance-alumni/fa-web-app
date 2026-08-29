@@ -32,6 +32,12 @@ import {
   type OpportunityLinkBulkDeleteResult,
   formatLinkDate,
   hasActiveLinkFilters,
+  isIsoDate,
+  linksDateRangeError,
+  linksExportErrorMessage,
+  linksExportFilename,
+  MAX_EXPORT_ROWS,
+  toLinksExportQuery,
   isDeadlinePassed,
   isStaleLink,
   linkAgeLabel,
@@ -569,12 +575,16 @@ describe("parseLinksFilters", () => {
         status: "pending",
         role_type: "full_time",
         company: "gold",
+        submitted_from: "2026-08-01",
+        submitted_to: "2026-08-28",
       }),
     ).toEqual({
       q: "goldman",
       status: "pending",
       role_type: "full_time",
       company: "gold",
+      submitted_from: "2026-08-01",
+      submitted_to: "2026-08-28",
     });
   });
 
@@ -622,9 +632,56 @@ describe("toLinksQs", () => {
   it("round-trips through parseLinksFilters", () => {
     const cases: LinksFilterState[] = [
       EMPTY_LINKS_FILTERS,
-      { q: "analyst", status: "pending", role_type: "both", company: "zions" },
-      { q: "", status: "rejected", role_type: "", company: "" },
-      { q: "goldman sachs", status: "approved", role_type: "internship", company: "" },
+      {
+        q: "analyst",
+        status: "pending",
+        role_type: "both",
+        company: "zions",
+        submitted_from: "",
+        submitted_to: "",
+      },
+      {
+        q: "",
+        status: "rejected",
+        role_type: "",
+        company: "",
+        submitted_from: "",
+        submitted_to: "",
+      },
+      {
+        q: "goldman sachs",
+        status: "approved",
+        role_type: "internship",
+        company: "",
+        submitted_from: "",
+        submitted_to: "",
+      },
+      // The report selection (#771): the deep link a staff member pastes into
+      // an email has to come back as the same range.
+      {
+        q: "",
+        status: "pending",
+        role_type: "",
+        company: "",
+        submitted_from: "2026-07-01",
+        submitted_to: "2026-07-31",
+      },
+      {
+        q: "analyst",
+        status: "approved",
+        role_type: "internship",
+        company: "zions",
+        submitted_from: "2026-01-01",
+        submitted_to: "",
+      },
+      {
+        q: "",
+        status: "approved",
+        role_type: "",
+        company: "",
+        submitted_from: "",
+        submitted_to: "2026-12-31",
+      },
     ];
     for (const f of cases) {
       const sp = Object.fromEntries(new URLSearchParams(toLinksQs(f)));
@@ -676,12 +733,16 @@ describe("toLinksApiQuery", () => {
       status: "pending",
       role_type: "full_time",
       company: " zions ",
+      submitted_from: "2026-07-01",
+      submitted_to: "2026-07-31",
     };
     expect(params(f)).toEqual({
       status: "pending",
       role_type: "full_time",
       company: "zions",
       q: "analyst",
+      submitted_from: "2026-07-01",
+      submitted_to: "2026-07-31",
       limit: String(LINKS_PAGE_SIZE),
       offset: "0",
     });
@@ -706,6 +767,8 @@ describe("toLinksApiQuery", () => {
           status: "pending",
           role_type: "both",
           company: "b",
+          submitted_from: "2026-07-01",
+          submitted_to: "2026-07-31",
         }),
       ).keys(),
     );
@@ -716,10 +779,315 @@ describe("toLinksApiQuery", () => {
           status: "pending",
           role_type: "both",
           company: "b",
+          submitted_from: "2026-07-01",
+          submitted_to: "2026-07-31",
         }),
       ).keys(),
     );
     for (const key of urlKeys) expect(apiKeys.has(key)).toBe(true);
+  });
+});
+
+/* ==================================================================== *
+ * The dated report (#771): a received-date range, and a CSV of it
+ * ==================================================================== */
+
+describe("isIsoDate", () => {
+  it("accepts a date the calendar actually has", () => {
+    expect(isIsoDate("2026-08-28")).toBe(true);
+    expect(isIsoDate("2024-02-29")).toBe(true); // leap year
+  });
+
+  it("rejects a well-shaped date that does not exist", () => {
+    // The regex on its own passes all of these, and the backend answers them
+    // with a 422 whose cause is invisible on screen.
+    expect(isIsoDate("2026-02-30")).toBe(false);
+    expect(isIsoDate("2026-13-01")).toBe(false);
+    expect(isIsoDate("2025-02-29")).toBe(false);
+  });
+
+  it("rejects anything that is not the wire format", () => {
+    for (const v of [
+      "",
+      "yesterday",
+      "08/28/2026",
+      "2026-8-28",
+      "2026-08-28T00:00:00Z",
+      null,
+      undefined,
+      20260828,
+    ]) {
+      expect(isIsoDate(v)).toBe(false);
+    }
+  });
+});
+
+describe("the date-received range round-trips through the URL", () => {
+  it("reads both ends off a deep link", () => {
+    const f = parseLinksFilters({
+      submitted_from: "2026-07-01",
+      submitted_to: "2026-07-31",
+    });
+    expect(f.submitted_from).toBe("2026-07-01");
+    expect(f.submitted_to).toBe("2026-07-31");
+  });
+
+  it("accepts a one-sided range - either end may be left open", () => {
+    expect(parseLinksFilters({ submitted_from: "2026-07-01" })).toMatchObject({
+      submitted_from: "2026-07-01",
+      submitted_to: "",
+    });
+    expect(parseLinksFilters({ submitted_to: "2026-07-31" })).toMatchObject({
+      submitted_from: "",
+      submitted_to: "2026-07-31",
+    });
+  });
+
+  it("drops an impossible date instead of forwarding it to a 422", () => {
+    const f = parseLinksFilters({
+      submitted_from: "2026-02-30",
+      submitted_to: "not a date",
+    });
+    expect(f.submitted_from).toBe("");
+    expect(f.submitted_to).toBe("");
+  });
+
+  it("serializes both ends, and only when set", () => {
+    expect(
+      toLinksQs({ ...EMPTY_LINKS_FILTERS, submitted_from: "2026-07-01" }),
+    ).toBe("submitted_from=2026-07-01");
+    expect(
+      toLinksQs({
+        ...EMPTY_LINKS_FILTERS,
+        submitted_from: "2026-07-01",
+        submitted_to: "2026-07-31",
+      }),
+    ).toBe("submitted_from=2026-07-01&submitted_to=2026-07-31");
+    expect(toLinksQs(EMPTY_LINKS_FILTERS)).toBe("");
+  });
+
+  it("counts as an active filter, so the empty state says 'no match' not 'none yet'", () => {
+    expect(
+      hasActiveLinkFilters({
+        ...EMPTY_LINKS_FILTERS,
+        submitted_from: "2026-07-01",
+      }),
+    ).toBe(true);
+  });
+
+  it("survives a paging link, so page 2 of a report is still the report", () => {
+    expect(
+      linksHref(
+        {
+          ...EMPTY_LINKS_FILTERS,
+          submitted_from: "2026-07-01",
+          submitted_to: "2026-07-31",
+        },
+        50,
+      ),
+    ).toBe("/links?submitted_from=2026-07-01&submitted_to=2026-07-31&offset=50");
+  });
+});
+
+/* -------------------------------------------------------------------- *
+ * EXPORT / LIST PARITY - the recurring bug in this repo, pinned
+ * -------------------------------------------------------------------- */
+
+describe("the CSV covers exactly the population the list is showing", () => {
+  // Every shape of selection the screen can be in, including the ones that made
+  // the alumni export drift: a text filter needing a trim, a non-default status,
+  // a one-sided range, and the whole lot at once.
+  const selections: LinksFilterState[] = [
+    EMPTY_LINKS_FILTERS,
+    { ...EMPTY_LINKS_FILTERS, status: "pending" },
+    { ...EMPTY_LINKS_FILTERS, status: "rejected", role_type: "internship" },
+    { ...EMPTY_LINKS_FILTERS, q: "  analyst  ", company: " zions " },
+    { ...EMPTY_LINKS_FILTERS, submitted_from: "2026-07-01" },
+    { ...EMPTY_LINKS_FILTERS, submitted_to: "2026-07-31" },
+    {
+      q: "analyst",
+      status: "pending",
+      role_type: "full_time",
+      company: "zions",
+      submitted_from: "2026-01-01",
+      submitted_to: "2026-12-31",
+    },
+  ];
+
+  it("sends the list's parameters minus paging - nothing added, nothing dropped", () => {
+    for (const f of selections) {
+      const list = new URLSearchParams(toLinksApiQuery(f));
+      const report = new URLSearchParams(toLinksExportQuery(f));
+
+      // Paging is the ONLY difference: a report is the whole selection rather
+      // than one page of it.
+      expect(report.has("limit")).toBe(false);
+      expect(report.has("offset")).toBe(false);
+      list.delete("limit");
+      list.delete("offset");
+
+      expect(Object.fromEntries(report)).toEqual(Object.fromEntries(list));
+    }
+  });
+
+  it("is unaffected by which page of the list you were on", () => {
+    // The bug this forbids: an export that inherits offset/limit and returns
+    // page 3 of the report while the user believes they have the whole thing.
+    const f = { ...EMPTY_LINKS_FILTERS, status: "pending" as const };
+    const withPaging = new URLSearchParams(
+      toLinksApiQuery(f, { limit: 10, offset: 300 }),
+    );
+    withPaging.delete("limit");
+    withPaging.delete("offset");
+    expect(withPaging.toString()).toBe(toLinksExportQuery(f));
+  });
+
+  it("keeps every URL filter reachable - a new one cannot land on only the list", () => {
+    // The guard that fails if someone adds a filter to the list query and
+    // forgets the export (or vice versa). Both are built from one assembler, so
+    // this can only break if that is undone.
+    const everything: LinksFilterState = {
+      q: "a",
+      status: "pending",
+      role_type: "both",
+      company: "b",
+      submitted_from: "2026-07-01",
+      submitted_to: "2026-07-31",
+    };
+    const urlKeys = [...new URLSearchParams(toLinksQs(everything)).keys()];
+    const exportKeys = new Set(
+      new URLSearchParams(toLinksExportQuery(everything)).keys(),
+    );
+    expect(urlKeys.length).toBeGreaterThan(0);
+    for (const key of urlKeys) expect(exportKeys.has(key)).toBe(true);
+  });
+
+  it("the export action re-derives from the list's own query string", () => {
+    // Structural, not stylistic: the action takes the URL the page rendered
+    // from, re-parses it with the SAME parser, and asks with the export query.
+    // A hand-built filter object arriving from the client is the drift.
+    const src = read("src/app/(app)/links/actions.ts");
+    expect(src).toContain("export async function exportLinks(qs: string)");
+    expect(src).toContain("parseLinksFilters(");
+    expect(src).toContain("toLinksExportQuery(filters)");
+    // No second assembler on the export path.
+    expect(src).not.toContain("new URLSearchParams()");
+  });
+
+  it("the button exports the page's filters, never the toolbar's mid-typing state", () => {
+    // `initial` is the page's `effectiveFilters` - the object that built the
+    // list request. `f` is 300 ms ahead of the rows on screen.
+    const toolbar = read("src/components/links/LinksToolbar.tsx");
+    expect(toolbar).toContain("<LinksExportButton filters={initial} />");
+    expect(toolbar).not.toContain("<LinksExportButton filters={f}");
+
+    const button = read("src/components/links/LinksExportButton.tsx");
+    expect(button).toContain("exportLinks(toLinksQs(filters))");
+  });
+
+  it("hands the page's own filter object to the toolbar", () => {
+    // The last link in the chain: the same `effectiveFilters` builds the list
+    // request and seeds the toolbar the export button reads.
+    const page = read("src/app/(app)/links/page.tsx");
+    expect(page).toContain("toLinksApiQuery(effectiveFilters");
+    expect(page).toContain("initial={effectiveFilters}");
+  });
+});
+
+describe("an inverted range is said out loud, not rendered as no results", () => {
+  const range = (from: string, to: string) =>
+    linksDateRangeError({ submitted_from: from, submitted_to: to });
+
+  it("passes a valid range, including a single-day one", () => {
+    expect(range("2026-07-01", "2026-07-31")).toBeNull();
+    expect(range("2026-07-01", "2026-07-01")).toBeNull();
+  });
+
+  it("passes a one-sided range - there is nothing to invert", () => {
+    expect(range("2026-07-01", "")).toBeNull();
+    expect(range("", "2026-07-31")).toBeNull();
+    expect(range("", "")).toBeNull();
+  });
+
+  it("names both ends when they are the wrong way round", () => {
+    const msg = range("2026-07-31", "2026-07-01");
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("received from");
+    expect(msg).toContain("received to");
+  });
+
+  it("the page refuses the doomed request instead of showing an empty list", () => {
+    // The empty state reads as a fact about the data ("no links match"), which
+    // is the wrong answer to a typo. The page must not even ask.
+    const page = read("src/app/(app)/links/page.tsx");
+    expect(page).toContain("linksDateRangeError(effectiveFilters)");
+    expect(page).toContain("if (!error && !rangeError) {");
+    expect(page).toContain("Check the date range");
+  });
+
+  it("the export refuses it too, ahead of the backend's 422", () => {
+    expect(read("src/app/(app)/links/actions.ts")).toContain(
+      "linksDateRangeError(filters)",
+    );
+    expect(read("src/components/links/LinksExportButton.tsx")).toContain(
+      "linksDateRangeError(filters)",
+    );
+  });
+});
+
+describe("what a failed export tells the person who clicked", () => {
+  it("403: which filter to change, and who can grant the rest", () => {
+    const msg = linksExportErrorMessage(403);
+    expect(msg).toContain("Approved");
+    expect(msg).toContain("Super Admin");
+  });
+
+  it("413: the actual cap, and the filter that will shrink the file", () => {
+    const msg = linksExportErrorMessage(413);
+    expect(msg).toContain(MAX_EXPORT_ROWS.toLocaleString());
+    expect(msg).toContain("date range");
+  });
+
+  it("422: the range, because that is the only 422 this screen can produce", () => {
+    const msg = linksExportErrorMessage(422);
+    expect(msg).toContain("received from");
+    expect(msg).toContain("received to");
+  });
+
+  it("401 sends them to sign in again rather than reporting a broken export", () => {
+    expect(linksExportErrorMessage(401)).toContain("Sign in again");
+  });
+
+  it("anything else says nothing changed, and never leaks the upstream text", () => {
+    // Same rule as describeLoadFailure (#688): upstream messages on this app can
+    // carry table names and record ids, and this one goes on screen.
+    for (const status of [0, 500, 502, null]) {
+      const msg = linksExportErrorMessage(status);
+      expect(msg).toContain("Nothing has changed");
+    }
+    // One argument, and it is the status code - there is no parameter through
+    // which the backend's own wording could reach the screen.
+    expect(linksExportErrorMessage.length).toBe(1);
+  });
+
+  it("falls back to the backend's own dated filename shape", () => {
+    expect(linksExportFilename(new Date("2026-08-28T12:00:00Z"))).toBe(
+      "opportunity_links_2026-08-28.csv",
+    );
+  });
+
+  it("prefers the name the server sent over the fallback", () => {
+    const src = read("src/app/(app)/links/actions.ts");
+    expect(src).toContain("file.filename ?? linksExportFilename()");
+  });
+});
+
+describe("the report UI introduces no icons", () => {
+  it("keeps the export control text-only, in-flight state included", () => {
+    const src = read("src/components/links/LinksExportButton.tsx");
+    expect(src).not.toContain("lucide-react");
+    expect(src).toContain("Export CSV");
+    expect(src).toContain("Exporting");
   });
 });
 
