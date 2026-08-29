@@ -3954,6 +3954,49 @@ export interface paths {
         patch: operations["update_support_contact_admin_support_contacts__contact_id__patch"];
         trace?: never;
     };
+    "/survey/contact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Survey Contact
+         * @description PUBLIC, and unlike everything else here NOT token-gated: the one support
+         *     contact the survey may name, or ``null``.
+         *
+         *     ⚠️ WHY THIS EXISTS AT ALL. The same two fields already ride on
+         *     ``GET /respond/{token}``, and that is what the real survey screens read. This
+         *     endpoint exists for the DEMO survey (``/survey/demo``), which renders sample
+         *     data without a token and so can never call that one. Without it the demo
+         *     silently omits a control the real survey shows, which is the sample-survey
+         *     drift we keep having to fix: staff sign off on a survey the alum does not get.
+         *
+         *     ⚠️ WHY IT IS ACCEPTABLE TO SERVE THIS WITHOUT A TOKEN. It is one row, two
+         *     fields, and only for a row somebody deliberately labelled for the survey --
+         *     never the seeded Engineer / Super Admin rows. The same address is already
+         *     handed to every alumnus holding a survey link, and its whole purpose is to be
+         *     written to. Jake made this call explicitly (2026-08-29) so the public demo
+         *     matches what alumni see.
+         *
+         *     ⚠️ WHAT IT MUST NEVER BECOME. Not a list, not any other contact, and not any
+         *     other field. ``GET /support-contacts`` stays authenticated: this is a narrow,
+         *     named exception, not the start of a public directory of staff addresses.
+         *
+         *     Rate-limited by CLIENT IP, not by token -- there is no token here to key on,
+         *     which is exactly what makes this route different from every other public one
+         *     in this file.
+         */
+        get: operations["survey_contact_survey_contact_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/survey/respond/{token}": {
         parameters: {
             query?: never;
@@ -15291,6 +15334,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    survey_contact_survey_contact_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveySupportContact"] | null;
                 };
             };
         };
