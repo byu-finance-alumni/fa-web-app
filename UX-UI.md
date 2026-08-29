@@ -100,7 +100,7 @@ add more. New exceptions need the same thing this one had: a named approver and 
 
 | Token | Hex | Scope | Approved by | Why |
 | --- | --- | --- | --- | --- |
-| `submit-green-600` | `#15803D` | The alumni survey's **"Submit my updates"** button only (`src/components/survey/survey-screens.tsx`) | Jake, 2026-08-06 (#648) | Completion rate, not aesthetics — see below |
+| `submit-green-600` | `#15803D` | The alumni survey edit flow's one forward button at the foot of the section menu — labelled **"Continue"** since #773, **"Submit my updates"** before it (`src/components/survey/survey-screens.tsx`) | Jake, 2026-08-06 (#648) | Completion rate, not aesthetics — see below |
 | `submit-green-700` | `#126B33` | Hover/active state of the above | ″ | ″ |
 
 **Why this one exists.** The survey's submit button was navy `navy-800`, the same weight as every
@@ -110,6 +110,14 @@ looks identical to a link that was never opened — and it wastes the one minute
 get from that person. So the button is treated as a completion-rate problem and gets every lever:
 full width at all breakpoints, taller than the standard control height, isolated in its own block
 behind a rule with nothing beside it, and a colour that is not used anywhere else in the product.
+
+**The button it sits on moved one press earlier (#773), and the green did not follow it.** Every
+alum now ends on a short ways-to-help screen — the involvement questions and jobs/internships — so
+the section menu's button says "Continue" and the actual submit is the navy button at the foot of
+that screen, the same one the confirm path has used since #755. Green stays on exactly one control:
+the one at the end of the long form, which is where an alum can fill everything in and never find
+the way forward. The final screen is short, its button is full width and alone in its block, and a
+second green button would be the start of the spread this exception exists to prevent.
 
 **This is the first non-brand action colour in the app. It is deliberately single-purpose.** It is
 *not* a general "positive action" green and there is no `green` Button variant — the exception is

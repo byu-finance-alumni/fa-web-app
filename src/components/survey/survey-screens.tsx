@@ -53,6 +53,10 @@ import {
   splitOtherDesignationSlots,
 } from "@/lib/designations";
 import {
+  waysToHelpCopy,
+  type WaysToHelpMode,
+} from "@/lib/surveyWaysToHelp";
+import {
   COUNTRY_OPTIONS,
   INDUSTRY_OPTIONS,
   MARITAL_STATUS_OPTIONS,
@@ -764,6 +768,16 @@ export function EditFlow({
   links: LinkEntry[];
   setLinks: (next: LinkEntry[]) => void;
   onBack: () => void;
+  /**
+   * Everything the alum typed is valid — go FORWARD (#773).
+   *
+   * This no longer means "post it": since #773 the caller advances to the
+   * ways-to-help step, and the single POST happens from there, carrying the
+   * edits and any involvement answers in one body. That is what keeps the alum
+   * to one response row — a second POST for the involvement answers would stage
+   * a second pending row beside the first, which is what the backend does with
+   * two submissions on one token, on purpose. See `editSubmitBody`.
+   */
   onSubmit: () => void;
   submitting: boolean;
   submitError: string | null;
@@ -1057,7 +1071,7 @@ export function EditFlow({
       </a>
 
       {/*
-        The submit block (#648). This is a COMPLETION-RATE problem, not a colour
+        The forward block (#648). This is a COMPLETION-RATE problem, not a colour
         preference: an alum who fills the whole form and never finds this button
         has done all the work and sent us nothing, and we can't tell that apart
         from someone who never opened the link.
@@ -1072,11 +1086,22 @@ export function EditFlow({
              and taller than the standard control height.
           3. COLOUR — green. An approved, documented exception to the palette;
              see the token comment below and UX-UI.md.
-          4. WORDING — unchanged for now, per the ask.
+          4. WORDING — "Continue" since #773, and the line under it says what
+             happens next.
 
         Colour is deliberately last. It is the weakest of the four on its own,
         and the reason the old navy button "blended in" was never really its hue
         — it was a same-size button in a row of buttons.
+
+        ⚠️ IT SAYS "CONTINUE" BECAUSE IT NO LONGER SUBMITS (#773). One more
+        screen follows — the involvement questions and jobs/internships every
+        alum now ends on — and the POST happens there, carrying the edits and
+        those answers in one body so the alum ends with one response row. A
+        button that said "Submit my updates" and then showed another page would
+        be the #648 failure in a new shape: the alum who believes they are done
+        closes the tab, and everything they typed is lost. The label and the
+        line beneath it are load-bearing; do not "restore" the old wording
+        without moving the POST back to this press.
       */}
       <div className="mt-10 border-t border-gray-200 pt-8">
         <div className="flex">
@@ -1112,8 +1137,12 @@ export function EditFlow({
           onClick={handleSubmit}
           disabled={submitting}
         >
-          {submitting ? "Submitting…" : "Submit my updates"}
+          Continue
         </Button>
+        <p className="mt-3 text-sm leading-relaxed text-gray-500">
+          One last step — two optional ways to help — and then your updates are
+          sent.
+        </p>
       </div>
 
       <TrustNote />
@@ -1124,35 +1153,44 @@ export function EditFlow({
 /* ------------------------------------------------------- ways to help ----- */
 
 /**
- * Where "Yes, everything is correct" now leads (#755).
+ * The survey's ENDING — both branches of the fork reach it.
  *
- * The problem this screen replaces: confirming rendered a `SuccessPanel` whose
- * only control was "I need to make changes". Both of the survey's asks —
- * involvement and jobs/internships — lived inside the EDIT flow, so the alumni
- * with nothing to correct, the ones who reply fastest and are easiest to help,
- * were the only ones never asked to help. This screen is that ask, on the path
- * they actually take.
+ * Where "Yes, everything is correct" leads (#755), and, since #773, where the
+ * edit flow's Continue leads too. The problem it replaces: confirming rendered
+ * a `SuccessPanel` whose only control was "I need to make changes", and the
+ * edit flow ended on a thank-you. Both of the survey's asks — involvement and
+ * jobs/internships — were choices in the edit MENU, so the alumni with nothing
+ * to correct were never asked at all, and the alumni who came to fix one field
+ * opened that one section and never saw them either. This screen is that ask,
+ * on both of the paths alumni actually take.
+ *
+ * ONE screen for both branches on purpose, rendering `WAYS_TO_HELP_FIELDS`
+ * (itself an alias of `ENGAGEMENT_SECTION.fields`), so the two paths cannot
+ * drift into asking different questions. `mode` changes the COPY and nothing
+ * else — see `lib/surveyWaysToHelp`, where the difference is spelled out: on
+ * the confirm branch the alum's reply is already recorded, on the edit branch
+ * their updates are still in the browser and this page's button is what sends
+ * them.
  *
  * What it is NOT:
  *
- *  * NOT a field editor. It renders `WAYS_TO_HELP_FIELDS` (the involvement
- *    questions) and the opportunity-links form, and nothing else. Their name,
- *    employer and contact details are not on this page — they just told us
- *    those are right, and putting them back on screen would re-ask the question
- *    they answered.
- *  * NOT a dead end either. "I need to make changes" sits directly under the
- *    intro, because an alum who confirmed by mistake must not have to read a
- *    page of asks before finding the way out.
- *  * NOT gated on having answered anything. Their confirmation is already
- *    recorded by the time they get here, so Submit works with the page
- *    untouched — see `waysToHelpThanksBody`, which says what actually happened
- *    rather than claiming updates are in.
+ *  * NOT a field editor. It renders the involvement questions and the
+ *    opportunity-links form, and nothing else. Names, employers and contact
+ *    details are not on this page — the alum has just been through them.
+ *  * NOT a dead end either. The way back sits directly under the intro, because
+ *    an alum who arrived by mistake, or who has one more change to make, must
+ *    not have to read a page of asks before finding the way out.
+ *  * NOT gated on having answered anything. Submit works with the page
+ *    untouched on both branches — see `waysToHelpThanksBody` and
+ *    `waysToHelpCopy`, which say what actually happened rather than claiming
+ *    something that didn't.
  *
  * No shell, no `<main>`, no footer: the caller wraps this in `SurveyPageShell`,
  * which already provides all three.
  */
 export function WaysToHelp({
   firstName,
+  mode = "confirmed",
   valueOf,
   setEdit,
   links,
@@ -1163,17 +1201,28 @@ export function WaysToHelp({
   submitError,
 }: {
   firstName: string;
+  /**
+   * Which branch the alum arrived on (#773). Defaults to `confirmed`, the
+   * branch that has been shipping since #755, so the ways-to-help ROUTE keeps
+   * its behaviour without passing anything.
+   */
+  mode?: WaysToHelpMode;
   valueOf: (key: string) => string;
   setEdit: (key: string, value: string) => void;
   /** Owned by the caller, like the edit flow's: they go to their OWN endpoint. */
   links: LinkEntry[];
   setLinks: (next: LinkEntry[]) => void;
-  /** Back to the review screen, where "I need to make changes" is waiting. */
+  /**
+   * The way back into the edit flow. On the confirm branch that is the review
+   * screen ("I need to make changes"); on the edit branch it is the section
+   * menu the alum just came from, with everything they typed still in it.
+   */
   onNeedChanges: () => void;
   onSubmit: () => void;
   submitting: boolean;
   submitError: string | null;
 }) {
+  const copy = waysToHelpCopy(mode, firstName);
   // Same shape and the same rules as the edit flow's, for the same reason: the
   // links batch is all-or-nothing server-side, so a bad value is worth catching
   // under the box that caused it rather than as "something was rejected".
@@ -1194,18 +1243,18 @@ export function WaysToHelp({
     <>
       <div>
         <h1 className="text-3xl font-semibold leading-tight tracking-tight text-navy-800">
-          Thanks for confirming, {firstName}
+          {copy.heading}
         </h1>
         <p className="mt-3 max-w-prose text-base leading-relaxed text-gray-600">
-          Your information is up to date — that&apos;s everything we needed from
-          you. While you&apos;re here, there are two optional ways you can help
-          our finance students.
+          {copy.intro}
         </p>
         {/*
           The escape hatch, ABOVE the asks rather than buried under them. Someone
           who pressed the wrong button has already been told their details are
           right; making them scroll past two requests for their time to correct
-          that is the same trap in a different shape.
+          that is the same trap in a different shape. On the edit branch it is
+          the same button doing the same job — back to the form, with everything
+          they typed still in it.
         */}
         <div className="mt-4">
           <Button
@@ -1214,7 +1263,7 @@ export function WaysToHelp({
             onClick={onNeedChanges}
             disabled={submitting}
           >
-            I need to make changes
+            {copy.backLabel}
           </Button>
         </div>
       </div>
@@ -1271,13 +1320,14 @@ export function WaysToHelp({
       </section>
 
       {/*
-        Navy, not the survey's `submit-green` button. That green is a documented
-        single-control exception in UX-UI.md — the edit flow's "Submit my
-        updates", which an alum reaches only after filling a long form and can
-        miss. This button sits at the end of a short optional page whose primary
-        action is the only button in the block, and UX-UI.md is explicit that a
-        second control wanting `submit-green` should take `brand-blue`/navy
-        instead.
+        Navy on BOTH branches, not the survey's `submit-green` button. That
+        green is a documented single-control exception in UX-UI.md — the edit
+        flow's forward button, which an alum reaches only after filling a long
+        form and can miss. This button sits at the end of a short page that is
+        the only thing on screen, and it is the only control in its block;
+        UX-UI.md is explicit that a second control wanting `submit-green` should
+        take `brand-blue`/navy instead. Keeping the exception on exactly one
+        button is the whole reason it is allowed to exist.
       */}
       <div className="mt-10 border-t border-gray-200 pt-8">
         {submitError ? (
@@ -1291,11 +1341,10 @@ export function WaysToHelp({
           onClick={handleSubmit}
           disabled={submitting}
         >
-          {submitting ? "Sending…" : "Send this to the Finance team"}
+          {submitting ? copy.submittingLabel : copy.submitLabel}
         </Button>
         <p className="mt-3 text-sm leading-relaxed text-gray-500">
-          Nothing to add? You&apos;re already done — your confirmation is
-          recorded and you can close this page.
+          {copy.footerNote}
         </p>
       </div>
 
