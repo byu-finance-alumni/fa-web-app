@@ -129,13 +129,6 @@ export default async function LinksPage({
     <>
       <Topbar title="Internship Links" />
       <main className="flex-1 overflow-auto p-4 md:p-6">
-        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-          <p className="max-w-3xl text-sm text-gray-500">
-            Internship and full-time opportunities alumni have shared. Nothing
-            here expires on its own, so check the age before passing a link on.
-          </p>
-        </div>
-
         {/* Selection mode spans the toolbar (the Edit button), the bar under it
             (count + Delete) and the table (the checkboxes), so all three sit
             inside one provider. The state is ephemeral and deliberately NOT in
