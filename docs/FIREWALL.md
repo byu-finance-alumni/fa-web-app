@@ -1,8 +1,10 @@
 # Vercel Firewall — Configuration Record
 
-> **Last verified against the live Vercel config: 2026-08-29.**
+> **Last verified against the live Vercel config: 2026-09-02.**
 > §3 was read directly off all four projects with `vercel firewall rules list
-> --expand`. Re-verify and re-date after any dashboard change.
+> --expand` on 2026-08-29; the prod API project was re-read on 2026-09-02 while
+> resolving `fa-web-api#43` (unchanged — still the single blanket rule). Re-verify
+> and re-date after any dashboard change.
 
 Vercel Firewall rules — custom WAF rules, IP blocks, system bypasses, Attack
 Challenge Mode, managed bot rulesets — are **dashboard state**. They live in
@@ -30,7 +32,8 @@ Because a ticket was closed as done while its own last recorded evidence said it
 was not done, and nobody could tell from the repo which was true.
 
 **`fa-web-api#43` — "WAF rate-limit on `/auth/login/*`"** (opened 2026-06-16,
-closed 2026-07-20).
+closed 2026-07-20, **reopened 2026-08-29**, closed again 2026-09-02 — that second
+close on evidence and with a recorded decision, see §3.6).
 
 Its verification comment, **2026-06-29**:
 
@@ -153,7 +156,7 @@ Dev is deliberately left at its old numbers for now; raise it if testing ever tr
 | --- | --- | --- |
 | App projects have a rate-limit rule at `300 req / 60s`, excluding `/_next/*` | `SECURITY-MONITORING.md` assertion, 2026-06-18 | **PARTLY REFUTED 2026-08-29** — the condition/exclusion was right and dev was at 300, but **prod was live at 60**. The assertion was true of dev and false of prod. |
 | API projects have a rate-limit rule at `100 req / 60s` | `SECURITY-MONITORING.md` assertion, 2026-06-18 | **CONFIRMED 2026-08-29** (both projects were at 100; prod since raised to 1000) |
-| A per-IP rule exists on `/auth/login/precheck` + `/auth/login/record` | `fa-web-api#43`; last evidence (2026-06-29) says likely missing | **REFUTED 2026-08-29** — no such rule exists on either API project. The only rule is the blanket `path pre /` one. fa-web-api#43 was closed as done and the work was never performed. |
+| A per-IP rule exists on `/auth/login/precheck` + `/auth/login/record` | `fa-web-api#43`; last evidence (2026-06-29) says likely missing | **REFUTED 2026-08-29, re-confirmed 2026-09-02** — no such rule exists on either API project. The only rule is the blanket `path pre /` one. `fa-web-api#43` is now **closed as superseded**, on evidence rather than housekeeping — see §3.6. |
 | Attack Challenge Mode is OFF on all four projects | `SECURITY-MONITORING.md` monitoring step | **CONFIRMED 2026-08-29** |
 | Automatic DDoS mitigation is on | Vercel platform default on every plan | Platform behaviour, no per-project config to record |
 
@@ -170,6 +173,44 @@ Raising the number treats the symptom. The structurally correct fixes, if this r
 scope the rate limit to unauthenticated paths only (`/login`, `/auth/*`), where per-IP
 abuse is the actual threat, and leave authenticated browsing to the app's own login
 lockout and session controls; or add a system bypass for known campus ranges.
+
+### 3.6 `fa-web-api#43` — resolved 2026-09-02, and why nothing was built
+
+The issue asked for a per-IP WAF rate rule on `/auth/login/precheck` and
+`/auth/login/record`, on the grounds that they are unauthenticated and so allow a
+lockout-DoS. It was closed as superseded rather than implemented. The reasoning,
+so this is not re-litigated from scratch:
+
+1. **The application-level brake it was a proxy for already exists** (`fa-web-api#423`).
+   Both routes carry a per-IP limiter as a route dependency — precheck 600 / 600s,
+   record 300 / 600s — keyed on the **trusted rightmost forwarded hop**, never the
+   spoofable leftmost one and never the caller-supplied `context.ip_address`. Being a
+   route dependency it runs before body validation, so it cannot vary by the submitted
+   email. That code exists *because* this WAF rule could not be verified from the repo.
+
+2. **The lockout-DoS is accepted, intended behaviour**, not an open bug. Driving a
+   registered account into a sticky lock is what the lockout feature is for; the brakes
+   deliberately do not try to prevent it. The limiter is keyed on IP and explicitly
+   **not** on email — a per-email budget would be a lockout *amplifier*, and would break
+   anti-enumeration by making the response depend on the address.
+
+3. **Login abuse is separately covered** by the auto-block (`fa-web-api#457`), live on
+   prod since 2026-08-19 and triggered against real traffic.
+
+4. ⚠️ **Building it as specified would be actively harmful.** Per-IP keying behind
+   campus NAT is the shared-bucket problem in §3.5 — the mechanism behind both 403
+   incidents. A login-scoped rule tight enough to matter would lock out colleagues on an
+   ordinary busy afternoon; one loose enough to be safe adds nothing the blanket
+   1000/60s rule already gives.
+
+**The residual gap, stated rather than papered over:** the app-level limiter is
+per-instance and in-memory, so on serverless it is best-effort, not a hard boundary —
+genuinely weaker than an edge rule. Closing that properly is not "add a per-IP rule on
+`/auth/login/*`"; at the edge, per-IP is the wrong key for this network. The two
+structurally correct options are in §3.5.
+
+**Reopen if the campus-NAT constraint changes** — a dedicated egress range, or per-user
+keying at the edge — since that assumption is doing most of the work above.
 
 ## 4. Incident: 2026-08-29 — staff 403 while paging the alumni list (#796)
 
