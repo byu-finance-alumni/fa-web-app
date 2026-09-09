@@ -66,3 +66,8 @@ next-env.d.ts
 # worktree as an embedded repo.
 .worktrees/
 .claude/worktrees/
+
+# Change-request intake data (fa-web-api scripts/change_requests/). The real
+# folder lives at the WORKSPACE ROOT, outside both repos; this only catches a
+# stray CR_HOME pointed inside this checkout.
+/change-requests/
