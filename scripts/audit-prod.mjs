@@ -28,10 +28,12 @@ const ALLOW = new Map([
   // nagging about stale entries: an allowlist nobody prunes stops being a list
   // of accepted risks and becomes a list of forgotten ones.
   //
-  // postcss / sharp — pinned transitively by next; clear when next moves.
+  // postcss — pinned transitively by next; clear when next moves.
   ["GHSA-6g55-p6wh-862q", "postcss (transitive via next)"],
   ["GHSA-r28c-9q8g-f849", "postcss (transitive via next)"],
-  ["GHSA-f88m-g3jw-g9cj", "sharp (transitive via next)"],
+  // sharp's libvips advisory (GHSA-f88m-g3jw-g9cj) was removed 2026-09-09:
+  // the `overrides.sharp` pin to ^0.35.4 fixes it outright, so allowlisting it
+  // would hide a regression if that override were ever dropped.
 ]);
 
 let report;
