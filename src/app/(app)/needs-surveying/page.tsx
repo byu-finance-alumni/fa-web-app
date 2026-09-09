@@ -6,7 +6,7 @@ import { SurveyBulkScheduler } from "@/components/needs-surveying/SurveyBulkSche
 import { SurveyCampaignConsole } from "@/components/needs-surveying/SurveyCampaignConsole";
 import { apiGet } from "@/lib/api";
 import { getAuthContext } from "@/lib/auth-context";
-import { isEngineer } from "@/constants/roles";
+import { hasFullAccess, isEngineer } from "@/constants/roles";
 import {
   engineerSupportContact,
   surveySupportContact,
@@ -42,12 +42,22 @@ import type { SupportContact } from "@/types/support";
  */
 async function resetAudience(): Promise<{
   isEngineer: boolean;
+  canEditMessage: boolean;
   engineerContact: ResetContact | null;
   surveyContact: ResetContact | null;
 }> {
   let engineer = false;
+  let canEditMessage = false;
   try {
-    engineer = isEngineer((await getAuthContext()).roles);
+    const { roles } = await getAuthContext();
+    engineer = isEngineer(roles);
+    // Who may rewrite the survey email (#524). Full access and up — the career
+    // directors whose message it is — matching the tier that runs the campaign
+    // itself. Fails closed like the reset gate above: an unreadable
+    // `/auth/context` makes the editor READ-ONLY, never editable-on-assumption.
+    // The backend re-enforces it; a 403 from Save flips the dialog read-only
+    // too, so being wrong here costs a wasted click and never a stray write.
+    canEditMessage = hasFullAccess(roles);
   } catch {
     /* fail closed — see above */
   }
@@ -62,6 +72,7 @@ async function resetAudience(): Promise<{
   }
   return {
     isEngineer: engineer,
+    canEditMessage,
     // An engineer is the engineer; there is nobody to tell them to ask.
     engineerContact: engineer ? null : engineerSupportContact(contacts),
     surveyContact: surveySupportContact(contacts),
@@ -69,8 +80,12 @@ async function resetAudience(): Promise<{
 }
 
 export default async function NeedsSurveyingPage() {
-  const { isEngineer: engineer, engineerContact, surveyContact } =
-    await resetAudience();
+  const {
+    isEngineer: engineer,
+    canEditMessage,
+    engineerContact,
+    surveyContact,
+  } = await resetAudience();
 
   return (
     <>
@@ -95,7 +110,7 @@ export default async function NeedsSurveyingPage() {
 
             <div className="flex shrink-0 flex-col gap-2">
               <SurveyPreview surveyContact={surveyContact} />
-              <SurveyMessageEditor />
+              <SurveyMessageEditor canEdit={canEditMessage} />
               <SurveyBulkScheduler />
             </div>
           </div>

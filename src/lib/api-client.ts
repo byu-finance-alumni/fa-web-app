@@ -82,12 +82,33 @@ export async function clientPostJson<T>(
   path: string,
   body: unknown,
 ): Promise<T> {
+  return clientSendJson<T>("POST", path, body);
+}
+
+/**
+ * Browser-side PUT with a JSON body — a full replacement of a resource, e.g.
+ * the survey email copy (`PUT /survey/message`). Same auth, same
+ * `error.message` surfacing and same empty-body handling as
+ * {@link clientPostJson}; only the method differs.
+ */
+export async function clientPutJson<T>(
+  path: string,
+  body: unknown,
+): Promise<T> {
+  return clientSendJson<T>("PUT", path, body);
+}
+
+async function clientSendJson<T>(
+  method: "POST" | "PUT",
+  path: string,
+  body: unknown,
+): Promise<T> {
   const supabase = createClient();
   const {
     data: { session },
   } = await supabase.auth.getSession();
   const res = await fetch(`${API_URL}${path}`, {
-    method: "POST",
+    method,
     headers: {
       "Content-Type": "application/json",
       ...(session?.access_token

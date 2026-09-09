@@ -13,7 +13,8 @@
  *                 It Forward donor flag).
  *
  * These columns back the survey EMAIL's "here's what we have on file" preview
- * block (see `src/lib/surveyStore.ts`). The survey FORM itself is defined by
+ * block, whose selection is stored on the SERVER (`GET/PUT /survey/message`,
+ * see `src/lib/surveyMessage.ts`). The survey FORM itself is defined by
  * `components/survey/survey-screens` — the authored-question model that used to
  * live here was removed in #574 because nothing read it, so the staff preview
  * had drifted from the form alumni were actually sent.
@@ -144,3 +145,14 @@ export const SURVEY_FIELDS: SurveyField[] = [
 /** Fast lookup from a question's `fieldKey` to its column definition. */
 export const SURVEY_FIELD_BY_KEY: Record<string, SurveyField> =
   Object.fromEntries(SURVEY_FIELDS.map((f) => [f.key, f]));
+
+/**
+ * Sentinel "field" for the alum's profile photo.
+ *
+ * NOT a `SURVEY_FIELDS` column — headshots live in a storage bucket keyed by
+ * alumni_id, not in a table column — but staff may still include it in the
+ * email's "here's what we have on file" block, so it needs a stable key to be
+ * selected by. It lives here, beside the real column keys, because the two are
+ * stored in the same `on_file_fields` list on the server (#524).
+ */
+export const HEADSHOT_FIELD_KEY = "profile.headshot";
