@@ -4246,6 +4246,88 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/survey/message": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Survey Message
+         * @description The survey email's current copy — subject, intro, closing, and which
+         *     "here's what we have on file" rows it shows.
+         *
+         *     Never blank: a missing row or an empty column resolves to the built-in
+         *     default field by field, so what comes back is always exactly what the next
+         *     send would use. `is_customized` compares the resolved copy against those
+         *     defaults rather than asking whether a row exists, which is what lets the
+         *     editor decide whether "Reset to default" would do anything.
+         *
+         *     Read UNCACHED, like the alert-template console read: staff must see what is
+         *     stored right now, or an edit appears not to have taken.
+         */
+        get: operations["get_survey_message_survey_message_get"];
+        /**
+         * Update Survey Message
+         * @description Rewrite the survey email's copy. A whole-message save, not a patch.
+         *
+         *     422 with a message staff can act on if a field is empty after trimming, is
+         *     over its length cap, carries a control or invisible character (the subject
+         *     additionally may not contain a line break — that is header injection, not
+         *     formatting), or if `on_file_fields` names a row the email cannot build.
+         *
+         *     ⚠️ WHAT THIS CANNOT DO. It cannot add an on-file field: the selection is
+         *     validated against, and stored in the order of, `survey_message.ON_FILE_FIELDS`
+         *     and intersected with it again at render time, so it can only ever HIDE rows
+         *     the email already knew how to fill. It also cannot inject markup — the copy
+         *     is HTML-escaped before the paragraph breaks are added, exactly like the
+         *     on-file values beside it.
+         *
+         *     Audited (`update_survey_message`). The audit row records THAT the outbound
+         *     copy changed and by whom, not the prose: the wording itself is one SELECT
+         *     away, and an audit row is not the place to keep a copy of an email body. A
+         *     staff actor's row lands in `audit_logs`; an engineer's is rerouted into
+         *     `engineer_action_log` by the `before_flush` guard (#199), which is the
+         *     correct destination for either.
+         */
+        put: operations["update_survey_message_survey_message_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/message/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Survey Message
+         * @description Put the survey email's copy back to the Career Directors' original text.
+         *
+         *     Deletes the override row, after which the email says exactly what it said
+         *     before anybody edited it.
+         *
+         *     Answers a reset of already-default copy with a clean 200, not a 404: this is
+         *     the recovery path from wording that reads badly, and a second click landing
+         *     as an error is the same lockout-shaped mistake as rate-limiting the
+         *     maintenance-mode *disable* route. The audit row records whether anything was
+         *     actually cleared, so the trail still distinguishes the two.
+         */
+        post: operations["reset_survey_message_survey_message_reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/survey/campaigns/{grad_year}/send": {
         parameters: {
             query?: never;
@@ -9388,6 +9470,54 @@ export interface components {
             offset: number;
             /** Items */
             items: components["schemas"]["SurveyHeldOutAlum"][];
+        };
+        /**
+         * SurveyMessageRead
+         * @description The survey email's current copy, as the editor shows it.
+         *
+         *     Never blank: a missing row or an empty column resolves to the built-in
+         *     default field by field, so `subject` / `intro` / `closing` here are always
+         *     exactly what the next send would use.
+         */
+        SurveyMessageRead: {
+            /** Subject */
+            subject: string;
+            /** Intro */
+            intro: string;
+            /** Closing */
+            closing: string;
+            /** On File Fields */
+            on_file_fields: string[];
+            /** Is Customized */
+            is_customized: boolean;
+            /** Updated At */
+            updated_at: string | null;
+            /** Updated By Email */
+            updated_by_email: string | null;
+        };
+        /**
+         * SurveyMessageUpdate
+         * @description Rewrite the survey email's copy (staff control, surveys-manage gated).
+         *
+         *     Every field is required and replaces what is stored — this is a whole-message
+         *     save, not a patch, because the editor always submits the whole message and a
+         *     partial save is indistinguishable from a field the user cleared.
+         *
+         *     Validated in `app/services/survey_message.py`: non-empty after trimming,
+         *     within the length caps, no control or invisible characters (the subject is
+         *     additionally single-line — a newline in a header is injection, not
+         *     formatting), and every `on_file_fields` label must be one the email knows how
+         *     to build. An unknown label is a 422 rather than a silently missing row.
+         */
+        SurveyMessageUpdate: {
+            /** Subject */
+            subject: string;
+            /** Intro */
+            intro: string;
+            /** Closing */
+            closing: string;
+            /** On File Fields */
+            on_file_fields: string[];
         };
         /**
          * SurveyNewCyclePreview
@@ -15672,6 +15802,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_survey_message_survey_message_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyMessageRead"];
+                };
+            };
+        };
+    };
+    update_survey_message_survey_message_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SurveyMessageUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyMessageRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_survey_message_survey_message_reset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyMessageRead"];
                 };
             };
         };
