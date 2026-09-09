@@ -1,0 +1,135 @@
+# Keeps both Supabase projects out of the free-tier auto-pause, from the
+# frontend's own side of the connection.
+#
+# WHY THIS EXISTS. Supabase pauses a free-tier project after ~7 days with no
+# activity; after a pause it can be resumed from the dashboard for 90 days and
+# after that only the data can be downloaded. Supabase warned us about the DEV
+# project on 2026-09-09. fa-web-api runs the same job against `/health/db` on
+# both deployments — this is the SECOND, INDEPENDENT path, so a broken or
+# rolled-back API deployment cannot quietly take the keepalive down with it.
+#
+# WHY IT PINGS SUPABASE DIRECTLY AND NOT THIS APP'S OWN URL. This repo has no
+# server API routes; every alumni read goes through fa-web-api. What this repo
+# touches on Supabase directly is AUTH (@supabase/ssr session handling, see
+# src/utils/supabase/) and STORAGE (headshots). So those are what it pings —
+# duplicating fa-web-api's /health/db here would test fa-web-api, not this app,
+# and pinging this app's Vercel URL would prove nothing at all: a static 200
+# from a web server is not Supabase activity.
+#
+# ⚠️ THE STORAGE CALL IS THE ONE THAT COUNTS. `GET /storage/v1/bucket` is
+# served by storage-api out of the `storage.buckets` table, so it is a real
+# Postgres query against the project — that is the keepalive. It returns `[]`
+# for a publishable key (RLS shows an anonymous caller no buckets), which is
+# exactly what we want: real database work, zero data. The `/auth/v1/settings`
+# call before it is a diagnostic only — GoTrue answers it from config without
+# touching Postgres, so it proves the key and the project are live but would
+# NOT by itself keep anything awake. Do not "simplify" this down to the auth
+# call.
+#
+# ⚠️ NO LOGIN ATTEMPTS. The obvious database-backed auth ping is a bad-password
+# POST to /auth/v1/token. Never add one: failed logins feed the login-failure
+# alerting and the automatic IP block, so a daily cron would either page
+# somebody every morning or train everyone to ignore the alert.
+#
+# ⚠️ A SCHEDULED WORKFLOW ONLY RUNS FROM THE DEFAULT BRANCH, which here is
+# `prod`. This file does nothing on `dev` — it must be merged to `prod` before a
+# single ping ever fires. Until then, use the Run workflow button.
+#
+# REQUIRED REPOSITORY SECRETS (Settings -> Secrets and variables -> Actions):
+#   SUPABASE_DEV_URL             https://<dev project ref>.supabase.co
+#   SUPABASE_DEV_PUBLISHABLE_KEY dev NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+#   SUPABASE_PROD_URL            https://<prod project ref>.supabase.co
+#   SUPABASE_PROD_PUBLISHABLE_KEY prod NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+# The keys are the PUBLISHABLE (anon) ones that already ship in the browser
+# bundle — never the service-role key; nothing here needs elevated access. They
+# live in secrets rather than in this file because both repos are public and
+# because the project refs should not be pasted into source either.
+#
+# NOT A VERCEL CRON. A Vercel cron only runs on production deployments and every
+# push to add or change one burns builds against the 100-per-24h account cap.
+name: Supabase keepalive
+
+on:
+  schedule:
+    # Daily at 21:00 UTC (~15:00 in Utah). Daily, not weekly: the pause window
+    # is 7 days, GitHub drops or delays scheduled runs under load, and a single
+    # weekly attempt would spend the whole margin on one roll of the dice.
+    # fa-web-api's keepalive runs at 09:00 UTC, so each database is touched
+    # twice a day by two independent paths.
+    - cron: "0 21 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-keepalive-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    name: Touch Supabase (dev + prod)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DEV_URL: ${{ secrets.SUPABASE_DEV_URL }}
+      DEV_KEY: ${{ secrets.SUPABASE_DEV_PUBLISHABLE_KEY }}
+      PROD_URL: ${{ secrets.SUPABASE_PROD_URL }}
+      PROD_KEY: ${{ secrets.SUPABASE_PROD_PUBLISHABLE_KEY }}
+    steps:
+      - name: Ping both Supabase projects
+        run: |
+          # ⚠️ `set +e`: the default shell is `bash -e`, which would abort on the
+          # first failed curl and skip both the ::error line naming the
+          # unprotected project AND the ping for the OTHER project. Every
+          # failure below is reported deliberately instead.
+          set -u
+          set +e
+          failed=0
+
+          # $1 label, $2 base url, $3 publishable key
+          ping_project() {
+            label="$1"; url="$2"; key="$3"
+            echo "--- $label ---"
+            if [ -z "$url" ] || [ -z "$key" ]; then
+              upper=$(printf '%s' "$label" | tr '[:lower:]' '[:upper:]')
+              echo "::error title=Keepalive not configured::Repository secrets SUPABASE_${upper}_URL and SUPABASE_${upper}_PUBLISHABLE_KEY are not both set, so the $label Supabase project is NOT being kept alive."
+              failed=1
+              return
+            fi
+
+            # Diagnostic: is the project up and is the key accepted at all?
+            # Config only, no Postgres — this is not the keepalive.
+            auth_code=$(curl -sS --max-time 30 --retry 2 --retry-delay 10 \
+              --retry-all-errors -o /dev/null -w '%{http_code}' \
+              -H "apikey: $key" "$url/auth/v1/settings")
+            echo "auth settings: HTTP $auth_code"
+            if [ "$auth_code" != "200" ]; then
+              echo "::warning title=Auth unreachable::$label /auth/v1/settings returned HTTP $auth_code. If the storage check below also fails, suspect the publishable key or the project itself."
+            fi
+
+            # THE KEEPALIVE: storage-api reads storage.buckets in Postgres.
+            for attempt in 1 2 3; do
+              code=$(curl -sS --max-time 45 -o response.json -w '%{http_code}' \
+                -H "apikey: $key" -H "Authorization: Bearer $key" \
+                "$url/storage/v1/bucket")
+              echo "storage attempt $attempt: HTTP $code"
+              if [ "$code" = "200" ]; then
+                echo "$label Supabase project queried storage.buckets - activity recorded."
+                return
+              fi
+              cat response.json 2>/dev/null || true
+              echo
+              if [ "$attempt" -lt 3 ]; then
+                sleep 20
+              fi
+            done
+
+            echo "::error title=Keepalive FAILED::$label /storage/v1/bucket never returned HTTP 200, so no database query reached that Supabase project. It will pause after ~7 quiet days."
+            failed=1
+          }
+
+          ping_project dev "$DEV_URL" "$DEV_KEY"
+          ping_project prod "$PROD_URL" "$PROD_KEY"
+
+          exit "$failed"
