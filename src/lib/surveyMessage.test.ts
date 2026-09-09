@@ -330,24 +330,40 @@ describe("the /survey/message contract", () => {
   });
 
   it("uses the agreed field names", () => {
-    const source = read("./surveyMessage.ts");
-    for (const field of [
-      "subject",
-      "intro",
-      "closing",
-      "on_file_fields",
-      "is_customized",
-      "updated_at",
-      "updated_by_email",
-    ]) {
-      expect(source, field).toContain(`${field}:`);
-    }
+    // Now enforced by the compiler too: the types below are re-exported from
+    // the generated schema, so a backend rename fails `tsc`. This keeps the
+    // agreed names readable in one place regardless.
+    const probe: SurveyMessageRead = {
+      subject: "s",
+      intro: "i",
+      closing: "c",
+      on_file_fields: [],
+      is_customized: false,
+      updated_at: null,
+      updated_by_email: null,
+    };
+    expect(Object.keys(probe).sort()).toEqual(
+      [
+        "closing",
+        "intro",
+        "is_customized",
+        "on_file_fields",
+        "subject",
+        "updated_at",
+        "updated_by_email",
+      ].sort(),
+    );
   });
 
-  it("still carries the TODO to swap in the generated types", () => {
-    // These are hand-written only because the routes are not deployed to dev
-    // yet, so `npm run gen:api-types` has nothing to read. The note is the only
-    // thing that gets them replaced.
-    expect(read("./surveyMessage.ts")).toContain("TODO(#524)");
+  it("takes its types from the generated schema, not hand-written mirrors", () => {
+    // The hand-written interfaces existed only while the backend was being
+    // built in parallel. They are now re-exports of `api.gen.ts`, which is what
+    // makes a silent backend rename a `tsc` failure instead of an undefined in
+    // an alum's inbox. Reintroducing a local interface would remove that.
+    const source = read("./surveyMessage.ts");
+    expect(source).toContain('components["schemas"]["SurveyMessageRead"]');
+    expect(source).toContain('components["schemas"]["SurveyMessageUpdate"]');
+    expect(source).not.toContain("export interface SurveyMessageRead");
+    expect(source).not.toContain("export interface SurveyMessageUpdate");
   });
 });

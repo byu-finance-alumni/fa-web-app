@@ -22,52 +22,25 @@
  * whose defaults are the ones the send path uses.
  */
 
+import type { components } from "@/types/api.gen";
+
 /*
  * ────────────────────────────────────────────────────────────────────────────
- * TODO(#524): REPLACE THESE TWO TYPES WITH GENERATED ONES.
+ * TYPES COME FROM THE GENERATED SCHEMA.
  *
- * `src/types/api.gen.ts` is generated from the backend's OpenAPI schema and a CI
- * job guards it against drift, so it must never be hand-edited. The three
- * `/survey/message` routes are being built in parallel and are not deployed to
- * dev yet, which means the generator has nothing to read for them — hence these
- * hand-written mirrors.
- *
- * Once the backend lands on dev: run `npm run gen:api-types`, then delete the
- * two interfaces below and re-export the generated ones instead —
- *   export type SurveyMessageRead = components["schemas"]["SurveyMessageRead"];
- *   export type SurveyMessageUpdate = components["schemas"]["SurveyMessageUpdate"];
- * — and fix whatever stops typechecking. That failure is the point: it is the
- * only thing that can catch a field name that was agreed and then quietly
- * changed. The names below are the FROZEN contract shared with the backend
- * agent; do not rename them here to make something compile.
- * ────────────────────────────────────────────────────────────────────────────
+ * `SurveyMessageRead` / `SurveyMessageUpdate` are re-exported from
+ * `src/types/api.gen.ts`, which is generated from the backend's OpenAPI schema
+ * and guarded against drift by CI. They were hand-written mirrors while the
+ * backend was being built in parallel; the swap to generated types was the
+ * check that the frozen contract had actually been honoured on both sides.
+ * Never hand-edit `api.gen.ts` — regenerate it with `npm run gen:api-types`.
  */
 
 /** `GET /survey/message`, and the response of both writes. */
-export interface SurveyMessageRead {
-  /** Subject line of the survey email. Editable as of #524. */
-  subject: string;
-  /** Body copy ABOVE the "here's what we have on file" block. */
-  intro: string;
-  /** Body copy BELOW that block and the button, including the sign-off. */
-  closing: string;
-  /** `SURVEY_FIELDS` keys (plus {@link HEADSHOT_FIELD_KEY}) to preview. */
-  on_file_fields: string[];
-  /** False when the stored copy is still the backend's built-in default. */
-  is_customized: boolean;
-  /** ISO datetime of the last save, or null if never edited. */
-  updated_at: string | null;
-  /** Who saved it last, or null if never edited. */
-  updated_by_email: string | null;
-}
+export type SurveyMessageRead = components["schemas"]["SurveyMessageRead"];
 
 /** Body of `PUT /survey/message`. */
-export interface SurveyMessageUpdate {
-  subject: string;
-  intro: string;
-  closing: string;
-  on_file_fields: string[];
-}
+export type SurveyMessageUpdate = components["schemas"]["SurveyMessageUpdate"];
 
 /** `GET` / `PUT` the one survey message. */
 export const SURVEY_MESSAGE_PATH = "/survey/message";
