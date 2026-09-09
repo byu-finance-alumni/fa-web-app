@@ -1,25 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ClipboardList } from "lucide-react";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { SAMPLE_ALUM, SAMPLE_ALUM_NAME } from "@/lib/sampleAlumni";
 import { emptyLinkEntry, type LinkEntry } from "@/lib/opportunityLinks";
 import { type WaysToHelpMode } from "@/lib/surveyWaysToHelp";
 import { SurveyContactLink } from "@/components/survey/SurveyContactLink";
+import { surveyMessageByline } from "@/lib/surveyMessage";
 import {
-  DEFAULT_SURVEY_CLOSING,
-  DEFAULT_SURVEY_MESSAGE,
-  loadClosing,
-  loadMessage,
-  saveClosing,
-  saveMessage,
-} from "@/lib/surveyStore";
+  useSurveyMessage,
+  type SurveyMessageState,
+} from "@/lib/useSurveyMessage";
 import {
   EditFlow,
   INFO_SECTIONS,
@@ -48,11 +42,16 @@ import {
  * lied. Sharing the components is what makes "the preview matches" true by
  * construction. Do not re-add a parallel question model here.
  *
- * Laid out in the order the alum meets it — email intro, the survey, then the
- * closing and sign-off — so reading the dialog top to bottom is reading the
- * whole thing in sequence. Both blocks of email copy are editable in place and
- * saved through the same `surveyStore` the "Edit email message" dialog uses, so
- * the two always show the same copy whichever one staff happen to open.
+ * Laid out in the order the alum meets it — email subject and intro, the
+ * survey, then the closing and sign-off — so reading the dialog top to bottom is
+ * reading the whole thing in sequence.
+ *
+ * The email copy is READ from the server (`GET /survey/message`, #524) and shown
+ * as text, not as textareas. It used to be editable here and saved to
+ * `localStorage`, which made this dialog a second author of the message rather
+ * than a preview of it — and since the send never read that storage, what it
+ * showed was not what alumni got. Editing lives in one place now ("Edit email
+ * message"), and this screen's only job is to show what is actually stored.
  *
  * Nothing is sent: no API call, no token, and Submit only advances to the
  * thank-you screen so the last step is visible too.
@@ -76,7 +75,6 @@ export function SurveyPreview({
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
       >
-        <ClipboardList aria-hidden="true" />
         Sample survey
       </Button>
 
@@ -173,34 +171,17 @@ function PreviewBody({
   // state that nothing reads: this dialog posts nothing anywhere.
   const [links, setLinks] = useState<LinkEntry[]>(() => [emptyLinkEntry()]);
 
-  // The email copy IS saved (unlike everything else in this dialog) — it's the
-  // real message, edited here or in "Edit email message", both reading and
-  // writing the same keys. Load in an effect, never during render: localStorage
-  // doesn't exist on the server.
+  // The email copy is the ONE thing in this dialog that is real, so it is read
+  // from the server rather than held here (#524). Intro and closing render
+  // ABOVE and BELOW the survey respectively, in the order the alum meets them:
+  // subject -> greeting -> intro -> the survey itself -> closing and sign-off.
   //
-  // Intro and closing render ABOVE and BELOW the survey respectively, in the
-  // order the alum meets them: greeting -> intro -> the survey itself -> closing
-  // and sign-off. Two separate blocks with the survey between them, not one
-  // stacked pile of text boxes.
-  const [message, setMessage] = useState(DEFAULT_SURVEY_MESSAGE);
-  const [closing, setClosing] = useState(DEFAULT_SURVEY_CLOSING);
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    setMessage(loadMessage());
-    setClosing(loadClosing());
-    setHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    saveMessage(message);
-  }, [message, hydrated]);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    saveClosing(closing);
-  }, [closing, hydrated]);
+  // Nothing is editable here on purpose. A preview that can also author the
+  // thing it previews is not a preview, and the last time this screen held its
+  // own copy of the message (#574, then localStorage) the copy staff signed off
+  // on was not the copy that was sent.
+  const { state: emailCopy, reload: reloadEmailCopy } = useSurveyMessage();
+  const stored = emailCopy.status === "ready" ? emailCopy.message : null;
 
   const valueOf = (key: string) => edits[key] ?? fields[key] ?? "";
   // The sample record untouched by the walkthrough's edits, so the controlled
@@ -214,19 +195,21 @@ function PreviewBody({
       <p className="mb-5 rounded-md border border-brand-blue-300/50 bg-brand-blue-50 px-4 py-2 text-xs text-navy-800">
         Preview, top to bottom, in the order an alum meets it: the email intro,
         the survey itself, then the closing. Nothing you type in the survey is
-        saved or sent; the email copy is real and saves as you type.
+        saved or sent. The email copy is the wording stored on the server — the
+        wording that is really sent — and is changed under &ldquo;Edit email
+        message&rdquo;.
       </p>
 
       <EmailCopyBlock
-        id="preview-email-message"
         step="1 · Email"
-        title="Message (intro)"
+        title="Subject and message (intro)"
         hint={`Read first, above their details. The greeting ("Hello ${firstName},") is added automatically.`}
+        subject={stored?.subject}
         greeting={`Hello ${firstName},`}
-        value={message}
-        onChange={setMessage}
-        placeholder={DEFAULT_SURVEY_MESSAGE}
-        rows={6}
+        value={stored?.intro}
+        state={emailCopy}
+        onRetry={reloadEmailCopy}
+        byline={surveyMessageByline(stored)}
       />
 
       <p className="mb-3 mt-6 text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -366,14 +349,12 @@ function PreviewBody({
       <SurveyContactLink contact={surveyContact} />
 
       <EmailCopyBlock
-        id="preview-email-closing"
         step="3 · Email"
         title="Closing & sign-off"
         hint="Read last, below their details and the button: confirm instructions and the sign-off."
-        value={closing}
-        onChange={setClosing}
-        placeholder={DEFAULT_SURVEY_CLOSING}
-        rows={7}
+        value={stored?.closing}
+        state={emailCopy}
+        onRetry={reloadEmailCopy}
         className="mt-6"
       />
     </div>
@@ -381,32 +362,40 @@ function PreviewBody({
 }
 
 /**
- * One editable block of email copy. Intro and closing are the same control with
- * different copy, so they stay visually identical wherever they sit — the only
- * thing that tells them apart is their position around the survey.
+ * One block of email copy, exactly as the server holds it. Intro and closing are
+ * the same panel with different copy, so they stay visually identical wherever
+ * they sit — the only thing that tells them apart is their position around the
+ * survey.
+ *
+ * READ-ONLY, and it shows its own load state rather than borrowing the survey's.
+ * If the copy could not be read it says so: an empty panel here would read as
+ * "the email has no intro", which is a sentence about the product rather than
+ * about a failed request.
  */
 function EmailCopyBlock({
-  id,
   step,
   title,
   hint,
+  subject,
   greeting,
   value,
-  onChange,
-  placeholder,
-  rows,
+  state,
+  onRetry,
+  byline,
   className,
 }: {
-  id: string;
   step: string;
   title: string;
   hint: string;
-  /** Intro only: the automatic "Hello {first name}," line above the textarea. */
+  /** Intro block only: the stored subject line, shown above the greeting. */
+  subject?: string;
+  /** Intro block only: the automatic "Hello {first name}," line. */
   greeting?: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder: string;
-  rows: number;
+  value: string | undefined;
+  state: SurveyMessageState;
+  onRetry: () => void;
+  /** Intro block only: who last saved this wording. */
+  byline?: string;
   className?: string;
 }) {
   return (
@@ -415,22 +404,44 @@ function EmailCopyBlock({
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
           {step}
         </p>
-        <Label htmlFor={id} className="mt-0.5 block text-sm font-semibold text-gray-900">
-          {title}
-        </Label>
+        <p className="mt-0.5 text-sm font-semibold text-gray-900">{title}</p>
         <p className="mt-0.5 text-xs text-gray-500">{hint}</p>
+        {byline ? (
+          <p className="mt-1 text-xs text-gray-500">{byline}</p>
+        ) : null}
       </div>
       <div className="px-4 py-3">
-        {greeting ? (
-          <p className="mb-2 text-sm text-gray-900">{greeting}</p>
-        ) : null}
-        <Textarea
-          id={id}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          rows={rows}
-        />
+        {state.status === "loading" ? (
+          <p className="text-sm text-gray-500">Loading the saved wording…</p>
+        ) : state.status === "error" ? (
+          <div>
+            <p className="text-sm text-danger-600">{state.error}</p>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="mt-2"
+              onClick={onRetry}
+            >
+              Try again
+            </Button>
+          </div>
+        ) : (
+          <>
+            {subject !== undefined ? (
+              <p className="mb-2 text-sm text-gray-500">
+                Subject:{" "}
+                <span className="font-medium text-gray-900">
+                  {subject.trim() || "(no subject)"}
+                </span>
+              </p>
+            ) : null}
+            {greeting ? (
+              <p className="mb-2 text-sm text-gray-900">{greeting}</p>
+            ) : null}
+            <p className="whitespace-pre-wrap text-sm text-gray-700">{value}</p>
+          </>
+        )}
       </div>
     </div>
   );
