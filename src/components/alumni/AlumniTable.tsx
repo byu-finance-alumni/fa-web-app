@@ -230,6 +230,13 @@ export function AlumniTable({
                   >
                     {fullName(a)}
                   </Link>
+                  {/* #538: a friend's visible id, where an alumnus would have
+                      a Net ID. Null for every alumnus, so nothing renders. */}
+                  {a.friend_id ? (
+                    <span className="shrink-0 text-xs tabular-nums text-gray-500">
+                      {a.friend_id}
+                    </span>
+                  ) : null}
                 </div>
               </td>
               <td className="px-3 py-2.5 text-center tabular-nums text-gray-700">

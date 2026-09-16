@@ -868,6 +868,13 @@ export async function AlumniProfileView({
                   {/* BYU ID and BYU Net ID removed from the header (#361) — the
                       Net ID now lives in the Personal & family box; the BYU ID
                       number is not rendered in the UI at all. */}
+                  {/* #538: a friend of the program has no Net ID; their visible
+                      FRIEND-00042 id goes here instead. Null for every alumnus. */}
+                  {a.friend_id ? (
+                    <p className="mt-0.5 text-sm tabular-nums text-gray-500">
+                      {a.friend_id}
+                    </p>
+                  ) : null}
                   {/* Job title on its own line, company name underneath (#363);
                       the job/city icons are removed (#362). */}
                   <div className="mt-1.5 space-y-0.5 text-base text-gray-600">

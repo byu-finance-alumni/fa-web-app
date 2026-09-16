@@ -479,6 +479,30 @@ export function toAlumniFilterQs(f: AlumniFilterState): string {
 export type RosterScope = "alumni" | "friend";
 
 /**
+ * A typed friend id (#538): `FRIEND-00042`, tolerant of case and a missing
+ * hyphen. Friends of the program carry this visible id where an alumnus has a
+ * Net ID, and someone who types one into the Alumni page's search box is asking
+ * for THAT record, not for the alumni roster to say "no results".
+ */
+const FRIEND_ID_QUERY = /^friend-?\d+$/i;
+
+export function isFriendIdQuery(q: string): boolean {
+  return FRIEND_ID_QUERY.test(q.trim());
+}
+
+/**
+ * The `kind` a view sends for its free-text query: the route's scope, except
+ * that a typed friend id widens `alumni` to `friend` so the record surfaces.
+ * `friend` (not `all`) on purpose: the export maps `kind` to `is_alumni`
+ * true/false and has no "both", so `all` would put the list and its CSV on
+ * different populations — exactly what `toAlumniPopulationParams` exists to
+ * prevent.
+ */
+export function effectiveScope(q: string, scope: RosterScope): RosterScope {
+  return isFriendIdQuery(q) ? "friend" : scope;
+}
+
+/**
  * The narrowing params the roster honours straight off the URL, with no home in
  * the filter model (`PASS_THROUGH_PARAMS`). They are NOT cosmetic: a dashboard
  * deep link like `?employer=Goldman+Sachs` or `?near=Provo` cuts the list down
@@ -578,8 +602,10 @@ export function toAlumniPopulationParams(
 ): URLSearchParams {
   const p = new URLSearchParams();
   // ALWAYS explicit, even though `alumni` is the backend default. Relying on a
-  // default is what let the export lose it.
-  p.set("kind", scope);
+  // default is what let the export lose it. A typed FRIEND-00042 flips it to
+  // `friend` (#538) — and because the export derives from these same params,
+  // it inherits that flip with no code of its own.
+  p.set("kind", effectiveScope(f.q, scope));
   if (f.q.trim()) p.set("q", f.q.trim());
   if (f.ymin.trim()) p.set("grad_year_min", f.ymin.trim());
   if (f.ymax.trim()) p.set("grad_year_max", f.ymax.trim());
