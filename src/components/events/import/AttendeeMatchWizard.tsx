@@ -413,8 +413,12 @@ export function AttendeeMatchWizard({
     if (inputRef.current) inputRef.current.value = "";
   };
 
+  // `mx-auto max-w-5xl` is the same wrapper every other import wizard uses
+  // (EventsImportWizard, ImportWizard, UpdateImportWizard,
+  // DonationsImportWizard). This one had the max width without the auto
+  // margins, so above ~1024px it hugged the left edge of the page (#829).
   return (
-    <div className="w-full max-w-5xl space-y-6">
+    <div className="mx-auto w-full max-w-5xl space-y-6">
       <StepHeader step={step} eventName={eventName} />
 
       {step === "upload" ? (
