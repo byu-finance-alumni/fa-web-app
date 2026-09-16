@@ -132,9 +132,11 @@ export function QuickLogButton({
                       {displayName(a)}
                     </span>
                     <span className="shrink-0 truncate text-xs text-gray-500">
+                      {/* `employer_display` (#536): company, else the
+                          non-employed status, else null — backend rule. */}
                       {[
                         a.graduation_year ? `Class of ${a.graduation_year}` : null,
-                        a.current_employer,
+                        a.employer_display,
                       ]
                         .filter(Boolean)
                         .join(" · ")}

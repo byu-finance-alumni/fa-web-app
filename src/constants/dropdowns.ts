@@ -380,36 +380,6 @@ export function isMilitaryStatus(value: string | null | undefined): boolean {
 }
 
 /**
- * How a serving alumnus's employer reads on the profile: `Military/<branch>`.
- *
- * Jake, 2026-08-04 (#608): the branch is stored the ordinary way (the employer
- * field) and is OPTIONAL — we want it when we know it but never chase it, which
- * is also why it is exempt from the missing-employer flag. Displaying the bare
- * branch on its own ("Air Force") loses the fact that it is service, so the
- * profile prefixes it.
- *
- * Returns `null` when there is nothing to show at all, so callers keep their
- * existing "render nothing" branch.
- *
- * Cases:
- *   Military + "Air Force"  -> "Military/Air Force"
- *   Military + no branch    -> "Military"      (never a dangling "Military/")
- *   Military + "military"   -> "Military"      (no "Military/Military")
- *   any other status        -> the employer, untouched
- */
-export function employerDisplay(
-  employmentStatus: string | null | undefined,
-  employer: string | null | undefined,
-): string | null {
-  const branch = employer?.trim() || null;
-  if (!isMilitaryStatus(employmentStatus)) return branch;
-  if (!branch || branch.toLowerCase() === MILITARY_STATUS.toLowerCase()) {
-    return MILITARY_STATUS;
-  }
-  return `${MILITARY_STATUS}/${branch}`;
-}
-
-/**
  * Employment statuses for which a BLANK EMPLOYER is complete data (#608).
  *
  * Mirrors `EMPLOYER_NOT_APPLICABLE_STATUSES` in fa-web-api/app/core/dropdowns.py,
@@ -418,8 +388,10 @@ export function employerDisplay(
  * Completeness checklist agrees with those numbers for the same record.
  *
  * `Military` is on the list on Jake's call, 2026-08-04: "the branch does not
- * matter." We still want the branch when we know it — see `employerDisplay` —
- * but it is optional and never chased.
+ * matter." We still want the branch when we know it, but it is optional and
+ * never chased. What the employer SHOWS for these statuses is the backend's
+ * `employer_display` (#536) — the company when there is one, else the status
+ * label — and the UI renders that value without recomputing it.
  *
  * NOT exempt: `Self-Employed` (their own company is the employer and we want its
  * name), `Full-time` / `Part-time`, and `Unknown` (we don't know what they're

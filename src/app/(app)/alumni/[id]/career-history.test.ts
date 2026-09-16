@@ -67,14 +67,41 @@ describe("Overview — current employer and job title", () => {
     expect(flat.indexOf('<Field label="Job title"')).toBeLessThan(industry);
   });
 
-  it("renders the employer through employerDisplay, not the raw column", () => {
-    // `employerLabel` is `employerDisplay(...)`, which turns a Military record's
-    // branch into "Military/Air Force" (#608). The raw column would print a bare
-    // "Air Force" and read as an ordinary company.
+  it("renders the backend's employer_display, not the raw column (#536)", () => {
+    // `employerLabel` is `profile.employer_display`: the company when there is
+    // one, otherwise the employment status for the non-employed statuses
+    // ("Graduate Student"), otherwise null. The rule lives on the backend only,
+    // so the page must read the field and compute nothing — no local helper,
+    // and never the stored `current_employer` column, which is blank for a
+    // Graduate Student and would print an em-dash under "Employer".
     expect(flat).not.toContain(
       '<Field label="Employer" value={career?.current_employer',
     );
-    expect(flat).toContain("const employerLabel = employerDisplay(");
+    expect(flat).toContain("const employerLabel = profile.employer_display;");
+    expect(flat).not.toContain("employerDisplay(");
+  });
+
+  it("shows a status under the same Employer label, with no second label", () => {
+    // Jake's ask: a non-employed alum reads "Graduate Student" where the
+    // company would be. One row, one label — nothing like "Status" beside it.
+    const rows = flat.match(/<Field label="Employer"/g) ?? [];
+    expect(rows).toHaveLength(1);
+    expect(flat).not.toContain('<Field label="Employment status"');
+  });
+
+  it("keeps the edit form on the stored current_employer", () => {
+    // The read view shows `employer_display`; the edit form must keep editing
+    // the real column, or a Graduate Student's blank employer would be saved
+    // back as the literal text "Graduate Student".
+    const form = readFileSync(
+      resolve(
+        process.cwd(),
+        "src/components/alumni/edit-sections/EmploymentSectionForm.tsx",
+      ),
+      "utf8",
+    );
+    expect(form).toContain('name="career.current_employer"');
+    expect(form).not.toContain("employer_display");
   });
 
   it("uses the panel's own Field row, so an empty value gets the em-dash", () => {

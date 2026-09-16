@@ -264,9 +264,11 @@ export async function AlumniRoster({
                       {fullName(a)}
                     </p>
                     <p className="truncate text-xs text-gray-500">
+                      {/* `employer_display` (#536): company, else the
+                          non-employed status, else null — backend rule. */}
                       {[
                         a.graduation_year ? `Class of ${a.graduation_year}` : null,
-                        a.current_employer,
+                        a.employer_display,
                       ]
                         .filter(Boolean)
                         .join(" · ") || "—"}

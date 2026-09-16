@@ -13,6 +13,10 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
+  // Next compiles JSX with the automatic runtime (no `React` in scope), so a
+  // suite that renders a `.tsx` component through react-dom/server needs the
+  // same transform here — esbuild's default is the classic `React.createElement`.
+  esbuild: { jsx: "automatic" },
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
