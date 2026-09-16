@@ -10,7 +10,9 @@ import {
   FIXED_FACET_OPTIONS,
   PASS_THROUGH_PARAMS,
   countActiveFilters,
+  effectiveScope,
   hasPassThroughFilters,
+  isFriendIdQuery,
   facetOptions,
   parseAlumniFilters,
   parsePassThroughFilters,
@@ -926,5 +928,44 @@ describe("the roster feeds the export the same inputs it queried with", () => {
       ...EMPTY_PASS_THROUGH,
       radius: "50",
     })).toEqual([]);
+  });
+});
+
+describe("a typed friend id surfaces the friend record (#538)", () => {
+  it("recognises FRIEND-00042 in its spellings and nothing else", () => {
+    expect(isFriendIdQuery("FRIEND-00042")).toBe(true);
+    expect(isFriendIdQuery("friend-42")).toBe(true);
+    expect(isFriendIdQuery("Friend00042")).toBe(true);
+    expect(isFriendIdQuery("  FRIEND-00042  ")).toBe(true);
+    expect(isFriendIdQuery("friend")).toBe(false);
+    expect(isFriendIdQuery("friend of the program")).toBe(false);
+    expect(isFriendIdQuery("FRIEND-00042 smith")).toBe(false);
+    expect(isFriendIdQuery("msmith")).toBe(false);
+  });
+
+  it("sends kind=friend for q=FRIEND-00042 on the alumni roster", () => {
+    const p = toAlumniPopulationParams({ ...EMPTY_FILTERS, q: "FRIEND-00042" });
+    expect(p.get("kind")).toBe("friend");
+    expect(p.get("q")).toBe("FRIEND-00042");
+  });
+
+  it("leaves an ordinary query on the route's scope", () => {
+    expect(
+      toAlumniPopulationParams({ ...EMPTY_FILTERS, q: "smith" }).get("kind"),
+    ).toBe("alumni");
+    expect(
+      toAlumniPopulationParams({ ...EMPTY_FILTERS, q: "smith" }, "friend").get(
+        "kind",
+      ),
+    ).toBe("friend");
+    expect(effectiveScope("", "alumni")).toBe("alumni");
+  });
+
+  it("the export inherits the flip, so list and CSV stay on the same people", () => {
+    // Derived from `toAlumniPopulationParams`, not re-implemented: no code in
+    // exportFilters.ts knows about friend ids at all.
+    const f = { ...EMPTY_FILTERS, q: "FRIEND-00042" };
+    expect(toExportFilters(f).is_alumni).toBe(false);
+    expect(exportParityGaps(f)).toEqual([]);
   });
 });

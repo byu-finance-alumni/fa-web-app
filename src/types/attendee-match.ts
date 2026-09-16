@@ -1,67 +1,51 @@
 /**
- * Types for conference-attendee matching (#612).
+ * Types for conference-attendee matching (#612, #537, #538).
  *
- * The backend routes DO carry response_models
- * (fa-web-api/app/schemas/attendee_match.py), so these will eventually be
- * available as `Schema<"AttendeeMatchPreview">` etc. from the generated
- * `api.gen.ts`. They are hand-written here only because api.gen.ts is generated
- * from the DEPLOYED dev backend and the backend PR has not merged yet — swap
- * these aliases for the generated schemas after the next `npm run gen:api-types`
- * (see the PR description).
+ * Read from the generated OpenAPI contract (`api.gen.ts`, regenerated against
+ * the deployed dev backend) so the CI drift guard covers them. Only two shapes
+ * are hand-tightened here:
  *
- * Keep in sync with fa-web-api/app/schemas/attendee_match.py until then.
+ * - `AttendeeMatchPreview.warnings` — the contract types it as a bag of
+ *   unknowns; the backend actually sends `{ code, message }`.
+ * - `AttendeeApproval` — a REQUEST body. The generated shape lists every
+ *   nullable field as required; the backend defaults them, and the wizard only
+ *   ever sends what it means (`net_id` for an auto-confirmed Net ID row, and
+ *   nothing else that could read as an approval).
+ *
+ * Keep in sync with fa-web-api/app/schemas/attendee_match.py.
  */
 
-/** One alumnus proposed for one attendee row. NEVER applied automatically. */
-export interface AttendeeMatchCandidate {
-  alumni_id: number;
-  name: string;
-  first_name: string | null;
-  middle_name: string | null;
-  last_name: string | null;
-  preferred_first_name: string | null;
-  /** Maiden / birth name (#216) — why a married surname can still match. */
-  birth_name: string | null;
-  net_id: string | null;
-  graduation_year: number | null;
-  is_alumni: boolean;
-  employer: string | null;
-  title: string | null;
-  city: string | null;
-  state: string | null;
-  personal_email: string | null;
-  work_email: string | null;
-  /** "email" | "name" | "name_company" — which leg proposed this record. */
-  tier: string;
-  score: number;
-  /** "high" | "medium" | "low". Ranks candidates; never authorises a write. */
-  confidence: string;
-  /** Human-readable reasons, INCLUDING reasons against (a differing employer). */
-  evidence: string[];
-  already_attending: boolean;
-}
+import type { Schema } from "@/types/api";
+
+/**
+ * One alumnus proposed for one attendee row.
+ *
+ * `tier` is `netid` (#537 — an exact identifier; `confidence` is then
+ * `certain`), `email`, `name` or `name_company`. `corroborated` is only
+ * meaningful on a `netid` candidate: whether the file's email or name ALSO
+ * agrees with the record.
+ */
+export type AttendeeMatchCandidate = Schema<"AttendeeMatchCandidate">;
 
 /** The attendee as the uploaded file describes them. */
-export interface AttendeeMatchAttendee {
-  name: string;
-  first_name: string | null;
-  last_name: string | null;
-  maiden_name: string | null;
-  email: string | null;
-  company: string | null;
-  title: string | null;
-  graduation_year: number | null;
-}
+export type AttendeeMatchAttendee = Schema<"AttendeeMatchAttendee">;
 
 /**
  * One row of the uploaded list.
  *
- * - `matched`   — exactly one plausible record (still only a proposal)
- * - `ambiguous` — several; ALL are in `candidates` and the reviewer chooses
- * - `no_match`  — nothing plausible; eligible for a friend record
+ * - `matched`   — exactly one plausible record. A proposal UNLESS
+ *   `auto_confirmed` is true: then it is an exact Net ID hit (#537) that is
+ *   applied through the same `/approve` call without a human click, sending
+ *   the row's `net_id` so the server re-verifies it.
+ * - `ambiguous` — several plausible records, OR a Net ID that matches one
+ *   record while the email / name matches a different one. ALL are in
+ *   `candidates` and the reviewer chooses.
+ * - `no_match`  — nothing plausible on any tier; eligible for a friend record.
  * - `not_reviewed` — the preview hit its aggregate disclosure budget before
- *   reaching this row. NOT the same as `no_match`: re-upload the remaining rows
- *   as a smaller file rather than creating friend records for them.
+ *   reaching this row. NOT the same as `no_match`.
+ *
+ * `friend_eligible` is true only when the row failed EVERY tier — never merely
+ * because it lacks a Net ID.
  */
 export type AttendeeMatchStatus =
   | "matched"
@@ -69,79 +53,41 @@ export type AttendeeMatchStatus =
   | "no_match"
   | "not_reviewed";
 
-export interface AttendeeMatchRow {
-  row: number;
-  status: AttendeeMatchStatus | string;
-  attendee: AttendeeMatchAttendee;
-  /** "email" when the file gave one for this row, else "name". */
-  match_key: string;
-  candidates: AttendeeMatchCandidate[];
-  warnings: string[];
-  /** The DB fields a friend built from this row would carry. */
-  friend_fields: string[];
-}
+export type AttendeeMatchRow = Schema<"AttendeeMatchRow">;
 
-export interface AttendeeMatchSummary {
-  total_rows: number;
-  matched: number;
-  ambiguous: number;
-  no_match: number;
-  not_reviewed: number;
-  already_attending: number;
-}
+export type AttendeeMatchSummary = Schema<"AttendeeMatchSummary">;
 
-export interface AttendeeMatchPreview {
-  columns_ok: boolean;
-  header_errors: string[];
-  /** Columns the file has that map to no DB field. Dropped, never an error. */
-  ignored_columns: string[];
-  event: { event_id: number; event_name: string; event_date: string | null } | null;
-  summary: AttendeeMatchSummary;
-  rows: AttendeeMatchRow[];
+export interface AttendeeMatchPreview
+  extends Omit<Schema<"AttendeeMatchPreview">, "warnings"> {
   warnings: { code: string; message: string }[];
 }
 
-/** One approved match sent to the backend. */
+/**
+ * One approved match sent to the backend.
+ *
+ * `net_id` is set ONLY for a row the preview reported `auto_confirmed` (#537):
+ * the server re-verifies that the record's Net ID equals it before writing and
+ * labels the audit entry as a Net ID match rather than a human approval. It is
+ * never a way to approve a row the preview only proposed.
+ */
 export interface AttendeeApproval {
   alumni_id: number;
   row?: number;
+  net_id?: string | null;
   attendance_status?: string | null;
   notes?: string | null;
 }
 
-export interface AttendeeApplyItem {
-  alumni_id: number;
-  row: number | null;
-  /** "added" | "already_attending" | "not_found". */
-  status: string;
-  name: string | null;
-  message: string | null;
-}
+/** Per-approval outcome: `added`, `already_attending`, `not_found` or
+ *  `net_id_mismatch` (nothing written — re-run the check). */
+export type AttendeeApplyItem = Schema<"AttendeeApplyItem">;
 
-export interface AttendeeApplyResult {
-  event_id: number;
-  added: number;
-  already_attending: number;
-  not_found: number;
-  items: AttendeeApplyItem[];
-}
+export type AttendeeApplyResult = Schema<"AttendeeApplyResult">;
 
-export interface AttendeeFriendItem {
-  row: number;
-  name: string;
-  /** "created" | "skipped" (already on the roster) | "rejected". */
-  status: string;
-  alumni_id: number | null;
-  message: string | null;
-}
+/** Per-row outcome of creating a friend: `created`, `reused` (an existing
+ *  friend was linked instead of a twin being created, #538), `skipped`,
+ *  `existing_alumnus` (the email belongs to a real alumnus — match them
+ *  instead) or `rejected`. */
+export type AttendeeFriendItem = Schema<"AttendeeFriendItem">;
 
-export interface AttendeeFriendResult {
-  event_id: number;
-  created: number;
-  attached: number;
-  rejected: number;
-  /** Rows whose person is already on this roster — the idempotency guard. */
-  skipped: number;
-  items: AttendeeFriendItem[];
-  header_errors: string[];
-}
+export type AttendeeFriendResult = Schema<"AttendeeFriendResult">;
