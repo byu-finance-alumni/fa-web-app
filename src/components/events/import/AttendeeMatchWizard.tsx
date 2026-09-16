@@ -8,23 +8,20 @@ import {
   downloadAttendeeMatchTemplate,
   previewAttendeeMatch,
 } from "@/app/(app)/events/actions";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
+  ApplyOutcomes,
+  FriendOutcomes,
+  ReviewRow,
+} from "@/components/events/import/AttendeeMatchRows";
+import {
   NO_DECISIONS,
-  attendeeContext,
   buildApprovals,
   buildFriendRows,
-  candidateContext,
   canApply,
-  confidenceLabel,
   decisionCounts,
   isCsvFile,
-  rowAlreadyAttending,
-  statusLabel,
-  statusTone,
-  tierLabel,
   toggleApproval,
   toggleFriend,
   type Decisions,
@@ -32,9 +29,7 @@ import {
 import type {
   AttendeeApplyResult,
   AttendeeFriendResult,
-  AttendeeMatchCandidate,
   AttendeeMatchPreview,
-  AttendeeMatchRow,
 } from "@/types/attendee-match";
 
 type Step = "upload" | "review" | "result";
@@ -112,186 +107,17 @@ function SummaryCard({
 }
 
 /**
- * One proposed record, with the evidence for AND against it. Selecting is a
- * plain checkbox per candidate — never a pre-ticked default, and never a
- * "select all" — so every attendance row traces to a deliberate click.
- */
-function CandidateRow({
-  candidate,
-  selected,
-  onToggle,
-}: {
-  candidate: AttendeeMatchCandidate;
-  selected: boolean;
-  onToggle: () => void;
-}) {
-  const disabled = candidate.already_attending;
-  return (
-    <li className="rounded-md border border-gray-200 bg-white p-3">
-      <label className="flex items-start gap-3">
-        <input
-          type="checkbox"
-          className="mt-1 h-4 w-4 shrink-0 accent-brand-blue-600"
-          checked={selected}
-          disabled={disabled}
-          onChange={onToggle}
-        />
-        <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-2">
-            <Link
-              href={`/alumni/${candidate.alumni_id}`}
-              target="_blank"
-              className="font-medium text-brand-blue-700 underline-offset-2 hover:underline"
-            >
-              {candidate.name}
-            </Link>
-            <Badge variant="neutral" size="sm">
-              {tierLabel(candidate.tier)}
-            </Badge>
-            <Badge
-              variant={candidate.confidence === "low" ? "warning" : "muted"}
-              size="sm"
-            >
-              {confidenceLabel(candidate.confidence)}
-            </Badge>
-            {candidate.already_attending ? (
-              <Badge variant="muted" size="sm">
-                Already on this roster
-              </Badge>
-            ) : null}
-          </span>
-          <span className="mt-1 block text-sm text-gray-600">
-            {candidateContext(candidate)}
-          </span>
-          {candidate.birth_name ? (
-            <span className="mt-1 block text-sm text-gray-600">
-              Also recorded as {candidate.birth_name}
-            </span>
-          ) : null}
-          {candidate.personal_email || candidate.work_email ? (
-            <span className="mt-1 block text-sm text-gray-600">
-              {candidate.personal_email ?? candidate.work_email}
-            </span>
-          ) : null}
-          <ul className="mt-2 space-y-0.5 text-xs text-gray-500">
-            {candidate.evidence.map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-        </span>
-      </label>
-    </li>
-  );
-}
-
-function ReviewRow({
-  row,
-  decisions,
-  onToggleCandidate,
-  onToggleFriend,
-}: {
-  row: AttendeeMatchRow;
-  decisions: Decisions;
-  onToggleCandidate: (alumniId: number) => void;
-  onToggleFriend: () => void;
-}) {
-  const decision = decisions[row.row];
-  const context = attendeeContext(row);
-  return (
-    <Card className="p-4">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <span className="text-xs tabular-nums text-gray-500">
-          Row {row.row}
-        </span>
-        <span className="font-semibold text-navy-900">
-          {row.attendee.name}
-        </span>
-        <Badge variant={statusTone(row.status)} size="sm">
-          {statusLabel(row.status)}
-        </Badge>
-        {rowAlreadyAttending(row) ? (
-          <Badge variant="muted" size="sm">
-            Already on this roster
-          </Badge>
-        ) : null}
-      </div>
-      {context ? (
-        <p className="mt-1 text-sm text-gray-600">From the file: {context}</p>
-      ) : null}
-      {row.warnings.length > 0 ? (
-        <ul className="mt-2 space-y-0.5 text-sm text-warning-700">
-          {row.warnings.map((w) => (
-            <li key={w}>{w}</li>
-          ))}
-        </ul>
-      ) : null}
-
-      {row.candidates.length > 0 ? (
-        <>
-          {row.status === "ambiguous" ? (
-            <p className="mt-3 text-sm text-warning-700">
-              Several people could be this attendee. Choose the right one, or
-              leave them all unticked and decide later. Nothing is recorded
-              until you approve it.
-            </p>
-          ) : null}
-          <ul className="mt-3 space-y-2">
-            {row.candidates.map((candidate) => (
-              <CandidateRow
-                key={candidate.alumni_id}
-                candidate={candidate}
-                selected={
-                  decision?.kind === "approve" &&
-                  decision.alumniId === candidate.alumni_id
-                }
-                onToggle={() => onToggleCandidate(candidate.alumni_id)}
-              />
-            ))}
-          </ul>
-        </>
-      ) : (
-        <p className="mt-3 text-sm text-gray-600">
-          Nobody in the database plausibly matches this attendee. Most likely
-          they didn&apos;t graduate from BYU.
-        </p>
-      )}
-
-      {/* A not_reviewed row was never looked up, so offering "create a friend"
-          would invite a duplicate of somebody nobody checked for. */}
-      {row.status === "not_reviewed" ? null : (
-        <label className="mt-3 flex items-start gap-3 rounded-md border border-dashed border-gray-300 p-3">
-          <input
-            type="checkbox"
-            className="mt-1 h-4 w-4 shrink-0 accent-brand-blue-600"
-            checked={decision?.kind === "friend"}
-            onChange={onToggleFriend}
-          />
-          <span className="min-w-0 flex-1 text-sm">
-            <span className="font-medium text-navy-900">
-              Create a friend-of-the-program record instead
-            </span>
-            <span className="mt-1 block text-gray-600">
-              {row.friend_fields.length > 0
-                ? `Will store: ${row.friend_fields.join(", ")}`
-                : "Nothing in this row maps to a stored field."}
-            </span>
-          </span>
-        </label>
-      )}
-    </Card>
-  );
-}
-
-/**
  * Review a conference attendee list against the alumni database and approve
- * matches one at a time (#612).
+ * matches one at a time (#612, #537).
  *
- * Conference registrations don't collect Net IDs, so this matches on email
- * first and name second. Everything the backend returns is a PROPOSAL:
- * nothing is pre-selected here, there is no "select all" and no
- * approve-above-a-confidence shortcut, and an ambiguous row shows every
- * candidate rather than silently picking the top-scoring one. Text-only
- * controls per the app's no-icons preference.
+ * Rows are matched on Net ID first: an exact hit is `auto_confirmed` by the
+ * backend and rendered here as settled (no checkbox), then sent through the
+ * same approve call carrying its `net_id` for the server to re-verify. Every
+ * email or name match is a PROPOSAL: nothing is pre-selected, there is no
+ * "select all" and no approve-above-a-confidence shortcut, and an ambiguous
+ * row (including a Net ID that points at one record while the email or name
+ * points at another) shows every candidate rather than silently picking the
+ * top-scoring one. Text-only controls per the app's no-icons preference.
  */
 export function AttendeeMatchWizard({
   eventId,
@@ -413,28 +239,36 @@ export function AttendeeMatchWizard({
     if (inputRef.current) inputRef.current.value = "";
   };
 
+  // `mx-auto max-w-5xl` is the same wrapper every other import wizard uses
+  // (EventsImportWizard, ImportWizard, UpdateImportWizard,
+  // DonationsImportWizard). This one had the max width without the auto
+  // margins, so above ~1024px it hugged the left edge of the page (#829).
   return (
-    <div className="w-full max-w-5xl space-y-6">
+    <div className="mx-auto w-full max-w-5xl space-y-6">
       <StepHeader step={step} eventName={eventName} />
 
       {step === "upload" ? (
         <Card className="space-y-4 p-6">
           <div className="space-y-2 text-sm text-gray-600">
             <p>
-              Upload the conference registration list. Net IDs are not needed.
-              Attendees are matched on their <strong>email</strong> when the
-              file has one, and on their <strong>name</strong> when it
-              doesn&apos;t, with the company used as supporting evidence.
+              Upload the conference registration list. Attendees are matched on
+              their <strong>Net ID</strong> first: a row whose Net ID is on
+              file is confirmed on the spot and needs no review. Rows without
+              a Net ID, or whose Net ID isn&apos;t on file, are matched on
+              their <strong>email</strong>, then on their <strong>name</strong>{" "}
+              with the company as supporting evidence.
             </p>
             <p>
-              Column names don&apos;t have to match anything: Email, E-mail
-              Address, Company, Employer, Organization, Job Title and a combined
-              Name column are all understood, and columns we don&apos;t
-              recognise are simply ignored.
+              Column names don&apos;t have to match anything: Net ID, Email,
+              E-mail Address, Company, Employer, Organization, Job Title and a
+              combined Name column are all understood, and columns we
+              don&apos;t recognise are simply ignored. The example CSV below
+              has a Net ID column.
             </p>
             <p>
-              Every match is a <strong>proposal</strong>. Nothing is recorded
-              until you approve it on the next screen.
+              Every email or name match is a <strong>proposal</strong>. Nothing
+              is recorded until you approve it on the next screen; only Net ID
+              matches go through without approval.
             </p>
           </div>
 
@@ -507,8 +341,12 @@ export function AttendeeMatchWizard({
 
       {step === "review" && preview ? (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-6">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
             <SummaryCard label="Rows in file" value={preview.summary.total_rows} />
+            <SummaryCard
+              label="Matched by Net ID"
+              value={preview.summary.auto_confirmed}
+            />
             <SummaryCard label="One match" value={preview.summary.matched} />
             <SummaryCard
               label="Several matches"
@@ -547,10 +385,12 @@ export function AttendeeMatchWizard({
           ) : null}
 
           <p className="text-sm text-gray-600">
-            Nothing below is selected for you, and there is no “approve
-            everything” button on purpose: a wrong match silently credits the
-            wrong person. Tick the record you are confident about, or tick
-            “create a friend record” for someone who isn&apos;t in the database.
+            Rows matched by Net ID are already confirmed and need nothing from
+            you. Everything else is a proposal: nothing is selected for you, and
+            there is no “approve everything” button on purpose, because a wrong
+            match silently credits the wrong person. Tick the record you are
+            confident about, or tick “create a friend record” for someone who
+            isn&apos;t in the database.
           </p>
 
           <div className="space-y-4">
@@ -575,6 +415,9 @@ export function AttendeeMatchWizard({
 
           <div className="sticky bottom-0 flex flex-wrap items-center gap-3 border-t border-gray-200 bg-white/95 py-4">
             <span className="text-sm text-gray-600">
+              {counts.autoConfirmed > 0
+                ? `${counts.autoConfirmed} matched by Net ID, will be added without review · `
+                : ""}
               {counts.approvals} match
               {counts.approvals === 1 ? "" : "es"} approved, {counts.friends}{" "}
               friend record{counts.friends === 1 ? "" : "s"} to create
@@ -591,7 +434,7 @@ export function AttendeeMatchWizard({
 
       {step === "result" ? (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
             <SummaryCard label="Attendees added" value={applyResult?.added ?? 0} />
             <SummaryCard
               label="Already attending"
@@ -602,6 +445,17 @@ export function AttendeeMatchWizard({
               label="Friends created"
               value={friendResult?.created ?? 0}
             />
+            {/* #538: an existing friend linked instead of a twin created, and
+                rows whose email turned out to belong to a real alumnus. */}
+            <SummaryCard
+              label="Friends linked"
+              value={friendResult?.reused ?? 0}
+            />
+            <SummaryCard
+              label="Already alumni"
+              value={friendResult?.existing_alumni ?? 0}
+              tone="warning"
+            />
             <SummaryCard
               label="Already on roster"
               value={friendResult?.skipped ?? 0}
@@ -609,41 +463,39 @@ export function AttendeeMatchWizard({
             />
             <SummaryCard
               label="Not saved"
-              value={(applyResult?.not_found ?? 0) + (friendResult?.rejected ?? 0)}
+              value={
+                (applyResult?.not_found ?? 0) +
+                (applyResult?.net_id_mismatch ?? 0) +
+                (friendResult?.rejected ?? 0)
+              }
               tone="warning"
             />
           </div>
 
+          {applyResult && applyResult.net_id_mismatch > 0 ? (
+            <p className="rounded-lg border border-warning-300 bg-warning-50 px-4 py-3 text-sm text-warning-700">
+              {applyResult.net_id_mismatch} row
+              {applyResult.net_id_mismatch === 1 ? " was" : "s were"} refused
+              because the Net ID on file no longer matched. Re-run the check.
+            </p>
+          ) : null}
+          {friendResult && friendResult.existing_alumni > 0 ? (
+            <p className="rounded-lg border border-warning-300 bg-warning-50 px-4 py-3 text-sm text-warning-700">
+              {friendResult.existing_alumni} row
+              {friendResult.existing_alumni === 1 ? "" : "s"} belong
+              {friendResult.existing_alumni === 1 ? "s" : ""} to an alumnus by
+              email, so no friend record was created. Upload the list again and
+              match {friendResult.existing_alumni === 1 ? "them" : "those rows"}{" "}
+              instead.
+            </p>
+          ) : null}
+
           {applyResult && applyResult.items.length > 0 ? (
-            <Card className="p-4">
-              <h3 className="text-sm font-semibold text-navy-900">
-                Approved matches
-              </h3>
-              <ul className="mt-2 space-y-1 text-sm text-gray-600">
-                {applyResult.items.map((item) => (
-                  <li key={`a-${item.alumni_id}`}>
-                    {item.name ?? `Alumni #${item.alumni_id}`} — {item.status}
-                    {item.message ? ` (${item.message})` : ""}
-                  </li>
-                ))}
-              </ul>
-            </Card>
+            <ApplyOutcomes items={applyResult.items} />
           ) : null}
 
           {friendResult && friendResult.items.length > 0 ? (
-            <Card className="p-4">
-              <h3 className="text-sm font-semibold text-navy-900">
-                Friend records
-              </h3>
-              <ul className="mt-2 space-y-1 text-sm text-gray-600">
-                {friendResult.items.map((item) => (
-                  <li key={`f-${item.row}`}>
-                    Row {item.row}: {item.name} — {item.status}
-                    {item.message ? ` (${item.message})` : ""}
-                  </li>
-                ))}
-              </ul>
-            </Card>
+            <FriendOutcomes items={friendResult.items} />
           ) : null}
 
           <div className="flex flex-wrap gap-3">
