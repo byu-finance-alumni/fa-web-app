@@ -241,7 +241,14 @@ export function AlumniTable({
                 )}
               </td>
               <td className="truncate px-3 py-2.5 text-gray-700">
-                {a.current_employer ?? (
+                {/* `employer_display`, not `current_employer` (#536): the
+                    backend returns the company when there is one, otherwise
+                    the employment status for the non-employed statuses
+                    ("Graduate Student", "Military", …), otherwise null. The
+                    rule lives on the backend only — the row renders the value
+                    and computes nothing. The `employer` sort and filter still
+                    key on the stored column. */}
+                {a.employer_display ?? (
                   <span className="text-gray-300">—</span>
                 )}
               </td>

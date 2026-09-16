@@ -10,7 +10,6 @@ import {
   EMPLOYER_NOT_APPLICABLE_STATUSES,
   SURVEY_EMPLOYMENT_STATUS_OPTIONS,
   employerApplies,
-  employerDisplay,
   filterPrimaryIndustries,
   isMilitaryStatus,
   suggestMilitaryIndustry,
@@ -293,46 +292,6 @@ describe("filterPrimaryIndustries", () => {
 });
 
 /* ------------------------------------------------------------ military (#608) -- */
-
-describe("employerDisplay", () => {
-  it("prefixes the branch for a serving alumnus", () => {
-    // Jake: the branch is stored the ordinary way (the employer field) but must
-    // read as service, not as an ordinary company called "Air Force".
-    expect(employerDisplay("Military", "Air Force")).toBe("Military/Air Force");
-  });
-
-  it("reads as plain Military when no branch is recorded", () => {
-    // The branch is OPTIONAL and never chased, so this is the common case — and
-    // it must never render a dangling "Military/".
-    expect(employerDisplay("Military", null)).toBe("Military");
-    expect(employerDisplay("Military", "")).toBe("Military");
-    expect(employerDisplay("Military", "   ")).toBe("Military");
-  });
-
-  it("does not double up when the employer is already 'Military'", () => {
-    expect(employerDisplay("Military", "Military")).toBe("Military");
-    expect(employerDisplay("Military", "military")).toBe("Military");
-  });
-
-  it("trims the branch", () => {
-    expect(employerDisplay("Military", "  Navy ")).toBe("Military/Navy");
-  });
-
-  it("tolerates status casing drift from the free-text intake sheet", () => {
-    expect(employerDisplay("  military ", "Army")).toBe("Military/Army");
-  });
-
-  it("leaves every other status untouched", () => {
-    expect(employerDisplay("Full-time", "Goldman Sachs")).toBe("Goldman Sachs");
-    expect(employerDisplay(null, "Goldman Sachs")).toBe("Goldman Sachs");
-  });
-
-  it("returns null when there is nothing to show", () => {
-    // Callers keep their existing "render nothing" branch.
-    expect(employerDisplay("Full-time", null)).toBeNull();
-    expect(employerDisplay(undefined, "")).toBeNull();
-  });
-});
 
 describe("isMilitaryStatus", () => {
   it("is trimmed and case-insensitive", () => {
