@@ -35,7 +35,8 @@ export type LinkActionResult = { ok: true } | { ok: false; error: string };
 export interface AlumnusOption {
   alumni_id: number;
   name: string;
-  /** Grad year and current employer, for telling two same-named alumni apart. */
+  /** Grad year and the employer as displayed (`employer_display`), for telling
+   *  two same-named alumni apart. */
   detail: string;
 }
 
@@ -175,9 +176,12 @@ export async function searchAlumniForLink(q: string): Promise<AlumnusOption[]> {
     return page.items.map((a) => {
       const first = (a.preferred_first_name || a.first_name || "").trim();
       const last = (a.last_name || "").trim();
+      // `employer_display` (#536): the company when there is one, otherwise
+      // the non-employed status ("Graduate Student"), otherwise null. The
+      // rule is the backend's; this picker renders the value as given.
       const detail = [
         a.graduation_year ? String(a.graduation_year) : null,
-        a.current_employer,
+        a.employer_display,
       ]
         .filter(Boolean)
         .join(" · ");

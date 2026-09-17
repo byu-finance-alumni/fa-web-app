@@ -1763,9 +1763,13 @@ function WorldGeoMap({
                             .filter(Boolean)
                             .join(" · ")}
                         </p>
-                        {a.current_employer || a.current_title ? (
+                        {/* `employer_display`, not `current_employer` (#536):
+                            the company when there is one, otherwise the
+                            non-employed status ("Graduate Student"), otherwise
+                            null. Backend rule; the row renders it as given. */}
+                        {a.employer_display || a.current_title ? (
                           <p className="truncate text-xs text-gray-600">
-                            {[a.current_title, a.current_employer]
+                            {[a.current_title, a.employer_display]
                               .filter(Boolean)
                               .join(" · ")}
                           </p>

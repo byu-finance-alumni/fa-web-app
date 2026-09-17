@@ -6,7 +6,7 @@ import { readAuthContext } from "@/lib/auth-context";
 import { fetchHeadshotUrl } from "@/lib/headshots";
 import { safeExternalHref } from "@/lib/urlSafety";
 import type { Contact, Profile } from "@/types/profile";
-import { employerApplies, employerDisplay } from "@/constants/dropdowns";
+import { employerApplies } from "@/constants/dropdowns";
 import { canEditAlumni, isUserAdmin } from "@/constants/roles";
 import {
   canAddInteraction,
@@ -607,14 +607,16 @@ export async function AlumniProfileView({
         : `${homeCountry} / ${citizenship}`
       : (homeCountry ?? citizenship);
 
-  // #608: for a serving alumnus the employer field holds the BRANCH, which reads
-  // as an ordinary company on its own ("Air Force"). `employerDisplay` renders it
-  // as "Military/Air Force" — and as plain "Military" when no branch is recorded,
-  // never a dangling "Military/". Non-Military records are untouched.
-  const employerLabel = employerDisplay(
-    a.employment_status,
-    career?.current_employer,
-  );
+  // What the page SHOWS as the employer (#536): `profile.employer_display`,
+  // computed by the backend — the company when there is one, otherwise the
+  // employment status for the non-employed statuses (Graduate Student,
+  // Military, Not in the Labor Force, Unemployed, Unknown), otherwise null. The
+  // rule lives on the backend only, shared with the alumni list and the CSV
+  // export, so the page renders the value and computes nothing; the edit form
+  // keeps editing the stored `current_employer`. It sits on the aggregate
+  // rather than on `current_career` so the fallback still fires when there is
+  // no career row at all.
+  const employerLabel = profile.employer_display;
   // Career history employment (#367, #691): PAST roles only, most recent first.
   // The current role used to lead this list; it was dropped because it already
   // has two other homes on the page — Current employment contact information
@@ -866,6 +868,13 @@ export async function AlumniProfileView({
                   {/* BYU ID and BYU Net ID removed from the header (#361) — the
                       Net ID now lives in the Personal & family box; the BYU ID
                       number is not rendered in the UI at all. */}
+                  {/* #538: a friend of the program has no Net ID; their visible
+                      FRIEND-00042 id goes here instead. Null for every alumnus. */}
+                  {a.friend_id ? (
+                    <p className="mt-0.5 text-sm tabular-nums text-gray-500">
+                      {a.friend_id}
+                    </p>
+                  ) : null}
                   {/* Job title on its own line, company name underneath (#363);
                       the job/city icons are removed (#362). */}
                   <div className="mt-1.5 space-y-0.5 text-base text-gray-600">
@@ -1178,8 +1187,11 @@ export async function AlumniProfileView({
                     `hidden md:grid`. They lead this panel because everything
                     below is contact detail ABOUT this employer, and they use the
                     same Field row as the rest of it, so a blank reads as the
-                    page's standard em-dash. `employerLabel` (not the raw column)
-                    keeps the #608 "Military/Air Force" rendering. */}
+                    page's standard em-dash. `employerLabel` is the backend's
+                    `employer_display` (#536), not the raw column, so a
+                    non-employed alum reads "Graduate Student" here under the
+                    same "Employer" label — that is the ask, not a second
+                    label. */}
                 <div className="mb-4 grid grid-cols-1 gap-x-6 gap-y-4 border-b border-gray-100 pb-4 sm:grid-cols-2">
                   <Field label="Employer" value={employerLabel} />
                   <Field

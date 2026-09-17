@@ -2894,6 +2894,12 @@ export interface paths {
          * @description Propose matches for a conference attendee list (full_access, NO writes).
          *
          *     Matching precedence, per row:
+         *       0. **Net ID** (#537), when the file gives one - exact after strip +
+         *          lower-case. A lone, uncontradicted hit is ``auto_confirmed``: apply it
+         *          through ``/approve`` with its ``net_id`` and no human click. If the
+         *          email or name instead points at a DIFFERENT record the row is
+         *          ``ambiguous`` with both listed. A Net ID we do not know falls through
+         *          to the tiers below as a PROPOSAL, with the reason on the row.
          *       1. **Email**, when the file gives one - an exact, case-insensitive hit on
          *          the alumnus's personal OR work email. Treated as high confidence, and
          *          when an email hit exists the name-only candidates for that row are
@@ -2929,12 +2935,18 @@ export interface paths {
         put?: never;
         /**
          * Approve Attendee Matches
-         * @description Record attendance for HUMAN-APPROVED matches (full_access).
+         * @description Record attendance for approved matches (full_access).
          *
          *     Approving a match marks that person as attending THIS event and changes
          *     nothing else on the alumnus (Jake, 2026-08-04). Every ``alumni_id`` is
          *     re-validated server-side (must exist and not be archived) - the client's
          *     proposal is never trusted.
+         *
+         *     An ``auto_confirmed`` Net ID row from the preview (#537) is applied through
+         *     this same call with its ``net_id`` set: the server re-verifies that the
+         *     record's Net ID equals it before writing (``net_id_mismatch`` otherwise,
+         *     nothing written) and the audit entry records a Net ID match rather than a
+         *     human approval. There is still no confidence threshold here.
          *
          *     **Idempotent per (event, alumni):** an alumnus already on the roster is
          *     reported ``already_attending`` and skipped, so re-running the same file
@@ -2972,6 +2984,13 @@ export interface paths {
          *     ``create_alumni`` path, so cleaning, duplicate detection and audit logging
          *     fire exactly as for a manual create. Columns that map to nothing are
          *     ignored, never an error. 404 if the event is unknown.
+         *
+         *     Identity (#538, ``services.friend_identity``): before a row is created it
+         *     is resolved against EVERY friend in the table -- by email when the row has
+         *     one, by name + employer otherwise -- and an existing friend is attached to
+         *     this event as ``reused`` rather than duplicated. A row whose email belongs
+         *     to a real alumnus is refused as ``existing_alumnus`` (match it instead).
+         *     Every created / reused item carries the visible ``friend_id``.
          */
         post: operations["create_attendee_friends_events__event_id__attendees_match_friends_post"];
         delete?: never;
@@ -5692,6 +5711,25 @@ export interface components {
             current_city: string | null;
             /** Current State */
             current_state: string | null;
+            /**
+             * Friend Id
+             * @description Visible id of a friend-of-the-program record (#538): ``FRIEND-00042``
+             *     for ``alumni_id`` 42 when ``is_alumni`` is false, ``None`` for every
+             *     alumnus. Read-only and derived (see ``app.core.friend_id``) -- a client
+             *     can never send one. Rides on this base schema so the list row, the
+             *     profile read and the write results all carry the same value for the
+             *     same record; the CSV export derives its column from the same helper.
+             */
+            readonly friend_id: string | null;
+            /**
+             * Employer Display
+             * @description What the employer column SHOWS (#536): ``current_employer`` when set,
+             *     else the employment status for the non-employed statuses, else null.
+             *     Derived from this row's own fields at serialization time, so it can
+             *     never disagree with them; the CSV export's "Current employer" column
+             *     runs the same function. ``current_employer`` stays the stored value.
+             */
+            readonly employer_display: string | null;
         };
         /**
          * AlumniLocation
@@ -5838,6 +5876,16 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+            /**
+             * Friend Id
+             * @description Visible id of a friend-of-the-program record (#538): ``FRIEND-00042``
+             *     for ``alumni_id`` 42 when ``is_alumni`` is false, ``None`` for every
+             *     alumnus. Read-only and derived (see ``app.core.friend_id``) -- a client
+             *     can never send one. Rides on this base schema so the list row, the
+             *     profile read and the write results all carry the same value for the
+             *     same record; the CSV export derives its column from the same helper.
+             */
+            readonly friend_id: string | null;
         };
         /**
          * AlumniUpdateFieldChange
@@ -6222,6 +6270,16 @@ export interface components {
              * @default []
              */
             duplicate_warnings: components["schemas"]["DuplicateWarning"][];
+            /**
+             * Friend Id
+             * @description Visible id of a friend-of-the-program record (#538): ``FRIEND-00042``
+             *     for ``alumni_id`` 42 when ``is_alumni`` is false, ``None`` for every
+             *     alumnus. Read-only and derived (see ``app.core.friend_id``) -- a client
+             *     can never send one. Rides on this base schema so the list row, the
+             *     profile read and the write results all carry the same value for the
+             *     same record; the CSV export derives its column from the same helper.
+             */
+            readonly friend_id: string | null;
         };
         /** AttachmentRead */
         AttachmentRead: {
@@ -6244,8 +6302,9 @@ export interface components {
         /**
          * AttendeeApplyItem
          * @description Per-approval outcome. ``status`` is ``added``, ``already_attending``
-         *     (idempotent no-op — re-running the same file never double-adds), or
-         *     ``not_found`` (unknown or archived alumnus).
+         *     (idempotent no-op — re-running the same file never double-adds),
+         *     ``not_found`` (unknown or archived alumnus), or ``net_id_mismatch`` (the
+         *     approval carried a ``net_id`` the record does not have — nothing written).
          */
         AttendeeApplyItem: {
             /** Alumni Id */
@@ -6273,6 +6332,11 @@ export interface components {
             /** Not Found */
             not_found: number;
             /**
+             * Net Id Mismatch
+             * @default 0
+             */
+            net_id_mismatch: number;
+            /**
              * Items
              * @default []
              */
@@ -6280,15 +6344,24 @@ export interface components {
         };
         /**
          * AttendeeApproval
-         * @description One human-approved match. ``alumni_id`` is the record the reviewer PICKED
-         *     — for an ambiguous row that is a real choice between candidates, and the
+         * @description One match to record. ``alumni_id`` is the record the reviewer PICKED —
+         *     for an ambiguous row that is a real choice between candidates, and the
          *     server re-validates it (exists, not archived) before writing.
+         *
+         *     ``net_id`` is set ONLY for a Net ID row the preview reported
+         *     ``auto_confirmed`` (#537): the server re-verifies that the record's Net ID
+         *     equals it (normalised) before writing and labels the audit entry as a Net
+         *     ID match instead of a human approval; a mismatch is reported
+         *     ``net_id_mismatch`` and nothing is written. It is never a way to approve a
+         *     row that the preview only proposed.
          */
         AttendeeApproval: {
             /** Alumni Id */
             alumni_id: number;
             /** Row */
             row: number | null;
+            /** Net Id */
+            net_id: string | null;
             /** Attendance Status */
             attendance_status: string | null;
             /** Notes */
@@ -6299,7 +6372,8 @@ export interface components {
          * @description ``POST /events/{event_id}/attendees/match/approve`` body.
          *
          *     There is deliberately no "approve everything above X% confidence" option:
-         *     the client can only send ids a human ticked.
+         *     the client can only send ids a human ticked, plus the ``auto_confirmed``
+         *     Net ID rows the preview reported (each with its ``net_id``).
          */
         AttendeeApprovalRequest: {
             /** Approvals */
@@ -6325,10 +6399,23 @@ export interface components {
         /**
          * AttendeeFriendItem
          * @description Per-row outcome of creating a friend from a no-match row. ``status`` is
-         *     ``created``, ``skipped`` (somebody with this name + employer is already on
-         *     the event's roster — the idempotency guard, so re-posting the same file
-         *     never creates a second copy) or ``rejected`` (the create path refused it,
-         *     e.g. an exact duplicate).
+         *     one of:
+         *
+         *     * ``created`` — a new friend record; ``alumni_id`` + ``friend_id`` are its
+         *       ids.
+         *     * ``reused`` — an EXISTING friend (from any event) matched this row on
+         *       email, or on name + employer when the row has no email (#538), and was
+         *       attached to this event instead of a twin being created; ``alumni_id`` +
+         *       ``friend_id`` name the record so the UI can say "linked existing friend
+         *       FRIEND-00042".
+         *     * ``skipped`` — nothing to do: the person is already on this event's
+         *       roster (a re-post of the same file, or a second row for the same person
+         *       in one file).
+         *     * ``existing_alumnus`` — the row's email belongs to a real ALUMNUS, so no
+         *       friend was created and nothing was attached; ``is_existing_alumnus`` is
+         *       true and ``alumni_id`` is the alumnus. Staff should match the row
+         *       instead.
+         *     * ``rejected`` — the create path refused it (e.g. an exact duplicate).
          */
         AttendeeFriendItem: {
             /** Row */
@@ -6339,14 +6426,21 @@ export interface components {
             status: string;
             /** Alumni Id */
             alumni_id: number | null;
+            /** Friend Id */
+            friend_id: string | null;
+            /**
+             * Is Existing Alumnus
+             * @default false
+             */
+            is_existing_alumnus: boolean;
             /** Message */
             message: string | null;
         };
         /**
          * AttendeeFriendResult
          * @description ``POST /events/{event_id}/attendees/match/friends`` result. Every created
-         *     friend is ALSO attached to the event, so the operator never has to make two
-         *     passes.
+         *     or reused friend is ALSO attached to the event, so the operator never has to
+         *     make two passes (``attached`` = created + reused).
          */
         AttendeeFriendResult: {
             /** Event Id */
@@ -6362,6 +6456,16 @@ export interface components {
              * @default 0
              */
             skipped: number;
+            /**
+             * Reused
+             * @default 0
+             */
+            reused: number;
+            /**
+             * Existing Alumni
+             * @default 0
+             */
+            existing_alumni: number;
             /**
              * Items
              * @default []
@@ -6389,6 +6493,8 @@ export interface components {
             maiden_name: string | null;
             /** Email */
             email: string | null;
+            /** Net Id */
+            net_id: string | null;
             /** Company */
             company: string | null;
             /** Title */
@@ -6405,6 +6511,11 @@ export interface components {
          *     this record was proposed, including the ones that argue against it (an
          *     employer that differs is listed too). ``score``/``confidence`` rank
          *     candidates; they never authorise an automatic write.
+         *
+         *     ``tier`` is ``netid`` (#537, exact identifier; ``confidence`` is then
+         *     ``certain``), ``email``, ``name`` or ``name_company``. ``corroborated`` is
+         *     only meaningful on a ``netid`` candidate: whether the file's email or name
+         *     ALSO agrees with the record.
          */
         AttendeeMatchCandidate: {
             /** Alumni Id */
@@ -6448,6 +6559,11 @@ export interface components {
             score: number;
             /** Confidence */
             confidence: string;
+            /**
+             * Corroborated
+             * @default false
+             */
+            corroborated: boolean;
             /**
              * Evidence
              * @default []
@@ -6512,16 +6628,26 @@ export interface components {
          * @description One row of the uploaded attendee list and what was proposed for it.
          *
          *     ``status``:
-         *       * ``matched``    — exactly ONE plausible record. Still a proposal: it is
-         *         written only when a human approves that specific ``alumni_id``.
-         *       * ``ambiguous``  — several plausible records. ALL of them are in
-         *         ``candidates``; the top-scoring one is never silently chosen.
-         *       * ``no_match``   — nothing plausible. Eligible for friend creation.
+         *       * ``matched``    — exactly ONE plausible record. A proposal (written only
+         *         when a human approves that specific ``alumni_id``) UNLESS
+         *         ``auto_confirmed`` is true: then it is an exact Net ID hit (#537) that
+         *         the client applies through the same ``/approve`` call without a human
+         *         click, sending the row's ``net_id`` so the server re-verifies it.
+         *       * ``ambiguous``  — several plausible records, OR a Net ID that matches one
+         *         record while the email / name matches a different one. ALL of them are
+         *         in ``candidates``; the top-scoring one is never silently chosen.
+         *       * ``no_match``   — nothing plausible on any tier. Eligible for friend
+         *         creation.
          *       * ``not_reviewed`` — the review hit its aggregate disclosure budget before
          *         reaching this row. NOT the same as ``no_match``: re-upload the remaining
          *         rows as a smaller file rather than creating friends for them.
-         *     ``friend_fields`` lists the DB fields a friend record built from this row
-         *     would carry, so "create a friend" is not a black box.
+         *     ``match_key`` is the key that decided the row: ``netid``, ``email`` or
+         *     ``name``. ``reason`` is the one-line Net ID verdict when there is one
+         *     (confirmed / contradicted / unknown Net ID fell through to email + name).
+         *     ``friend_eligible`` is true only when the row failed EVERY tier — never
+         *     merely because it lacks a Net ID (that would duplicate an alum matched on
+         *     email or name). ``friend_fields`` lists the DB fields a friend record built
+         *     from this row would carry, so "create a friend" is not a black box.
          */
         AttendeeMatchRow: {
             /** Row */
@@ -6532,6 +6658,13 @@ export interface components {
             /** Match Key */
             match_key: string;
             /**
+             * Auto Confirmed
+             * @default false
+             */
+            auto_confirmed: boolean;
+            /** Reason */
+            reason: string | null;
+            /**
              * Candidates
              * @default []
              */
@@ -6541,6 +6674,11 @@ export interface components {
              * @default []
              */
             warnings: string[];
+            /**
+             * Friend Eligible
+             * @default false
+             */
+            friend_eligible: boolean;
             /**
              * Friend Fields
              * @default []
@@ -6559,6 +6697,11 @@ export interface components {
             total_rows: number;
             /** Matched */
             matched: number;
+            /**
+             * Auto Confirmed
+             * @default 0
+             */
+            auto_confirmed: number;
             /** Ambiguous */
             ambiguous: number;
             /** No Match */
@@ -6640,6 +6783,8 @@ export interface components {
             last_name: string | null;
             /** Current Employer */
             current_employer: string | null;
+            /** Employer Display */
+            employer_display: string | null;
             /** Graduation Year */
             graduation_year: number | null;
             /** Birth Month */
@@ -6799,6 +6944,8 @@ export interface components {
             graduation_year: number | null;
             /** Current Employer */
             current_employer: string | null;
+            /** Employer Display */
+            employer_display: string | null;
         };
         /** CityCount */
         CityCount: {
@@ -7830,6 +7977,8 @@ export interface components {
             current_employer: string | null;
             /** Current Title */
             current_title: string | null;
+            /** Employer Display */
+            employer_display: string | null;
         };
         /**
          * GeoOptions
@@ -9018,6 +9167,16 @@ export interface components {
              * @default []
              */
             audit: components["schemas"]["AuditEntryRead"][];
+            /**
+             * Employer Display
+             * @description What the profile SHOWS as the employer (#536): ``current_career
+             *     .current_employer`` when set, else ``alumni.employment_status`` for the
+             *     non-employed statuses, else null. Lives on the aggregate rather than on
+             *     ``CurrentCareerRead`` because the fallback must still fire when there
+             *     is NO career row at all. Same function as the alumni list and the CSV
+             *     export; the stored fields are untouched.
+             */
+            readonly employer_display: string | null;
         };
         /** ProgramEngagementRead */
         ProgramEngagementRead: {
@@ -9070,6 +9229,8 @@ export interface components {
             current_employer: string | null;
             /** Current Title */
             current_title: string | null;
+            /** Employer Display */
+            employer_display: string | null;
             /** Distance Miles */
             distance_miles: number;
         };
