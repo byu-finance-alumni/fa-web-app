@@ -21,6 +21,7 @@ const STORED: SurveyMessageRead = {
   intro: "Our BYU Finance alumni are one of the greatest strengths…",
   closing: "Warmest regards,\nTanya Harmon & Amy Densley",
   on_file_fields: ["profile.headshot", "employment.current_employer"],
+  reminder_note: "In case you missed this survey…",
   is_customized: true,
   updated_at: "2026-09-08T15:04:05Z",
   updated_by_email: "tharmon@byu.edu",
@@ -30,11 +31,12 @@ const read = (relative: string) =>
   readFileSync(fileURLToPath(new URL(relative, import.meta.url)), "utf8");
 
 describe("toSurveyMessageUpdate", () => {
-  it("carries exactly the four editable fields", () => {
+  it("carries exactly the five editable fields", () => {
     expect(Object.keys(toSurveyMessageUpdate(STORED)).sort()).toEqual([
       "closing",
       "intro",
       "on_file_fields",
+      "reminder_note",
       "subject",
     ]);
   });
@@ -48,6 +50,24 @@ describe("toSurveyMessageUpdate", () => {
   });
 });
 
+describe("the follow-up line (#560)", () => {
+  it("counts CLEARING the line as an edit, so the off switch is savable", () => {
+    // ⚠️ Empty is a VALUE here, not "unset": it means the 2nd and 3rd emails
+    // read exactly like the first. If clearing the box did not register as
+    // dirty, staff could never turn the line off.
+    const cleared = { ...toSurveyMessageUpdate(STORED), reminder_note: "" };
+    expect(surveyMessageDirty(cleared, STORED)).toBe(true);
+  });
+
+  it("does not refuse an empty line the way it refuses an empty intro", () => {
+    const cleared = { ...toSurveyMessageUpdate(STORED), reminder_note: "" };
+    expect(surveyMessageProblem(cleared)).toBeNull();
+    expect(
+      surveyMessageProblem({ ...toSurveyMessageUpdate(STORED), intro: "  " }),
+    ).not.toBeNull();
+  });
+});
+
 describe("surveyMessageDirty", () => {
   it("is false for an untouched draft", () => {
     expect(surveyMessageDirty(toSurveyMessageUpdate(STORED), STORED)).toBe(
@@ -56,7 +76,10 @@ describe("surveyMessageDirty", () => {
   });
 
   it("notices each edited text field", () => {
-    for (const key of ["subject", "intro", "closing"] as const) {
+    // `reminder_note` included: the follow-up line is saved copy like the rest
+    // (#560), and leaving it out of the dirty check would sit the Save button
+    // disabled over a real edit.
+    for (const key of ["subject", "intro", "closing", "reminder_note"] as const) {
       const draft = { ...toSurveyMessageUpdate(STORED), [key]: "changed" };
       expect(surveyMessageDirty(draft, STORED), key).toBe(true);
     }
@@ -338,6 +361,7 @@ describe("the /survey/message contract", () => {
       intro: "i",
       closing: "c",
       on_file_fields: [],
+      reminder_note: "",
       is_customized: false,
       updated_at: null,
       updated_by_email: null,
@@ -348,6 +372,7 @@ describe("the /survey/message contract", () => {
         "intro",
         "is_customized",
         "on_file_fields",
+        "reminder_note",
         "subject",
         "updated_at",
         "updated_by_email",
