@@ -63,6 +63,7 @@ export function toSurveyMessageUpdate(
     subject: message.subject,
     intro: message.intro,
     closing: message.closing,
+    reminder_note: message.reminder_note,
     on_file_fields: [...message.on_file_fields],
   };
 }
@@ -77,6 +78,7 @@ export function surveyMessageDirty(
     draft.subject !== saved.subject ||
     draft.intro !== saved.intro ||
     draft.closing !== saved.closing ||
+    draft.reminder_note !== saved.reminder_note ||
     !sameFields(draft.on_file_fields, saved.on_file_fields)
   );
 }
@@ -101,6 +103,10 @@ export function surveyMessageProblem(
   if (!draft.subject.trim()) return "The subject line can't be empty.";
   if (!draft.intro.trim()) return "The message can't be empty.";
   if (!draft.closing.trim()) return "The closing can't be empty.";
+  // ⚠️ `reminder_note` is deliberately NOT checked. An empty one is the off
+  // switch — it means the follow-ups read exactly like the first email — and the
+  // backend accepts it for that reason. Refusing it here would make the control
+  // one-way.
   return null;
 }
 

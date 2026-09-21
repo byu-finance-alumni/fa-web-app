@@ -9649,6 +9649,11 @@ export interface components {
             closing: string;
             /** On File Fields */
             on_file_fields: string[];
+            /**
+             * Reminder Note
+             * @default
+             */
+            reminder_note: string;
             /** Is Customized */
             is_customized: boolean;
             /** Updated At */
@@ -9679,6 +9684,11 @@ export interface components {
             closing: string;
             /** On File Fields */
             on_file_fields: string[];
+            /**
+             * Reminder Note
+             * @default
+             */
+            reminder_note: string;
         };
         /**
          * SurveyNewCyclePreview

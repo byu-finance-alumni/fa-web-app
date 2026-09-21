@@ -121,6 +121,11 @@ export function SurveyMessageEditor({
   const [confirmClose, setConfirmClose] = useState(false);
   // Set when the backend refuses a write with a 403, whatever we guessed.
   const [refused, setRefused] = useState(false);
+  // Which of the three emails the preview below is showing (#560). The cadence
+  // is one initial and two follow-ups, and only the follow-ups carry the
+  // follow-up line — so there was previously NO way to read what a follow-up
+  // actually says before it went out. Preview only; it changes nothing saved.
+  const [previewFollowUp, setPreviewFollowUp] = useState(false);
 
   const saved = state.status === "ready" ? state.message : null;
   // What the draft was last baselined against, so a re-read can tell an
@@ -331,6 +336,28 @@ export function SurveyMessageEditor({
                   />
                 </div>
 
+                {/* The follow-up line — reminders only (#560). Sits here, above
+                    the intro, because that is where the email shows it. */}
+                <div>
+                  <Label htmlFor="email-reminder-note">
+                    Follow-up line (2nd and 3rd emails only)
+                  </Label>
+                  <p className="mt-0.5 text-xs text-gray-500">
+                    Added above the message on the two reminder emails, so they
+                    do not read like a first contact. The first email never
+                    shows it. Leave this empty and all three emails read the
+                    same.
+                  </p>
+                  <Textarea
+                    id="email-reminder-note"
+                    value={draft.reminder_note}
+                    onChange={(e) => patch({ reminder_note: e.target.value })}
+                    disabled={!editable}
+                    rows={2}
+                    className="mt-2"
+                  />
+                </div>
+
                 {/* Intro message (above the record preview) */}
                 <div>
                   <Label htmlFor="email-message">Message (intro)</Label>
@@ -409,9 +436,32 @@ export function SurveyMessageEditor({
 
                 {/* Email preview */}
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                    Email preview
-                  </p>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                      Email preview
+                    </p>
+                    {/* Reading a follow-up used to be impossible from the app
+                        (#560, #562) — all three emails were identical, so there
+                        was nothing to switch between. Now there is. */}
+                    <div className="flex gap-1.5">
+                      <Button
+                        type="button"
+                        variant={previewFollowUp ? "secondary" : "primary"}
+                        size="sm"
+                        onClick={() => setPreviewFollowUp(false)}
+                      >
+                        First email
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={previewFollowUp ? "primary" : "secondary"}
+                        size="sm"
+                        onClick={() => setPreviewFollowUp(true)}
+                      >
+                        Follow-up
+                      </Button>
+                    </div>
+                  </div>
                   <div className="mt-1 overflow-hidden rounded-lg border border-gray-200">
                     <div className="bg-navy-800 px-4 py-3">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-brand-blue-300">
@@ -424,8 +474,17 @@ export function SurveyMessageEditor({
                     <div className="space-y-3 bg-white px-4 py-4">
                       <p className="whitespace-pre-wrap text-sm text-gray-700">
                         Hello {SAMPLE_FIRST_NAME},{"\n\n"}
+                        {previewFollowUp && draft.reminder_note.trim()
+                          ? `${draft.reminder_note.trim()}\n\n`
+                          : ""}
                         {draft.intro}
                       </p>
+                      {previewFollowUp && !draft.reminder_note.trim() ? (
+                        <p className="text-xs italic text-gray-400">
+                          No follow-up line, so the 2nd and 3rd emails read
+                          exactly like the first.
+                        </p>
+                      ) : null}
 
                       {previewRows.length || showHeadshot ? (
                         <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
