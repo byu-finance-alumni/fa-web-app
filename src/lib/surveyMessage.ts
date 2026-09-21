@@ -36,28 +36,11 @@ import type { components } from "@/types/api.gen";
  * Never hand-edit `api.gen.ts` — regenerate it with `npm run gen:api-types`.
  */
 
-/**
- * ⚠️ TEMPORARY, DELETE AFTER THE NEXT `npm run gen:api-types` (#560).
- *
- * `reminder_note` is on both API shapes already, but `api.gen.ts` is regenerated
- * from the DEPLOYED dev schema and CI fails on drift — so it cannot be
- * regenerated until the API change is on dev. This intersection is the same
- * stop-gap the campaign console uses for an endpoint landing in parallel, kept
- * in ONE place so the cleanup is a single deletion rather than a hunt.
- *
- * The line the 1-week and 2-week reminders open with, above the intro. The
- * initial email never shows it, and `""` means the reminders carry no extra line
- * at all — which is a real, saveable choice, not "unset".
- */
-type ReminderNote = { reminder_note: string };
-
 /** `GET /survey/message`, and the response of both writes. */
-export type SurveyMessageRead = components["schemas"]["SurveyMessageRead"] &
-  ReminderNote;
+export type SurveyMessageRead = components["schemas"]["SurveyMessageRead"];
 
 /** Body of `PUT /survey/message`. */
-export type SurveyMessageUpdate = components["schemas"]["SurveyMessageUpdate"] &
-  ReminderNote;
+export type SurveyMessageUpdate = components["schemas"]["SurveyMessageUpdate"];
 
 /** `GET` / `PUT` the one survey message. */
 export const SURVEY_MESSAGE_PATH = "/survey/message";
