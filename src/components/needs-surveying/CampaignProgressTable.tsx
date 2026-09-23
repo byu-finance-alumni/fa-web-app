@@ -255,6 +255,17 @@ export function CampaignProgressTable({
           was already correct. Hover a Replied or Looks good count to see the
           names; &ldquo;Export&rdquo; downloads the No reply yet list.
         </p>
+        {/* Jake's call (#836): the file skips archived alumni, as the
+            follow-up list does, while the count keeps them — so a file can
+            be a few rows shorter than the number beside its link. Said here so
+            that reads as intended rather than as a lost row. Only shown to
+            people who get the Export links at all. */}
+        {canExport ? (
+          <p>
+            The export leaves out archived alumni, so it can have fewer rows
+            than &ldquo;No reply yet&rdquo; shows.
+          </p>
+        ) : null}
         {/* The two new columns (#497) are easy to misread in exactly two ways,
             so both are spelled out rather than left to inference. */}
         <p>

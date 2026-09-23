@@ -10,8 +10,9 @@ import { downloadCsvFile } from "@/lib/csv";
  * "Export" beside a "No reply yet" count (#836): that column's people as a CSV.
  *
  * `year` null is the totals row — every year in one file. The file is built by
- * the backend from the same predicate as the count, so it has exactly as many
- * rows as the number it sits beside. Text only, per the standing no-icons rule;
+ * the backend from the same predicate as the count, minus archived alumni
+ * (which the count keeps), so it can be a few rows shorter than the number it
+ * sits beside — never longer. Text only, per the standing no-icons rule;
  * the in-flight state is the word "Exporting". A failure is a toast rather than
  * an inline sentence because there is no room for one inside a table cell.
  */

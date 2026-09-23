@@ -99,6 +99,12 @@ describe("Progress table (#836)", () => {
     expect(html).not.toContain("Export everyone");
   });
 
+  it("says the export leaves out archived alumni, to those who can export", () => {
+    const items = [item({ recipients: 10, replied: 4 })];
+    expect(render(items)).toContain("The export leaves out archived alumni");
+    expect(render(items, false)).not.toContain("leaves out archived alumni");
+  });
+
   it("uses no icons", () => {
     expect(render([item({ recipients: 10, replied: 4, confirmed: 2 })])).not.toContain(
       "<svg",
