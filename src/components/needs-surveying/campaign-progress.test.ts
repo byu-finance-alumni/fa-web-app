@@ -19,6 +19,7 @@ function item(over: Partial<Item> = {}): Item {
     awaiting_review: 0,
     applied: 0,
     rejected: 0,
+    confirmed: 0,
     non_responders: 0,
     ...over,
   } as Item;
@@ -98,6 +99,18 @@ describe("per-year row", () => {
     expect(row.responseRate).toBe(20);
   });
 
+  it("carries the looks-good count through as its own column (#836)", () => {
+    // A subset of `replied`: it must not change the rate, the silent count or
+    // the review outcomes — it only explains the gap between them.
+    const row = toProgressRow(
+      item({ recipients: 30, replied: 9, awaiting_review: 1, confirmed: 8 }),
+    );
+    expect(row.confirmed).toBe(8);
+    expect(row.replied).toBe(9);
+    expect(row.silent).toBe(21);
+    expect(row.responseRate).toBe(30);
+  });
+
   it("defaults missing outcome counts to zero", () => {
     // Older payloads (and the schema defaults) can omit them; a blank cell or
     // NaN in a numeric column is worse than a 0.
@@ -105,9 +118,11 @@ describe("per-year row", () => {
       ...item(),
       applied: undefined,
       rejected: undefined,
+      confirmed: undefined,
     } as unknown as Item);
     expect(row.applied).toBe(0);
     expect(row.rejected).toBe(0);
+    expect(row.confirmed).toBe(0);
   });
 
   it("orders newest cohort first", () => {
@@ -145,6 +160,16 @@ describe("totals", () => {
     expect(totals.applied).toBe(5);
     expect(totals.rejected).toBe(5);
     expect(totals.needsFollowUp).toBe(5);
+  });
+
+  it("totals looks-good down its own column", () => {
+    const rows = toProgressRows([
+      item({ graduation_year: 2020, recipients: 10, replied: 6, confirmed: 4 }),
+      item({ graduation_year: 2019, recipients: 20, replied: 5, confirmed: 3 }),
+    ]);
+    const totals = totalProgress(rows);
+    expect(totals.confirmed).toBe(7);
+    expect(totals.replied).toBe(11);
   });
 
   it("totals applied and rejected DOWN their own column only", () => {

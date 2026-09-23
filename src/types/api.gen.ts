@@ -4636,6 +4636,95 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/survey/schedules/no-reply/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Survey No Reply All
+         * @description Every year's "No reply yet" people as one CSV (#836).
+         *
+         *     The all-years twin of `GET /schedules/{grad_year}/no-reply/export` — the
+         *     Progress table's totals-row Export. Its row count equals the footer's "No
+         *     reply yet" total. Same gate, same columns, same audit trail.
+         */
+        get: operations["export_survey_no_reply_all_survey_schedules_no_reply_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/schedules/{grad_year}/no-reply/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Survey No Reply
+         * @description This year's "No reply yet" people as a CSV download (#836).
+         *
+         *     EXACTLY the Progress table's "No reply yet" column (`recipients - replied`
+         *     on `SurveyScheduleItem`): emailed in the year's current cycle, with no
+         *     pending, applied or confirmed reply inside the re-survey window that a
+         *     reset has not superseded. A `rejected`-only alum IS in it — a discarded
+         *     submission is not a reply. Built from the same shared predicate as the
+         *     counts, so the row count matches the column.
+         *
+         *     Not to be confused with `GET /schedules/{grad_year}/non-responders`, the
+         *     manual follow-up call sheet, which also requires all three emails and so is
+         *     a subset of this until the campaign ends.
+         *
+         *     Columns: name, graduation year, email, phone, emails sent this cycle, last
+         *     email sent (date). Formula-injection-safe. Gated like the schedules it
+         *     reads; audit-logged as `export_survey_no_reply`. 404 = no campaign for the
+         *     year. Returns `text/csv` as `survey_no_reply_<year>_<YYYY-MM-DD>.csv`.
+         */
+        get: operations["export_survey_no_reply_survey_schedules__grad_year__no_reply_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/schedules/{grad_year}/responders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Survey Responders
+         * @description Who is behind this year's `replied` and `confirmed` counts (#836).
+         *
+         *     The Progress tab shows those two counts per year; hovering one lists the
+         *     names. Same population as the counts on `SurveyScheduleItem` — current
+         *     cycle, re-survey window, not superseded by a reset, distinct alumni — so
+         *     each list is exactly as long as the number it hangs off.
+         *
+         *     Gated like `GET /schedules` (the counts it expands) and the non-responders
+         *     call sheet. Returns only an id and a display name per alum. 404 = the year
+         *     has no campaign at all; two empty lists = nobody has answered yet.
+         */
+        get: operations["list_survey_responders_survey_schedules__grad_year__responders_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/survey/schedules/{grad_year}/pause": {
         parameters: {
             query?: never;
@@ -9845,6 +9934,36 @@ export interface components {
                 [key: string]: string;
             };
             support_contact: components["schemas"]["SurveySupportContact"] | null;
+        };
+        /**
+         * SurveyResponder
+         * @description One alum behind a progress count (#836) — who, and nothing else.
+         *
+         *     Deliberately narrower than :class:`SurveyNonResponder`: the Progress tab
+         *     only needs to put a name to a number, and nobody has to be contacted from
+         *     it, so no address or reply content is carried.
+         */
+        SurveyResponder: {
+            /** Alumni Id */
+            alumni_id: number;
+            /** Name */
+            name: string;
+        };
+        /**
+         * SurveyResponders
+         * @description The people behind ``SurveyScheduleItem.replied`` and ``.confirmed`` (#836).
+         *
+         *     Same population rules as those counts, by construction — both are read off
+         *     the same current-cycle send rows and the same reply predicate — so
+         *     ``len(replied)`` equals the ``replied`` count and ``len(confirmed)`` the
+         *     ``confirmed`` one. Everyone in ``confirmed`` is also in ``replied``. Each
+         *     list is sorted by name.
+         */
+        SurveyResponders: {
+            /** Replied */
+            replied: components["schemas"]["SurveyResponder"][];
+            /** Confirmed */
+            confirmed: components["schemas"]["SurveyResponder"][];
         };
         /**
          * SurveyResponseItem
@@ -16341,6 +16460,88 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SurveyNonResponder"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_survey_no_reply_all_survey_schedules_no_reply_export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    export_survey_no_reply_survey_schedules__grad_year__no_reply_export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grad_year: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_survey_responders_survey_schedules__grad_year__responders_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grad_year: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyResponders"];
                 };
             };
             /** @description Validation Error */
