@@ -42,9 +42,9 @@ function item(over: Partial<Item>): Item {
   } as Item;
 }
 
-function render(items: Item[]): string {
+function render(items: Item[], canExport = true): string {
   return renderToStaticMarkup(
-    createElement(CampaignProgressTable, { schedules: items }),
+    createElement(CampaignProgressTable, { schedules: items, canExport }),
   );
 }
 
@@ -87,6 +87,15 @@ describe("Progress table (#836)", () => {
 
   it("has no all-years Export when everyone has replied", () => {
     const html = render([item({ recipients: 3, replied: 3, confirmed: 1 })]);
+    expect(html).not.toContain("Export everyone");
+  });
+
+  it("offers no Export without alumni.export", () => {
+    const html = render(
+      [item({ graduation_year: 2019, recipients: 10, replied: 4 })],
+      false,
+    );
+    expect(html).not.toContain("Export the 2019 alumni");
     expect(html).not.toContain("Export everyone");
   });
 

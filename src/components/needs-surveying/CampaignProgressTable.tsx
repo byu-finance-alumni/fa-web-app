@@ -39,10 +39,13 @@ const TD = "px-3 py-2 text-sm text-gray-700 tabular-nums";
 export function CampaignProgressTable({
   schedules,
   failed = false,
+  canExport = false,
 }: {
   schedules: SurveyScheduleItem[] | null;
   /** True when `GET /survey/schedules` failed, as opposed to returning none. */
   failed?: boolean;
+  /** Holds `alumni.export` (#836): offers the "No reply yet" Export links. */
+  canExport?: boolean;
 }) {
   // Above the early returns: a hook cannot sit behind a condition.
   const responders = useRespondersCache();
@@ -169,7 +172,7 @@ export function CampaignProgressTable({
                   {r.silent.toLocaleString()}
                   {/* Only when there is someone to export: an empty file is
                       not a report. */}
-                  {r.silent > 0 ? (
+                  {canExport && r.silent > 0 ? (
                     <NoReplyExportButton year={r.graduationYear} />
                   ) : null}
                 </td>
@@ -221,7 +224,9 @@ export function CampaignProgressTable({
               </td>
               <td className={`${TD} whitespace-nowrap text-right font-semibold`}>
                 {totals.silent.toLocaleString()}
-                {totals.silent > 0 ? <NoReplyExportButton year={null} /> : null}
+                {canExport && totals.silent > 0 ? (
+                  <NoReplyExportButton year={null} />
+                ) : null}
               </td>
               <td className={`${TD} text-right font-semibold`}>
                 {totals.toReview.toLocaleString()}

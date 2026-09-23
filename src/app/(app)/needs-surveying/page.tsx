@@ -7,6 +7,7 @@ import { SurveyCampaignConsole } from "@/components/needs-surveying/SurveyCampai
 import { apiGet } from "@/lib/api";
 import { getAuthContext } from "@/lib/auth-context";
 import { hasFullAccess, isEngineer } from "@/constants/roles";
+import { canExportAlumni } from "@/constants/capabilities";
 import {
   engineerSupportContact,
   surveySupportContact,
@@ -43,13 +44,15 @@ import type { SupportContact } from "@/types/support";
 async function resetAudience(): Promise<{
   isEngineer: boolean;
   canEditMessage: boolean;
+  canExport: boolean;
   engineerContact: ResetContact | null;
   surveyContact: ResetContact | null;
 }> {
   let engineer = false;
   let canEditMessage = false;
+  let canExport = false;
   try {
-    const { roles } = await getAuthContext();
+    const { roles, capabilities } = await getAuthContext();
     engineer = isEngineer(roles);
     // Who may rewrite the survey email (#524). Full access and up — the career
     // directors whose message it is — matching the tier that runs the campaign
@@ -58,6 +61,11 @@ async function resetAudience(): Promise<{
     // The backend re-enforces it; a 403 from Save flips the dialog read-only
     // too, so being wrong here costs a wasted click and never a stray write.
     canEditMessage = hasFullAccess(roles);
+    // The Progress tab's "No reply yet" Export (#836) is a file of alumni
+    // contact details, so it is offered on `alumni.export` — the one capability
+    // every export screen uses — not on the surveys role. Fails closed with the
+    // rest; the backend re-enforces `RequireAlumniExport`.
+    canExport = canExportAlumni(capabilities);
   } catch {
     /* fail closed — see above */
   }
@@ -73,6 +81,7 @@ async function resetAudience(): Promise<{
   return {
     isEngineer: engineer,
     canEditMessage,
+    canExport,
     // An engineer is the engineer; there is nobody to tell them to ask.
     engineerContact: engineer ? null : engineerSupportContact(contacts),
     surveyContact: surveySupportContact(contacts),
@@ -83,6 +92,7 @@ export default async function NeedsSurveyingPage() {
   const {
     isEngineer: engineer,
     canEditMessage,
+    canExport,
     engineerContact,
     surveyContact,
   } = await resetAudience();
@@ -122,6 +132,7 @@ export default async function NeedsSurveyingPage() {
         <div className="mt-4">
           <SurveyCampaignConsole
             isEngineer={engineer}
+            canExport={canExport}
             engineerContact={engineerContact}
           />
         </div>
