@@ -293,8 +293,15 @@ export function zeroSendReason(result: SendResult): string {
 
 export function SurveyCampaignConsole({
   isEngineer = false,
+  canExport = false,
   engineerContact = null,
 }: {
+  /**
+   * Whether the signed-in user holds `alumni.export`, resolved server-side on
+   * the page (#836). Shows the Progress tab's "No reply yet" Export links. UX
+   * only and fails closed, like `isEngineer` below; the backend re-enforces it.
+   */
+  canExport?: boolean;
   /**
    * Whether the signed-in user holds the `engineer` role, resolved server-side
    * on the page from `GET /auth/context` (#658).
@@ -1296,6 +1303,7 @@ export function SurveyCampaignConsole({
           <CampaignProgressTable
             schedules={schedules}
             failed={schedulesFailed}
+            canExport={canExport}
           />
         </TabsContent>
       </Tabs>
