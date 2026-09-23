@@ -9,10 +9,13 @@ import { MaintenanceModeControl } from "@/components/engineer/MaintenanceModeCon
 import { TestAlertChannels } from "@/components/engineer/TestAlertChannels";
 import { AlertDeliveryControl } from "@/components/engineer/AlertDeliveryControl";
 import { AlertTemplates } from "@/components/engineer/AlertTemplates";
+import { LinkDigestControl } from "@/components/engineer/LinkDigestControl";
 import {
   getAlertDeliveryState,
+  getLinkDigestState,
   getMaintenanceState,
   type AlertDeliveryState,
+  type LinkDigestState,
   type MaintenanceState,
 } from "./actions";
 import { LoadError } from "@/components/shared/LoadError";
@@ -106,6 +109,20 @@ export default async function EngineerMaintenancePage() {
       e instanceof ApiError
         ? e
         : new ApiError(0, "Failed to load the alert delivery setting.");
+  }
+
+  // A third independent read: who gets the daily job-link digest (#567). Same
+  // rule as the two above, so an unhappy endpoint takes only its own card off
+  // the screen.
+  let digest: LinkDigestState | null = null;
+  let digestError: ApiError | null = null;
+  try {
+    digest = await getLinkDigestState();
+  } catch (e) {
+    digestError =
+      e instanceof ApiError
+        ? e
+        : new ApiError(0, "Failed to load the job-link digest recipients.");
   }
 
   return (
@@ -232,9 +249,9 @@ export default async function EngineerMaintenancePage() {
             )}
           </div>
 
-          {/* The right column: the three alerting controls, in the order the
-              questions get asked — where does an alert go, do those channels
-              answer, and what does it say. */}
+          {/* The right column: the alerting controls, in the order the
+              questions get asked — where does an alert go, who gets the daily
+              job-link digest, do those channels answer, and what does it say. */}
           <div className="space-y-8">
             {delivery ? (
               <AlertDeliveryControl state={delivery} />
@@ -242,6 +259,14 @@ export default async function EngineerMaintenancePage() {
               <LoadError
                 status={deliveryError?.status ?? 0}
                 noun="the alert delivery setting"
+              />
+            )}
+            {digest ? (
+              <LinkDigestControl state={digest} />
+            ) : (
+              <LoadError
+                status={digestError?.status ?? 0}
+                noun="the job-link digest recipients"
               />
             )}
             <TestAlertChannels />

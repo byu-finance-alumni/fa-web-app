@@ -2326,6 +2326,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/opportunity-link-digest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Opportunity Link Digest
+         * @description Who gets the daily job-posting digest (#567). Engineer only.
+         *
+         *     The staff addresses that receive one e-mail at about 6pm Mountain on days
+         *     alumni submitted job or internship links through the survey. An empty list
+         *     means no digest, and the per-posting alert to the engineer channels (#771)
+         *     is what fires instead.
+         *
+         *     ``email_configured`` says whether the API can send mail at all. When it is
+         *     false the digest cannot go out, so the per-posting alert stays on even with
+         *     recipients set, and the console says so rather than showing a list that
+         *     looks live.
+         *
+         *     UNCACHED and allowed to fail, like ``GET /admin/alert-delivery``: an
+         *     unreadable setting renders the console's load error rather than an empty
+         *     list that looks verified. Not audited as a read, for the same reason that
+         *     one is not -- it is fetched on every render of the Maintenance page.
+         */
+        get: operations["get_opportunity_link_digest_admin_opportunity_link_digest_get"];
+        /**
+         * Set Opportunity Link Digest
+         * @description Replace the digest's recipient list. Engineer only.
+         *
+         *     The body is the WHOLE list (PUT: idempotent, and the console always holds
+         *     the full list it is showing). Each address is shape-checked, lowercased and
+         *     deduped, and there are at most ten -- every address is one e-mail out of the
+         *     survey's daily Resend budget. A bad list is a 422 before any query runs.
+         *
+         *     A table and not an env var because the owner asked to manage the list from
+         *     the console. Takes effect on the submission path within the read cache's TTL
+         *     (a minute); the cron reads it fresh.
+         *
+         *     Switching the digest ON (empty list to non-empty) starts its watermark now,
+         *     so postings already announced one by one are not reported again.
+         *
+         *     Audited as ``set_opportunity_link_digest_recipients`` with the old and new
+         *     lists, rerouted to ``engineer_action_log`` for an engineer actor by the
+         *     ``before_flush`` guard (#199); nothing here writes that table directly.
+         */
+        put: operations["set_opportunity_link_digest_admin_opportunity_link_digest_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/engineer-actions": {
         parameters: {
             query?: never;
@@ -4628,6 +4683,99 @@ export interface paths {
          *     non-responders are not in here.
          */
         get: operations["list_survey_non_responders_survey_schedules__grad_year__non_responders_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/schedules/no-reply/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Survey No Reply All
+         * @description Every year's "No reply yet" people as one CSV (#836).
+         *
+         *     The all-years twin of `GET /schedules/{grad_year}/no-reply/export` — the
+         *     Progress table's totals-row Export. Its row count is the footer's "No reply
+         *     yet" total minus archived alumni, which the file leaves out. Same gate,
+         *     same columns, same audit trail.
+         */
+        get: operations["export_survey_no_reply_all_survey_schedules_no_reply_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/schedules/{grad_year}/no-reply/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Survey No Reply
+         * @description This year's "No reply yet" people as a CSV download (#836).
+         *
+         *     The Progress table's "No reply yet" column (`recipients - replied`
+         *     on `SurveyScheduleItem`): emailed in the year's current cycle, with no
+         *     pending, applied or confirmed reply inside the re-survey window that a
+         *     reset has not superseded. A `rejected`-only alum IS in it — a discarded
+         *     submission is not a reply. Built from the same shared predicate as the
+         *     counts, except that archived alumni are left out, as in the follow-up call
+         *     sheet — so the row count is the column minus its archived alumni.
+         *
+         *     Not to be confused with `GET /schedules/{grad_year}/non-responders`, the
+         *     manual follow-up call sheet, which also requires all three emails and so is
+         *     a subset of this until the campaign ends.
+         *
+         *     Columns: name, graduation year, email, phone, emails sent this cycle, last
+         *     email sent (date). Formula-injection-safe. Gated by `RequireAlumniExport`,
+         *     not the surveys guard: bulk contact details leave the system here, and every
+         *     file of alumni data does so under that one capability (as the event attendee
+         *     export does). Audit-logged as `export_survey_no_reply`. 404 = no campaign for the
+         *     year. Returns `text/csv` as `survey_no_reply_<year>_<YYYY-MM-DD>.csv`.
+         */
+        get: operations["export_survey_no_reply_survey_schedules__grad_year__no_reply_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/schedules/{grad_year}/responders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Survey Responders
+         * @description Who is behind this year's `replied` and `confirmed` counts (#836).
+         *
+         *     The Progress tab shows those two counts per year; hovering one lists the
+         *     names. Same population as the counts on `SurveyScheduleItem` — current
+         *     cycle, re-survey window, not superseded by a reset, distinct alumni — so
+         *     each list is exactly as long as the number it hangs off.
+         *
+         *     Gated like `GET /schedules` (the counts it expands) and the non-responders
+         *     call sheet. Returns only an id and a display name per alum. 404 = the year
+         *     has no campaign at all; two empty lists = nobody has answered yet.
+         */
+        get: operations["list_survey_responders_survey_schedules__grad_year__responders_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8829,6 +8977,43 @@ export interface components {
             alumni_id: number;
         };
         /**
+         * OpportunityLinkDigestState
+         * @description Engineer-console view of the digest setting.
+         *
+         *     ``recipients`` empty means no digest: the per-posting alert to the engineer
+         *     channel (#771) is what fires instead. ``email_configured`` says whether the
+         *     API can send mail at all (Resend key and a From address); when it is false
+         *     the digest cannot go out, so the per-posting alert stays on even with
+         *     recipients set, and the console says so.
+         *
+         *     ``reported_through`` is the digest's watermark: every posting submitted up to
+         *     then has been reported. ``None`` until the first digest goes out.
+         */
+        OpportunityLinkDigestState: {
+            /** Recipients */
+            recipients: string[];
+            /**
+             * Email Configured
+             * @default false
+             */
+            email_configured: boolean;
+            /** Reported Through */
+            reported_through: string | null;
+            /** Updated At */
+            updated_at: string | null;
+            /** Updated By Email */
+            updated_by_email: string | null;
+        };
+        /**
+         * OpportunityLinkDigestUpdate
+         * @description Replace the recipient list. ``extra="forbid"`` so a typo'd field is a 422
+         *     rather than a silently ignored no-op. An empty list turns the digest off.
+         */
+        OpportunityLinkDigestUpdate: {
+            /** Recipients */
+            recipients: string[];
+        };
+        /**
          * OpportunityLinkPage
          * @description A page of links: the ``{items, total, limit, offset}`` envelope the other
          *     paginated list endpoints return.
@@ -9857,6 +10042,36 @@ export interface components {
             support_contact: components["schemas"]["SurveySupportContact"] | null;
         };
         /**
+         * SurveyResponder
+         * @description One alum behind a progress count (#836) — who, and nothing else.
+         *
+         *     Deliberately narrower than :class:`SurveyNonResponder`: the Progress tab
+         *     only needs to put a name to a number, and nobody has to be contacted from
+         *     it, so no address or reply content is carried.
+         */
+        SurveyResponder: {
+            /** Alumni Id */
+            alumni_id: number;
+            /** Name */
+            name: string;
+        };
+        /**
+         * SurveyResponders
+         * @description The people behind ``SurveyScheduleItem.replied`` and ``.confirmed`` (#836).
+         *
+         *     Same population rules as those counts, by construction — both are read off
+         *     the same current-cycle send rows and the same reply predicate — so
+         *     ``len(replied)`` equals the ``replied`` count and ``len(confirmed)`` the
+         *     ``confirmed`` one. Everyone in ``confirmed`` is also in ``replied``. Each
+         *     list is sorted by name.
+         */
+        SurveyResponders: {
+            /** Replied */
+            replied: components["schemas"]["SurveyResponder"][];
+            /** Confirmed */
+            confirmed: components["schemas"]["SurveyResponder"][];
+        };
+        /**
          * SurveyResponseItem
          * @description One pending response for the admin review queue, with its diff.
          */
@@ -10256,7 +10471,8 @@ export interface components {
         /**
          * SurveyUsage
          * @description Real Resend send usage for the console's daily/monthly tallies — emails
-         *     actually sent today and this calendar month, counted from `survey_send_log`.
+         *     actually sent today and this calendar month, counted from `survey_send_log`
+         *     plus the staff job-posting digest's send log (same Resend quota, #567).
          *     NOT from the audit trail: an engineer actor's audit row is rerouted to
          *     `engineer_action_log`, which left the meter reading zero. UTC day/month
          *     boundaries, matching the rest of the app's date filtering.
@@ -13146,6 +13362,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AlertDeliveryState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_opportunity_link_digest_admin_opportunity_link_digest_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpportunityLinkDigestState"];
+                };
+            };
+        };
+    };
+    set_opportunity_link_digest_admin_opportunity_link_digest_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpportunityLinkDigestUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpportunityLinkDigestState"];
                 };
             };
             /** @description Validation Error */
@@ -16351,6 +16620,88 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SurveyNonResponder"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_survey_no_reply_all_survey_schedules_no_reply_export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    export_survey_no_reply_survey_schedules__grad_year__no_reply_export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grad_year: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_survey_responders_survey_schedules__grad_year__responders_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grad_year: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyResponders"];
                 };
             };
             /** @description Validation Error */

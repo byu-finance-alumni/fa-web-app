@@ -3,7 +3,7 @@
  *
  * Pure, so the arithmetic that decides what staff read off the screen is
  * testable without rendering anything. The backend supplies `recipients`,
- * `replied` and `awaiting_review` per year, already scoped to that year's
+ * `replied`, `confirmed` and `awaiting_review` per year, already scoped to that year's
  * current cycle; everything derived from them lives here rather than inline in
  * JSX, where a wrong denominator is invisible.
  */
@@ -17,6 +17,13 @@ export type CampaignProgressRow = {
   /** Distinct alumni emailed in this cycle. The denominator for everything. */
   emailed: number;
   replied: number;
+  /**
+   * Alumni who answered "everything looks good" (`confirmed`, #755/#836). A
+   * SUBSET of `replied` — a reply that changed nothing, so it never reaches
+   * `toReview` or `applied`. Shown right after "Replied" because it is what
+   * explains the gap between that number and the outcome columns.
+   */
+  confirmed: number;
   /** Emailed and not yet replied. Includes people mid-cadence who may still. */
   silent: number;
   /** Replies sitting in the review queue — the actionable number. */
@@ -57,6 +64,7 @@ export function toProgressRow(item: SurveyScheduleItem): CampaignProgressRow {
     status: item.status,
     emailed,
     replied,
+    confirmed: item.confirmed ?? 0,
     // Clamped: `replied` can only exceed `emailed` if the two counts were built
     // from different populations, which would be a backend bug — but a negative
     // "still silent" on screen would be a puzzle rather than a report.
@@ -105,6 +113,7 @@ export function totalProgress(
   return {
     emailed,
     replied,
+    confirmed: rows.reduce((n, r) => n + r.confirmed, 0),
     silent: rows.reduce((n, r) => n + r.silent, 0),
     toReview: rows.reduce((n, r) => n + r.toReview, 0),
     applied: rows.reduce((n, r) => n + r.applied, 0),

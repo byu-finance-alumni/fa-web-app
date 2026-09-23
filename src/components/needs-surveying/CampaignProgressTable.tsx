@@ -15,9 +15,16 @@
  * no second endpoint, so this table and the per-year view cannot disagree about
  * a number. Every count is scoped to the year's CURRENT campaign, so a year on
  * its second cycle shows this cycle's response rate, not a lifetime average.
+ *
+ * Two things here DO make requests, both on demand (#836): hovering a
+ * "Replied" or "Looks good" count fetches that year's names once, and
+ * "Export" beside a "No reply yet" count downloads those people as a CSV. The
+ * counts themselves still come only from the schedules payload.
  */
 import type { components } from "@/types/api.gen";
 import { Card } from "@/components/ui/card";
+import { NoReplyExportButton } from "./NoReplyExportButton";
+import { ResponderCount, useRespondersCache } from "./ResponderCount";
 import {
   formatRate,
   toProgressRows,
@@ -32,11 +39,17 @@ const TD = "px-3 py-2 text-sm text-gray-700 tabular-nums";
 export function CampaignProgressTable({
   schedules,
   failed = false,
+  canExport = false,
 }: {
   schedules: SurveyScheduleItem[] | null;
   /** True when `GET /survey/schedules` failed, as opposed to returning none. */
   failed?: boolean;
+  /** Holds `alumni.export` (#836): offers the "No reply yet" Export links. */
+  canExport?: boolean;
 }) {
+  // Above the early returns: a hook cannot sit behind a condition.
+  const responders = useRespondersCache();
+
   if (schedules === null) {
     return (
       <Card className="p-5">
@@ -100,14 +113,20 @@ export function CampaignProgressTable({
         {/* The min-width is what keeps the columns from crushing into each
             other on a narrow laptop; below it the wrapper pans horizontally
             rather than wrapping headers. Applied/Rejected (#497) added roughly
-            5rem each on top of the original 46rem. */}
-        <table className="w-full min-w-[56rem] border-collapse">
+            5rem each on top of the original 46rem; Looks good and the Export
+            links (#836) another 6rem. */}
+        <table className="w-full min-w-[62rem] border-collapse">
           <thead>
             <tr className="border-b border-gray-200">
               <th className={TH}>Year</th>
               <th className={TH}>Status</th>
               <th className={`${TH} text-right`}>Emailed</th>
               <th className={`${TH} text-right`}>Replied</th>
+              {/* Right after Replied because it is a SUBSET of it (#836): the
+                  replies that said "everything looks good" and changed
+                  nothing, which is what explains Replied being far bigger than
+                  To review + Applied. */}
+              <th className={`${TH} text-right`}>Looks good</th>
               <th className={`${TH} text-right`}>Rate</th>
               <th className={`${TH} text-right`}>No reply yet</th>
               {/* The three submission outcomes sit together: pending review,
@@ -129,14 +148,33 @@ export function CampaignProgressTable({
                 <td className={`${TD} text-right`}>
                   {r.emailed.toLocaleString()}
                 </td>
+                {/* Hover or focus either count for the names behind it. */}
                 <td className={`${TD} text-right`}>
-                  {r.replied.toLocaleString()}
+                  <ResponderCount
+                    year={r.graduationYear}
+                    kind="replied"
+                    count={r.replied}
+                    cache={responders}
+                  />
+                </td>
+                <td className={`${TD} text-right`}>
+                  <ResponderCount
+                    year={r.graduationYear}
+                    kind="confirmed"
+                    count={r.confirmed}
+                    cache={responders}
+                  />
                 </td>
                 <td className={`${TD} text-right font-medium text-navy-800`}>
                   {formatRate(r.responseRate)}
                 </td>
-                <td className={`${TD} text-right`}>
+                <td className={`${TD} whitespace-nowrap text-right`}>
                   {r.silent.toLocaleString()}
+                  {/* Only when there is someone to export: an empty file is
+                      not a report. */}
+                  {canExport && r.silent > 0 ? (
+                    <NoReplyExportButton year={r.graduationYear} />
+                  ) : null}
                 </td>
                 {/* "To review" is the one column that is a to-do list rather
                     than a report — a queue someone has to work — so it is the
@@ -173,14 +211,22 @@ export function CampaignProgressTable({
               <td className={`${TD} text-right font-semibold`}>
                 {totals.emailed.toLocaleString()}
               </td>
+              {/* The totals are sums across years, so there is no single
+                  year's list to hover; they stay plain numbers. */}
               <td className={`${TD} text-right font-semibold`}>
                 {totals.replied.toLocaleString()}
+              </td>
+              <td className={`${TD} text-right font-semibold`}>
+                {totals.confirmed.toLocaleString()}
               </td>
               <td className={`${TD} text-right font-semibold text-navy-800`}>
                 {formatRate(totals.responseRate)}
               </td>
-              <td className={`${TD} text-right font-semibold`}>
+              <td className={`${TD} whitespace-nowrap text-right font-semibold`}>
                 {totals.silent.toLocaleString()}
+                {canExport && totals.silent > 0 ? (
+                  <NoReplyExportButton year={null} />
+                ) : null}
               </td>
               <td className={`${TD} text-right font-semibold`}>
                 {totals.toReview.toLocaleString()}
@@ -204,8 +250,22 @@ export function CampaignProgressTable({
           A reply counts once it is submitted, whether or not it has been applied
           yet; a rejected submission does not count, so that alumnus still shows
           as awaiting a reply. &ldquo;Needs follow-up&rdquo; is the subset who
-          have had all three emails and never answered.
+          have had all three emails and never answered. &ldquo;Looks
+          good&rdquo; is the part of &ldquo;Replied&rdquo; who said their record
+          was already correct. Hover a Replied or Looks good count to see the
+          names; &ldquo;Export&rdquo; downloads the No reply yet list.
         </p>
+        {/* Jake's call (#836): the file skips archived alumni, as the
+            follow-up list does, while the count keeps them — so a file can
+            be a few rows shorter than the number beside its link. Said here so
+            that reads as intended rather than as a lost row. Only shown to
+            people who get the Export links at all. */}
+        {canExport ? (
+          <p>
+            The export leaves out archived alumni, so it can have fewer rows
+            than &ldquo;No reply yet&rdquo; shows.
+          </p>
+        ) : null}
         {/* The two new columns (#497) are easy to misread in exactly two ways,
             so both are spelled out rather than left to inference. */}
         <p>
