@@ -440,3 +440,51 @@ export async function setAlertDeliveryMode(
     };
   }
 }
+
+/**
+ * Who gets the daily job-posting digest (#567), taken from the generated schema
+ * so the CI drift guard covers this contract.
+ *
+ * An empty `recipients` list means no digest: each posting raises an alert on
+ * the engineer channels instead, so emptying the list never silences anything.
+ * `email_configured` is false when the API cannot send mail at all, in which
+ * case the per-posting alert stays on even with recipients set.
+ */
+export type LinkDigestState = components["schemas"]["OpportunityLinkDigestState"];
+
+/**
+ * Read the digest recipients. Engineer-only on the backend
+ * (`GET /admin/opportunity-link-digest`); callers catch ApiError, the same
+ * shape as `getAlertDeliveryState` above. Never cached.
+ */
+export async function getLinkDigestState(): Promise<LinkDigestState> {
+  return apiGet<LinkDigestState>("/admin/opportunity-link-digest");
+}
+
+/**
+ * Replace the digest's recipient list. Engineer-only
+ * (`PUT /admin/opportunity-link-digest`). The body is the WHOLE list; the
+ * backend validates, lowercases and dedupes it, and caps it at ten.
+ *
+ * Returns the error as a value, so a 422 or a 403 is a toast instead
+ * of a blanked console — the same contract as `setAlertDeliveryMode` above.
+ */
+export async function setLinkDigestRecipients(
+  recipients: string[],
+): Promise<{ ok: true; state: LinkDigestState } | { ok: false; error: string }> {
+  try {
+    const state = await apiPut<LinkDigestState>("/admin/opportunity-link-digest", {
+      recipients,
+    });
+    revalidatePath("/engineer/maintenance");
+    return { ok: true, state };
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof ApiError
+          ? e.message
+          : "Couldn't save the job-link digest recipients.",
+    };
+  }
+}
