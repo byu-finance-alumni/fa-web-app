@@ -2326,6 +2326,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/opportunity-link-digest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Opportunity Link Digest
+         * @description Who gets the daily job-posting digest (#567). Engineer only.
+         *
+         *     The staff addresses that receive one e-mail at about 6pm Mountain on days
+         *     alumni submitted job or internship links through the survey. An empty list
+         *     means no digest, and the per-posting alert to the engineer channels (#771)
+         *     is what fires instead.
+         *
+         *     ``email_configured`` says whether the API can send mail at all. When it is
+         *     false the digest cannot go out, so the per-posting alert stays on even with
+         *     recipients set, and the console says so rather than showing a list that
+         *     looks live.
+         *
+         *     UNCACHED and allowed to fail, like ``GET /admin/alert-delivery``: an
+         *     unreadable setting renders the console's load error rather than an empty
+         *     list that looks verified. Not audited as a read, for the same reason that
+         *     one is not -- it is fetched on every render of the Maintenance page.
+         */
+        get: operations["get_opportunity_link_digest_admin_opportunity_link_digest_get"];
+        /**
+         * Set Opportunity Link Digest
+         * @description Replace the digest's recipient list. Engineer only.
+         *
+         *     The body is the WHOLE list (PUT: idempotent, and the console always holds
+         *     the full list it is showing). Each address is shape-checked, lowercased and
+         *     deduped, and there are at most ten -- every address is one e-mail out of the
+         *     survey's daily Resend budget. A bad list is a 422 before any query runs.
+         *
+         *     A table and not an env var because the owner asked to manage the list from
+         *     the console. Takes effect on the submission path within the read cache's TTL
+         *     (a minute); the cron reads it fresh.
+         *
+         *     Switching the digest ON (empty list to non-empty) starts its watermark now,
+         *     so postings already announced one by one are not reported again.
+         *
+         *     Audited as ``set_opportunity_link_digest_recipients`` with the old and new
+         *     lists, rerouted to ``engineer_action_log`` for an engineer actor by the
+         *     ``before_flush`` guard (#199); nothing here writes that table directly.
+         */
+        put: operations["set_opportunity_link_digest_admin_opportunity_link_digest_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/engineer-actions": {
         parameters: {
             query?: never;
@@ -8829,6 +8884,43 @@ export interface components {
             alumni_id: number;
         };
         /**
+         * OpportunityLinkDigestState
+         * @description Engineer-console view of the digest setting.
+         *
+         *     ``recipients`` empty means no digest: the per-posting alert to the engineer
+         *     channel (#771) is what fires instead. ``email_configured`` says whether the
+         *     API can send mail at all (Resend key and a From address); when it is false
+         *     the digest cannot go out, so the per-posting alert stays on even with
+         *     recipients set, and the console says so.
+         *
+         *     ``reported_through`` is the digest's watermark: every posting submitted up to
+         *     then has been reported. ``None`` until the first digest goes out.
+         */
+        OpportunityLinkDigestState: {
+            /** Recipients */
+            recipients: string[];
+            /**
+             * Email Configured
+             * @default false
+             */
+            email_configured: boolean;
+            /** Reported Through */
+            reported_through: string | null;
+            /** Updated At */
+            updated_at: string | null;
+            /** Updated By Email */
+            updated_by_email: string | null;
+        };
+        /**
+         * OpportunityLinkDigestUpdate
+         * @description Replace the recipient list. ``extra="forbid"`` so a typo'd field is a 422
+         *     rather than a silently ignored no-op. An empty list turns the digest off.
+         */
+        OpportunityLinkDigestUpdate: {
+            /** Recipients */
+            recipients: string[];
+        };
+        /**
          * OpportunityLinkPage
          * @description A page of links: the ``{items, total, limit, offset}`` envelope the other
          *     paginated list endpoints return.
@@ -10246,7 +10338,8 @@ export interface components {
         /**
          * SurveyUsage
          * @description Real Resend send usage for the console's daily/monthly tallies — emails
-         *     actually sent today and this calendar month, counted from `survey_send_log`.
+         *     actually sent today and this calendar month, counted from `survey_send_log`
+         *     plus the staff job-posting digest's send log (same Resend quota, #567).
          *     NOT from the audit trail: an engineer actor's audit row is rerouted to
          *     `engineer_action_log`, which left the meter reading zero. UTC day/month
          *     boundaries, matching the rest of the app's date filtering.
@@ -13136,6 +13229,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AlertDeliveryState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_opportunity_link_digest_admin_opportunity_link_digest_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpportunityLinkDigestState"];
+                };
+            };
+        };
+    };
+    set_opportunity_link_digest_admin_opportunity_link_digest_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpportunityLinkDigestUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpportunityLinkDigestState"];
                 };
             };
             /** @description Validation Error */
