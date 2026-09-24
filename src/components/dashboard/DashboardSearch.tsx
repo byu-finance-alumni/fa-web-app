@@ -555,8 +555,17 @@ export function DashboardSearch({
               clips a focused field's ring/offset at the flush left edge (the
               scroll-free Quick tab doesn't clip). Give the scroll box inline
               padding so the ring has room, and cancel it with -mx so the fields
-              stay aligned with the Quick tab (no shift on tab switch). */}
-          <div className="space-y-4 lg:-mx-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:px-2">
+              stay aligned with the Quick tab (no shift on tab switch).
+
+              `contain: size` (2026-09-24): the dashboard's panel row is no
+              longer allowed to shrink below its content — that is what lets the
+              page scroll on a short window instead of clipping. Without this,
+              the ~900px of facets in here would count as "content" and switching
+              to Advanced would stretch the row and the whole page. Size
+              containment makes the block contribute nothing to that measure, so
+              it still takes exactly the free height and scrolls inside it, as
+              before. */}
+          <div className="space-y-4 lg:-mx-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:px-2 lg:[contain:size]">
             <IdentityGrid value={adv} onChange={setAdv} />
             {/* Same 2-up grid as everything above and below it, so the From/To
                 pair keeps the half-width cell it has on the Quick tab rather

@@ -4,10 +4,9 @@ import { getAuthContext } from "@/lib/auth-context";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { SearchHero } from "@/components/dashboard/SearchHero";
 // `DashboardHero` is no longer imported — the shell renders the masthead now.
-// HERO_OVERLAP_CLASS still is, and is empty on this branch: the tiles cannot
-// straddle the photo any more, because the photo lives above <main> and <main>
-// clips at `lg` to stop the page scrolling. A negative margin here would slide
-// the tiles under that clip and cut their tops off.
+// HERO_OVERLAP_CLASS still is: it pulls <main> itself up over the bottom of the
+// shell's photo so the KPI tiles at its top straddle the photo's edge while
+// <main> stays an ordinary scroll container (see the note on <main> below).
 import { HERO_OVERLAP_CLASS } from "@/components/dashboard/DashboardHero";
 import { DashboardSearch } from "@/components/dashboard/DashboardSearch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -204,8 +203,9 @@ function IndustryBarList({
   // horizontal track, so 18 rows come in around 360px and the list fits.
   //
   // Rows still stretch to fill the panel when there IS spare height (flex-1) but
-  // can never be squeezed below `min-h-[20px]`; past that the panel scrolls (see
-  // the caller's `overflow-y-auto`) rather than hiding rows again.
+  // are never squeezed below their natural height; on a window too short for
+  // that, the dashboard's <main> scrolls (see the note there) rather than
+  // hiding rows again.
   //
   // The label column is a fixed width so every bar starts at the same x — the
   // bars are only comparable to each other if they share a baseline. Long names
@@ -479,37 +479,47 @@ export default async function DashboardPage() {
       {/* The page padding sits on the block below rather than on `main`, so the
           hero band can run edge to edge.
 
-          ⚠️ FROM `lg` UP THIS PAGE DOES NOT SCROLL (Jake, 2026-08-20). It used
-          to: the Industry panel was given its NATURAL height so every industry
-          was on screen, which made the column taller than a laptop viewport and
-          pushed the bottom of both panels under the fold. On a launchpad that is
-          the wrong trade — the whole point is that everything is visible at a
-          glance, and a dashboard you have to scroll is a page.
+          FROM `lg` UP THE PAGE FILLS THE WINDOW, AND SCROLLS ONLY WHEN IT
+          CANNOT FIT (2026-09-24). `main` is a bounded flex column and the bottom
+          row grows to take whatever height is left, so on a tall screen the
+          whole launchpad is on screen at once with no scrollbar — the look Jake
+          asked for on 2026-08-20.
 
-          So `main` becomes a bounded flex column and the bottom row takes
-          whatever height is left. The industry rows are already built to absorb
-          that: each is `flex-1` with a `min-h-[20px]` floor, so they share the
-          remaining space, and the list scrolls INSIDE its own panel only if the
-          floor is ever hit. That is the honest failure — a scrollbar in one
-          panel — rather than rows silently under the fold.
+          What changed is the failure mode. It used to be `overflow: clip` all
+          the way down with `min-h-0` on every level, so on a SHORT window (a
+          laptop, a zoomed browser) the bottom row was squeezed below its
+          content and the Industry breakdown and the search card were sheared
+          off at the window edge with no scrollbar and a dead mouse wheel —
+          everything below the fold was unreachable (reported by Tanya on prod,
+          1920-wide at a laptop's height). Now the levels between `main` and the
+          panels keep their default `min-height: auto`, so the column can never
+          shrink below its content; once the window is shorter than that, the
+          content overflows `main` and `main` scrolls like every other page.
 
-          ⚠️ `overflow: clip` AND NOT `hidden`. Both stop the page scrolling,
-          but `hidden` clips at the border box with no way to let anything out —
-          which sheared the tops off the KPI tiles the moment they were pulled up
-          to straddle the photo. `clip` takes an `overflow-clip-margin`, so the
-          page still cannot scroll while 96px of deliberate overflow renders.
+          The KPI tiles still straddle the shell's photo. A scroll container
+          clips everything outside its box (an `overflow-clip-margin` does not
+          apply to one), so instead of pulling the TILES up out of `main`, `main`
+          ITSELF is pulled up by HERO_OVERLAP_CLASS over the bottom of the photo
+          and the tiles sit at its top edge. Same geometry, nothing escaping a
+          clip. Only on the happy path: the fallback cards have no tiles and
+          must clear the photo normally.
 
           Below `lg` nothing changes: the KPI strip and the breakdown are not
           rendered at all, the fields simply flow, and the page scrolls the way a
           phone should. */}
-      {/* ⚠️ `scrollbar-gutter:auto` at `lg` (experiment/top-nav). Global CSS puts
+      {/* ⚠️ `scrollbar-gutter:auto` at `lg`. Global CSS puts
           `scrollbar-gutter: stable` on every <main> so a page that starts
-          scrolling does not jump sideways. This page CANNOT scroll from `lg` up,
-          so that gutter is ~15px reserved for a scrollbar that will never
-          appear — and the nav bar is a SIBLING of <main>, so it spans the full
-          width while everything under it stops short. That is the white strip
-          down the right-hand side. */}
-      <main className="flex-1 overflow-auto lg:flex lg:min-h-0 lg:flex-col lg:[overflow:clip] lg:[overflow-clip-margin:96px] lg:[scrollbar-gutter:auto]">
+          scrolling does not jump sideways. Here that gutter would be ~15px
+          reserved on every screen tall enough NOT to scroll — and the nav bar
+          is a SIBLING of <main>, so it spans the full width while everything
+          under it stops short: a white strip down the right-hand side. A
+          scrollbar only appears on a window too short to fit, where it is the
+          point. */}
+      <main
+        className={`flex-1 overflow-auto lg:flex lg:min-h-0 lg:flex-col lg:[scrollbar-gutter:auto] ${
+          !notProvisioned && !error ? HERO_OVERLAP_CLASS : ""
+        }`}
+      >
         {/* The masthead moved INTO the shell (experiment/top-nav): the nav bar
             and the greeting now share one photo, which is the only way the two
             are continuous at every window width. Nothing renders it here. */}
@@ -518,7 +528,11 @@ export default async function DashboardPage() {
             off the band's bottom edge (see HERO_OVERLAP_CLASS), while the two
             fallback states — which have no KPI strip to overlap — keep it and
             clear the band normally. */}
-        <div className="px-4 pb-4 md:px-6 md:pb-6 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
+        {/* No `min-h-0` from here down to the panel row, deliberately: the
+            default `min-height: auto` is what stops this column being squeezed
+            below its content on a short window, so it overflows <main> (which
+            scrolls) instead of clipping. */}
+        <div className="px-4 pb-4 md:px-6 md:pb-6 lg:flex lg:flex-1 lg:flex-col">
           {notProvisioned ? (
             <Card className="mt-4 p-4 text-sm text-gray-700 md:mt-6">
               Your account is authenticated but not yet provisioned. Ask a Super
@@ -537,13 +551,13 @@ export default async function DashboardPage() {
                than pinning itself to the viewport height — that's what keeps
                the Industry breakdown at its NATURAL height (see the panel
                below), which is the only shape it can't be clipped in. */
-            <div className="flex flex-col gap-4 pt-4 md:pt-6 lg:min-h-0 lg:flex-1 lg:gap-4 lg:pt-0">
-              {/* KPI strip, pulled up so the tiles sit half on the photo and
-                  half off it — see HERO_OVERLAP_CLASS for the geometry and why
-                  it's a margin. `relative` (no z-index needed — it is a later
-                  sibling) puts the tiles and their shadows OVER the band; the
-                  shadows are never clipped because this block lives outside the
-                  band's `overflow-hidden`.
+            <div className="flex flex-col gap-4 pt-4 md:pt-6 lg:flex-1 lg:gap-4 lg:pt-0">
+              {/* KPI strip, first thing in <main> — and <main> itself is pulled
+                  up so the tiles sit half on the photo and half off it (see
+                  HERO_OVERLAP_CLASS and the note on <main>). `relative` puts the
+                  tiles and their shadows OVER the band; the shadows are never
+                  clipped: <main> is a scroll container, but the tiles are
+                  inside its box, not pulled out of it.
 
                   Desktop only: on a phone the dashboard is search-first, so the
                   KPIs and the Industry breakdown are dropped rather than
@@ -562,7 +576,7 @@ export default async function DashboardPage() {
                    without an explicit z-index the tiles would win only by
                    source order, which is exactly the kind of thing a later
                    wrapper quietly changes. */
-                className={`relative z-10 hidden grid-cols-1 gap-4 sm:grid-cols-2 lg:grid lg:grid-cols-4 lg:gap-4 ${HERO_OVERLAP_CLASS}`}
+                className="relative z-10 hidden grid-cols-1 gap-4 sm:grid-cols-2 lg:grid lg:grid-cols-4 lg:gap-4"
               >
                 <MetricCard
                   size="lg"
@@ -671,10 +685,11 @@ export default async function DashboardPage() {
                   the search card's action bar to the same line in BOTH tabs
                   (#594): the row's height is set by the Industry panel's
                   natural height, and the search card fills it. */}
-              {/* The row that absorbs the leftover height — `min-h-0` so it
-                  may shrink below its content, which is what lets the panels
-                  inside it scroll instead of the page. */}
-              <div className="grid grid-cols-1 gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-12 lg:gap-5 lg:overflow-hidden">
+              {/* The row that absorbs the leftover height. It GROWS into spare
+                  height but never shrinks below its content (no `min-h-0`, no
+                  `overflow-hidden`): on a window too short for it, <main>
+                  scrolls rather than the row clipping the panels. */}
+              <div className="grid grid-cols-1 gap-4 lg:flex-1 lg:grid-cols-12 lg:gap-5">
                 <DashboardSearch
                   options={filterOptions ?? EMPTY_FILTER_OPTIONS}
                   className="lg:col-span-5"
@@ -703,12 +718,11 @@ export default async function DashboardPage() {
                       broken rather than honest. The rows now shrink further
                       (see the floor on each `li`) and the list is sized to fit.
 
-                      THE TRADE, STATED: at a viewport short enough that even the
-                      compressed rows do not fit, the tail is clipped with
-                      nothing on screen saying so. The floor is set low enough
-                      that this needs a window far shorter than a laptop — but it
-                      is the failure mode, and it is the one the old comment was
-                      guarding against. */}
+                      The short-window case no longer clips here either: the
+                      list's natural height counts toward the panel row's
+                      minimum (the row has no `min-h-0` since 2026-09-24), so a
+                      window too short for every row scrolls the PAGE — <main>
+                      — rather than cutting the tail off. */}
                   <div className="flex w-full flex-col lg:min-h-0 lg:flex-1 lg:overflow-hidden">
                     <IndustryBarList
                       rows={industryRows}

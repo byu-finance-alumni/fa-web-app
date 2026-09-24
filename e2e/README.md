@@ -18,6 +18,11 @@ a locally-built server — `playwright.config.ts` deliberately has **no
   single Back returns to Reports rather than to the unfiltered alumni list; and
   typing in the list's search box must **replace** that entry rather than stack
   one per keystroke. It **self-skips** unless `E2E_USER` / `E2E_PASS` are set.
+- **`dashboard-scroll.spec.ts`** — the dashboard must scroll its `<main>` (never
+  the document) on a short desktop window so the Industry breakdown and the
+  search card's buttons are reachable, fit with no scrollbar on a tall one, and
+  not stretch when switching to Advanced search. Signs in once. **Self-skips**
+  unless `E2E_USER` / `E2E_PASS` are set.
 - **`backbutton-logout.spec.ts`** — the authenticated repro for **issue #31**
   (back-button-logout). It logs in, navigates a few pages, then presses Back
   several times and asserts the user is never bounced to `/login`. It
