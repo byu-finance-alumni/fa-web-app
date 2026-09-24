@@ -78,10 +78,14 @@
  * The tiles straddle the photo's bottom edge again (Jake, 2026-08-21).
  *
  * It was empty for a while because the photo moved into the SHELL, above
- * <main>, and <main> clipped with `overflow: hidden` — which sheared the tops
- * off anything pulled up out of it. Both that container and the shell column now
- * use `overflow: clip` with a 96px `overflow-clip-margin`: still no scrolling,
- * but this much overflow is allowed to render.
+ * <main>, and <main> clipped — which sheared the tops off anything pulled up out
+ * of it. Since 2026-09-24 it is applied to the dashboard's <main> ITSELF, not to
+ * the tile strip: <main> has to be a real scroll container (a short window must
+ * be able to scroll to the bottom panels), and a scroll container clips
+ * anything outside its box with no `overflow-clip-margin` escape. Pulling the
+ * whole <main> up over the photo keeps the tiles inside it. The shell column
+ * still uses `overflow: clip` with a 96px `overflow-clip-margin`, which is what
+ * lets <main> reach up past it.
  *
  * 56px is half a 112px tile, so they sit exactly half on the photo.
  */
