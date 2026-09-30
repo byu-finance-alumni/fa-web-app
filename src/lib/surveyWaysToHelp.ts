@@ -140,10 +140,30 @@ export function waysToHelpCopy(
  * the ways-to-help PAGE (see `answeredFields`), this body is allowed to carry
  * profile fields — they are the whole point of it — and the backend drops any
  * key that is not a recognized survey field.
+ *
+ * `fillSeconds` is the alum's ACTIVE time on the form (see `surveyActiveTime`),
+ * a SIBLING of `has_photo` — not a survey field. It is OPTIONAL and best-effort:
+ * the key is included only when a real, non-negative whole number was measured,
+ * so a missing or nonsense timer leaves the body byte-for-byte what it was
+ * before this existed. The backend clamps it further and never trusts it.
  */
 export function editSubmitBody(
   edits: Record<string, string>,
   hasPhoto: boolean,
-): { fields: Record<string, string>; has_photo: boolean } {
-  return { fields: edits, has_photo: hasPhoto };
+  fillSeconds?: number | null,
+): {
+  fields: Record<string, string>;
+  has_photo: boolean;
+  fill_seconds?: number;
+} {
+  const body: { fields: Record<string, string>; has_photo: boolean; fill_seconds?: number } =
+    { fields: edits, has_photo: hasPhoto };
+  if (
+    typeof fillSeconds === "number" &&
+    Number.isFinite(fillSeconds) &&
+    fillSeconds >= 0
+  ) {
+    body.fill_seconds = Math.round(fillSeconds);
+  }
+  return body;
 }

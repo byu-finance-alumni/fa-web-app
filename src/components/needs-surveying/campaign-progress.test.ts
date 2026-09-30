@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatFillTime,
   formatRate,
   toProgressRow,
   toProgressRows,
@@ -7,6 +8,13 @@ import {
 } from "./campaign-progress";
 
 type Item = Parameters<typeof toProgressRow>[0];
+
+/** A progress ROW for an item carrying `median_fill_seconds` — the field the
+ *  generated type will gain on the next regen, so it is set via a local cast. */
+function withMedianRow(over: Partial<Item>, median: number | null) {
+  const withField = { ...item(over), median_fill_seconds: median } as Item;
+  return toProgressRow(withField);
+}
 
 function item(over: Partial<Item> = {}): Item {
   return {
@@ -202,5 +210,60 @@ describe("totals", () => {
     const totals = totalProgress([]);
     expect(totals.emailed).toBe(0);
     expect(totals.responseRate).toBeNull();
+  });
+});
+
+describe("median time to complete", () => {
+  it("passes a per-year median straight through", () => {
+    expect(withMedianRow({ recipients: 30, replied: 9 }, 72).medianFillSeconds).toBe(
+      72,
+    );
+  });
+
+  it("reports null (a dash, not zero) when no usable fill time has come back", () => {
+    // A cycle nobody has replied to yet, or whose replies predate the column.
+    const row = withMedianRow({ recipients: 30, replied: 0 }, null);
+    expect(row.medianFillSeconds).toBeNull();
+    expect(formatFillTime(row.medianFillSeconds)).toBe("—");
+  });
+
+  it("treats a missing field as null rather than 0", () => {
+    // Before api.gen.ts is regenerated the field is simply absent on the item.
+    expect(toProgressRow(item({ recipients: 10, replied: 4 })).medianFillSeconds).toBeNull();
+  });
+
+  it("ignores a nonsense median rather than surfacing it", () => {
+    expect(withMedianRow({ recipients: 5, replied: 5 }, -1).medianFillSeconds).toBeNull();
+  });
+
+  it("has no account-wide median — a median of medians is meaningless", () => {
+    const totals = totalProgress([
+      withMedianRow({ graduation_year: 2019, recipients: 20, replied: 10 }, 60),
+      withMedianRow({ graduation_year: 2018, recipients: 10, replied: 8 }, 120),
+    ]);
+    expect(totals.medianFillSeconds).toBeNull();
+    expect(formatFillTime(totals.medianFillSeconds)).toBe("—");
+  });
+});
+
+describe("formatFillTime", () => {
+  it("shows seconds under a minute", () => {
+    expect(formatFillTime(45)).toBe("45s");
+    expect(formatFillTime(0)).toBe("0s");
+  });
+
+  it("shows minutes and zero-padded seconds above a minute", () => {
+    expect(formatFillTime(65)).toBe("1m 05s");
+    expect(formatFillTime(750)).toBe("12m 30s");
+  });
+
+  it("rounds a fractional median", () => {
+    expect(formatFillTime(59.6)).toBe("1m 00s");
+  });
+
+  it("is a dash for null or nonsense", () => {
+    expect(formatFillTime(null)).toBe("—");
+    expect(formatFillTime(-3)).toBe("—");
+    expect(formatFillTime(NaN)).toBe("—");
   });
 });

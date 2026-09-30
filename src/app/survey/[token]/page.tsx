@@ -31,6 +31,7 @@ import {
   waysToHelpHref,
 } from "@/lib/surveyConfirm";
 import { editSubmitBody } from "@/lib/surveyWaysToHelp";
+import { useActiveTimer } from "@/lib/surveyActiveTime";
 import type { components } from "@/types/api.gen";
 
 /**
@@ -92,6 +93,12 @@ export default function SurveyConfirmPage({
 }) {
   const { token } = use(params);
   const router = useRouter();
+
+  // How long the alum actively spends on the form (paused while the tab is
+  // hidden), read once at submit and sent alongside their edits so the campaign
+  // console can show a median time-to-complete. Best-effort — see
+  // `editSubmitBody`; a missing value changes nothing about the submission.
+  const getFillSeconds = useActiveTimer();
 
   const [loadState, setLoadState] = useState<LoadState>("loading");
   /** #774: the survey's public contact, served on the token-gated payload so
@@ -314,7 +321,9 @@ export default function SurveyConfirmPage({
             // `has_photo` flags a photo-only submission so the backend still
             // creates a response row (and returns its id) even when `fields` is
             // empty (#537).
-            body: JSON.stringify(editSubmitBody(edits, photoFile != null)),
+            body: JSON.stringify(
+              editSubmitBody(edits, photoFile != null, getFillSeconds()),
+            ),
           },
         );
         if (!res.ok) throw new Error(String(res.status));

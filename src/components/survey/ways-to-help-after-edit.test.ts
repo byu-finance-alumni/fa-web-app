@@ -156,6 +156,44 @@ describe("the edit branch cannot stage two response rows", () => {
   });
 });
 
+describe("editSubmitBody carries the active-fill timer as an optional sibling", () => {
+  it("adds fill_seconds (a sibling of has_photo) when a real value is measured", () => {
+    const body = editSubmitBody({ "contact.city": "Provo" }, false, 95);
+    expect(body.fill_seconds).toBe(95);
+    // A top-level sibling, not a survey field folded into `fields`.
+    expect(body.fields).toEqual({ "contact.city": "Provo" });
+  });
+
+  it("rounds a fractional measurement to whole seconds", () => {
+    expect(editSubmitBody({}, false, 12.6).fill_seconds).toBe(13);
+  });
+
+  it("omits the field entirely when no timer value is given", () => {
+    // The whole point of best-effort: the body is byte-for-byte what it was
+    // before the timer existed, so a missing value cannot change a submission.
+    expect(Object.keys(editSubmitBody({}, false))).toEqual([
+      "fields",
+      "has_photo",
+    ]);
+    expect(editSubmitBody({}, false).fill_seconds).toBeUndefined();
+  });
+
+  it("drops a nonsense timer value rather than sending it", () => {
+    // The frontend never sends a negative, NaN, or infinite fill time; the
+    // backend clamps whatever does arrive, but the honest client sends nothing.
+    expect(editSubmitBody({}, false, -5).fill_seconds).toBeUndefined();
+    expect(editSubmitBody({}, false, NaN).fill_seconds).toBeUndefined();
+    expect(editSubmitBody({}, false, Infinity).fill_seconds).toBeUndefined();
+    expect(editSubmitBody({}, false, null).fill_seconds).toBeUndefined();
+  });
+
+  it("still never claims to be a confirmation, timer or not", () => {
+    expect(JSON.stringify(editSubmitBody({}, true, 60))).not.toContain(
+      "confirmed",
+    );
+  });
+});
+
 describe("an alum can finish from the step without adding anything", () => {
   const screens = read(SCREENS);
   const waysToHelp = functionBody(screens, "export function WaysToHelp");
