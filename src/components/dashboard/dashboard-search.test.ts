@@ -215,14 +215,21 @@ describe("designation tickboxes", () => {
     // CPA came back out: no alumni hold one, so the tickbox could only ever
     // return zero results. SEARCH-ONLY — the survey still collects it, the
     // profile still shows it, and the backend still accepts the `cpa` param.
+    // PIFF donor / mentor / speaker were removed: each duplicated an Engagement
+    // Tag option and the tag dropdown now offers the full list. Their params
+    // still round-trip to /alumni (BOOLEAN_FLAGS), so bookmarked links keep
+    // working; they just have no dedicated tickbox here any more.
     expect(paramsOf(src, "ENGAGEMENT")).toEqual([
       "attended",
-      "donor",
-      "mentor",
-      "speaker",
       "cfa",
       "cfp",
     ]);
+  });
+
+  it("no longer offers the donor/mentor/speaker tickboxes (redundant with the Engagement Tag dropdown)", () => {
+    for (const p of ["donor", "mentor", "speaker"]) {
+      expect(paramsOf(src, "ENGAGEMENT")).not.toContain(p);
+    }
   });
 
   it("leaves no CPA control behind on the dashboard search card", () => {
