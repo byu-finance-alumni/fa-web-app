@@ -23,6 +23,7 @@
  */
 import type { components } from "@/types/api.gen";
 import { Card } from "@/components/ui/card";
+import { MedianFillTimeCount } from "./MedianFillTimeCount";
 import { NoReplyExportButton } from "./NoReplyExportButton";
 import { ResponderCount, useRespondersCache } from "./ResponderCount";
 import {
@@ -172,8 +173,14 @@ export function CampaignProgressTable({
                 <td className={`${TD} text-right font-medium text-navy-800`}>
                   {formatRate(r.responseRate)}
                 </td>
+                {/* Hover or focus for each replier's individual fill time. */}
                 <td className={`${TD} whitespace-nowrap text-right`}>
-                  {formatFillTime(r.medianFillSeconds)}
+                  <MedianFillTimeCount
+                    year={r.graduationYear}
+                    medianSeconds={r.medianFillSeconds}
+                    replied={r.replied}
+                    cache={responders}
+                  />
                 </td>
                 <td className={`${TD} whitespace-nowrap text-right`}>
                   {r.silent.toLocaleString()}
@@ -271,7 +278,7 @@ export function CampaignProgressTable({
           &ldquo;Median time to complete&rdquo; is the median active time
           respondents spent filling the survey, measured in the browser and
           paused while the tab is hidden. It shows a dash until a reply carries a
-          usable measurement.
+          usable measurement. Hover it to see each respondent&rsquo;s own time.
         </p>
         {/* Jake's call (#836): the file skips archived alumni, as the
             follow-up list does, while the count keeps them — so a file can

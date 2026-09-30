@@ -105,6 +105,31 @@ describe("Progress table (#836)", () => {
     expect(render(items, false)).not.toContain("leaves out archived alumni");
   });
 
+  it("makes the median time hoverable once a year has repliers (#543)", () => {
+    // `median_fill_seconds` lands on the generated type with the next regen, so
+    // it is attached to a full item via a cast — the same stopgap the
+    // campaign-progress tests use.
+    const base = item({ graduation_year: 2019, recipients: 30, replied: 9 });
+    const html = render([{ ...base, median_fill_seconds: 200 } as Item]);
+    expect(html).toContain(
+      'aria-label="Median time to complete in 2019, 3m 20s, show individual times"',
+    );
+  });
+
+  it("offers the median hover even before any time is recorded, showing a dash", () => {
+    // Repliers but no usable timer yet: the cell reads a dash and the hover is
+    // still there to say "No recorded times yet" rather than looking broken.
+    const html = render([
+      item({ graduation_year: 2019, recipients: 30, replied: 9 }),
+    ]);
+    expect(html).toContain('aria-label="Median time to complete in 2019, —, show individual times"');
+  });
+
+  it("leaves the median as plain text when nobody has replied", () => {
+    const html = render([item({ recipients: 5 })]);
+    expect(html).not.toContain("show individual times");
+  });
+
   it("uses no icons", () => {
     expect(render([item({ recipients: 10, replied: 4, confirmed: 2 })])).not.toContain(
       "<svg",

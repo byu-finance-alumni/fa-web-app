@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  fillTimeResponders,
   isExportableYear,
   noReplyExportErrorMessage,
   noReplyExportFilename,
@@ -18,6 +19,21 @@ const data: SurveyResponders = {
   ],
   confirmed: [{ alumni_id: 2, name: "Ann Adams" }],
 };
+
+/** A replier carrying `fill_seconds` — the field `SurveyResponder` gains on the
+ *  next api.gen regen, so it is attached through a cast for now, exactly as the
+ *  production reader in `responders.ts` reads it defensively. */
+function replier(
+  alumni_id: number,
+  name: string,
+  fillSeconds: number | null,
+): SurveyResponders["replied"][number] {
+  return {
+    alumni_id,
+    name,
+    fill_seconds: fillSeconds,
+  } as unknown as SurveyResponders["replied"][number];
+}
 
 describe("responder names (#836)", () => {
   it("asks one endpoint per year for both lists", () => {
@@ -50,6 +66,36 @@ describe("responder names (#836)", () => {
     expect(note).toContain("3");
     expect(note).toContain("2");
     expect(note).toContain("Reload");
+  });
+});
+
+describe("median-hover fill times (#543 follow-on)", () => {
+  const timed: SurveyResponders = {
+    replied: [
+      replier(1, "Yo Young", 200),
+      replier(2, "Ann Adams", null), // confirmed / no timer — dropped
+      replier(3, "Bo Baker", 45),
+    ],
+    confirmed: [],
+  };
+
+  it("lists only repliers with a recorded time, longest first", () => {
+    expect(fillTimeResponders(timed)).toEqual([
+      { alumni_id: 1, name: "Yo Young", fillSeconds: 200 },
+      { alumni_id: 3, name: "Bo Baker", fillSeconds: 45 },
+    ]);
+  });
+
+  it("drops a replier whose time is null", () => {
+    expect(
+      fillTimeResponders(timed).map((p) => p.alumni_id),
+    ).not.toContain(2);
+  });
+
+  it("is empty when no replier has a time yet (the common early case)", () => {
+    // The pre-regen list carries no `fill_seconds` at all: read defensively, it
+    // is simply nobody with a recorded time.
+    expect(fillTimeResponders(data)).toEqual([]);
   });
 });
 
