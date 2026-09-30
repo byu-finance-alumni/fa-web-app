@@ -56,11 +56,6 @@ export type ResponderFillTime = {
  * confirmation, or a response predating the column). The nulls are dropped, so
  * the hover lists exactly the people whose times make up the median. Ordered
  * DESCENDING so the slowest — the outliers that pull a median up — read first.
- *
- * `fill_seconds` lands on `SurveyResponder` with the next `api.gen.ts` regen
- * from dev; until then it is read through the smallest defensive cast so this
- * compiles against the current generated type. Same stopgap as
- * `campaign-progress.ts`'s read of `median_fill_seconds`.
  */
 export function fillTimeResponders(
   data: SurveyResponders,
@@ -69,8 +64,7 @@ export function fillTimeResponders(
     .map((p) => ({
       alumni_id: p.alumni_id,
       name: p.name,
-      fillSeconds:
-        (p as { fill_seconds?: number | null }).fill_seconds ?? null,
+      fillSeconds: p.fill_seconds ?? null,
     }))
     .filter((p): p is ResponderFillTime => typeof p.fillSeconds === "number")
     .sort((a, b) => b.fillSeconds - a.fillSeconds);

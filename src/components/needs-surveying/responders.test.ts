@@ -14,25 +14,19 @@ import {
 
 const data: SurveyResponders = {
   replied: [
-    { alumni_id: 2, name: "Ann Adams" },
-    { alumni_id: 1, name: "Yo Young" },
+    { alumni_id: 2, name: "Ann Adams", fill_seconds: null },
+    { alumni_id: 1, name: "Yo Young", fill_seconds: null },
   ],
-  confirmed: [{ alumni_id: 2, name: "Ann Adams" }],
+  confirmed: [{ alumni_id: 2, name: "Ann Adams", fill_seconds: null }],
 };
 
-/** A replier carrying `fill_seconds` — the field `SurveyResponder` gains on the
- *  next api.gen regen, so it is attached through a cast for now, exactly as the
- *  production reader in `responders.ts` reads it defensively. */
+/** A replier carrying `fill_seconds` (now a real field on `SurveyResponder`). */
 function replier(
   alumni_id: number,
   name: string,
   fillSeconds: number | null,
 ): SurveyResponders["replied"][number] {
-  return {
-    alumni_id,
-    name,
-    fill_seconds: fillSeconds,
-  } as unknown as SurveyResponders["replied"][number];
+  return { alumni_id, name, fill_seconds: fillSeconds };
 }
 
 describe("responder names (#836)", () => {
