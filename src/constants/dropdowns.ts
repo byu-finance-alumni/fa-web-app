@@ -311,6 +311,8 @@ export const TAG_OPTIONS = [
   "Company Event Sponsor",
   "Case Competition Host",
   "PIFF Donor",
+  "Hired a Finance Intern",
+  "Hired a Finance Grad",
 ] as const;
 
 export type Tag = (typeof TAG_OPTIONS)[number];
@@ -331,6 +333,14 @@ export const ENGAGEMENT_FLAG_TAGS: Record<string, Tag> = {
   company_event_sponsor_willing: "Company Event Sponsor",
   case_competition_host_willing: "Case Competition Host",
   piff_donor: "PIFF Donor",
+  // Not survey "ways to get involved" (the survey asks the nine above), but they
+  // ARE canonical backend engagement tags backed by real columns
+  // (`hired_finance_intern` / `hired_finance_full_time` in fa-web-api
+  // ENGAGEMENT_FLAG_TAGS). Listing them here keeps this map an actual mirror of
+  // the backend (as the comment above claims) and keeps them selectable in the
+  // now-fixed alumni-list tag filter instead of silently dropping out of it.
+  hired_finance_intern: "Hired a Finance Intern",
+  hired_finance_full_time: "Hired a Finance Grad",
 };
 
 /** Status labels — the fixed, canonical record-status flags.
