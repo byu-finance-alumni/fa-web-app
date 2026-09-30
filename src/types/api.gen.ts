@@ -10238,6 +10238,8 @@ export interface components {
              * @default 0
              */
             confirmed: number;
+            /** Median Fill Seconds */
+            median_fill_seconds: number | null;
         };
         /**
          * SurveySchedulePauseAllResult
@@ -10395,6 +10397,8 @@ export interface components {
              * @default false
              */
             confirmed_only: boolean;
+            /** Fill Seconds */
+            fill_seconds?: number | null;
         };
         /**
          * SurveySubmitResult

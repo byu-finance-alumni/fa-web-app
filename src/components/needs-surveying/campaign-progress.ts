@@ -54,11 +54,23 @@ export type CampaignProgressRow = {
    *  recipients is not 0%, it is undefined, and showing "0%" for a campaign
    *  that has not started reads as a failure rather than as "not yet". */
   responseRate: number | null;
+  /**
+   * Median ACTIVE seconds this cycle's respondents spent filling the survey, or
+   * null when nothing usable has come back yet (nobody has replied, or every
+   * reply predates the measurement). Null is a real answer the table renders as
+   * a dash — 0 would read as "instant", which is a different and wrong claim.
+   */
+  medianFillSeconds: number | null;
 };
 
 export function toProgressRow(item: SurveyScheduleItem): CampaignProgressRow {
   const emailed = item.recipients ?? 0;
   const replied = item.replied ?? 0;
+  // `median_fill_seconds` is a new field; read it defensively so this compiles
+  // before `api.gen.ts` is regenerated against the backend (see the note in the
+  // handoff). Structural, so it keeps working once the generated type has it.
+  const median = (item as { median_fill_seconds?: number | null })
+    .median_fill_seconds;
   return {
     graduationYear: item.graduation_year,
     status: item.status,
@@ -74,6 +86,10 @@ export function toProgressRow(item: SurveyScheduleItem): CampaignProgressRow {
     rejected: item.rejected ?? 0,
     needsFollowUp: item.non_responders ?? 0,
     responseRate: emailed > 0 ? Math.round((replied / emailed) * 100) : null,
+    medianFillSeconds:
+      typeof median === "number" && Number.isFinite(median) && median >= 0
+        ? median
+        : null,
   };
 }
 
@@ -120,10 +136,31 @@ export function totalProgress(
     rejected: rows.reduce((n, r) => n + r.rejected, 0),
     needsFollowUp: rows.reduce((n, r) => n + r.needsFollowUp, 0),
     responseRate: emailed > 0 ? Math.round((replied / emailed) * 100) : null,
+    // No account-wide median: a median of per-year medians is true of no
+    // population, and the raw per-response times are not carried up here to
+    // compute a real one. The totals row shows a dash rather than a figure that
+    // looks authoritative and is not.
+    medianFillSeconds: null,
   };
 }
 
 /** "—" for an undefined rate, so an unstarted campaign never reads as 0%. */
 export function formatRate(rate: number | null): string {
   return rate === null ? "—" : `${rate}%`;
+}
+
+/**
+ * A median fill time as a short human string — "45s", "1m 05s", "12m 30s" — or
+ * "—" when there is nothing to show (no usable reply yet). Honest about being a
+ * median of active time, not a stopwatch: seconds under a minute, minutes and
+ * seconds above it, and never "0s", since a null (not a zero) is what "no data"
+ * looks like here.
+ */
+export function formatFillTime(seconds: number | null): string {
+  if (seconds === null || !Number.isFinite(seconds) || seconds < 0) return "—";
+  const whole = Math.round(seconds);
+  if (whole < 60) return `${whole}s`;
+  const mins = Math.floor(whole / 60);
+  const secs = whole % 60;
+  return `${mins}m ${String(secs).padStart(2, "0")}s`;
 }
