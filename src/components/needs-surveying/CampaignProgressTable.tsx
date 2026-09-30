@@ -26,6 +26,7 @@ import { Card } from "@/components/ui/card";
 import { NoReplyExportButton } from "./NoReplyExportButton";
 import { ResponderCount, useRespondersCache } from "./ResponderCount";
 import {
+  formatFillTime,
   formatRate,
   toProgressRows,
   totalProgress,
@@ -115,7 +116,7 @@ export function CampaignProgressTable({
             rather than wrapping headers. Applied/Rejected (#497) added roughly
             5rem each on top of the original 46rem; Looks good and the Export
             links (#836) another 6rem. */}
-        <table className="w-full min-w-[62rem] border-collapse">
+        <table className="w-full min-w-[70rem] border-collapse">
           <thead>
             <tr className="border-b border-gray-200">
               <th className={TH}>Year</th>
@@ -128,6 +129,9 @@ export function CampaignProgressTable({
                   To review + Applied. */}
               <th className={`${TH} text-right`}>Looks good</th>
               <th className={`${TH} text-right`}>Rate</th>
+              {/* Median ACTIVE time the respondents spent filling it in — a dash
+                  until a reply carries a usable measurement, never 0. */}
+              <th className={`${TH} text-right`}>Median time to complete</th>
               <th className={`${TH} text-right`}>No reply yet</th>
               {/* The three submission outcomes sit together: pending review,
                   accepted, discarded. They are per-outcome distinct-alumni
@@ -167,6 +171,9 @@ export function CampaignProgressTable({
                 </td>
                 <td className={`${TD} text-right font-medium text-navy-800`}>
                   {formatRate(r.responseRate)}
+                </td>
+                <td className={`${TD} whitespace-nowrap text-right`}>
+                  {formatFillTime(r.medianFillSeconds)}
                 </td>
                 <td className={`${TD} whitespace-nowrap text-right`}>
                   {r.silent.toLocaleString()}
@@ -222,6 +229,11 @@ export function CampaignProgressTable({
               <td className={`${TD} text-right font-semibold text-navy-800`}>
                 {formatRate(totals.responseRate)}
               </td>
+              {/* No all-years median — see `totalProgress`; a median of medians
+                  would be true of no cohort. */}
+              <td className={`${TD} text-right font-semibold`}>
+                {formatFillTime(totals.medianFillSeconds)}
+              </td>
               <td className={`${TD} whitespace-nowrap text-right font-semibold`}>
                 {totals.silent.toLocaleString()}
                 {canExport && totals.silent > 0 ? (
@@ -254,6 +266,12 @@ export function CampaignProgressTable({
           good&rdquo; is the part of &ldquo;Replied&rdquo; who said their record
           was already correct. Hover a Replied or Looks good count to see the
           names; &ldquo;Export&rdquo; downloads the No reply yet list.
+        </p>
+        <p>
+          &ldquo;Median time to complete&rdquo; is the median active time
+          respondents spent filling the survey, measured in the browser and
+          paused while the tab is hidden. It shows a dash until a reply carries a
+          usable measurement.
         </p>
         {/* Jake's call (#836): the file skips archived alumni, as the
             follow-up list does, while the count keeps them — so a file can
