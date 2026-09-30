@@ -28,7 +28,11 @@ import {
   toExportFilters,
 } from "./exportFilters";
 import type { AlumniExportFilters } from "@/types/export";
-import { EMPLOYMENT_STATUS_OPTIONS } from "@/constants/dropdowns";
+import {
+  EMPLOYMENT_STATUS_OPTIONS,
+  TAG_OPTIONS,
+  ENGAGEMENT_FLAG_TAGS,
+} from "@/constants/dropdowns";
 import type { FilterOptions } from "@/types/filters";
 
 /**
@@ -491,13 +495,36 @@ describe("the Employment status facet offers a fixed list, not the data", () => 
     // Status Label is a survey-suppression flag (fa-web-api#354), deliberately
     // separate from employment status; nothing about it changed here.
     for (const facet of FACETS) {
-      if (facet.optKey === "employment_statuses") continue;
+      if (facet.optKey === "employment_statuses" || facet.optKey === "tags")
+        continue;
       expect(
         facetOptions(facet.optKey, SERVED),
         `${facet.param} should still come from /alumni/filter-options`,
       ).toEqual(SERVED[facet.optKey]);
     }
-    expect(Object.keys(FIXED_FACET_OPTIONS)).toEqual(["employment_statuses"]);
+    expect(Object.keys(FIXED_FACET_OPTIONS)).toEqual([
+      "employment_statuses",
+      "tags",
+    ]);
+  });
+
+  it("always offers every way to get involved, not just the ones with data", () => {
+    // The survey's "ways to get involved" are each a derived tag backed by an
+    // `alumni_program_engagement` boolean. The tag facet used to be data-derived,
+    // so an involvement type was offered only once a visible alumnus already held
+    // it — the "filter reads as broken" gap #568 closed for employment status.
+    // Fixed to the canonical vocabulary, every one is always selectable, so staff
+    // can filter AND export by each. SERVED.tags holds only ["Mentor"], so this
+    // proves the facet ignores the thin data list.
+    const offered = facetOptions("tags", SERVED);
+    for (const tag of Object.values(ENGAGEMENT_FLAG_TAGS)) {
+      expect(offered, `${tag} must always be offered`).toContain(tag);
+    }
+    expect(offered).toEqual([...TAG_OPTIONS]);
+  });
+
+  it("reuses the canonical TAG_OPTIONS constant rather than a retyped copy", () => {
+    expect(FIXED_FACET_OPTIONS.tags).toBe(TAG_OPTIONS);
   });
 
   it("falls back to an empty list when options are missing entirely", () => {

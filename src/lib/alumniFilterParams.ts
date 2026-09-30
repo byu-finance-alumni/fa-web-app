@@ -26,7 +26,7 @@
  * call from it and `@/lib/exportFilters` derives the export body from it, so the
  * list and its CSV export cannot resolve to different populations.
  */
-import { EMPLOYMENT_STATUS_OPTIONS } from "@/constants/dropdowns";
+import { EMPLOYMENT_STATUS_OPTIONS, TAG_OPTIONS } from "@/constants/dropdowns";
 import type { FilterOptions } from "@/types/filters";
 
 /** Everything the backend GET /alumni supports, mirrored in the URL. */
@@ -244,6 +244,18 @@ export const FIXED_FACET_OPTIONS: Partial<
   Record<keyof FilterOptions, readonly string[]>
 > = {
   employment_statuses: EMPLOYMENT_STATUS_OPTIONS,
+  // Engagement tags are a FIXED canonical vocabulary (`TAG_OPTIONS`, free-text
+  // disallowed), same as employment status above. The survey's "ways to get
+  // involved" are DERIVED tags backed by `alumni_program_engagement` booleans
+  // (#629); `GET /alumni/filter-options` only lists a tag once a visible alumnus
+  // already holds it (#184), so at the start of a survey cycle staff could not
+  // filter OR export by "Case Competition Host", "NetTrek Host", etc. — the same
+  // "filter reads as broken" gap #568 closed for employment status. Offering the
+  // canonical list makes every way-to-get-involved always selectable and match
+  // the survey; `tag=` returns zero rows for an unheld flag rather than erroring,
+  // and the export derives the same `tag` param, so list and export stay in
+  // lockstep.
+  tags: TAG_OPTIONS,
 };
 
 /**
