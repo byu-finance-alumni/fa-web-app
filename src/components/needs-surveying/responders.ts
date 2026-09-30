@@ -38,6 +38,38 @@ export function respondersFor(
   return data[kind];
 }
 
+/* ------------------------------------------ median-hover fill times ------ */
+
+/** One replier with a recorded fill time, for the median-hover breakdown. */
+export type ResponderFillTime = {
+  alumni_id: number;
+  name: string;
+  fillSeconds: number;
+};
+
+/**
+ * The `replied` people who have a recorded fill time, longest first — the
+ * breakdown behind the "Median time to complete" hover (#543 follow-on).
+ *
+ * The backend attaches `fill_seconds` to each replier: the same representative
+ * time the median is built over, or null for a replier with no usable timer (a
+ * confirmation, or a response predating the column). The nulls are dropped, so
+ * the hover lists exactly the people whose times make up the median. Ordered
+ * DESCENDING so the slowest — the outliers that pull a median up — read first.
+ */
+export function fillTimeResponders(
+  data: SurveyResponders,
+): ResponderFillTime[] {
+  return data.replied
+    .map((p) => ({
+      alumni_id: p.alumni_id,
+      name: p.name,
+      fillSeconds: p.fill_seconds ?? null,
+    }))
+    .filter((p): p is ResponderFillTime => typeof p.fillSeconds === "number")
+    .sort((a, b) => b.fillSeconds - a.fillSeconds);
+}
+
 /**
  * Said only when the names do not match the number beside them.
  *
