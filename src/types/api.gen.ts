@@ -10043,17 +10043,27 @@ export interface components {
         };
         /**
          * SurveyResponder
-         * @description One alum behind a progress count (#836) — who, and nothing else.
+         * @description One alum behind a progress count (#836) — who, and (for the median
+         *     hover) how long they took.
          *
          *     Deliberately narrower than :class:`SurveyNonResponder`: the Progress tab
          *     only needs to put a name to a number, and nobody has to be contacted from
          *     it, so no address or reply content is carried.
+         *
+         *     ``fill_seconds`` is the time to SHOW this alum in the "Median time to
+         *     complete" hover (#543 follow-on): the same representative value the median
+         *     is built over, per person. It is ``None`` whenever the alum has no usable
+         *     recorded time for this cycle — a confirmation carries no timer, and history
+         *     predating the column was never backfilled — and for the whole ``confirmed``
+         *     list, which the median does not cover. The hover simply omits the null ones.
          */
         SurveyResponder: {
             /** Alumni Id */
             alumni_id: number;
             /** Name */
             name: string;
+            /** Fill Seconds */
+            fill_seconds: number | null;
         };
         /**
          * SurveyResponders
