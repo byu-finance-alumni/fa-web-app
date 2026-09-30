@@ -131,9 +131,11 @@ const FACETS: {
 /** Advanced engagement checkboxes → /alumni boolean param (=1). */
 const ENGAGEMENT: { key: string; label: string; param: string }[] = [
   { key: "attended", label: "Attended an event", param: "attended" },
-  { key: "donor", label: "PIFF donor", param: "donor" },
-  { key: "mentor", label: "Willing to mentor", param: "mentor" },
-  { key: "speaker", label: "Willing to guest speak", param: "speaker" },
+  // PIFF donor / Willing to mentor / Willing to guest speak are gone from here:
+  // each duplicated an "Engagement Tag" option (PIFF Donor / Mentor / Speaker),
+  // and that dropdown above now offers the full canonical list. The
+  // `donor`/`mentor`/`speaker` params still round-trip to /alumni (BOOLEAN_FLAGS),
+  // so an existing bookmarked link keeps working; search them via the tag facet.
   // The finance designations worth searching on. CFP joined CFA once the
   // backend grew a `cfp` param (fa-web-api#363).
   //

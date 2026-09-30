@@ -676,9 +676,16 @@ export function AlumniFilters({
                 </p>
                 <div className="space-y-2">
                   {checkboxRow("attended", "Attended an event")}
-                  {checkboxRow("donor", "PIFF donor")}
-                  {checkboxRow("mentor", "Willing to mentor")}
-                  {checkboxRow("speaker", "Willing to guest speak")}
+                  {/* No PIFF-donor / mentor / guest-speaker tickboxes any more:
+                      each was the exact duplicate of an "Engagement Tag" option
+                      (PIFF Donor / Mentor / Speaker), which now offers the full
+                      canonical list. Same treatment as CPA below — the
+                      `donor`/`mentor`/`speaker` params stay modelled in
+                      BOOLEAN_FLAGS and keep their chips above, so a saved
+                      ?donor=1 link (e.g. from the dashboard search) still
+                      narrows the list and stays visible/removable; only the
+                      redundant tickbox is gone. Filter by these via the
+                      Engagement Tag dropdown. */}
                   {/* The finance designations the survey collects (#529) that
                       are worth searching on. These are the BOOLEAN cfa/cfp
                       params — each AND-narrows to holders of that one
