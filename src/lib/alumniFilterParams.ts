@@ -657,6 +657,51 @@ export function toAlumniPopulationParams(
   return p;
 }
 
+/* --------------------------------------------- hidden-field filters ---- */
+
+/**
+ * A `net_id=` value the backend reads as a friend id and so still honours for a
+ * non-editor. Mirrors fa-web-api `app/core/friend_id.py` `_PATTERN` exactly —
+ * deliberately more lenient than {@link isFriendIdQuery} (spaces/underscores,
+ * leading zeros), because if this disagreed with the backend the export would
+ * drop a predicate the list still applied.
+ */
+const BACKEND_FRIEND_ID = /^\s*friend[\s\-_]*0*(\d{1,12})\s*$/i;
+
+/**
+ * Drop the filters a viewer who can't edit alumni is not allowed to use.
+ *
+ * `net_id` and `gender` are hidden fields for anyone without edit access (the
+ * backend nulls them on every read), and a filter or sort on a hidden field is
+ * an oracle — `?net_id=a` then `?net_id=ab` recovers the value from the count
+ * alone. So the backend now SILENTLY IGNORES `gender=`, `sort=gender` and
+ * `net_id=` from such a viewer — except a friend id (`FRIEND-00042`), which is
+ * a visible field and still narrows (2026-10-02 breach test).
+ *
+ * "Silently" is the reason this exists. A deep link carrying `gender=F` would
+ * still show a Gender chip, a sort indicator and an export scoped to `gender=F`
+ * — all describing a predicate the list never applied. Stripping them HERE,
+ * from the same state every consumer reads, keeps the chips, the sort and the
+ * export body (derived via `toAlumniPopulationParams`) describing exactly the
+ * population the backend returned (#592 parity).
+ */
+export function withoutHiddenFieldFilters(
+  f: AlumniFilterState,
+  pt: PassThroughFilters,
+): { filters: AlumniFilterState; passThrough: PassThroughFilters } {
+  return {
+    filters: {
+      ...f,
+      gender: "",
+      sort: f.sort === "gender" ? "name" : f.sort,
+    },
+    passThrough: {
+      ...pt,
+      net_id: BACKEND_FRIEND_ID.test(pt.net_id) ? pt.net_id : "",
+    },
+  };
+}
+
 /* ------------------------------------------------------------ counting ---- */
 
 /**

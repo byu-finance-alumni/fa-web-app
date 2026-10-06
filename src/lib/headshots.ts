@@ -29,6 +29,12 @@
  *
  * A photo CHANGE (upload / replace / remove / bulk import) invalidates
  * {@link HEADSHOT_CACHE_TAG}, so a new picture never waits out the TTL.
+ *
+ * ⚠️ A "URL" here is not always a signed storage URL. The storage key is the
+ * alumnus's Net ID, which a viewer who can't edit alumni must never see — so
+ * for them the backend returns the app-relative proxy path
+ * `/api/headshot/<alumni_id>` instead (served by `src/app/api/headshot/[id]`).
+ * Every consumer renders it with a plain `<img src>`, which takes either form.
  */
 
 import { apiGet, type ApiCacheOptions } from "@/lib/api";

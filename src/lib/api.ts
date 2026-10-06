@@ -330,3 +330,19 @@ export async function apiPostText(path: string, body: unknown): Promise<string> 
   }
   return res.text();
 }
+
+/**
+ * Server-side GET that hands back the RAW upstream `Response`, auth attached
+ * and never cached — for the one route that relays bytes rather than JSON (the
+ * headshot image proxy, `src/app/api/headshot/[id]/route.ts`). The caller owns
+ * status mapping and must not forward upstream headers wholesale.
+ *
+ * Returns `null` when the caller has no session token: the request is refused
+ * here rather than sent upstream anonymously.
+ */
+export async function apiGetRaw(path: string): Promise<Response | null> {
+  if (!API_URL) throw new ApiError(0, "API URL is not configured.");
+  const headers = await authHeaders();
+  if (!headers.Authorization) return null;
+  return fetch(`${API_URL}${path}`, { headers, cache: "no-store" });
+}

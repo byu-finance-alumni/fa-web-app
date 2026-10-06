@@ -97,6 +97,7 @@ export function AlumniTable({
   sort = "name",
   basePath = "/alumni",
   sp = {},
+  showGender = false,
 }: {
   items: Alumni[];
   /** Role gates threaded from the server page — drive the per-row action menu's
@@ -115,6 +116,11 @@ export function AlumniTable({
   /** Current search params, preserved (minus offset/sort) when building a sort
    *  link so a sort never drops the active filters; paging resets to page 1. */
   sp?: SP;
+  /** Show the Gender column (and its sort header). Gender is hidden from
+   *  viewers who can't edit alumni — the backend nulls it and ignores
+   *  `sort=gender` for them — so for them the column would be all dashes and
+   *  its header a sort that does nothing. Fails closed. */
+  showGender?: boolean;
 }) {
   const router = useRouter();
   const showActions = canEdit || canAdd;
@@ -161,14 +167,16 @@ export function AlumniTable({
               dir={sort === "grad_asc" ? "asc" : "desc"}
               href={sortHref(sort === "grad_desc" ? "grad_asc" : "grad_desc")}
             />
-            <SortTh
-              label="Gender"
-              w="w-[10%]"
-              align="center"
-              active={sort === "gender"}
-              dir="asc"
-              href={sortHref(sort === "gender" ? "name" : "gender")}
-            />
+            {showGender ? (
+              <SortTh
+                label="Gender"
+                w="w-[10%]"
+                align="center"
+                active={sort === "gender"}
+                dir="asc"
+                href={sortHref(sort === "gender" ? "name" : "gender")}
+              />
+            ) : null}
             <SortTh
               label="Company"
               w="w-[17%]"
@@ -242,11 +250,13 @@ export function AlumniTable({
               <td className="px-3 py-2.5 text-center tabular-nums text-gray-700">
                 {a.graduation_year ?? "—"}
               </td>
-              <td className="px-3 py-2.5 text-center text-gray-700">
-                {genderLabel(a.gender) || (
-                  <span className="text-gray-300">—</span>
-                )}
-              </td>
+              {showGender ? (
+                <td className="px-3 py-2.5 text-center text-gray-700">
+                  {genderLabel(a.gender) || (
+                    <span className="text-gray-300">—</span>
+                  )}
+                </td>
+              ) : null}
               <td className="truncate px-3 py-2.5 text-gray-700">
                 {/* `employer_display`, not `current_employer` (#536): the
                     backend returns the company when there is one, otherwise
