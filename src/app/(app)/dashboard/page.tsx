@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { apiGet, ApiError } from "@/lib/api";
 import { getAuthContext } from "@/lib/auth-context";
+import { canEditAlumni } from "@/constants/roles";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { SearchHero } from "@/components/dashboard/SearchHero";
 // `DashboardHero` is no longer imported — the shell renders the masthead now.
@@ -692,6 +693,7 @@ export default async function DashboardPage() {
               <div className="grid grid-cols-1 gap-4 lg:flex-1 lg:grid-cols-12 lg:gap-5">
                 <DashboardSearch
                   options={filterOptions ?? EMPTY_FILTER_OPTIONS}
+                  canUseHiddenFields={canEditAlumni(ctx?.roles)}
                   className="lg:col-span-5"
                 />
                 {/* Industry breakdown STRETCHES to the row (Jake, 2026-08-20),

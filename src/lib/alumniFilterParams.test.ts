@@ -922,7 +922,12 @@ describe("the roster feeds the export the same inputs it queried with", () => {
   });
 
   it("hands them to the panel, which builds the export body from them", () => {
-    expect(roster).toContain("passThrough={passThrough}");
+    // The panel gets the SAME parsed pass-through, minus only the hidden-field
+    // filters the backend ignored for a non-editor (withoutHiddenFieldFilters),
+    // so the export still matches what the list applied.
+    expect(roster).toContain("passThrough={visible.passThrough}");
+    expect(roster).toContain("? { filters, passThrough }");
+    expect(roster).toContain(": withoutHiddenFieldFilters(filters, passThrough)");
     const panel = read("src/components/alumni/AlumniFilters.tsx");
     expect(panel).toContain("toExportFilters(f, scope, passThrough)");
   });

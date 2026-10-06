@@ -147,16 +147,30 @@ const ENGAGEMENT: { key: string; label: string; param: string }[] = [
   { key: "cfp", label: "CFP designation", param: "cfp" },
 ];
 
+/**
+ * Identity fields a viewer who can't edit alumni may NOT search on. Net ID is a
+ * hidden field below the edit tier and the backend ignores `net_id=` from such
+ * a viewer (a prefix search on it would recover the value from the result
+ * count), so offering the box would only promise a narrowing that never
+ * happens.
+ */
+const HIDDEN_IDENTITY_FIELDS: ReadonlySet<keyof Identity> = new Set(["net_id"]);
+
 function IdentityGrid({
   value,
   onChange,
+  canUseHiddenFields,
 }: {
   value: Identity;
   onChange: (next: Identity) => void;
+  canUseHiddenFields: boolean;
 }) {
+  const fields = canUseHiddenFields
+    ? IDENTITY_FIELDS
+    : IDENTITY_FIELDS.filter((f) => !HIDDEN_IDENTITY_FIELDS.has(f.key));
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      {IDENTITY_FIELDS.map((f) => (
+      {fields.map((f) => (
         <Label key={f.key} className="flex flex-col gap-1">
           {/* The weight sits on the span, not the Label: a `font-*` on the
               wrapper would be inherited by the Input it also wraps. */}
@@ -365,8 +379,13 @@ export function quickSearchHref(
 export function DashboardSearch({
   options,
   className,
+  canUseHiddenFields = false,
 }: {
   options: FilterOptions;
+  /** May search on the fields hidden below the edit tier (Net ID, gender) —
+   *  `canEditAlumni` from the dashboard. The backend ignores those params from
+   *  anyone else, so their controls are not offered. Fails closed. */
+  canUseHiddenFields?: boolean;
   /** Grid placement from the dashboard (e.g. its column span). Layout only —
    *  the card's own surface classes are set here. */
   className?: string;
@@ -466,7 +485,11 @@ export function DashboardSearch({
               min-h-0) so the block can grow but never shrink under its content —
               Quick must stay scroll-free at desktop height. */}
           <div className="space-y-4 lg:flex-1">
-            <IdentityGrid value={quick} onChange={setQuick} />
+            <IdentityGrid
+              value={quick}
+              onChange={setQuick}
+              canUseHiddenFields={canUseHiddenFields}
+            />
             {/* The narrowers — they answer "which of these people", where the
                 grid above answers "who". Same 2-up grid as the identity fields
                 so all six controls share two columns: Graduation year (its
@@ -486,7 +509,9 @@ export function DashboardSearch({
                 }}
                 error={quickYearError}
               />
-              <GenderPicker value={quickGender} onChange={setQuickGender} />
+              {canUseHiddenFields ? (
+                <GenderPicker value={quickGender} onChange={setQuickGender} />
+              ) : null}
             </div>
             {/* Its own row under the grid: it scopes the whole search to a
                 different roster, so it isn't a third field in that row. */}
@@ -568,7 +593,11 @@ export function DashboardSearch({
               it still takes exactly the free height and scrolls inside it, as
               before. */}
           <div className="space-y-4 lg:-mx-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:px-2 lg:[contain:size]">
-            <IdentityGrid value={adv} onChange={setAdv} />
+            <IdentityGrid
+              value={adv}
+              onChange={setAdv}
+              canUseHiddenFields={canUseHiddenFields}
+            />
             {/* Same 2-up grid as everything above and below it, so the From/To
                 pair keeps the half-width cell it has on the Quick tab rather
                 than stretching across the whole panel. */}
