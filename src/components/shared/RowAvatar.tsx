@@ -20,7 +20,9 @@ export function RowAvatar({
   url,
   name,
 }: {
-  /** Signed headshot URL, or null when none is on file / net_id is missing. */
+  /** Signed headshot URL (or, for a non-editor, the same-origin
+   *  `/api/headshot/<id>` proxy path), or null when none is on file / net_id is
+   *  missing. */
   url: string | null;
   /** Display name — drives the initials fallback. */
   name: string;

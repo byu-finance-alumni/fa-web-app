@@ -18,6 +18,7 @@ import {
   one,
   parseAlumniFilters,
   parsePassThroughFilters,
+  withoutHiddenFieldFilters,
   toAlumniPopulationParams,
   type AlumniFilterState,
 } from "@/lib/alumniFilterParams";
@@ -165,6 +166,14 @@ export async function AlumniRoster({
   const canExport = canExportAlumni(caps);
   const canEditRows = canEditAlumni(roles);
   const canAddInteractionRows = canAddInteraction(caps);
+  // Gender and Net ID are hidden fields below the edit tier, and the backend
+  // silently ignores filtering / sorting on them for such a viewer. Strip them
+  // from the state the panel, chips, sort and EXPORT read, so none of them
+  // claims a narrowing the list above never applied (#592 parity). The same
+  // `canEditAlumni` test the backend's `can_edit_alumni` mirrors.
+  const visible = canEditRows
+    ? { filters, passThrough }
+    : withoutHiddenFieldFilters(filters, passThrough);
 
   // Row headshots (#398). The headshot bucket is private, so each photo needs a
   // short-lived signed URL minted server-side. This used to fan out one
@@ -212,7 +221,7 @@ export async function AlumniRoster({
       <Topbar title={isFriend ? "Friends of the Program" : "All Alumni"} />
       <main className="flex-1 overflow-auto p-4 md:p-6">
         <AlumniFilters
-          initial={filters}
+          initial={visible.filters}
           options={options ?? undefined}
           canCreate={canCreate}
           canExport={canExport}
@@ -223,7 +232,8 @@ export async function AlumniRoster({
           // request did — the filter state AND the URL-only narrowing params
           // (#592). Without the second, exporting a dashboard deep link
           // (?employer=…, ?near=…) returned people the list was excluding.
-          passThrough={passThrough}
+          passThrough={visible.passThrough}
+          canUseHiddenFields={canEditRows}
         />
 
         {locationLabel ? (
@@ -284,7 +294,8 @@ export async function AlumniRoster({
               canEdit={canEditRows}
               canAdd={canAddInteractionRows}
               headshotUrls={headshotUrls}
-              sort={filters.sort}
+              sort={visible.filters.sort}
+              showGender={canEditRows}
               basePath={basePath}
               sp={sp}
             />

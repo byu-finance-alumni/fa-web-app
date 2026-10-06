@@ -86,6 +86,7 @@ export function AlumniFilters({
   basePath = "/alumni",
   isFriend = false,
   passThrough = EMPTY_PASS_THROUGH,
+  canUseHiddenFields = false,
 }: {
   initial: AlumniFilterState;
   options?: FilterOptions;
@@ -107,6 +108,12 @@ export function AlumniFilters({
    *  control for them, but an export has to cover the same people the list
    *  does, so they travel into the export body (#592). */
   passThrough?: PassThroughFilters;
+  /** May filter / sort on the fields hidden from viewers who can't edit
+   *  alumni (gender here; Net ID is a pass-through with no control). The
+   *  backend ignores those params from such a viewer, so offering the control
+   *  would only promise a narrowing that never happens. Off unless the roster
+   *  says so (`canEditAlumni`) — fails closed. */
+  canUseHiddenFields?: boolean;
 }) {
   const router = useRouter();
   const [f, setF] = useState<AlumniFilterState>(initial);
@@ -239,7 +246,7 @@ export function AlumniFilters({
         ),
     });
   }
-  if (f.gender) {
+  if (f.gender && canUseHiddenFields) {
     chips.push({
       label: `Gender: ${f.gender === "F" ? "Female (F)" : "Male (M)"}`,
       remove: () => set("gender", ""),
@@ -380,7 +387,9 @@ export function AlumniFilters({
           <option value="employer">Sort: Company (A–Z)</option>
           <option value="city">Sort: City (A–Z)</option>
           <option value="state">Sort: State (A–Z)</option>
-          <option value="gender">Sort: Gender</option>
+          {canUseHiddenFields ? (
+            <option value="gender">Sort: Gender</option>
+          ) : null}
           <option value="updated">Sort: Recently updated</option>
         </Select>
 
@@ -561,22 +570,24 @@ export function AlumniFilters({
                 onChange={(next) => set("designations", next)}
               />
 
-              <div>
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Gender
-                </p>
-                <Select
-                  value={f.gender}
-                  onChange={(e) =>
-                    set("gender", e.target.value as AlumniFilterState["gender"])
-                  }
-                  aria-label="Filter by gender"
-                >
-                  <option value="">All</option>
-                  <option value="F">Female (F)</option>
-                  <option value="M">Male (M)</option>
-                </Select>
-              </div>
+              {canUseHiddenFields ? (
+                <div>
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Gender
+                  </p>
+                  <Select
+                    value={f.gender}
+                    onChange={(e) =>
+                      set("gender", e.target.value as AlumniFilterState["gender"])
+                    }
+                    aria-label="Filter by gender"
+                  >
+                    <option value="">All</option>
+                    <option value="F">Female (F)</option>
+                    <option value="M">Male (M)</option>
+                  </Select>
+                </div>
+              ) : null}
 
               <div>
                 <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">

@@ -110,7 +110,10 @@ const employed = row({
 
 async function renderTable(items: Alumni[]): Promise<string> {
   const { AlumniTable } = await import("./AlumniTable");
-  return renderToStaticMarkup(createElement(AlumniTable, { items }));
+  // The editor layout (Gender column shown), which the cell indexes below assume.
+  return renderToStaticMarkup(
+    createElement(AlumniTable, { items, showGender: true }),
+  );
 }
 
 /** The cells of the first body row, in column order, with tags stripped. */
