@@ -162,12 +162,20 @@ async function recordLoginAttempt(
  * unauthenticated precheck: only an authenticated call knows the caller's role,
  * and engineers must still be able to sign in.
  *
- * Returns the public maintenance message when the sign-in was refused for
- * maintenance, and `null` in every other case (success OR any error).
+ * THE SECOND EXCEPTION is a hard-locked account. The backend answers EVERY
+ * authenticated route — this one included — with 403 / `account_locked` for an
+ * account an administrator has locked (or one the failed-login lock has fully
+ * engaged on). Supabase still accepted the password, so swallowing it would
+ * leave the user holding a session every page then refuses. It is undone the
+ * same way as maintenance, and shown the SAME generic LOCKOUT_MESSAGE the
+ * precheck uses, so a locked account reads identically whichever step caught it.
+ *
+ * Returns the message to show when the sign-in was refused (maintenance or
+ * locked), and `null` in every other case (success OR any error).
  */
 async function recordLoginSuccess(
   accessToken: string,
-): Promise<{ maintenanceMessage: string } | null> {
+): Promise<{ refusedMessage: string } | null> {
   try {
     // Same client IP + location as the failure path, read from this request's
     // edge headers (see readLoginContext).
@@ -182,14 +190,19 @@ async function recordLoginSuccess(
       body: JSON.stringify(context),
       cache: "no-store",
     });
-    if (res.status === 503) {
+    if (res.status === 503 || res.status === 403) {
       const body = (await res.json().catch(() => null)) as {
         error?: { code?: string; message?: string };
       } | null;
-      if (body?.error?.code === "maintenance_mode") {
+      if (res.status === 503 && body?.error?.code === "maintenance_mode") {
         return {
-          maintenanceMessage: body.error.message?.trim() || MAINTENANCE_MESSAGE,
+          refusedMessage: body.error.message?.trim() || MAINTENANCE_MESSAGE,
         };
+      }
+      if (res.status === 403 && body?.error?.code === "account_locked") {
+        // Never the backend's own wording: one fixed string for every refusal
+        // of this kind (see LOCKOUT_MESSAGE).
+        return { refusedMessage: LOCKOUT_MESSAGE };
       }
     }
     if (!res.ok) console.error("[login] record-success non-OK:", res.status);
@@ -257,14 +270,15 @@ export async function signIn(
   } = await supabase.auth.getSession();
   if (session?.access_token) {
     const refused = await recordLoginSuccess(session.access_token);
-    // Maintenance mode is on and this account is not exempt. Undo the sign-in
-    // rather than let them through: `signOut` clears the auth cookies the
-    // server client just wrote onto this response, so they leave with no
-    // half-valid session, and the API would reject every request anyway.
-    // Engineers never reach this branch — the backend exempts them.
+    // Maintenance mode is on and this account is not exempt, or the account
+    // is hard-locked. Undo the sign-in rather than let them through: `signOut`
+    // clears the auth cookies the server client just wrote onto this response,
+    // so they leave with no half-valid session, and the API would reject every
+    // request anyway. Engineers never reach the maintenance case — the backend
+    // exempts them — but a locked engineer is still locked.
     if (refused) {
       await supabase.auth.signOut();
-      return { error: refused.maintenanceMessage };
+      return { error: refused.refusedMessage };
     }
   }
 

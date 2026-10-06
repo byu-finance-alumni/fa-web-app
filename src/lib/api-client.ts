@@ -7,6 +7,7 @@
  * still enforces RBAC, so this exposes nothing a server fetch wouldn't.
  */
 import { createClient } from "@/utils/supabase/client";
+import { errorCodeOf } from "@/lib/accountLocked";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -15,6 +16,8 @@ export class ApiClientError extends Error {
     public status: number,
     /** Backend `error.message` when present, else a generic fallback. */
     message?: string,
+    /** Backend `error.code` when present (e.g. `account_locked`), else null. */
+    public code: string | null = null,
   ) {
     super(message ?? `Request failed (${status})`);
     this.name = "ApiClientError";
@@ -32,7 +35,12 @@ export async function clientGet<T>(path: string): Promise<T> {
       : {},
     cache: "no-store",
   });
-  if (!res.ok) throw new ApiClientError(res.status);
+  if (!res.ok) {
+    // Only the machine code is read — callers branch on it (SessionGuard signs
+    // a hard-locked account out); the message keeps its generic fallback.
+    const code = errorCodeOf(await res.json().catch(() => null));
+    throw new ApiClientError(res.status, undefined, code);
+  }
   return (await res.json()) as T;
 }
 
