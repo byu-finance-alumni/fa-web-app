@@ -396,7 +396,9 @@ export interface paths {
          *     signed-in user can reach.
          *
          *     The ``locked`` flag the service returns is intentionally NOT echoed to the
-         *     client (anti-enumeration); only the coarse ``reason`` is.
+         *     client (anti-enumeration), and the ``reason`` is counter-derived: the failure
+         *     that hard-locks a real account returns the same ``cooldown`` body an unknown
+         *     address gets on the same failure count.
          *
          *     On a failure, in addition to bumping the rolling counter, a per-attempt
          *     ``login_failures`` row is logged (attempted email snapshotted + forwarded IP /
@@ -491,6 +493,10 @@ export interface paths {
          *     ``{"url": null}`` when none is set. Any authenticated view role may fetch it
          *     (the headshot shows on the profile); the bucket is private so the signed URL
          *     is the only way to view the image and it expires within the hour.
+         *
+         *     A caller without ``can_edit_alumni`` gets the app-relative proxy path
+         *     (``/api/headshot/<id>``) instead of the signed URL, which would disclose the
+         *     net ID — see ``_HEADSHOT_PROXY_PATH``.
          */
         get: operations["get_headshot_alumni__alumni_id__headshot_get"];
         /**
@@ -635,6 +641,37 @@ export interface paths {
          *     roster must not fail because one row has no photo.
          */
         get: operations["get_headshot_urls_alumni_headshots_urls_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alumni/{alumni_id}/headshot/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Headshot Image
+         * @description Stream the alumnus's headshot IMAGE itself (any view role).
+         *
+         *     The backing read for the app's ``/api/headshot/<id>`` route handler, which
+         *     is what a non-editor's ``<img src>`` points at (see ``_HEADSHOT_PROXY_PATH``).
+         *     Same gate and archived rule as ``GET /alumni/{id}/headshot``. Every "nothing
+         *     to show" case — no net ID, nothing stored, bytes that are not a JPEG/PNG/WebP
+         *     — is a plain 404 so the avatar falls back to initials, and nothing in the
+         *     response (body, headers, error message) names the net ID or the bucket.
+         *
+         *     The bytes are SNIFFED, never trusted: the served ``Content-Type`` comes from
+         *     the magic bytes, and anything else is refused rather than sent with a label
+         *     a browser might act on. ``nosniff`` pins that.
+         */
+        get: operations["get_headshot_image_alumni__alumni_id__headshot_image_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -859,6 +896,10 @@ export interface paths {
          *     the changed cells). Both years are validated to the alumni-schema bounds. A
          *     cohort larger than the export cap is a 413 asking the caller to narrow it
          *     down. Audit-logged (``export_alumni``) like the other exports.
+         *
+         *     A non-editor holding ``alumni.export`` gets the file WITHOUT the columns
+         *     their reads null (Net ID, BYU ID, birthday, residence, ...) — it can't be
+         *     re-uploaded by them anyway (that needs ``alumni.import``).
          */
         get: operations["export_cohort_update_template_alumni_import_update_export_get"];
         put?: never;
@@ -879,7 +920,9 @@ export interface paths {
         /**
          * Alumni Export Columns
          * @description The catalog of exportable columns + the default-checked selection, for the
-         *     export column picker (full_access).
+         *     export column picker (full_access). A non-editor holding ``alumni.export`` is
+         *     not offered the columns their reads null (see
+         *     ``alumni_export.visible_columns``).
          */
         get: operations["alumni_export_columns_alumni_export_columns_get"];
         put?: never;
@@ -912,6 +955,10 @@ export interface paths {
          *     dropping the predicate and handing back a wider population than the list
          *     showed. A result set larger than the export cap is a 413 asking the caller to
          *     narrow filters. Audit-logged (``export_alumni``).
+         *
+         *     A non-editor holding ``alumni.export`` gets the columns their reads null
+         *     STRIPPED from the selection (not a 403 — the rest of the export still
+         *     works); a selection with nothing left after that is a 422.
          */
         post: operations["export_alumni_alumni_export_post"];
         delete?: never;
@@ -1007,6 +1054,11 @@ export interface paths {
          *     task ``assigned_to_user_id``) are never present. Writes an ``export_profile``
          *     audit row before returning. Archived records 404. The frontend calls this
          *     instead of doing a client-side export.
+         *
+         *     Scoped exactly like ``GET /{alumni_id}/profile``: a non-editor holding
+         *     ``alumni.export`` gets the same view_only-minimized aggregate (no tasks,
+         *     sensitive PII / residence / notes nulled), and the Pay It Forward dollar
+         *     amounts only with ``donations.view``.
          */
         get: operations["export_alumni_profile_alumni__alumni_id__export_get"];
         put?: never;
@@ -2903,6 +2955,10 @@ export interface paths {
          *
          *     Email is the alumnus's personal email, falling back to the work email. Rows
          *     are ordered by name, matching the on-screen roster.
+         *
+         *     A non-editor holding the assignable ``alumni.export`` gets **Name, Email**
+         *     only: Net ID is nulled on every read they make (VIEW_ONLY_HIDDEN_FIELDS), so
+         *     the column is dropped rather than the export refused.
          */
         get: operations["export_event_attendees_events__event_id__attendees_export_get"];
         put?: never;
@@ -8779,11 +8835,16 @@ export interface components {
          * LoginThrottleStatus
          * @description Pre-login throttle status.
          *
-         *     ``reason`` is intentionally coarse and the frontend MUST collapse
-         *     ``cooldown`` and ``locked`` into ONE generic user-facing message
-         *     (anti-enumeration — see app/services/login_lockout.py). ``retry_after_seconds``
-         *     is set for ``cooldown`` only; ``locked`` has no self-clearing timer (a
-         *     super_admin reset is required).
+         *     ``reason`` is ``ok`` or ``cooldown`` and nothing else, and
+         *     ``retry_after_seconds`` is set for ``cooldown`` only. Every field is derived
+         *     from the per-email failure counter (or, for a #457 block, from the source
+         *     address) — never from whether the email is a real account or whether that
+         *     account is hard-locked — so the body is identical for all of them
+         *     (anti-enumeration, see app/services/login_lockout.py). A hard-locked account
+         *     is refused AFTER authentication instead, with 403 / ``account_locked``.
+         *
+         *     These routes no longer emit ``locked``; the frontend still shows one generic
+         *     message for any refusal, so an older client is unaffected either way.
          */
         LoginThrottleStatus: {
             /** Allowed */
@@ -11448,6 +11509,46 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HeadshotUrls"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_headshot_image_alumni__alumni_id__headshot_image_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alumni_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The headshot image bytes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": unknown;
+                    "image/png": unknown;
+                    "image/webp": unknown;
+                };
+            };
+            /** @description No such (readable) alumnus, or no headshot on file. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
