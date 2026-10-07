@@ -1488,6 +1488,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/alumni/{alumni_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Alumni History
+         * @description Recorded changes to one alumnus, one entry per save, newest first.
+         *
+         *     Editor tier: requires ``alumni.edit`` (student and up by default; NOT
+         *     view_only). Only changes are returned — read/disclosure rows never are.
+         *     Each field change carries its ``audit_id`` for a future restore. Values are
+         *     scoped like the profile read for the caller's role, archived records 404,
+         *     and the read is audit-logged (``view_history``). Field-level history begins
+         *     2026-08-18 (``history_starts``); there is no backfill.
+         */
+        get: operations["get_alumni_history_alumni__alumni_id__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dashboard/summary": {
         parameters: {
             query?: never;
@@ -5697,6 +5724,62 @@ export interface components {
             /** Columns */
             columns: string[];
             filters?: components["schemas"]["AlumniExportFilters"];
+        };
+        /**
+         * AlumniHistoryChange
+         * @description One recorded field change (one ``audit_logs`` row).
+         */
+        AlumniHistoryChange: {
+            /** Audit Id */
+            audit_id: number;
+            /** Action */
+            action: string;
+            /** Field */
+            field: string | null;
+            /** Label */
+            label: string | null;
+            /** Old */
+            old: string | null;
+            /** New */
+            new: string | null;
+            /**
+             * Redacted
+             * @default false
+             */
+            redacted: boolean;
+        };
+        /**
+         * AlumniHistoryGroup
+         * @description One save: every change written together, under one actor and time.
+         */
+        AlumniHistoryGroup: {
+            /** Group Id */
+            group_id: string;
+            /** Change Set Id */
+            change_set_id: string | null;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Actor Name */
+            actor_name: string | null;
+            /** Source */
+            source: ("manual" | "import" | "survey") | null;
+            /** Changes */
+            changes: components["schemas"]["AlumniHistoryChange"][];
+        };
+        /** AlumniHistoryPage */
+        AlumniHistoryPage: {
+            /** Items */
+            items: components["schemas"]["AlumniHistoryGroup"][];
+            /** Next Before */
+            next_before: string | null;
+            /**
+             * History Starts
+             * Format: date
+             */
+            history_starts: string;
         };
         /**
          * AlumniHygienePreview
@@ -12768,6 +12851,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AlumniRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_alumni_history_alumni__alumni_id__history_get: {
+        parameters: {
+            query?: {
+                /** @description Saves per page. */
+                limit?: number;
+                /** @description Opaque cursor: the previous page's ``next_before``. */
+                before?: string | null;
+            };
+            header?: never;
+            path: {
+                alumni_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlumniHistoryPage"];
                 };
             };
             /** @description Validation Error */

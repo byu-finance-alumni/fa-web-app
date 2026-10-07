@@ -29,6 +29,7 @@ export function AlumniProfileTabs({
   tasks,
   profileCompleteness,
   payItForward,
+  history,
 }: {
   overview: ReactNode;
   interactions: ReactNode;
@@ -56,6 +57,9 @@ export function AlumniProfileTabs({
   /** Pay It Forward giving — pass undefined when the alumnus has no donations,
    *  and the tab is hidden. Shown to every role when present (amounts gated). */
   payItForward?: ReactNode;
+  /** Version history (#45) — editor tier (`alumni.edit`). Pass undefined for
+   *  anyone else and the tab is hidden; the backend re-checks. */
+  history?: ReactNode;
 }) {
   // Mobile (< md) renders every panel in one vertical scroll — the LinkedIn-style
   // stacked layout — instead of the desktop tab bar. Defaults to false so the
@@ -94,6 +98,7 @@ export function AlumniProfileTabs({
       tasks,
       payItForward,
       profileCompleteness,
+      history,
     ].filter(Boolean);
     return (
       <div className="space-y-3">
@@ -142,6 +147,7 @@ export function AlumniProfileTabs({
         {payItForward ? (
           <TabsTrigger value="pay-it-forward">Pay it forward</TabsTrigger>
         ) : null}
+        {history ? <TabsTrigger value="history">History</TabsTrigger> : null}
       </TabsList>
 
       <TabsContent value="overview">{overview}</TabsContent>
@@ -168,6 +174,7 @@ export function AlumniProfileTabs({
       {payItForward ? (
         <TabsContent value="pay-it-forward">{payItForward}</TabsContent>
       ) : null}
+      {history ? <TabsContent value="history">{history}</TabsContent> : null}
     </Tabs>
   );
 }
