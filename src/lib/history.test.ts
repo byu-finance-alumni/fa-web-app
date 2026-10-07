@@ -76,6 +76,20 @@ describe("describeChange", () => {
   });
 });
 
+describe("withheld text", () => {
+  it("an edited note with its old text withheld still shows the new text", () => {
+    const v = describeChange(
+      change({ action: "update_note", old: null, new: "current", redacted: true }),
+    );
+    expect(v).toMatchObject({ title: "Note edited", kind: "old-hidden", new: "current" });
+  });
+  it("a deleted note with its text withheld shows nothing", () => {
+    expect(
+      describeChange(change({ action: "delete_note", redacted: true })),
+    ).toMatchObject({ title: "Note deleted", kind: "hidden" });
+  });
+});
+
 describe("labels", () => {
   it("unknown actions are humanized", () => {
     expect(actionLabel("frobnicate_widget")).toBe("Frobnicate widget");

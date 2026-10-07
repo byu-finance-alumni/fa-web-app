@@ -75,7 +75,7 @@ export interface ChangeView {
   /** "Preferred first name", "Tag added", ... */
   title: string;
   /** How to show the values. `hidden` = withheld for the viewer's role. */
-  kind: "diff" | "added" | "removed" | "none" | "hidden";
+  kind: "diff" | "added" | "removed" | "none" | "hidden" | "old-hidden";
   old: string;
   new: string;
 }
@@ -86,7 +86,13 @@ export function describeChange(c: AlumniHistoryChange): ChangeView {
     ? (c.label ?? fieldLabel((c.field ?? "").split(".").pop() ?? ""))
     : actionLabel(c.action);
   const view = { title, old: formatCell(c.old), new: formatCell(c.new) };
-  if (c.redacted) return { ...view, kind: "hidden" };
+  // The backend withholds some values per role: everything for a non-editor,
+  // and — below full_access — removed note / interaction text and the OLD text
+  // of an edited one. When the new value still came back, show it and say the
+  // earlier text is hidden.
+  if (c.redacted) {
+    return { ...view, kind: c.new != null ? "old-hidden" : "hidden" };
+  }
   if (isFieldEdit(c)) return { ...view, kind: "diff" };
   if (c.old != null && c.new != null) return { ...view, kind: "diff" };
   if (c.new != null) return { ...view, kind: "added" };
