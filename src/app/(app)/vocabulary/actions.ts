@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath, revalidateTag } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { apiPost, apiPatch, apiDelete, ApiError } from "@/lib/api";
 
 type Result = { error?: string } | null;
@@ -15,12 +15,12 @@ type Result = { error?: string } | null;
 
 function revalidate() {
   revalidatePath("/vocabulary");
-  revalidateTag("vocabulary");
+  updateTag("vocabulary");
   // Vocab also feeds the alumni filter/search facets (industry, status label,
   // survey status) via `/alumni/filter-options`, which is cached under its own
   // tag. Invalidate it too so those dropdowns pick up renames/additions/hides
   // instead of showing stale options (#275).
-  revalidateTag("alumni-filter-options");
+  updateTag("alumni-filter-options");
 }
 
 export async function createVocabTerm(
