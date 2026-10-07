@@ -767,6 +767,9 @@ describe("the CSV export covers the same people as the list (#592)", () => {
       for (const scope of ["alumni", "friend"] as const) {
         const e = toExportFilters({ ...EMPTY_FILTERS, ...patch }, scope);
         expect(e.is_alumni, `${label} on ${scope}`).toBe(scope === "alumni");
+        // fa-web-api#594: `kind` is sent too and must AGREE with `is_alumni`
+        // (the backend 422s a mismatch), and is never the widening "all".
+        expect(e.kind, `${label} on ${scope}`).toBe(scope);
       }
     }
   });
