@@ -55,9 +55,12 @@ export type PersonalDefaults = {
 export function PersonalSectionForm({
   id,
   defaults,
+  canChangeIdentity,
 }: {
   id: number;
   defaults: PersonalDefaults;
+  /** Holds `alumni.archive`, so may change the NetID (fa-web-api#593). */
+  canChangeIdentity: boolean;
 }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(
     updatePersonalSection.bind(null, id),
@@ -272,11 +275,23 @@ export function PersonalSectionForm({
           within-card separator idiom as DashboardSearch's action bar and the
           profile page's section dividers). */}
       <div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-4">
+        {/* NetID is an identity field (fa-web-api#593): changing it needs
+            `alumni.archive`, not just edit access, because imports, the survey,
+            headshots and duplicate detection all key on it. Without that it is
+            shown DISABLED, which also keeps it out of the submitted form — the
+            partial PATCH then leaves the stored value alone instead of
+            re-sending it. The backend refuses the change either way. */}
         <Field
           label="NetID"
           name="net_id"
           defaultValue={defaults.net_id}
           error={errors.net_id}
+          disabled={!canChangeIdentity}
+          hint={
+            canChangeIdentity
+              ? undefined
+              : "Only users who can archive alumni can change the NetID."
+          }
         />
         <Field
           label="Spouse name"

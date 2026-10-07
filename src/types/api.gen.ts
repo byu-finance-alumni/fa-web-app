@@ -311,6 +311,14 @@ export interface paths {
          * Password Complete
          * @description Clear the force-password-change flag for the AUTHENTICATED caller.
          *
+         *     DEPRECATED (#592) — superseded by ``POST /auth/password/change``, which
+         *     sets the password itself and only then clears the flag. This route clears
+         *     the flag on the caller's word alone, so a user can keep the admin-issued
+         *     temp password and still get through the gate. It is kept ONLY so app builds
+         *     deployed before the switch keep working while both sides roll out.
+         *     TODO(#592 follow-up): delete this route once the app calling
+         *     ``/auth/password/change`` is in prod.
+         *
          *     EXEMPT from the force-password-change gate (it depends on the exempt
          *     resolver): this is the very endpoint a flagged user calls to clear the flag,
          *     so it must remain reachable while ``must_change_password`` is true.
@@ -325,6 +333,53 @@ export interface paths {
          *     audit row is written.
          */
         post: operations["password_complete_auth_password_complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/password/change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Password Change
+         * @description Finish a FORCED password change server-side (#592).
+         *
+         *     Replaces the old two-step flow (the browser set the password through its own
+         *     Supabase session, then told ``/auth/password/complete`` it had) in which the
+         *     API cleared ``must_change_password`` without any evidence the password had
+         *     changed. Here the API sets the password itself through the Supabase Admin
+         *     API and clears the flag only after that succeeded — so a cleared flag always
+         *     means the temp password is gone.
+         *
+         *     Rules, in order:
+         *
+         *       * Only while the caller's ``must_change_password`` flag is set; otherwise
+         *         409. This is not a general "change my password" endpoint — without the
+         *         flag it would turn a stolen access token into a permanent password
+         *         without ever knowing the old one.
+         *       * The token must be the account's ACTIVE session (#147): a superseded or
+         *         engineer-revoked session is refused (``session_superseded``) even though
+         *         this route uses the force-change-exempt resolver. Maintenance mode
+         *         refuses it too (503), like any other write.
+         *       * Same strength rules as the app's form: at least 8 characters, at most 72
+         *         bytes, not the account's email address (case-insensitive). 422.
+         *       * Not the current (temporary) password, when that can be checked
+         *         (``supabase_admin.password_matches_current``). 422.
+         *
+         *     A Supabase failure is a 502 and the flag stays set, so the user can retry.
+         *     Rate limited per user (``auth:change_password``). Audited as
+         *     ``password_changed``, like the route it replaces; the password itself is
+         *     never logged or stored here.
+         */
+        post: operations["password_change_auth_password_change_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -980,8 +1035,9 @@ export interface paths {
          *
          *     Archived records 404 (they were removed from the directory). view_only
          *     ("Professor") callers receive a FERPA-minimized record — sensitive PII,
-         *     notes, and import provenance are nulled. This lightweight read is not
-         *     audit-logged (the full profile aggregate is).
+         *     notes, and import provenance are nulled. Audit-logged as ``view_alumni``
+         *     (#591): for an editor this record carries byu_id, birth date and notes, so
+         *     it is as much a disclosure as the profile aggregate.
          */
         get: operations["get_alumni_alumni__alumni_id__get"];
         put?: never;
@@ -1000,6 +1056,12 @@ export interface paths {
          *     against the stored row with this patch overlaid, so a partial edit that only
          *     sends the name fields is still measured against the record's real graduation
          *     year. Warnings never block; exact ID collisions still 409.
+         *
+         *     CHANGING ``is_alumni`` / ``deceased`` / ``net_id`` / ``byu_id`` additionally
+         *     needs ``alumni.archive`` (#593): flipping ``is_alumni`` off archives the
+         *     record out of the directory in all but name, so ``alumni.edit`` alone
+         *     (student) must not be able to do it. Re-sending the stored value is fine; a
+         *     real change without the capability is a 403 and nothing is written.
          */
         patch: operations["update_alumni_alumni__alumni_id__patch"];
         trace?: never;
@@ -2942,6 +3004,10 @@ export interface paths {
          *
          *     ``notes`` echoes the per-attendance ``attendance_notes`` (#181) so the notes
          *     the bulk importer writes are actually readable on the roster.
+         *
+         *     ARCHIVED attendees are left off below full_access (#591), as on the alumni
+         *     list — the roster must not be a way to read records removed from the
+         *     directory. full_access and up still see them.
          */
         get: operations["list_event_attendees_events__event_id__attendees_get"];
         put?: never;
@@ -2986,6 +3052,9 @@ export interface paths {
          *     A non-editor holding the assignable ``alumni.export`` gets **Name, Email**
          *     only: Net ID is nulled on every read they make (VIEW_ONLY_HIDDEN_FIELDS), so
          *     the column is dropped rather than the export refused.
+         *
+         *     Archived attendees are left out below full_access, matching the on-screen
+         *     roster (#591).
          */
         get: operations["export_event_attendees_events__event_id__attendees_export_get"];
         put?: never;
@@ -3156,6 +3225,10 @@ export interface paths {
          *     aggregated (``WHERE alumni_id IN (<page ids>)``), so the endpoint is bounded
          *     regardless of donor count. Amount-viewers see the biggest givers first;
          *     others get a stable name sort (the lifetime ranking is amount-gated too).
+         *
+         *     ARCHIVED donors are listed only for full_access and up (#591), as on the
+         *     alumni list; ``donations.view`` is assignable, so a lower role granted it
+         *     gets the active donors only. The read is audit-logged (``view_donors``).
          */
         get: operations["list_donors_donations_donors_get"];
         put?: never;
@@ -3197,7 +3270,8 @@ export interface paths {
         /**
          * List Alumni Donations
          * @description A single donor's donation history (full_access+). 404 if the alumnus is
-         *     unknown. Each entry's ``amount`` and ``notes`` are gated to amount-viewers.
+         *     unknown — or archived, below full_access (#591). Each entry's ``amount`` and
+         *     ``notes`` are gated to amount-viewers. Audit-logged (``view_donations``).
          */
         get: operations["list_alumni_donations_donations_alumni__alumni_id__get"];
         put?: never;
@@ -3613,6 +3687,9 @@ export interface paths {
          * @description List the notes on one entity, newest first (any view-access role). 404 if
          *     the parent entity doesn't exist. The disclosure is audit-logged. A view_only
          *     caller sees note authors by first name only; editors see full names.
+         *
+         *     Notes on an ARCHIVED alumnus (or one of their interactions) 404 below
+         *     full_access, like the profile itself (#591).
          */
         get: operations["list_notes_notes_get"];
         put?: never;
@@ -4272,6 +4349,8 @@ export interface paths {
         /**
          * Survey Pending Responses
          * @description Admin review queue: pending responses for a grad year, each with a diff.
+         *     Audit-logged (``read_survey_responses``, #591) — the diffs carry what each
+         *     alum submitted.
          */
         get: operations["survey_pending_responses_survey_campaigns__grad_year__responses_get"];
         put?: never;
@@ -4539,7 +4618,8 @@ export interface paths {
          *     before a send and the figure explaining it afterwards cannot disagree.
          *
          *     Read-only, sends nothing, takes no send lock — safe to poll while the daily
-         *     cron is mid-run. Gated like the rest of the console.
+         *     cron is mid-run. Gated like the rest of the console. Audit-logged
+         *     (``read_survey_recipients``, #591).
          */
         get: operations["survey_recipient_breakdown_survey_campaigns__grad_year__recipients_get"];
         put?: never;
@@ -4576,7 +4656,7 @@ export interface paths {
          *     to chase for an address.
          *
          *     Read-only and gated like the rest of the console (it returns alumni contact
-         *     details).
+         *     details). Audit-logged (``read_survey_unreachable``, #591).
          */
         get: operations["list_survey_unreachable_survey_campaigns__grad_year__unreachable_get"];
         put?: never;
@@ -4800,7 +4880,8 @@ export interface paths {
          *     Read-only, and gated like the rest of the console (full access) because it
          *     returns alumni contact details. Empty list = nobody left to chase; 404 = the
          *     year has no campaign at all. Cycle-scoped: a previous campaign's
-         *     non-responders are not in here.
+         *     non-responders are not in here. Audit-logged
+         *     (``read_survey_non_responders``, #591).
          */
         get: operations["list_survey_non_responders_survey_schedules__grad_year__non_responders_get"];
         put?: never;
@@ -4894,6 +4975,7 @@ export interface paths {
          *     Gated like `GET /schedules` (the counts it expands) and the non-responders
          *     call sheet. Returns only an id and a display name per alum. 404 = the year
          *     has no campaign at all; two empty lists = nobody has answered yet.
+         *     Audit-logged (``read_survey_responders``, #591).
          */
         get: operations["list_survey_responders_survey_schedules__grad_year__responders_get"];
         put?: never;
@@ -5739,6 +5821,8 @@ export interface components {
              * @default false
              */
             duplicate: boolean;
+            /** Kind */
+            kind: ("alumni" | "friend" | "all") | null;
             /** Is Alumni */
             is_alumni: boolean | null;
             /**
@@ -9378,6 +9462,15 @@ export interface components {
             details: string | null;
         };
         /**
+         * PasswordChangeRequest
+         * @description Body for ``POST /auth/password/change``: the new password only. There is
+         *     no user id — the route acts on the token's own account.
+         */
+        PasswordChangeRequest: {
+            /** New Password */
+            new_password: string;
+        };
+        /**
          * PasswordCompleteResponse
          * @description Acknowledgement that the caller's force-change flag was cleared.
          */
@@ -11224,6 +11317,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PasswordCompleteResponse"];
+                };
+            };
+        };
+    };
+    password_change_auth_password_change_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordCompleteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
