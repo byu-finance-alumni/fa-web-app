@@ -81,7 +81,7 @@ export interface ApiCacheOptions {
   /** Seconds to keep the response in the Next data cache. */
   revalidate: number;
   /**
-   * Cache tags so mutations can invalidate instantly via `revalidateTag`
+   * Cache tags so Server Action mutations can invalidate instantly via `updateTag`
    * (e.g. "dashboard", "geography", "events", "audit").
    */
   tags?: string[];

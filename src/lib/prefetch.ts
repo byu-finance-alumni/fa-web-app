@@ -1,7 +1,7 @@
 /**
  * Speculative-request (prefetch) detection.
  *
- * Pulled out of `src/middleware.ts` as a pure function of request headers so the
+ * Pulled out of `src/proxy.ts` (formerly `src/middleware.ts`) as a pure function of request headers so the
  * back-button-logout regression (issue #31) can be unit-tested without booting
  * the Next runtime. A prefetch must NOT trigger the Supabase token refresh /
  * redirect in the middleware: it runs the same middleware as a real navigation,

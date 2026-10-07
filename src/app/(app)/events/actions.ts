@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath, revalidateTag } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   apiGet,
@@ -115,7 +115,7 @@ export async function createEvent(
     return toFormState(e, "Failed to create event.");
   }
   revalidatePath("/events");
-  revalidateTag("events"); // event-type options list
+  updateTag("events"); // event-type options list
   // An attendee list is NEVER a precondition for creating an event (#611) — the
   // roster is attached afterwards, and the wizard's Attendees step only decides
   // where the user lands to do it: the event itself (default, `created=1` flags
@@ -185,7 +185,7 @@ export async function updateEvent(
     return toFormState(e, "Failed to save event.");
   }
   revalidatePath("/events");
-  revalidateTag("events"); // event-type options list
+  updateTag("events"); // event-type options list
   redirect("/events");
 }
 
@@ -244,7 +244,7 @@ export async function deleteEvent(
     return { ok: false, error: "Failed to delete event." };
   }
   revalidatePath("/events");
-  revalidateTag("events");
+  updateTag("events");
   return { ok: true };
 }
 
@@ -312,7 +312,7 @@ export async function commitEventsImport(
   try {
     const data = await apiPostForm<EventImportResult>("/events/import", fd);
     revalidatePath("/events");
-    revalidateTag("events");
+    updateTag("events");
     return { ok: true, data };
   } catch (e) {
     return {
@@ -446,7 +446,7 @@ export async function approveAttendeeMatches(
       { approvals },
     );
     revalidatePath("/events");
-    revalidateTag("events");
+    updateTag("events");
     return { ok: true, data };
   } catch (e) {
     return {
@@ -482,8 +482,8 @@ export async function createAttendeeFriends(
     );
     revalidatePath("/events");
     revalidatePath("/friends");
-    revalidateTag("events");
-    revalidateTag("dashboard");
+    updateTag("events");
+    updateTag("dashboard");
     return { ok: true, data };
   } catch (e) {
     return {
