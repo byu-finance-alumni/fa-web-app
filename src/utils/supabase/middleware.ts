@@ -35,7 +35,7 @@ function withCookies(from: NextResponse, to: NextResponse): NextResponse {
 //   - unauthenticated + protected route  → redirect to /login (with ?next=,
 //     query string included)
 //   - authenticated + on /login          → redirect to the app home
-// Called from the root middleware.
+// Called from the root proxy (src/proxy.ts — the Next 16 name for middleware).
 export const updateSession = async (
   request: NextRequest,
   // Nonce-based CSP (#30). When present, the nonce is threaded onto the

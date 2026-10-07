@@ -100,7 +100,7 @@ describe("headshot proxy wiring", () => {
   const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
 
   it("runs behind the auth middleware (the matcher covers /api/headshot/*)", () => {
-    const src = read("src/middleware.ts");
+    const src = read("src/proxy.ts");
     const pattern = /"(\/\(\(\?!.*\)\.\*\))",?\s*\n\s*\]/.exec(src)?.[1];
     expect(pattern, "matcher pattern not found").toBeTruthy();
     // Next matchers are path-to-regexp; this one is a plain regex group.

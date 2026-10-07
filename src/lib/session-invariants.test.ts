@@ -38,7 +38,7 @@ describe("session handling invariants (#31)", () => {
   });
 
   it("the middleware still skips auth for prefetch requests", () => {
-    const src = read("src/middleware.ts");
+    const src = read("src/proxy.ts");
     // The prefetch skip must remain wired (delegates to isPrefetchHeaders).
     expect(src).toContain("isPrefetch");
     expect(src).toMatch(/if \(isPrefetch\(request\)\)/);

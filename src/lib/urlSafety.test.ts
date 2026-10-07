@@ -621,7 +621,7 @@ describe("returnPathFor — a filtered destination survives the login bounce", (
     // `/survey/*` returns from the root middleware BEFORE auth runs, so it is
     // never redirected and its signed token never reaches a `?next=`. The token
     // is a PATH segment, so there is no query string to carry either way.
-    const src = read("src/middleware.ts");
+    const src = read("src/proxy.ts");
     expect(src).toContain("isNoAuthPath(request.nextUrl.pathname)");
     expect(src.indexOf("isNoAuthPath(request.nextUrl.pathname)")).toBeLessThan(
       src.indexOf("await updateSession("),

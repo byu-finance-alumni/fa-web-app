@@ -15,11 +15,12 @@
  * scripts. Scoped to the origins the app actually talks to (self + Supabase +
  * the dev/prod API). `unsafe-eval` is added only in dev for Fast Refresh/HMR.
  *
- * Built in middleware (per request) rather than next.config headers (static), so
+ * Built in the proxy (src/proxy.ts, formerly middleware.ts) per request rather than next.config headers (static), so
  * the nonce can change every request.
  */
 export function buildCsp(): { nonce: string; csp: string } {
-  // Web Crypto is available in both the Edge and Node middleware runtimes.
+  // Web Crypto (crypto.randomUUID) and btoa are globals in the Node runtime that
+  // proxy.ts runs on (Next 16) as well as the old Edge middleware runtime.
   const nonce = btoa(crypto.randomUUID());
   const isProd = process.env.NODE_ENV === "production";
 
