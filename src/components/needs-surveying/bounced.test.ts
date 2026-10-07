@@ -5,10 +5,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  BOUNCED_PAGE_SIZE,
   bouncedDetail,
   bouncedFixedNote,
   bouncedHeadline,
   bouncedRequestPath,
+  bouncedTruncatedNote,
   type SurveyBouncedAlum,
 } from "./bounced";
 
@@ -24,7 +26,31 @@ const row = (over: Partial<SurveyBouncedAlum> = {}): SurveyBouncedAlum => ({
 
 describe("bouncedRequestPath", () => {
   it("asks for that year's bounced list", () => {
-    expect(bouncedRequestPath(2020)).toBe("/survey/campaigns/2020/bounced");
+    expect(bouncedRequestPath(2020)).toBe(
+      `/survey/campaigns/2020/bounced?limit=${BOUNCED_PAGE_SIZE}`,
+    );
+  });
+
+  it("stays within the endpoint's ceiling of 1000", () => {
+    expect(BOUNCED_PAGE_SIZE).toBeGreaterThan(0);
+    expect(BOUNCED_PAGE_SIZE).toBeLessThanOrEqual(1000);
+  });
+});
+
+describe("bouncedTruncatedNote", () => {
+  const page = (shown: number, total: number) => ({
+    graduation_year: 2020,
+    total,
+    limit: shown,
+    items: Array.from({ length: shown }, (_, i) => row({ alumni_id: i })),
+  });
+
+  it("says nothing when every name is shown", () => {
+    expect(bouncedTruncatedNote(page(3, 3))).toBe("");
+  });
+
+  it("says how many are shown when the list is capped", () => {
+    expect(bouncedTruncatedNote(page(2, 7))).toBe("Showing the first 2 of 7.");
   });
 });
 

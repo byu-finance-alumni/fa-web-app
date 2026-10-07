@@ -11,13 +11,32 @@
  */
 import type { components } from "@/types/api.gen";
 
-import { formatConsoleDate } from "@/components/needs-surveying/held-out";
+import {
+  formatConsoleDate,
+  heldOutTruncatedNote,
+} from "@/components/needs-surveying/held-out";
 
 export type SurveyBouncedAlum = components["schemas"]["SurveyBouncedAlum"];
+export type SurveyBouncedPage = components["schemas"]["SurveyBouncedPage"];
+
+/**
+ * How many names to pull. The endpoint defaults to 200 and caps at 1000; one
+ * graduation year's hard bounces fit comfortably, and if a year ever exceeds
+ * this the list says so — see `bouncedTruncatedNote`.
+ */
+export const BOUNCED_PAGE_SIZE = 500;
 
 /** The request for one year's hard bounces. */
 export function bouncedRequestPath(graduationYear: number): string {
-  return `/survey/campaigns/${graduationYear}/bounced`;
+  return `/survey/campaigns/${graduationYear}/bounced?limit=${BOUNCED_PAGE_SIZE}`;
+}
+
+/**
+ * Said only when the page does not cover everyone, so a partial list is never
+ * read as the whole one. Same wording as the already-replied list.
+ */
+export function bouncedTruncatedNote(page: SurveyBouncedPage): string {
+  return heldOutTruncatedNote(page.items.length, page.total);
 }
 
 /** The headline beside the count — "1 alumnus" / "3 alumni". */

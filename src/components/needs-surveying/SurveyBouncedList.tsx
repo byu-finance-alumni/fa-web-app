@@ -9,7 +9,8 @@ import {
   bouncedFixedNote,
   bouncedHeadline,
   bouncedRequestPath,
-  type SurveyBouncedAlum,
+  bouncedTruncatedNote,
+  type SurveyBouncedPage,
 } from "@/components/needs-surveying/bounced";
 
 /**
@@ -28,35 +29,37 @@ import {
  * Lists only; it changes nothing about anyone. Text-only: no icons in new UI.
  */
 export function SurveyBouncedList({ year }: { year: number | null }) {
-  const [items, setItems] = useState<SurveyBouncedAlum[] | null>(null);
+  const [page, setPage] = useState<SurveyBouncedPage | null>(null);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
     // Clear first so a stale year's names can never be read as this year's.
-    setItems(null);
+    setPage(null);
     setOpen(false);
     if (year === null) return;
     let cancelled = false;
-    clientGet<SurveyBouncedAlum[]>(bouncedRequestPath(year))
-      .then((list) => {
-        if (!cancelled) setItems(list ?? []);
+    clientGet<SurveyBouncedPage>(bouncedRequestPath(year))
+      .then((result) => {
+        if (!cancelled) setPage(result ?? null);
       })
       .catch(() => {
-        if (!cancelled) setItems([]);
+        if (!cancelled) setPage(null);
       });
     return () => {
       cancelled = true;
     };
   }, [year]);
 
-  if (!items || items.length === 0) return null;
+  if (!page || page.total === 0) return null;
+  const items = page.items;
+  const truncated = bouncedTruncatedNote(page);
 
   return (
     <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-medium text-navy-800">
           Bounced:{" "}
-          <span className="tabular-nums">{bouncedHeadline(items.length)}</span>
+          <span className="tabular-nums">{bouncedHeadline(page.total)}</span>
         </p>
         <Button
           type="button"
@@ -71,6 +74,9 @@ export function SurveyBouncedList({ year }: { year: number | null }) {
         The receiving mail server permanently refused these addresses. Open the
         profile to correct the email; nothing is changed automatically.
       </p>
+      {open && truncated ? (
+        <p className="mt-3 text-xs text-gray-500">{truncated}</p>
+      ) : null}
       {open ? (
         <ul className="mt-3 divide-y divide-amber-200 border-t border-amber-200">
           {items.map((a) => {
