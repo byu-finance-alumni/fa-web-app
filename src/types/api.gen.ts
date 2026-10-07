@@ -4626,6 +4626,9 @@ export interface paths {
          *     campaign and when) — the console reads this rather than a second endpoint,
          *     since it wants exactly this list. The engineer holds every capability, so
          *     the full-access gate already admits them.
+         *
+         *     Carries each running campaign's next send (#562) — the only schedule read
+         *     that does.
          */
         get: operations["list_survey_schedules_survey_schedules_get"];
         put?: never;
@@ -8240,6 +8243,11 @@ export interface components {
              * @default 0
              */
             unreachable: number;
+            /**
+             * Pending Review
+             * @default 0
+             */
+            pending_review: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -10254,6 +10262,12 @@ export interface components {
             created_by: string | null;
             /** Paused At */
             paused_at: string | null;
+            /** Next Stage */
+            next_stage: number | null;
+            /** Next Send Date */
+            next_send_date: string | null;
+            /** Next Send Count */
+            next_send_count: number | null;
             /**
              * Sent Initial
              * @default 0

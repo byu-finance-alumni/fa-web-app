@@ -43,9 +43,11 @@ import {
 import { PendingSubmissions } from "@/components/needs-surveying/PendingSubmissions";
 import { CampaignProgressTable } from "@/components/needs-surveying/CampaignProgressTable";
 import { usePendingSubmissions } from "@/components/needs-surveying/use-pending-submissions";
+import { nextSendLine } from "@/components/needs-surveying/next-send";
 import {
   pendingBadgeText,
   pendingReviewCount,
+  yearOptionLabel,
   submissionsTabLabel,
 } from "@/components/needs-surveying/pending-review";
 import {
@@ -352,6 +354,29 @@ export function SurveyCampaignConsole({
   const pending = usePendingSubmissions(selectedYear);
   const pendingCount = pendingReviewCount(pending.items);
 
+  // Keep the year picker's "2020 (14)" (#856) equal to the badge: once the
+  // queue for a year is loaded, its length IS that year's pending figure, so an
+  // apply or reject updates the picker in the same render as the badge. Filed
+  // under `loadedYear`, not `selectedYear` — on a year change the old queue is
+  // still in hand for one render and must not land on the new year.
+  const pendingLoadedYear = pending.loadedYear;
+  useEffect(() => {
+    if (pendingLoadedYear === null || pendingCount === null) return;
+    setYears((prev) =>
+      prev?.some(
+        (y) =>
+          y.graduation_year === pendingLoadedYear &&
+          y.pending_review !== pendingCount,
+      )
+        ? prev.map((y) =>
+            y.graduation_year === pendingLoadedYear
+              ? { ...y, pending_review: pendingCount }
+              : y,
+          )
+        : prev,
+    );
+  }, [pendingLoadedYear, pendingCount]);
+
   // Real Resend usage against the caps — emails actually sent today / this
   // calendar month, from GET /survey/usage. 0 until the fetch resolves.
   const [sentToday, setSentToday] = useState(0);
@@ -515,6 +540,10 @@ export function SurveyCampaignConsole({
         s.graduation_year === selectedYear &&
         (s.status === "scheduled" || s.status === "active"),
     ) ?? null;
+
+  // The schedule card's "Next: 1-week reminder · Wed, Oct 14 · ~37 people"
+  // (#562), or null when nothing more will send.
+  const nextSend = nextSendLine(selectedSchedule);
 
   // Prefill the per-year date input from the selected year's existing schedule
   // (set individually OR via the bulk "all years" dialog), or clear it when the
@@ -918,7 +947,7 @@ export function SurveyCampaignConsole({
                     className="justify-between"
                     onSelect={() => changeSelectedYear(y.graduation_year)}
                   >
-                    {y.graduation_year}
+                    {yearOptionLabel(y.graduation_year, y.pending_review)}
                     {y.graduation_year === selectedYear ? (
                       <Check
                         className="h-4 w-4 text-brand-blue-600"
@@ -1100,6 +1129,12 @@ export function SurveyCampaignConsole({
                   count={selectedSchedule?.sent_reminder_2 ?? 0}
                 />
               </div>
+              {/* What goes out next, and when (#562). Only a running campaign
+                  has one, and `selectedSchedule` is already running-only, so a
+                  paused, cancelled or finished year shows nothing here. */}
+              {nextSend ? (
+                <p className="mt-2 text-xs text-gray-600">{nextSend}</p>
+              ) : null}
             </div>
 
             {/* ── Cannot be reached (#392) ──────────────────────────────
