@@ -90,6 +90,14 @@ export const canImportEvents = (
  * role check here would ignore the engineer's edits and show the wrong controls.
  */
 
+/**
+ * May edit an EXISTING alumnus (student and up by default, never view_only).
+ * Also gates the read-only version history (#45), which is the editor tier.
+ */
+export const canEditAlumniRecord = (
+  capabilities: readonly string[] | null | undefined,
+) => hasCapability(capabilities, CAPABILITY.ALUMNI_EDIT);
+
 /** May log an interaction. Seeded to EVERY role — a professor can record one. */
 export const canAddInteraction = (
   capabilities: readonly string[] | null | undefined,
