@@ -28,7 +28,7 @@ vi.mock("@/utils/supabase/middleware", () => ({
 }));
 
 const { NextRequest, NextResponse } = await import("next/server");
-const { config, isNoAuthPath, middleware } = await import("./middleware");
+const { config, isNoAuthPath, proxy } = await import("./proxy");
 
 function request(pathname: string): InstanceType<typeof NextRequest> {
   return new NextRequest(new URL(pathname, "https://finance.alumni.byu.edu"));
@@ -91,19 +91,19 @@ describe("middleware matcher (#666)", () => {
 
 describe("survey is public: no auth (#666)", () => {
   it("never runs the Supabase auth flow on a survey URL", async () => {
-    await middleware(request("/survey/abc123token"));
+    await proxy(request("/survey/abc123token"));
     expect(updateSessionSpy).not.toHaveBeenCalled();
   });
 
   it("never redirects a survey visitor to /login", async () => {
-    const response = await middleware(request("/survey/abc123token"));
+    const response = await proxy(request("/survey/abc123token"));
     // A middleware redirect surfaces as a 3xx with a Location header.
     expect(response.status).toBe(200);
     expect(response.headers.get("location")).toBeNull();
   });
 
   it("still runs auth on protected routes", async () => {
-    await middleware(request("/dashboard"));
+    await proxy(request("/dashboard"));
     expect(updateSessionSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -120,7 +120,7 @@ describe("survey is public: no auth (#666)", () => {
 
 describe("survey gets the nonce-based CSP (#666)", () => {
   it("sets the CSP on the response the browser sees", async () => {
-    const response = await middleware(request("/survey/abc123token"));
+    const response = await proxy(request("/survey/abc123token"));
     const csp = response.headers.get("content-security-policy");
     expect(csp).toContain("default-src 'self'");
     expect(csp).toContain("'strict-dynamic'");
@@ -131,7 +131,7 @@ describe("survey gets the nonce-based CSP (#666)", () => {
   it("forwards a nonce to the page that MATCHES the enforced CSP", async () => {
     // If these two ever diverge, Next.js stamps a nonce the browser refuses and
     // the survey page dies silently for alumni — the main risk of this change.
-    const response = await middleware(request("/survey/abc123token"));
+    const response = await proxy(request("/survey/abc123token"));
     const forwarded = forwardedHeader(response, "x-nonce");
     expect(forwarded).toBeTruthy();
     expect(nonceOf(response.headers.get("content-security-policy"))).toBe(
@@ -140,13 +140,13 @@ describe("survey gets the nonce-based CSP (#666)", () => {
   });
 
   it("issues a fresh nonce per request", async () => {
-    const a = await middleware(request("/survey/abc123token"));
-    const b = await middleware(request("/survey/abc123token"));
+    const a = await proxy(request("/survey/abc123token"));
+    const b = await proxy(request("/survey/abc123token"));
     expect(forwardedHeader(a, "x-nonce")).not.toBe(forwardedHeader(b, "x-nonce"));
   });
 
   it("keeps a live token URL out of search indexes", async () => {
-    const response = await middleware(request("/survey/abc123token"));
+    const response = await proxy(request("/survey/abc123token"));
     expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
   });
 });

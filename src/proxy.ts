@@ -1,3 +1,8 @@
+// Next 16 renamed the `middleware` file convention to `proxy` (#681). Same job,
+// same `config.matcher`, but it now always runs on the Node.js runtime (Edge is
+// no longer selectable). Nothing here depends on Edge: crypto.randomUUID and
+// btoa (nonce) are Node globals, and @supabase/ssr runs on either. "middleware"
+// in the comments below means this file.
 import { NextResponse, type NextRequest } from "next/server";
 import { isPrefetchHeaders } from "@/lib/prefetch";
 import { updateSession } from "@/utils/supabase/middleware";
@@ -47,7 +52,7 @@ function cspOnly(
   return response;
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   // Per-request nonce-based CSP (#30): a fresh nonce so Next.js can nonce its
   // injected scripts and we can drop script-src 'unsafe-inline'. Threaded into
   // the forwarded request (so Next reads the nonce) AND set on the response (so

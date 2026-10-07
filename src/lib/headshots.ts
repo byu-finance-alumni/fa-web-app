@@ -41,7 +41,7 @@ import { apiGet, type ApiCacheOptions } from "@/lib/api";
 
 /**
  * Cache tag carried by every cached headshot read. Photo mutations call
- * `revalidateTag(HEADSHOT_CACHE_TAG)` so the change is visible on the very next
+ * `updateTag(HEADSHOT_CACHE_TAG)` (read-your-writes; Next 16) so the change is visible on the very next
  * render instead of after the TTL.
  */
 export const HEADSHOT_CACHE_TAG = "alumni-headshots";

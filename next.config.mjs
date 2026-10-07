@@ -37,6 +37,11 @@ const nextConfig = {
     // limit above the app's image cap (20 MB) so normal photos aren't rejected
     // with a framework-level 413 before our own validation can run.
     serverActions: { bodySizeLimit: "21mb" },
+    // Next 16 runs src/proxy.ts on Node and buffers each request body it sees
+    // (the matcher covers Server Action POSTs) — capped at 10 MB by default,
+    // and an over-cap body is silently TRUNCATED, not rejected. Keep the cap in
+    // step with bodySizeLimit so a large headshot upload can't arrive cut off.
+    proxyClientMaxBodySize: "21mb",
   },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

@@ -109,20 +109,20 @@ function checkPublicSurface() {
       );
   }
 
-  const root = readFileSync(join(SRC, "middleware.ts"), "utf8");
+  const root = readFileSync(join(SRC, "proxy.ts"), "utf8");
   const rule = root.match(/function isNoAuthPath[^)]*\)[^{]*\{\s*return ([^;]+);/s);
   if (!rule) {
     add(
       "no-auth-rule-unreadable",
       HIGH,
-      "src/middleware.ts",
+      "src/proxy.ts",
       "Could not read isNoAuthPath — the check on the auth-skipping surface is not working.",
     );
   } else if (rule[1].replace(/\s+/g, " ").trim() !== EXPECTED_NO_AUTH_RULE) {
     add(
       "no-auth-rule-changed",
       CRITICAL,
-      "src/middleware.ts",
+      "src/proxy.ts",
       `isNoAuthPath now reads \`${rule[1].replace(/\s+/g, " ").trim()}\` — this is the set of routes that skip authentication ENTIRELY. Confirm the new rule cannot match more than the survey.`,
     );
   }

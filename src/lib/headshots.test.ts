@@ -113,7 +113,7 @@ describe("headshot request-reduction invariants", () => {
   it("every photo mutation invalidates the cached signed URLs", () => {
     const src = read("src/app/(app)/alumni/actions.ts");
     // upload (multipart), direct-upload confirm, bulk-import confirm, delete.
-    expect(src.match(/revalidateTag\(HEADSHOT_CACHE_TAG\)/g) ?? []).toHaveLength(4);
+    expect(src.match(/updateTag\(HEADSHOT_CACHE_TAG\)/g) ?? []).toHaveLength(4);
   });
 
   it("the post-upload refresh stays UNCACHED so a new photo shows at once", () => {

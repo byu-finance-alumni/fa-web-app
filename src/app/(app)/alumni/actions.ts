@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath, revalidateTag } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   apiGet,
@@ -313,8 +313,8 @@ async function createFrom(
     return toFormState(e, "Failed to create.");
   }
   revalidatePath("/alumni");
-  revalidateTag("dashboard");
-  revalidateTag("geography");
+  updateTag("dashboard");
+  updateTag("geography");
   redirect(`/alumni/${created.alumni_id}${duplicateQuery(created)}`);
 }
 
@@ -356,8 +356,8 @@ export async function updateAlumni(
   }
   revalidatePath(`/alumni/${id}`);
   revalidatePath("/alumni");
-  revalidateTag("dashboard");
-  revalidateTag("geography");
+  updateTag("dashboard");
+  updateTag("geography");
   redirect(`/alumni/${id}${duplicateQuery(saved)}`);
 }
 
@@ -387,8 +387,8 @@ async function saveSection(
   }
   revalidatePath(`/alumni/${id}`);
   revalidatePath("/alumni");
-  revalidateTag("dashboard");
-  revalidateTag("geography");
+  updateTag("dashboard");
+  updateTag("geography");
   redirect(`/alumni/${id}${duplicateQuery(saved)}`);
 }
 
@@ -651,8 +651,8 @@ export async function archiveAlumni(id: number): Promise<FormState> {
   }
   revalidatePath("/alumni");
   revalidatePath(`/alumni/${id}`);
-  revalidateTag("dashboard");
-  revalidateTag("geography");
+  updateTag("dashboard");
+  updateTag("geography");
   // Stay on the profile so the now-archived state (and Unarchive) is visible.
   return null;
 }
@@ -665,8 +665,8 @@ export async function restoreAlumni(id: number): Promise<FormState> {
   }
   revalidatePath("/alumni");
   revalidatePath(`/alumni/${id}`);
-  revalidateTag("dashboard");
-  revalidateTag("geography");
+  updateTag("dashboard");
+  updateTag("geography");
   return null;
 }
 
@@ -699,7 +699,7 @@ export async function addInteraction(
     };
   }
   revalidatePath(`/alumni/${alumniId}`);
-  revalidateTag("dashboard"); // contacted / follow-up KPIs
+  updateTag("dashboard"); // contacted / follow-up KPIs
   return null;
 }
 
@@ -726,7 +726,7 @@ export async function updateInteraction(
     return toFormState(e, "Failed to save interaction.");
   }
   revalidatePath(`/alumni/${alumniId}`);
-  revalidateTag("dashboard"); // contacted / follow-up KPIs
+  updateTag("dashboard"); // contacted / follow-up KPIs
   return null;
 }
 
@@ -743,7 +743,7 @@ export async function deleteInteraction(
     };
   }
   revalidatePath(`/alumni/${alumniId}`);
-  revalidateTag("dashboard"); // contacted / follow-up KPIs
+  updateTag("dashboard"); // contacted / follow-up KPIs
   return null;
 }
 
@@ -772,7 +772,7 @@ export async function addTask(
     return { error: e instanceof ApiError ? e.message : "Failed to add task." };
   }
   revalidatePath(`/alumni/${alumniId}`);
-  revalidateTag("dashboard"); // contacted / follow-up KPIs
+  updateTag("dashboard"); // contacted / follow-up KPIs
   return null;
 }
 
@@ -787,7 +787,7 @@ export async function setTaskComplete(
     return { error: e instanceof ApiError ? e.message : "Failed to update task." };
   }
   revalidatePath(`/alumni/${alumniId}`);
-  revalidateTag("dashboard"); // contacted / follow-up KPIs
+  updateTag("dashboard"); // contacted / follow-up KPIs
   return null;
 }
 
@@ -822,7 +822,7 @@ export async function addEmploymentRole(
     return toFormState(e, "Failed to add role.");
   }
   revalidatePath(`/alumni/${alumniId}`);
-  revalidateTag("dashboard");
+  updateTag("dashboard");
   return null;
 }
 
@@ -858,8 +858,8 @@ export async function updateEmploymentRole(
     return toFormState(e, "Failed to save role.");
   }
   revalidatePath(`/alumni/${alumniId}`);
-  revalidateTag("dashboard");
-  revalidateTag("geography");
+  updateTag("dashboard");
+  updateTag("geography");
   return null;
 }
 
@@ -873,8 +873,8 @@ export async function deleteEmploymentRole(
     return { error: e instanceof ApiError ? e.message : "Failed to delete role." };
   }
   revalidatePath(`/alumni/${alumniId}`);
-  revalidateTag("dashboard");
-  revalidateTag("geography");
+  updateTag("dashboard");
+  updateTag("geography");
   return null;
 }
 
@@ -1019,7 +1019,7 @@ export async function addTag(
     return { error: e instanceof ApiError ? e.message : "Failed to add tag." };
   }
   revalidatePath(`/alumni/${alumniId}`);
-  revalidateTag("dashboard");
+  updateTag("dashboard");
   return null;
 }
 
@@ -1033,7 +1033,7 @@ export async function removeTag(
     return { error: e instanceof ApiError ? e.message : "Failed to remove tag." };
   }
   revalidatePath(`/alumni/${alumniId}`);
-  revalidateTag("dashboard");
+  updateTag("dashboard");
   return null;
 }
 
@@ -1049,7 +1049,7 @@ export async function addStatusLabel(
     };
   }
   revalidatePath(`/alumni/${alumniId}`);
-  revalidateTag("dashboard");
+  updateTag("dashboard");
   return null;
 }
 
@@ -1067,7 +1067,7 @@ export async function removeStatusLabel(
     };
   }
   revalidatePath(`/alumni/${alumniId}`);
-  revalidateTag("dashboard");
+  updateTag("dashboard");
   return null;
 }
 
@@ -1086,8 +1086,8 @@ export async function addEventAttendance(
     return { error: e instanceof ApiError ? e.message : "Failed to add event." };
   }
   revalidatePath(`/alumni/${alumniId}`);
-  revalidateTag("dashboard");
-  revalidateTag("events");
+  updateTag("dashboard");
+  updateTag("events");
   return null;
 }
 
@@ -1162,8 +1162,8 @@ export async function commitImport(
     // so refresh both rosters plus the dashboard/geography aggregates.
     revalidatePath("/alumni");
     revalidatePath("/friends");
-    revalidateTag("dashboard");
-    revalidateTag("geography");
+    updateTag("dashboard");
+    updateTag("geography");
     return { ok: true, data };
   } catch (e) {
     const fs = toFormState(e, "Import failed. Try again.");
@@ -1250,8 +1250,8 @@ export async function commitUpdateImport(
       fd,
     );
     revalidatePath("/alumni");
-    revalidateTag("dashboard");
-    revalidateTag("geography");
+    updateTag("dashboard");
+    updateTag("geography");
     return { ok: true, data };
   } catch (e) {
     const fs = toFormState(e, "Update failed. Try again.");
@@ -1592,7 +1592,7 @@ export async function uploadHeadshot(
   try {
     await apiPutForm<void>(`/alumni/${alumniId}/headshot`, fd);
     revalidatePath(`/alumni/${alumniId}`);
-    revalidateTag(HEADSHOT_CACHE_TAG);
+    updateTag(HEADSHOT_CACHE_TAG);
     return { ok: true };
   } catch (e) {
     if (e instanceof ApiError) {
@@ -1654,7 +1654,7 @@ export async function confirmHeadshotUpload(
   try {
     await apiPost<void>(`/alumni/${alumniId}/headshot/confirm`, {});
     revalidatePath(`/alumni/${alumniId}`);
-    revalidateTag(HEADSHOT_CACHE_TAG);
+    updateTag(HEADSHOT_CACHE_TAG);
     return { ok: true };
   } catch (e) {
     return {
@@ -1714,7 +1714,7 @@ export async function confirmBulkHeadshotUpload(
     );
     // A batch can change dozens of photos at once; drop every cached signed URL
     // so the roster shows the new images on its next render, not after the TTL.
-    revalidateTag(HEADSHOT_CACHE_TAG);
+    updateTag(HEADSHOT_CACHE_TAG);
     return { ok: true, result };
   } catch (e) {
     return { ok: false, error: bulkImportError(e) };
@@ -1742,7 +1742,7 @@ export async function deleteHeadshot(
   try {
     await apiDelete(`/alumni/${alumniId}/headshot`);
     revalidatePath(`/alumni/${alumniId}`);
-    revalidateTag(HEADSHOT_CACHE_TAG);
+    updateTag(HEADSHOT_CACHE_TAG);
     return { ok: true };
   } catch (e) {
     return {
