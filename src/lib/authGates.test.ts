@@ -150,9 +150,29 @@ describe("loadEditableProfile: outage and denial diverge", () => {
     apiGetWithRetry.mockResolvedValueOnce({ roles: ["full_access"] });
     apiGet.mockResolvedValueOnce({ alumni: { alumni_id: 7 } });
     const result = await loadEditable("7");
-    expect(result).toEqual({ status: "ok", profile: { alumni: { alumni_id: 7 } } });
+    expect(result).toEqual({
+      status: "ok",
+      profile: { alumni: { alumni_id: 7 } },
+      canChangeIdentity: false,
+    });
     expect(redirect).not.toHaveBeenCalled();
   });
+
+  // fa-web-api#593: identity fields (NetID etc.) need `alumni.archive`. The
+  // flag follows the resolved CAPABILITY list, never the role name.
+  it.each([
+    [["student"], ["view", "alumni.edit"], false],
+    [["student"], ["view", "alumni.edit", "alumni.archive"], true],
+    [["full_access"], ["view", "alumni.edit", "alumni.archive"], true],
+  ])(
+    "roles %j with capabilities %j -> canChangeIdentity %s",
+    async (roles, capabilities, expected) => {
+      apiGetWithRetry.mockResolvedValueOnce({ roles, capabilities });
+      apiGet.mockResolvedValueOnce({ alumni: { alumni_id: 7 } });
+      const result = await loadEditable("7");
+      expect(result).toMatchObject({ status: "ok", canChangeIdentity: expected });
+    },
+  );
 
   it("a view-only role is redirected to the read-only profile", async () => {
     // The backend answered, and the answer is no. Moving them is correct.

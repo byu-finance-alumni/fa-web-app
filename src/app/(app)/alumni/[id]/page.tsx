@@ -11,6 +11,7 @@ import { canEditAlumni, isUserAdmin } from "@/constants/roles";
 import {
   canAddInteraction,
   canArchiveAlumni,
+  canEditAlumniRecord,
   canExportAlumni,
   canManageHeadshots,
   canWriteNotes as canWriteNotesCap,
@@ -39,6 +40,7 @@ import { AlumniProfileTabs } from "@/components/alumni/AlumniProfileTabs";
 import { AlumniPayItForwardPanel } from "@/components/donations/AlumniPayItForwardPanel";
 import type { AlumniDonations } from "@/types/donations";
 import { ProfileNotes } from "@/components/alumni/ProfileNotes";
+import { ProfileHistory } from "@/components/alumni/ProfileHistory";
 import type { Note } from "@/types/notes";
 import { ExportProfileButton } from "@/components/alumni/ExportProfileButton";
 import { DrawerList } from "@/components/alumni/DrawerList";
@@ -470,6 +472,11 @@ export async function AlumniProfileView({
   // viewer couldn't already derive. See the matching note in the backend
   // capabilities registry.
   let canViewCompleteness = false;
+  // Version history (#45) is the editor tier — the `alumni.edit` capability the
+  // backend's GET /alumni/{id}/history checks (student and up by default, never
+  // view_only). Asked of the CAPABILITY, not the role, so a permission-editor
+  // change is reflected here.
+  let canViewHistory = false;
   const auth = await readAuthContext();
   if (auth.status === "ok") {
     const ctx = auth.ctx;
@@ -483,6 +490,7 @@ export async function AlumniProfileView({
     canViewCompleteness = (ctx.capabilities ?? []).includes(
       "profile.completeness",
     );
+    canViewHistory = canEditAlumniRecord(ctx.capabilities);
   } else if (auth.status === "unavailable") {
     // A 401/403 leaves the flags false — that is the backend telling us this
     // account is view-only, and the reduced profile is correct. A fault is not
@@ -2233,6 +2241,15 @@ export async function AlumniProfileView({
                   data={donations}
                   canDelete={canDeleteDonation}
                 />
+              ) : undefined
+            }
+            history={
+              // Read-only change history (#45), editors only. The panel
+              // fetches its own pages when the tab is opened.
+              canViewHistory ? (
+                <Panel title="History">
+                  <ProfileHistory alumniId={aid} />
+                </Panel>
               ) : undefined
             }
           />

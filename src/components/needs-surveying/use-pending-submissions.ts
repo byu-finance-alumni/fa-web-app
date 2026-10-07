@@ -29,6 +29,13 @@ export type PendingSubmissionsQueue = {
    * so it can never flash a number it has to take back.
    */
   items: SurveyResponseItem[] | null;
+  /**
+   * The graduation year `items` was loaded for, or `null` while nothing is
+   * loaded. A year change clears `items` one render AFTER the year itself
+   * changes, so anything that files the count under a year (the year picker's
+   * "2020 (14)", #856) must check this rather than trust the selected year.
+   */
+  loadedYear: number | null;
   /** Re-read the queue from the backend, keeping what's on screen meanwhile. */
   reload: () => void;
   /**
@@ -49,6 +56,7 @@ export function usePendingSubmissions(
   gradYear: number | null,
 ): PendingSubmissionsQueue {
   const [items, setItems] = useState<SurveyResponseItem[] | null>(null);
+  const [loadedYear, setLoadedYear] = useState<number | null>(null);
   // Bumped by `reload`. Kept separate from the year so a manual refresh can hold
   // the current rows on screen while a year change clears them.
   const [nonce, setNonce] = useState(0);
@@ -59,23 +67,29 @@ export function usePendingSubmissions(
   // a plain reload, where blanking the screen would make the badge blink.
   useEffect(() => {
     setItems(null);
+    setLoadedYear(null);
   }, [gradYear]);
 
   useEffect(() => {
     if (gradYear === null) {
       setItems(null);
+      setLoadedYear(null);
       return;
     }
     let cancelled = false;
     clientGet<SurveyResponseItem[]>(`/survey/campaigns/${gradYear}/responses`)
       .then((data) => {
-        if (!cancelled) setItems(data ?? []);
+        if (cancelled) return;
+        setItems(data ?? []);
+        setLoadedYear(gradYear);
       })
       .catch(() => {
         // A failed read is reported as an empty queue, the same as it always
         // was: the panel says "no submissions waiting" and the badge stays
         // silent. Better to under-claim than to badge a number we don't have.
-        if (!cancelled) setItems([]);
+        if (cancelled) return;
+        setItems([]);
+        setLoadedYear(gradYear);
       });
     return () => {
       cancelled = true;
@@ -92,5 +106,5 @@ export function usePendingSubmissions(
     );
   }, []);
 
-  return { items, reload, removeItem };
+  return { items, loadedYear, reload, removeItem };
 }

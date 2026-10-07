@@ -49,6 +49,7 @@ export default async function PersonalEditPage({
       <main className="flex-1 overflow-auto p-6">
         <PersonalSectionForm
           id={a.alumni_id}
+          canChangeIdentity={gate.canChangeIdentity}
           defaults={{
             first_name: s(a.first_name),
             middle_name: s(a.middle_name),

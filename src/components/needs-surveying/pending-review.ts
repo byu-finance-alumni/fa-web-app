@@ -62,3 +62,22 @@ export function submissionsTabLabel(count: number | null): string {
   if (count === null || count <= 0) return "Submissions";
   return `Submissions, ${count.toLocaleString()} waiting for review`;
 }
+
+/**
+ * One row of the graduation-year picker (#856): "2020 (14)" when that year has
+ * submissions waiting for review, just "2020" when it has none.
+ *
+ * The number is the same count the Submissions tab badges — the backend's
+ * `pending_review` counts exactly the rows the review queue lists, and the
+ * console overwrites the selected year's figure with the live queue length as
+ * rows are applied or rejected — so the picker and the badge cannot disagree.
+ * Zero prints nothing, for the same reason the badge is silent at zero.
+ */
+export function yearOptionLabel(
+  year: number,
+  pending: number | null | undefined,
+): string {
+  return pending && pending > 0
+    ? `${year} (${pending.toLocaleString()})`
+    : String(year);
+}
