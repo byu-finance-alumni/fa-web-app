@@ -42,6 +42,7 @@ import {
 } from "@/lib/api-client";
 import { PendingSubmissions } from "@/components/needs-surveying/PendingSubmissions";
 import { CampaignProgressTable } from "@/components/needs-surveying/CampaignProgressTable";
+import { SurveyBouncedList } from "@/components/needs-surveying/SurveyBouncedList";
 import { usePendingSubmissions } from "@/components/needs-surveying/use-pending-submissions";
 import { nextSendLine } from "@/components/needs-surveying/next-send";
 import {
@@ -1214,6 +1215,9 @@ export function SurveyCampaignConsole({
                 ) : null}
               </div>
             ) : null}
+
+            {/* ── Bounced (#858): hard bounces from Resend's webhook. ── */}
+            <SurveyBouncedList year={selectedYear} />
 
             {/* ── Already replied (#658) ────────────────────────────────
                 The bucket that sent Jake hunting. He cancelled a campaign,

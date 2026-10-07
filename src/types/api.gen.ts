@@ -4587,6 +4587,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/survey/campaigns/{grad_year}/bounced": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Survey Bounced
+         * @description The alumni whose survey email for this year PERMANENTLY bounced (#858).
+         *
+         *     Fed by Resend's ``email.bounced`` webhook (``POST /webhooks/resend``). The
+         *     companion to ``/unreachable``: that one lists people with no usable address
+         *     on file; this one lists people whose address LOOKED usable and was refused
+         *     by the receiving server, so staff can correct it on the profile.
+         *
+         *     Permanent ("hard") bounces only -- a temporary one is stored but not listed
+         *     (owner decision). Read-only: listing someone changes nothing about them.
+         *     Emails sent before message ids were recorded cannot be matched, so a year
+         *     surveyed only before this shipped lists nobody.
+         *
+         *     Gated like ``/unreachable`` (``surveys.manage``) and AUDITED like the other
+         *     survey name lists (#422): the row records who asked for which year, never
+         *     who was returned.
+         */
+        get: operations["list_survey_bounced_survey_campaigns__grad_year__bounced_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/survey/campaigns/{grad_year}/held-out": {
         parameters: {
             query?: never;
@@ -9904,6 +9938,33 @@ export interface components {
              * @default false
              */
             photo_dropped: boolean;
+        };
+        /**
+         * SurveyBouncedAlum
+         * @description One alumnus whose survey email PERMANENTLY bounced (fa-web-app #858).
+         *
+         *     From Resend's ``email.bounced`` webhook. Permanent ("hard") bounces only --
+         *     a temporary one is stored but never listed. Listing someone here changes
+         *     nothing about them; staff fix the address on the profile by hand.
+         *
+         *     One row per alumnus: their most recent permanent bounce for the year.
+         */
+        SurveyBouncedAlum: {
+            /** Alumni Id */
+            alumni_id: number;
+            /** Name */
+            name: string;
+            /** Bounced Address */
+            bounced_address: string | null;
+            /** Bounce Subtype */
+            bounce_subtype: string | null;
+            /**
+             * Bounced At
+             * Format: date-time
+             */
+            bounced_at: string;
+            /** Address Still On File */
+            address_still_on_file: boolean | null;
         };
         /**
          * SurveyChange
@@ -16650,6 +16711,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SurveyUnreachableAlum"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_survey_bounced_survey_campaigns__grad_year__bounced_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grad_year: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyBouncedAlum"][];
                 };
             };
             /** @description Validation Error */
