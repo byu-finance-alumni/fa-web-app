@@ -316,8 +316,13 @@ export interface paths {
          *     the flag on the caller's word alone, so a user can keep the admin-issued
          *     temp password and still get through the gate. It is kept ONLY so app builds
          *     deployed before the switch keep working while both sides roll out.
-         *     TODO(#592 follow-up): delete this route once the app calling
-         *     ``/auth/password/change`` is in prod.
+         *     TODO(#592 follow-up, added 2026-10-07): delete this route once the app
+         *     calling ``/auth/password/change`` is live in prod.
+         *
+         *     Until then it carries the same session + maintenance gates as the new route
+         *     (appsec review 2026-10-07): it is on the force-change-exempt resolver, so
+         *     without them a superseded or engineer-REVOKED session could still clear the
+         *     flag.
          *
          *     EXEMPT from the force-password-change gate (it depends on the exempt
          *     resolver): this is the very endpoint a flagged user calls to clear the flag,
@@ -375,7 +380,9 @@ export interface paths {
          *         (``supabase_admin.password_matches_current``). 422.
          *
          *     A Supabase failure is a 502 and the flag stays set, so the user can retry.
-         *     Rate limited per user (``auth:change_password``). Audited as
+         *     Rate limited per user (``auth:change_password``, 5/10 min), counted only
+         *     once the request has passed the flag and strength checks — a 409 or a
+         *     "too short" 422 does not spend the budget; a temp-password guess does. Audited as
          *     ``password_changed``, like the route it replaces; the password itself is
          *     never logged or stored here.
          */
