@@ -59,6 +59,10 @@ import {
   repliedLabel,
 } from "@/components/needs-surveying/held-out";
 import {
+  findDisplaySchedule,
+  findRunnableSchedule,
+} from "@/components/needs-surveying/schedule-display";
+import {
   heldOutNamesRequireEngineer,
   resetRequiresEngineerHint,
 } from "@/lib/survey-reset-contact";
@@ -509,12 +513,11 @@ export function SurveyCampaignConsole({
   // scheduled". A cancelled/completed row is treated as no schedule, so the
   // control clears (blank date, "Schedule" not "Reschedule", no Cancel button)
   // and a cancelled year can't look — or be silently re-created as — live.
-  const selectedSchedule =
-    schedules?.find(
-      (s) =>
-        s.graduation_year === selectedYear &&
-        (s.status === "scheduled" || s.status === "active"),
-    ) ?? null;
+  const selectedSchedule = findRunnableSchedule(schedules, selectedYear);
+  // The record of what went out (#857): the selected year's row in ANY status,
+  // so the per-stage sent boxes and "Last auto-send" keep their numbers after
+  // a campaign completes, pauses or is cancelled, instead of dropping to 0.
+  const displaySchedule = findDisplaySchedule(schedules, selectedYear);
 
   // Prefill the per-year date input from the selected year's existing schedule
   // (set individually OR via the bulk "all years" dialog), or clear it when the
@@ -994,7 +997,7 @@ export function SurveyCampaignConsole({
                 <MiniStat
                   icon={<History className="h-4 w-4" aria-hidden="true" />}
                   label="Last auto-send"
-                  value={formatWhen(selectedSchedule?.last_run_at ?? null)}
+                  value={formatWhen(displaySchedule?.last_run_at ?? null)}
                 />
                 {/* Reply tally for the selected class — replied vs. the class
                     total, with the not-yet-replied count. */}
@@ -1089,15 +1092,15 @@ export function SurveyCampaignConsole({
               <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
                 <StageStat
                   label="Initial"
-                  count={selectedSchedule?.sent_initial ?? 0}
+                  count={displaySchedule?.sent_initial ?? 0}
                 />
                 <StageStat
                   label="1-week reminder"
-                  count={selectedSchedule?.sent_reminder_1 ?? 0}
+                  count={displaySchedule?.sent_reminder_1 ?? 0}
                 />
                 <StageStat
                   label="2-week reminder"
-                  count={selectedSchedule?.sent_reminder_2 ?? 0}
+                  count={displaySchedule?.sent_reminder_2 ?? 0}
                 />
               </div>
             </div>
