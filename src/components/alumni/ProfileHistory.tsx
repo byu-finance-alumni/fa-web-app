@@ -154,9 +154,17 @@ export function ProfileHistory({ alumniId }: { alumniId: number }) {
                             <span className="text-gray-500 line-through">
                               {v.old}
                             </span>
+                          ) : v.kind === "old-hidden" ? (
+                            <>
+                              <span className="italic text-gray-500">
+                                Earlier text hidden
+                              </span>{" "}
+                              <span aria-hidden="true">→</span>{" "}
+                              <span className="text-gray-900">{v.new}</span>
+                            </>
                           ) : v.kind === "hidden" ? (
                             <span className="italic text-gray-500">
-                              Value hidden for your role
+                              Text hidden for your role
                             </span>
                           ) : null}
                         </li>

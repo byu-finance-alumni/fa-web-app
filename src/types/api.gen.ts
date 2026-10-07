@@ -1502,7 +1502,8 @@ export interface paths {
          *     Editor tier: requires ``alumni.edit`` (student and up by default; NOT
          *     view_only). Only changes are returned — read/disclosure rows never are.
          *     Each field change carries its ``audit_id`` for a future restore. Values are
-         *     scoped like the profile read for the caller's role, archived records 404,
+         *     scoped like the profile read for the caller's role (and removed or
+         *     superseded note / interaction text only from full_access up), archived records 404,
          *     and the read is audit-logged (``view_history``). Field-level history begins
          *     2026-08-18 (``history_starts``); there is no backfill.
          */
