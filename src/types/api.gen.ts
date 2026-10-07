@@ -10068,6 +10068,24 @@ export interface components {
             address_still_on_file: boolean | null;
         };
         /**
+         * SurveyBouncedPage
+         * @description The bounced list, capped, plus the size of the whole set (#858).
+         *
+         *     `total` counts every alumnus with a permanent bounce for the year, BEFORE
+         *     `limit`, so the console can say "showing the first N of M" rather than pass
+         *     a prefix off as the whole list.
+         */
+        SurveyBouncedPage: {
+            /** Graduation Year */
+            graduation_year: number;
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Items */
+            items: components["schemas"]["SurveyBouncedAlum"][];
+        };
+        /**
          * SurveyChange
          * @description One field an alum's response would change: what's on file vs submitted.
          */
@@ -16860,7 +16878,9 @@ export interface operations {
     };
     list_survey_bounced_survey_campaigns__grad_year__bounced_get: {
         parameters: {
-            query?: never;
+            query?: {
+                limit?: number;
+            };
             header?: never;
             path: {
                 grad_year: number;
@@ -16875,7 +16895,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SurveyBouncedAlum"][];
+                    "application/json": components["schemas"]["SurveyBouncedPage"];
                 };
             };
             /** @description Validation Error */
