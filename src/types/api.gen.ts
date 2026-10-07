@@ -4251,6 +4251,11 @@ export interface paths {
          * @description PUBLIC (token-gated, no login): the alum's current on-file info for the
          *     confirm page. The signed token is the credential — an invalid or expired one
          *     404s with the same message either way.
+         *
+         *     ``Cache-Control: no-store`` (#597): the body is the alum's on-file PII, and
+         *     the URL carries the bearer token, so no browser, proxy or shared cache may
+         *     keep a copy. Set here explicitly rather than relying only on the app-wide
+         *     default in ``app.main`` — this is the one PUBLIC route that returns PII.
          */
         get: operations["survey_respond_info_survey_respond__token__get"];
         put?: never;
