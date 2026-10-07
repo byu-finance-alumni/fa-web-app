@@ -3,6 +3,7 @@ import { apiGet, ApiError } from "@/lib/api";
 import { readAuthContext } from "@/lib/auth-context";
 import type { Profile } from "@/types/profile";
 import { canEditAlumni } from "@/constants/roles";
+import { canArchiveAlumni } from "@/constants/capabilities";
 
 /**
  * The outcome of the guard below. `unavailable` exists so the seven edit
@@ -10,7 +11,15 @@ import { canEditAlumni } from "@/constants/roles";
  * moved somewhere else — see {@link loadEditableProfile}.
  */
 export type EditableProfileResult =
-  | { status: "ok"; profile: Profile }
+  | {
+      status: "ok";
+      profile: Profile;
+      /** May CHANGE the record's identity/status fields — is_alumni, deceased,
+       *  NetID, BYU ID (fa-web-api#593). Those need `alumni.archive`, not just
+       *  edit access; a form shows them read-only otherwise. UX only — the
+       *  backend 403s the change either way. */
+      canChangeIdentity: boolean;
+    }
   /** `/auth/context` could not be READ (5xx, timeout, unreachable). */
   | { status: "unavailable"; httpStatus: number | null };
 
@@ -42,9 +51,11 @@ export async function loadEditableProfile(
   id: string,
 ): Promise<EditableProfileResult> {
   let canEdit = false;
+  let canChangeIdentity = false;
   const auth = await readAuthContext();
   if (auth.status === "ok") {
     canEdit = canEditAlumni(auth.ctx.roles);
+    canChangeIdentity = canArchiveAlumni(auth.ctx.capabilities);
   }
   if (auth.status === "unavailable") {
     return { status: "unavailable", httpStatus: auth.httpStatus };
@@ -52,7 +63,11 @@ export async function loadEditableProfile(
   if (!canEdit) redirect(`/alumni/${id}`);
 
   try {
-    return { status: "ok", profile: await apiGet<Profile>(`/alumni/${id}/profile`) };
+    return {
+      status: "ok",
+      profile: await apiGet<Profile>(`/alumni/${id}/profile`),
+      canChangeIdentity,
+    };
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) notFound();
     throw e;

@@ -6,8 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import { createClient } from "@/utils/supabase/client";
-import { completePasswordChange } from "@/app/set-password/actions";
+import { changePassword } from "@/app/set-password/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -62,31 +61,18 @@ export function SetPasswordForm({ email = "" }: { email?: string }) {
   async function onSubmit(values: SetPasswordValues) {
     setFormError(null);
 
-    // 1) Update the password on the user's OWN authenticated session via the
-    //    browser Supabase client (mirrors how the app builds its client).
-    const supabase = createClient();
-    const { error } = await supabase.auth.updateUser({
-      password: values.password,
-    });
-    if (error) {
-      // Supabase rejects e.g. a password equal to the current one, or one that
-      // fails its policy. Surface a clear, non-technical message.
-      setFormError(
-        error.message ||
-          "Could not update your password. Please try a different one.",
-      );
-      return;
-    }
-
-    // 2) Clear the must-change flag on the backend (authenticated; acts on the
-    //    caller's own account). Only after this succeeds do we let them in.
-    const result = await completePasswordChange();
+    // 1) The backend sets the password AND clears the must-change flag in one
+    //    call (fa-web-api#592), acting on the caller's own account. It re-checks
+    //    the rules above and refuses the temporary password, so a rejection here
+    //    carries a message worth showing as-is. Only after it succeeds do we let
+    //    them in.
+    const result = await changePassword(values.password);
     if (result?.error) {
       setFormError(result.error);
       return;
     }
 
-    // 3) Into the app. refresh() drops the cached logged-out/forced-redirect
+    // 2) Into the app. refresh() drops the cached logged-out/forced-redirect
     //    render so the dashboard renders fresh with the cleared flag.
     router.replace("/dashboard");
     router.refresh();

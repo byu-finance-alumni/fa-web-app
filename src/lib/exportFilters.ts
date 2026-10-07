@@ -59,7 +59,7 @@ type ParamExport =
   /** Present-means-a-real-`true`-or-`false` predicate → `boolean | null`, where
    *  the null the field defaults to is the ABSENCE of the predicate. */
   | { as: "tristate"; field: TriStateField }
-  /** Roster scope: `kind=alumni|friend` → `is_alumni=true|false`. */
+  /** Roster scope: `kind=alumni|friend` → `kind` + `is_alumni=true|false`. */
   | { as: "scope" }
   /** `POST /alumni/export` has no field for this one, so an export cannot honour
    *  it. The label is what the user is told (see `exportParityGaps`) — the
@@ -154,9 +154,16 @@ const EXPORT_MAPPING: Record<string, ParamExport> = {
  * value the backend reads as "don't narrow on this".
  *
  * `is_alumni` is the exception, and deliberately so: it starts `true`, not
- * `null`. `null` there means "alumni AND friends", i.e. the widest possible
- * population, so a bug that failed to set it would leak non-alumni again. This
- * fails CLOSED — the worst a future omission can do is export too few.
+ * `null`. `null` there used to mean "alumni AND friends", i.e. the widest
+ * possible population, so a bug that failed to set it would leak non-alumni
+ * again. This fails CLOSED — the worst a future omission can do is export too
+ * few.
+ *
+ * `kind` (fa-web-api#594) is the list's own scope param, now on the export body
+ * too; the backend treats a null on either field as "alumni" and only `kind:
+ * "all"` as both. Both are sent, always agreeing (the backend 422s a mismatch):
+ * `kind` is the contract going forward, `is_alumni` keeps an API that predates
+ * #594 scoped correctly while the two deploy.
  */
 const NO_PREDICATE: AlumniExportFilters = {
   q: null,
@@ -214,6 +221,7 @@ const NO_PREDICATE: AlumniExportFilters = {
   missing_linkedin: false,
   missing_photo: false,
   duplicate: false,
+  kind: "alumni",
   is_alumni: true,
   include_archived: false,
   // Added by fa-web-api#366. `near`/`radius` null = no location predicate;
@@ -266,9 +274,12 @@ export function toExportFilters(
         // predicate ("false" = exclude, not "no filter").
         out[mapping.field] = values[0] === "true";
         break;
-      case "scope":
-        out.is_alumni = values[0] !== "friend";
+      case "scope": {
+        const friend = values[0] === "friend";
+        out.kind = friend ? "friend" : "alumni";
+        out.is_alumni = !friend;
         break;
+      }
     }
   }
   return out;

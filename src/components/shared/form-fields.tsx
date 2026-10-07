@@ -53,6 +53,7 @@ export function Field({
   required,
   placeholder,
   hint,
+  disabled,
 }: {
   label: string;
   name: string;
@@ -69,6 +70,9 @@ export function Field({
   placeholder?: string;
   /** Optional muted helper line shown under the field (non-error). */
   hint?: string;
+  /** Shown but not editable — and, being disabled, NOT submitted with the form,
+   *  so a partial-PATCH save simply leaves the stored value alone. */
+  disabled?: boolean;
 }) {
   const errorId = error ? `${name}-error` : undefined;
   const hintId = hint ? `${name}-hint` : undefined;
@@ -84,6 +88,7 @@ export function Field({
         type={type}
         {...(controlled ? { value } : { defaultValue })}
         placeholder={placeholder}
+        disabled={disabled}
         autoComplete="off"
         aria-invalid={error ? true : undefined}
         aria-describedby={errorId ?? hintId}

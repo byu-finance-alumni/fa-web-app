@@ -42,10 +42,13 @@ import {
 } from "@/lib/api-client";
 import { PendingSubmissions } from "@/components/needs-surveying/PendingSubmissions";
 import { CampaignProgressTable } from "@/components/needs-surveying/CampaignProgressTable";
+import { SurveyBouncedList } from "@/components/needs-surveying/SurveyBouncedList";
 import { usePendingSubmissions } from "@/components/needs-surveying/use-pending-submissions";
+import { nextSendLine } from "@/components/needs-surveying/next-send";
 import {
   pendingBadgeText,
   pendingReviewCount,
+  yearOptionLabel,
   submissionsTabLabel,
 } from "@/components/needs-surveying/pending-review";
 import {
@@ -58,6 +61,10 @@ import {
   heldOutTruncatedNote,
   repliedLabel,
 } from "@/components/needs-surveying/held-out";
+import {
+  findDisplaySchedule,
+  findRunnableSchedule,
+} from "@/components/needs-surveying/schedule-display";
 import {
   heldOutNamesRequireEngineer,
   resetRequiresEngineerHint,
@@ -352,6 +359,29 @@ export function SurveyCampaignConsole({
   const pending = usePendingSubmissions(selectedYear);
   const pendingCount = pendingReviewCount(pending.items);
 
+  // Keep the year picker's "2020 (14)" (#856) equal to the badge: once the
+  // queue for a year is loaded, its length IS that year's pending figure, so an
+  // apply or reject updates the picker in the same render as the badge. Filed
+  // under `loadedYear`, not `selectedYear` — on a year change the old queue is
+  // still in hand for one render and must not land on the new year.
+  const pendingLoadedYear = pending.loadedYear;
+  useEffect(() => {
+    if (pendingLoadedYear === null || pendingCount === null) return;
+    setYears((prev) =>
+      prev?.some(
+        (y) =>
+          y.graduation_year === pendingLoadedYear &&
+          y.pending_review !== pendingCount,
+      )
+        ? prev.map((y) =>
+            y.graduation_year === pendingLoadedYear
+              ? { ...y, pending_review: pendingCount }
+              : y,
+          )
+        : prev,
+    );
+  }, [pendingLoadedYear, pendingCount]);
+
   // Real Resend usage against the caps — emails actually sent today / this
   // calendar month, from GET /survey/usage. 0 until the fetch resolves.
   const [sentToday, setSentToday] = useState(0);
@@ -509,12 +539,15 @@ export function SurveyCampaignConsole({
   // scheduled". A cancelled/completed row is treated as no schedule, so the
   // control clears (blank date, "Schedule" not "Reschedule", no Cancel button)
   // and a cancelled year can't look — or be silently re-created as — live.
-  const selectedSchedule =
-    schedules?.find(
-      (s) =>
-        s.graduation_year === selectedYear &&
-        (s.status === "scheduled" || s.status === "active"),
-    ) ?? null;
+  const selectedSchedule = findRunnableSchedule(schedules, selectedYear);
+  // The record of what went out (#857): the selected year's row in ANY status,
+  // so the per-stage sent boxes and "Last auto-send" keep their numbers after
+  // a campaign completes, pauses or is cancelled, instead of dropping to 0.
+  const displaySchedule = findDisplaySchedule(schedules, selectedYear);
+
+  // The schedule card's "Next: 1-week reminder · Wed, Oct 14 · ~37 people"
+  // (#562), or null when nothing more will send.
+  const nextSend = nextSendLine(selectedSchedule);
 
   // Prefill the per-year date input from the selected year's existing schedule
   // (set individually OR via the bulk "all years" dialog), or clear it when the
@@ -918,7 +951,7 @@ export function SurveyCampaignConsole({
                     className="justify-between"
                     onSelect={() => changeSelectedYear(y.graduation_year)}
                   >
-                    {y.graduation_year}
+                    {yearOptionLabel(y.graduation_year, y.pending_review)}
                     {y.graduation_year === selectedYear ? (
                       <Check
                         className="h-4 w-4 text-brand-blue-600"
@@ -994,7 +1027,7 @@ export function SurveyCampaignConsole({
                 <MiniStat
                   icon={<History className="h-4 w-4" aria-hidden="true" />}
                   label="Last auto-send"
-                  value={formatWhen(selectedSchedule?.last_run_at ?? null)}
+                  value={formatWhen(displaySchedule?.last_run_at ?? null)}
                 />
                 {/* Reply tally for the selected class — replied vs. the class
                     total, with the not-yet-replied count. */}
@@ -1089,17 +1122,23 @@ export function SurveyCampaignConsole({
               <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
                 <StageStat
                   label="Initial"
-                  count={selectedSchedule?.sent_initial ?? 0}
+                  count={displaySchedule?.sent_initial ?? 0}
                 />
                 <StageStat
                   label="1-week reminder"
-                  count={selectedSchedule?.sent_reminder_1 ?? 0}
+                  count={displaySchedule?.sent_reminder_1 ?? 0}
                 />
                 <StageStat
                   label="2-week reminder"
-                  count={selectedSchedule?.sent_reminder_2 ?? 0}
+                  count={displaySchedule?.sent_reminder_2 ?? 0}
                 />
               </div>
+              {/* What goes out next, and when (#562). Only a running campaign
+                  has one, and `selectedSchedule` is already running-only, so a
+                  paused, cancelled or finished year shows nothing here. */}
+              {nextSend ? (
+                <p className="mt-2 text-xs text-gray-600">{nextSend}</p>
+              ) : null}
             </div>
 
             {/* ── Cannot be reached (#392) ──────────────────────────────
@@ -1176,6 +1215,9 @@ export function SurveyCampaignConsole({
                 ) : null}
               </div>
             ) : null}
+
+            {/* ── Bounced (#858): hard bounces from Resend's webhook. ── */}
+            <SurveyBouncedList year={selectedYear} />
 
             {/* ── Already replied (#658) ────────────────────────────────
                 The bucket that sent Jake hunting. He cancelled a campaign,

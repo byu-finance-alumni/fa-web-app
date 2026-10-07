@@ -19,7 +19,8 @@ export type AlumniPage = Schema<"AlumniPage">;
  * The signed-in user's DB identity + roles (`GET /auth/context`).
  * `must_change_password` is true when they signed in with a temporary password
  * and must set a new one before using the app (the shell gates on it and
- * forces `/set-password`, cleared via `POST /auth/password/complete`).
+ * forces `/set-password`, cleared when `POST /auth/password/change` sets the new
+ * password server-side — fa-web-api#592).
  */
 export type UserContext = Schema<"UserContext">;
 
