@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { changePassword } from "@/app/set-password/actions";
+import { signIn } from "@/app/login/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -72,9 +73,19 @@ export function SetPasswordForm({ email = "" }: { email?: string }) {
       return;
     }
 
-    // 2) Into the app. refresh() drops the cached logged-out/forced-redirect
-    //    render so the dashboard renders fresh with the cleared flag.
-    router.replace("/dashboard");
+    // 2) Sign straight back in. Setting the password through the Supabase
+    //    Admin API ends EVERY session the user has — including this one — so
+    //    without this they land on /login. `signIn` is the normal login path
+    //    (lockout precheck, single-session claim, login record) and redirects
+    //    into the app on success.
+    if (email) {
+      const signInResult = await signIn(email, values.password, "/dashboard");
+      if (signInResult?.error) setFormError(signInResult.error);
+      return;
+    }
+
+    // No email to sign back in with (shouldn't happen): send them to log in.
+    router.replace("/login");
     router.refresh();
   }
 

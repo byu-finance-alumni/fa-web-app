@@ -115,6 +115,11 @@ describe("forced password change goes through the backend (fa-web-api#592)", () 
     expect(ACTIONS).toContain('apiPost("/auth/password/change", { new_password: newPassword })');
   });
 
+  it("signs back in afterwards, because the Admin API ends every session", () => {
+    // Found on dev 2026-10-07: without this the user landed on /login.
+    expect(FORM).toContain('signIn(email, values.password, "/dashboard")');
+  });
+
   it("no longer calls the deprecated flag-only route", () => {
     expect(FORM).not.toContain("password/complete");
     expect(ACTIONS).not.toMatch(/apiPost\(\s*"\/auth\/password\/complete"/);
