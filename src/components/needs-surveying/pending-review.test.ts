@@ -16,6 +16,7 @@ import {
   pendingBadgeText,
   pendingReviewCount,
   submissionsTabLabel,
+  yearOptionLabel,
 } from "./pending-review";
 
 const read = (relPath: string): string =>
@@ -138,5 +139,29 @@ describe("the badge and the list read one source", () => {
     // it; only the fill appears. Otherwise "Progress" jumps sideways the moment
     // a submission lands or the last one is applied.
     expect(console_).toContain("inline-flex h-5 w-6 shrink-0");
+  });
+});
+
+describe("yearOptionLabel (#856)", () => {
+  it("puts the number waiting for review in parentheses", () => {
+    expect(yearOptionLabel(2020, 14)).toBe("2020 (14)");
+    expect(yearOptionLabel(2020, 1)).toBe("2020 (1)");
+  });
+
+  it("is just the year when nothing is waiting", () => {
+    // Silent at zero, like the badge — "(0)" on every row is noise.
+    expect(yearOptionLabel(2020, 0)).toBe("2020");
+    expect(yearOptionLabel(2020, null)).toBe("2020");
+    expect(yearOptionLabel(2020, undefined)).toBe("2020");
+  });
+
+  it("follows the badge's queue as rows are reviewed", () => {
+    const console_ = read("src/components/needs-surveying/SurveyCampaignConsole.tsx");
+    // The picker reads the backend's per-year figure...
+    expect(console_).toContain("yearOptionLabel(y.graduation_year, y.pending_review)");
+    // ...and the selected year's figure is overwritten with the live queue
+    // length, filed under the year that queue was loaded for.
+    expect(console_).toContain("pending_review: pendingCount");
+    expect(console_).toContain("pending.loadedYear");
   });
 });

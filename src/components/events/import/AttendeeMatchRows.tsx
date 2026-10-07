@@ -40,6 +40,7 @@ function CandidateSummary({ candidate }: { candidate: AttendeeMatchCandidate }) 
         <Link
           href={`/alumni/${candidate.alumni_id}`}
           target="_blank"
+          rel="noopener noreferrer"
           className="font-medium text-brand-blue-700 underline-offset-2 hover:underline"
         >
           {candidate.name}

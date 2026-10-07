@@ -311,6 +311,19 @@ export interface paths {
          * Password Complete
          * @description Clear the force-password-change flag for the AUTHENTICATED caller.
          *
+         *     DEPRECATED (#592) — superseded by ``POST /auth/password/change``, which
+         *     sets the password itself and only then clears the flag. This route clears
+         *     the flag on the caller's word alone, so a user can keep the admin-issued
+         *     temp password and still get through the gate. It is kept ONLY so app builds
+         *     deployed before the switch keep working while both sides roll out.
+         *     TODO(#592 follow-up, added 2026-10-07): delete this route once the app
+         *     calling ``/auth/password/change`` is live in prod.
+         *
+         *     Until then it carries the same session + maintenance gates as the new route
+         *     (appsec review 2026-10-07): it is on the force-change-exempt resolver, so
+         *     without them a superseded or engineer-REVOKED session could still clear the
+         *     flag.
+         *
          *     EXEMPT from the force-password-change gate (it depends on the exempt
          *     resolver): this is the very endpoint a flagged user calls to clear the flag,
          *     so it must remain reachable while ``must_change_password`` is true.
@@ -325,6 +338,55 @@ export interface paths {
          *     audit row is written.
          */
         post: operations["password_complete_auth_password_complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/password/change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Password Change
+         * @description Finish a FORCED password change server-side (#592).
+         *
+         *     Replaces the old two-step flow (the browser set the password through its own
+         *     Supabase session, then told ``/auth/password/complete`` it had) in which the
+         *     API cleared ``must_change_password`` without any evidence the password had
+         *     changed. Here the API sets the password itself through the Supabase Admin
+         *     API and clears the flag only after that succeeded — so a cleared flag always
+         *     means the temp password is gone.
+         *
+         *     Rules, in order:
+         *
+         *       * Only while the caller's ``must_change_password`` flag is set; otherwise
+         *         409. This is not a general "change my password" endpoint — without the
+         *         flag it would turn a stolen access token into a permanent password
+         *         without ever knowing the old one.
+         *       * The token must be the account's ACTIVE session (#147): a superseded or
+         *         engineer-revoked session is refused (``session_superseded``) even though
+         *         this route uses the force-change-exempt resolver. Maintenance mode
+         *         refuses it too (503), like any other write.
+         *       * Same strength rules as the app's form: at least 8 characters, at most 72
+         *         bytes, not the account's email address (case-insensitive). 422.
+         *       * Not the current (temporary) password, when that can be checked
+         *         (``supabase_admin.password_matches_current``). 422.
+         *
+         *     A Supabase failure is a 502 and the flag stays set, so the user can retry.
+         *     Rate limited per user (``auth:change_password``, 5/10 min), counted only
+         *     once the request has passed the flag and strength checks — a 409 or a
+         *     "too short" 422 does not spend the budget; a temp-password guess does. Audited as
+         *     ``password_changed``, like the route it replaces; the password itself is
+         *     never logged or stored here.
+         */
+        post: operations["password_change_auth_password_change_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -980,8 +1042,9 @@ export interface paths {
          *
          *     Archived records 404 (they were removed from the directory). view_only
          *     ("Professor") callers receive a FERPA-minimized record — sensitive PII,
-         *     notes, and import provenance are nulled. This lightweight read is not
-         *     audit-logged (the full profile aggregate is).
+         *     notes, and import provenance are nulled. Audit-logged as ``view_alumni``
+         *     (#591): for an editor this record carries byu_id, birth date and notes, so
+         *     it is as much a disclosure as the profile aggregate.
          */
         get: operations["get_alumni_alumni__alumni_id__get"];
         put?: never;
@@ -1000,6 +1063,12 @@ export interface paths {
          *     against the stored row with this patch overlaid, so a partial edit that only
          *     sends the name fields is still measured against the record's real graduation
          *     year. Warnings never block; exact ID collisions still 409.
+         *
+         *     CHANGING ``is_alumni`` / ``deceased`` / ``net_id`` / ``byu_id`` additionally
+         *     needs ``alumni.archive`` (#593): flipping ``is_alumni`` off archives the
+         *     record out of the directory in all but name, so ``alumni.edit`` alone
+         *     (student) must not be able to do it. Re-sending the stored value is fine; a
+         *     real change without the capability is a 403 and nothing is written.
          */
         patch: operations["update_alumni_alumni__alumni_id__patch"];
         trace?: never;
@@ -1482,6 +1551,34 @@ export interface paths {
          * @description Restore (unarchive) a previously archived alumni record.
          */
         post: operations["restore_alumni_alumni__alumni_id__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alumni/{alumni_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Alumni History
+         * @description Recorded changes to one alumnus, one entry per save, newest first.
+         *
+         *     Editor tier: requires ``alumni.edit`` (student and up by default; NOT
+         *     view_only). Only changes are returned — read/disclosure rows never are.
+         *     Each field change carries its ``audit_id`` for a future restore. Values are
+         *     scoped like the profile read for the caller's role (and removed or
+         *     superseded note / interaction text only from full_access up), archived records 404,
+         *     and the read is audit-logged (``view_history``). Field-level history begins
+         *     2026-08-18 (``history_starts``); there is no backfill.
+         */
+        get: operations["get_alumni_history_alumni__alumni_id__history_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2915,6 +3012,10 @@ export interface paths {
          *
          *     ``notes`` echoes the per-attendance ``attendance_notes`` (#181) so the notes
          *     the bulk importer writes are actually readable on the roster.
+         *
+         *     ARCHIVED attendees are left off below full_access (#591), as on the alumni
+         *     list — the roster must not be a way to read records removed from the
+         *     directory. full_access and up still see them.
          */
         get: operations["list_event_attendees_events__event_id__attendees_get"];
         put?: never;
@@ -2959,6 +3060,9 @@ export interface paths {
          *     A non-editor holding the assignable ``alumni.export`` gets **Name, Email**
          *     only: Net ID is nulled on every read they make (VIEW_ONLY_HIDDEN_FIELDS), so
          *     the column is dropped rather than the export refused.
+         *
+         *     Archived attendees are left out below full_access, matching the on-screen
+         *     roster (#591).
          */
         get: operations["export_event_attendees_events__event_id__attendees_export_get"];
         put?: never;
@@ -3129,6 +3233,10 @@ export interface paths {
          *     aggregated (``WHERE alumni_id IN (<page ids>)``), so the endpoint is bounded
          *     regardless of donor count. Amount-viewers see the biggest givers first;
          *     others get a stable name sort (the lifetime ranking is amount-gated too).
+         *
+         *     ARCHIVED donors are listed only for full_access and up (#591), as on the
+         *     alumni list; ``donations.view`` is assignable, so a lower role granted it
+         *     gets the active donors only. The read is audit-logged (``view_donors``).
          */
         get: operations["list_donors_donations_donors_get"];
         put?: never;
@@ -3170,7 +3278,8 @@ export interface paths {
         /**
          * List Alumni Donations
          * @description A single donor's donation history (full_access+). 404 if the alumnus is
-         *     unknown. Each entry's ``amount`` and ``notes`` are gated to amount-viewers.
+         *     unknown — or archived, below full_access (#591). Each entry's ``amount`` and
+         *     ``notes`` are gated to amount-viewers. Audit-logged (``view_donations``).
          */
         get: operations["list_alumni_donations_donations_alumni__alumni_id__get"];
         put?: never;
@@ -3586,6 +3695,9 @@ export interface paths {
          * @description List the notes on one entity, newest first (any view-access role). 404 if
          *     the parent entity doesn't exist. The disclosure is audit-logged. A view_only
          *     caller sees note authors by first name only; editors see full names.
+         *
+         *     Notes on an ARCHIVED alumnus (or one of their interactions) 404 below
+         *     full_access, like the profile itself (#591).
          */
         get: operations["list_notes_notes_get"];
         put?: never;
@@ -4139,6 +4251,11 @@ export interface paths {
          * @description PUBLIC (token-gated, no login): the alum's current on-file info for the
          *     confirm page. The signed token is the credential — an invalid or expired one
          *     404s with the same message either way.
+         *
+         *     ``Cache-Control: no-store`` (#597): the body is the alum's on-file PII, and
+         *     the URL carries the bearer token, so no browser, proxy or shared cache may
+         *     keep a copy. Set here explicitly rather than relying only on the app-wide
+         *     default in ``app.main`` — this is the one PUBLIC route that returns PII.
          */
         get: operations["survey_respond_info_survey_respond__token__get"];
         put?: never;
@@ -4245,6 +4362,8 @@ export interface paths {
         /**
          * Survey Pending Responses
          * @description Admin review queue: pending responses for a grad year, each with a diff.
+         *     Audit-logged (``read_survey_responses``, #591) — the diffs carry what each
+         *     alum submitted.
          */
         get: operations["survey_pending_responses_survey_campaigns__grad_year__responses_get"];
         put?: never;
@@ -4512,7 +4631,8 @@ export interface paths {
          *     before a send and the figure explaining it afterwards cannot disagree.
          *
          *     Read-only, sends nothing, takes no send lock — safe to poll while the daily
-         *     cron is mid-run. Gated like the rest of the console.
+         *     cron is mid-run. Gated like the rest of the console. Audit-logged
+         *     (``read_survey_recipients``, #591).
          */
         get: operations["survey_recipient_breakdown_survey_campaigns__grad_year__recipients_get"];
         put?: never;
@@ -4549,9 +4669,43 @@ export interface paths {
          *     to chase for an address.
          *
          *     Read-only and gated like the rest of the console (it returns alumni contact
-         *     details).
+         *     details). Audit-logged (``read_survey_unreachable``, #591).
          */
         get: operations["list_survey_unreachable_survey_campaigns__grad_year__unreachable_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/campaigns/{grad_year}/bounced": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Survey Bounced
+         * @description The alumni whose survey email for this year PERMANENTLY bounced (#858).
+         *
+         *     Fed by Resend's ``email.bounced`` webhook (``POST /webhooks/resend``). The
+         *     companion to ``/unreachable``: that one lists people with no usable address
+         *     on file; this one lists people whose address LOOKED usable and was refused
+         *     by the receiving server, so staff can correct it on the profile.
+         *
+         *     Permanent ("hard") bounces only -- a temporary one is stored but not listed
+         *     (owner decision). Read-only: listing someone changes nothing about them.
+         *     Emails sent before message ids were recorded cannot be matched, so a year
+         *     surveyed only before this shipped lists nobody.
+         *
+         *     Gated like ``/unreachable`` (``surveys.manage``) and AUDITED like the other
+         *     survey name lists (#422): the row records who asked for which year, never
+         *     who was returned.
+         */
+        get: operations["list_survey_bounced_survey_campaigns__grad_year__bounced_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4626,6 +4780,9 @@ export interface paths {
          *     campaign and when) — the console reads this rather than a second endpoint,
          *     since it wants exactly this list. The engineer holds every capability, so
          *     the full-access gate already admits them.
+         *
+         *     Carries each running campaign's next send (#562) — the only schedule read
+         *     that does.
          */
         get: operations["list_survey_schedules_survey_schedules_get"];
         put?: never;
@@ -4736,7 +4893,8 @@ export interface paths {
          *     Read-only, and gated like the rest of the console (full access) because it
          *     returns alumni contact details. Empty list = nobody left to chase; 404 = the
          *     year has no campaign at all. Cycle-scoped: a previous campaign's
-         *     non-responders are not in here.
+         *     non-responders are not in here. Audit-logged
+         *     (``read_survey_non_responders``, #591).
          */
         get: operations["list_survey_non_responders_survey_schedules__grad_year__non_responders_get"];
         put?: never;
@@ -4830,6 +4988,7 @@ export interface paths {
          *     Gated like `GET /schedules` (the counts it expands) and the non-responders
          *     call sheet. Returns only an id and a display name per alum. 404 = the year
          *     has no campaign at all; two empty lists = nobody has answered yet.
+         *     Audit-logged (``read_survey_responders``, #591).
          */
         get: operations["list_survey_responders_survey_schedules__grad_year__responders_get"];
         put?: never;
@@ -5675,6 +5834,8 @@ export interface components {
              * @default false
              */
             duplicate: boolean;
+            /** Kind */
+            kind: ("alumni" | "friend" | "all") | null;
             /** Is Alumni */
             is_alumni: boolean | null;
             /**
@@ -5697,6 +5858,62 @@ export interface components {
             /** Columns */
             columns: string[];
             filters?: components["schemas"]["AlumniExportFilters"];
+        };
+        /**
+         * AlumniHistoryChange
+         * @description One recorded field change (one ``audit_logs`` row).
+         */
+        AlumniHistoryChange: {
+            /** Audit Id */
+            audit_id: number;
+            /** Action */
+            action: string;
+            /** Field */
+            field: string | null;
+            /** Label */
+            label: string | null;
+            /** Old */
+            old: string | null;
+            /** New */
+            new: string | null;
+            /**
+             * Redacted
+             * @default false
+             */
+            redacted: boolean;
+        };
+        /**
+         * AlumniHistoryGroup
+         * @description One save: every change written together, under one actor and time.
+         */
+        AlumniHistoryGroup: {
+            /** Group Id */
+            group_id: string;
+            /** Change Set Id */
+            change_set_id: string | null;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Actor Name */
+            actor_name: string | null;
+            /** Source */
+            source: ("manual" | "import" | "survey") | null;
+            /** Changes */
+            changes: components["schemas"]["AlumniHistoryChange"][];
+        };
+        /** AlumniHistoryPage */
+        AlumniHistoryPage: {
+            /** Items */
+            items: components["schemas"]["AlumniHistoryGroup"][];
+            /** Next Before */
+            next_before: string | null;
+            /**
+             * History Starts
+             * Format: date
+             */
+            history_starts: string;
         };
         /**
          * AlumniHygienePreview
@@ -8240,6 +8457,11 @@ export interface components {
              * @default 0
              */
             unreachable: number;
+            /**
+             * Pending Review
+             * @default 0
+             */
+            pending_review: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -9253,6 +9475,15 @@ export interface components {
             details: string | null;
         };
         /**
+         * PasswordChangeRequest
+         * @description Body for ``POST /auth/password/change``: the new password only. There is
+         *     no user id — the route acts on the token's own account.
+         */
+        PasswordChangeRequest: {
+            /** New Password */
+            new_password: string;
+        };
+        /**
          * PasswordCompleteResponse
          * @description Acknowledgement that the caller's force-change flag was cleared.
          */
@@ -9815,6 +10046,51 @@ export interface components {
             photo_dropped: boolean;
         };
         /**
+         * SurveyBouncedAlum
+         * @description One alumnus whose survey email PERMANENTLY bounced (fa-web-app #858).
+         *
+         *     From Resend's ``email.bounced`` webhook. Permanent ("hard") bounces only --
+         *     a temporary one is stored but never listed. Listing someone here changes
+         *     nothing about them; staff fix the address on the profile by hand.
+         *
+         *     One row per alumnus: their most recent permanent bounce for the year.
+         */
+        SurveyBouncedAlum: {
+            /** Alumni Id */
+            alumni_id: number;
+            /** Name */
+            name: string;
+            /** Bounced Address */
+            bounced_address: string | null;
+            /** Bounce Subtype */
+            bounce_subtype: string | null;
+            /**
+             * Bounced At
+             * Format: date-time
+             */
+            bounced_at: string;
+            /** Address Still On File */
+            address_still_on_file: boolean | null;
+        };
+        /**
+         * SurveyBouncedPage
+         * @description The bounced list, capped, plus the size of the whole set (#858).
+         *
+         *     `total` counts every alumnus with a permanent bounce for the year, BEFORE
+         *     `limit`, so the console can say "showing the first N of M" rather than pass
+         *     a prefix off as the whole list.
+         */
+        SurveyBouncedPage: {
+            /** Graduation Year */
+            graduation_year: number;
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Items */
+            items: components["schemas"]["SurveyBouncedAlum"][];
+        };
+        /**
          * SurveyChange
          * @description One field an alum's response would change: what's on file vs submitted.
          */
@@ -10254,6 +10530,12 @@ export interface components {
             created_by: string | null;
             /** Paused At */
             paused_at: string | null;
+            /** Next Stage */
+            next_stage: number | null;
+            /** Next Send Date */
+            next_send_date: string | null;
+            /** Next Send Count */
+            next_send_count: number | null;
             /**
              * Sent Initial
              * @default 0
@@ -11066,6 +11348,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PasswordCompleteResponse"];
+                };
+            };
+        };
+    };
+    password_change_auth_password_change_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordCompleteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -12768,6 +13083,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AlumniRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_alumni_history_alumni__alumni_id__history_get: {
+        parameters: {
+            query?: {
+                /** @description Saves per page. */
+                limit?: number;
+                /** @description Opaque cursor: the previous page's ``next_before``. */
+                before?: string | null;
+            };
+            header?: never;
+            path: {
+                alumni_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlumniHistoryPage"];
                 };
             };
             /** @description Validation Error */
@@ -16517,6 +16868,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SurveyUnreachableAlum"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_survey_bounced_survey_campaigns__grad_year__bounced_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                grad_year: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyBouncedPage"];
                 };
             };
             /** @description Validation Error */
