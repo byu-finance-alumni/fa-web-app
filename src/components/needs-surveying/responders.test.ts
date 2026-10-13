@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   fillTimeResponders,
   isExportableYear,
-  noReplyExportErrorMessage,
-  noReplyExportFilename,
-  noReplyExportPath,
+  surveyExportErrorMessage,
+  surveyExportFilename,
+  surveyExportPath,
   RESPONDER_KIND_LABEL,
   respondersDriftNote,
   respondersFor,
@@ -93,21 +93,35 @@ describe("median-hover fill times (#543 follow-on)", () => {
   });
 });
 
-describe("no-reply export (#836)", () => {
+describe("no-reply (#836) and replied (#866) exports", () => {
   it("has a per-year path and an all-years path", () => {
-    expect(noReplyExportPath(2019)).toBe(
+    expect(surveyExportPath("no-reply", 2019)).toBe(
       "/survey/schedules/2019/no-reply/export",
     );
-    expect(noReplyExportPath(null)).toBe("/survey/schedules/no-reply/export");
+    expect(surveyExportPath("no-reply", null)).toBe(
+      "/survey/schedules/no-reply/export",
+    );
+    expect(surveyExportPath("replied", 2019)).toBe(
+      "/survey/schedules/2019/replied/export",
+    );
+    expect(surveyExportPath("replied", null)).toBe(
+      "/survey/schedules/replied/export",
+    );
   });
 
   it("falls back to the backend's own dated filename", () => {
     const now = new Date("2026-09-23T12:00:00Z");
-    expect(noReplyExportFilename(2019, now)).toBe(
+    expect(surveyExportFilename("no-reply", 2019, now)).toBe(
       "survey_no_reply_2019_2026-09-23.csv",
     );
-    expect(noReplyExportFilename(null, now)).toBe(
+    expect(surveyExportFilename("no-reply", null, now)).toBe(
       "survey_no_reply_all_2026-09-23.csv",
+    );
+    expect(surveyExportFilename("replied", 2019, now)).toBe(
+      "survey_replied_2019_2026-09-23.csv",
+    );
+    expect(surveyExportFilename("replied", null, now)).toBe(
+      "survey_replied_all_2026-09-23.csv",
     );
   });
 
@@ -123,11 +137,11 @@ describe("no-reply export (#836)", () => {
   });
 
   it("explains each failure in a sentence someone can act on", () => {
-    expect(noReplyExportErrorMessage(401)).toContain("Sign in again");
-    expect(noReplyExportErrorMessage(403)).toContain("survey access");
-    expect(noReplyExportErrorMessage(404)).toContain("Reload");
-    expect(noReplyExportErrorMessage(429)).toContain("Wait");
-    expect(noReplyExportErrorMessage(null)).toContain("no file was downloaded");
-    expect(noReplyExportErrorMessage(500)).toContain("no file was downloaded");
+    expect(surveyExportErrorMessage(401)).toContain("Sign in again");
+    expect(surveyExportErrorMessage(403)).toContain("export access");
+    expect(surveyExportErrorMessage(404)).toContain("Reload");
+    expect(surveyExportErrorMessage(429)).toContain("Wait");
+    expect(surveyExportErrorMessage(null)).toContain("no file was downloaded");
+    expect(surveyExportErrorMessage(500)).toContain("no file was downloaded");
   });
 });

@@ -1,13 +1,21 @@
+import { redirect } from "next/navigation";
+
 import { Topbar } from "@/components/shell/Topbar";
+import { AccessCheckError } from "@/components/shared/AccessCheckError";
 import { Card } from "@/components/ui/card";
 import { SurveyPreview } from "@/components/needs-surveying/SurveyPreview";
 import { SurveyMessageEditor } from "@/components/needs-surveying/SurveyMessageEditor";
 import { SurveyBulkScheduler } from "@/components/needs-surveying/SurveyBulkScheduler";
 import { SurveyCampaignConsole } from "@/components/needs-surveying/SurveyCampaignConsole";
+import { SurveyProgressView } from "@/components/needs-surveying/SurveyProgressView";
 import { apiGet } from "@/lib/api";
-import { getAuthContext } from "@/lib/auth-context";
+import { getAuthContext, readAuthContext } from "@/lib/auth-context";
 import { hasFullAccess, isEngineer } from "@/constants/roles";
-import { canExportAlumni } from "@/constants/capabilities";
+import {
+  canExportAlumni,
+  canManageSurveys,
+  canViewSurveyProgress,
+} from "@/constants/capabilities";
 import {
   engineerSupportContact,
   surveySupportContact,
@@ -88,7 +96,49 @@ async function resetAudience(): Promise<{
   };
 }
 
+/**
+ * Which version of this page the reader gets.
+ *
+ *   • `surveys.manage` — the whole campaign console, exactly as before.
+ *   • `surveys.progress` alone (students) — the read-only Progress table and
+ *     nothing else (`SurveyProgressView`). No header card (sample survey,
+ *     message editor, bulk scheduler), no console (send, schedule, cancel,
+ *     caps, recipients, held-out list, resets, review queue): every one of
+ *     those calls a `surveys.manage`-only route and would 403.
+ *   • neither — redirected to the alumni list, like the other gated pages.
+ *
+ * FAILS CLOSED. Both flags start false and are raised only on a successful
+ * read; an unreadable `/auth/context` is an explicit error screen (#688), never
+ * the console on assumption. UX only — the backend re-checks every request.
+ */
 export default async function NeedsSurveyingPage() {
+  let canManage = false;
+  let canProgress = false;
+  let canExportProgress = false;
+  const auth = await readAuthContext();
+  if (auth.status === "unavailable") {
+    return (
+      <AccessCheckError status={auth.httpStatus} title="Needs Surveying" />
+    );
+  }
+  if (auth.status === "ok") {
+    canManage = canManageSurveys(auth.ctx.capabilities);
+    canProgress = canViewSurveyProgress(auth.ctx.capabilities);
+    canExportProgress = canExportAlumni(auth.ctx.capabilities);
+  }
+  if (!canManage && !canProgress) redirect("/alumni");
+
+  if (!canManage) {
+    return (
+      <>
+        <Topbar title="Needs Surveying" />
+        <main className="flex-1 overflow-auto p-6">
+          <SurveyProgressView canExport={canExportProgress} />
+        </main>
+      </>
+    );
+  }
+
   const {
     isEngineer: engineer,
     canEditMessage,

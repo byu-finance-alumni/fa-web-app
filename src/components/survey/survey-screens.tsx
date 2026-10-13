@@ -64,6 +64,7 @@ import {
   SURVEY_EMPLOYMENT_STATUS_OPTIONS,
   isEmploymentStatusPlaceholder,
 } from "@/constants/dropdowns";
+import { HEADSHOT_OBJECT_POSITION } from "@/constants/headshot";
 
 export type Fields = Record<string, string>;
 
@@ -1517,7 +1518,7 @@ function PhotoSection({
           <img
             src={photoPreview}
             alt="New profile photo preview"
-            className="h-48 w-48 shrink-0 rounded-full object-cover shadow-sm"
+            className={`h-48 w-48 shrink-0 rounded-full object-cover shadow-sm ${HEADSHOT_OBJECT_POSITION}`}
           />
         ) : (
           <span className="flex h-48 w-48 shrink-0 items-center justify-center rounded-full bg-navy-800 text-5xl font-semibold text-white">

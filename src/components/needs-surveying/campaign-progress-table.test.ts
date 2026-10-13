@@ -15,7 +15,7 @@ import type { components } from "@/types/api.gen";
 
 vi.mock("@/lib/api-client", () => ({ clientGet: vi.fn() }));
 vi.mock("@/app/(app)/needs-surveying/actions", () => ({
-  exportNoReply: vi.fn(),
+  exportSurveyList: vi.fn(),
 }));
 vi.mock("@/components/ui/Toast", () => ({
   useToast: () => ({ toast: { success: vi.fn(), error: vi.fn() } }),
@@ -80,14 +80,14 @@ describe("Progress table (#836)", () => {
       item({ graduation_year: 2018, recipients: 3, replied: 3 }),
     ]);
     expect(html).toContain("Export the 2019 alumni with no reply yet as CSV");
-    expect(html).not.toContain("Export the 2018 alumni");
+    expect(html).not.toContain("Export the 2018 alumni with no reply yet");
     // ...and one for all years in the totals row.
     expect(html).toContain("Export everyone with no reply yet, all years, as CSV");
   });
 
   it("has no all-years Export when everyone has replied", () => {
     const html = render([item({ recipients: 3, replied: 3, confirmed: 1 })]);
-    expect(html).not.toContain("Export everyone");
+    expect(html).not.toContain("Export everyone with no reply yet");
   });
 
   it("offers no Export without alumni.export", () => {
@@ -101,8 +101,28 @@ describe("Progress table (#836)", () => {
 
   it("says the export leaves out archived alumni, to those who can export", () => {
     const items = [item({ recipients: 10, replied: 4 })];
-    expect(render(items)).toContain("The export leaves out archived alumni");
+    expect(render(items)).toContain(
+      "The No reply yet export leaves out archived alumni",
+    );
     expect(render(items, false)).not.toContain("leaves out archived alumni");
+  });
+
+  it("offers a Replied Export beside the hoverable count (#866)", () => {
+    const html = render([
+      item({ graduation_year: 2019, recipients: 10, replied: 4 }),
+      item({ graduation_year: 2018, recipients: 3, replied: 0 }),
+    ]);
+    expect(html).toContain("Export the 2019 alumni who replied as CSV");
+    expect(html).not.toContain("Export the 2018 alumni who replied");
+    expect(html).toContain("Export everyone who replied, all years, as CSV");
+    // The hover trigger survives, as its own button beside the link.
+    expect(html).toContain('aria-label="4 Replied in 2019, show names"');
+  });
+
+  it("offers no Replied Export without alumni.export, or with no replies", () => {
+    const withReplies = [item({ graduation_year: 2019, recipients: 10, replied: 4 })];
+    expect(render(withReplies, false)).not.toContain("who replied");
+    expect(render([item({ recipients: 5 })])).not.toContain("who replied");
   });
 
   it("makes the median time hoverable once a year has repliers (#543)", () => {

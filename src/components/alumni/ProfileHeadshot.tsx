@@ -30,6 +30,7 @@ import {
   getHeadshotUploadUrl,
   getHeadshotUrl,
 } from "@/app/(app)/alumni/actions";
+import { HEADSHOT_OBJECT_POSITION } from "@/constants/headshot";
 
 /** Image types the backend accepts; also used for client-side pre-validation. */
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -206,7 +207,7 @@ export function ProfileHeadshot({
             src={url as string}
             alt={name}
             onError={() => setErrored(true)}
-            className="block h-full w-full rounded-full object-cover"
+            className={`block h-full w-full rounded-full object-cover ${HEADSHOT_OBJECT_POSITION}`}
           />
         </button>
       ) : (
