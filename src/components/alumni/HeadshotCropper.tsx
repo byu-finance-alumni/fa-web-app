@@ -20,6 +20,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { HEADSHOT_FOCAL_X, HEADSHOT_FOCAL_Y } from "@/constants/headshot";
 
 /** Side of the square crop viewport, in px (a large avatar). */
 const VIEWPORT = 288;
@@ -59,7 +60,11 @@ export function HeadshotCropper({
     };
   };
 
-  // Load the natural size, size the image to "cover" the viewport, and center it.
+  // Load the natural size, size the image to "cover" the viewport, and start the
+  // crop where the avatars anchor an uncropped photo (#867): centred across,
+  // 20% down rather than centred, so a tall portrait opens with the face in the
+  // circle instead of the chin. A square or landscape photo has no vertical
+  // slack, so the Y anchor changes nothing for it.
   useEffect(() => {
     const img = new Image();
     img.onload = () => {
@@ -73,8 +78,8 @@ export function HeadshotCropper({
       setBaseScale(base);
       setZoom(1);
       setOffset({
-        x: (VIEWPORT - n.w * base) / 2,
-        y: (VIEWPORT - n.h * base) / 2,
+        x: (VIEWPORT - n.w * base) * HEADSHOT_FOCAL_X,
+        y: (VIEWPORT - n.h * base) * HEADSHOT_FOCAL_Y,
       });
     };
     img.src = src;

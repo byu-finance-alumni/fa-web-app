@@ -11,6 +11,7 @@ import { ApiClientError, clientPost } from "@/lib/api-client";
 import { pendingReviewCount } from "@/components/needs-surveying/pending-review";
 import type { PendingSubmissionsQueue } from "@/components/needs-surveying/use-pending-submissions";
 import type { components } from "@/types/api.gen";
+import { HEADSHOT_OBJECT_POSITION } from "@/constants/headshot";
 
 /**
  * What `POST /survey/responses/{id}/apply` returns (#646) — the generated type,
@@ -154,7 +155,7 @@ export function PendingSubmissions({
                   <img
                     src={r.photo_preview_url}
                     alt={`New profile photo submitted by ${r.name}`}
-                    className="mt-1 h-16 w-16 rounded-full object-cover"
+                    className={`mt-1 h-16 w-16 rounded-full object-cover ${HEADSHOT_OBJECT_POSITION}`}
                   />
                 </div>
               ) : null}
