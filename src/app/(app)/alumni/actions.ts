@@ -670,6 +670,31 @@ export async function restoreAlumni(id: number): Promise<FormState> {
   return null;
 }
 
+/**
+ * "Mark info confirmed": record that someone checked this profile today and it
+ * is still right, without editing a field (`POST /alumni/{id}/confirm-current`).
+ *
+ * The backend bumps `updated_at` and the "updated by" actor and stamps the
+ * current job's `last_verified_at`, so the profile's "Last updated" tile reads
+ * today. No body. Gated server-side on the alumni-edit capability; any 2xx is
+ * success. Revalidated like the other profile writes — the alumni list sorts
+ * and shows by `updated_at` too.
+ */
+export async function confirmAlumniCurrent(id: number): Promise<FormState> {
+  try {
+    await apiPost(`/alumni/${id}/confirm-current`, {});
+  } catch (e) {
+    return {
+      error:
+        e instanceof ApiError ? e.message : "Couldn't mark the info confirmed.",
+    };
+  }
+  revalidatePath(`/alumni/${id}`);
+  revalidatePath("/alumni");
+  updateTag("dashboard");
+  return null;
+}
+
 export async function addInteraction(
   alumniId: number,
   _prev: FormState,
