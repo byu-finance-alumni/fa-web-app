@@ -15,6 +15,7 @@
 
 import { useState } from "react";
 import { InitialsAvatar } from "./InitialsAvatar";
+import { HEADSHOT_OBJECT_POSITION } from "@/constants/headshot";
 
 export function RowAvatar({
   url,
@@ -38,7 +39,7 @@ export function RowAvatar({
         width={32}
         height={32}
         onError={() => setErrored(true)}
-        className="h-8 w-8 shrink-0 rounded-full object-cover"
+        className={`h-8 w-8 shrink-0 rounded-full object-cover ${HEADSHOT_OBJECT_POSITION}`}
       />
     );
   }

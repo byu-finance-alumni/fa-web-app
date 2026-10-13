@@ -1,15 +1,16 @@
 /**
- * The names behind the Progress tab's counts, and its "No reply yet" export
- * (#836).
+ * The names behind the Progress tab's counts, and its "No reply yet" (#836)
+ * and "Replied" (#866) exports.
  *
  * `GET /survey/schedules/{year}/responders` lists who is behind a year's
  * "Replied" and "Looks good" counts; the backend builds it from the SAME
  * predicate as the counts, so each list is as long as its number.
  * `GET /survey/schedules/{year}/no-reply/export` (and the all-years
  * `/survey/schedules/no-reply/export`) download the "No reply yet" column as a
- * CSV. The pure parts — paths, which list a cell reads, the sentences — live
- * here so they can be pinned by a test without a DOM, like `held-out.ts` and
- * `campaign-progress.ts` next door.
+ * CSV; `…/replied/export` does the same for "Replied". The pure parts —
+ * paths, which list a cell reads, the sentences — live here so they can be
+ * pinned by a test without a DOM, like `held-out.ts` and `campaign-progress.ts`
+ * next door.
  */
 import type { components } from "@/types/api.gen";
 
@@ -83,7 +84,7 @@ export function respondersDriftNote(shown: number, count: number): string {
   return `This list has ${shown.toLocaleString()}; the table showed ${count.toLocaleString()} when it loaded. Reload the page to update the counts.`;
 }
 
-/* ----------------------------------------------------- no-reply export ---- */
+/* --------------------------------------------- Replied / no-reply export --- */
 
 // The API's accepted graduation-year range (`_GRAD_YEAR_MIN`/`_MAX` in
 // fa-web-api `routes/survey.py`; 1900 is the test cohort). The server action
@@ -101,32 +102,61 @@ export function isExportableYear(year: unknown): year is number {
   );
 }
 
-/** One year's "No reply yet" CSV, or every year's when `year` is null. */
-export function noReplyExportPath(year: number | null): string {
+/**
+ * Which Progress-table column a CSV export downloads: "No reply yet" (#836) or
+ * "Replied" (#866). Both are built server-side from the same predicate as the
+ * count they sit beside, minus archived alumni, and share one route shape and
+ * one error vocabulary — so one set of helpers serves both.
+ */
+export type SurveyExportKind = "no-reply" | "replied";
+
+/** The backend's filename stem: `survey_<stem>_<year|all>_<YYYY-MM-DD>.csv`. */
+const EXPORT_FILE_STEM: Record<SurveyExportKind, string> = {
+  "no-reply": "no_reply",
+  replied: "replied",
+};
+
+/** The phrase an Export link's accessible name uses for each column. */
+export const EXPORT_KIND_PHRASE: Record<SurveyExportKind, string> = {
+  "no-reply": "with no reply yet",
+  replied: "who replied",
+};
+
+/**
+ * One year's CSV of `kind`, or every year's when `year` is null. The kind is
+ * spelled exactly as the route segment.
+ */
+export function surveyExportPath(
+  kind: SurveyExportKind,
+  year: number | null,
+): string {
   return year === null
-    ? "/survey/schedules/no-reply/export"
-    : `/survey/schedules/${year}/no-reply/export`;
+    ? `/survey/schedules/${kind}/export`
+    : `/survey/schedules/${year}/${kind}/export`;
 }
 
 /**
  * The name used when the backend's `Content-Disposition` is missing or unsafe.
- * Matches the backend's own `survey_no_reply_<year|all>_<YYYY-MM-DD>.csv`, so
- * the file is named the same either way.
+ * Matches the backend's own `survey_<no_reply|replied>_<year|all>_<YYYY-MM-DD>.csv`,
+ * so the file is named the same either way.
  */
-export function noReplyExportFilename(
+export function surveyExportFilename(
+  kind: SurveyExportKind,
   year: number | null,
   now: Date = new Date(),
 ): string {
-  return `survey_no_reply_${year ?? "all"}_${now.toISOString().slice(0, 10)}.csv`;
+  return `survey_${EXPORT_FILE_STEM[kind]}_${year ?? "all"}_${now.toISOString().slice(0, 10)}.csv`;
 }
 
 /** What to tell someone whose export failed — and what to do about it. */
-export function noReplyExportErrorMessage(status: number | null): string {
+export function surveyExportErrorMessage(status: number | null): string {
   if (status === 401) {
     return "Your session has expired, so the export didn’t run. Sign in again and try it once more.";
   }
   if (status === 403) {
-    return "Exporting this list needs survey access. Ask a Super Admin if you need it.";
+    // Gated on `alumni.export` server-side, not on the survey console, so the
+    // sentence names exporting rather than "survey access".
+    return "Exporting this list needs export access. Ask a Super Admin if you need it.";
   }
   if (status === 404) {
     return "That graduation year no longer has a campaign, so there is nothing to export. Reload the page.";

@@ -135,6 +135,35 @@ describe("getVisibleNav with a nested group", () => {
 });
 
 /* ==================================================================== *
+ * Needs Surveying: either survey capability shows it
+ * ==================================================================== */
+
+describe("Needs Surveying visibility", () => {
+  const visibleHrefs = (caps: string[]) =>
+    getVisibleNav(ROLE.STUDENT, false, caps).flatMap(leafHrefs);
+
+  it("shows for a student holding only surveys.progress", () => {
+    // What students are seeded with: the read-only Progress tab and exports.
+    const hrefs = visibleHrefs(["view", "surveys.progress", "alumni.export"]);
+    expect(hrefs).toContain("/needs-surveying");
+    // ...and nothing else that rides on surveys.manage.
+    expect(hrefs).not.toContain("/links");
+  });
+
+  it("shows for surveys.manage", () => {
+    expect(visibleHrefs(["view", "surveys.manage"])).toContain(
+      "/needs-surveying",
+    );
+  });
+
+  it("stays hidden with neither", () => {
+    expect(visibleHrefs(["view", "alumni.export"])).not.toContain(
+      "/needs-surveying",
+    );
+  });
+});
+
+/* ==================================================================== *
  * Open state: route + local toggle, nothing persisted
  * ==================================================================== */
 

@@ -1026,8 +1026,11 @@ export function SurveyCampaignConsole({
               <div className="lg:flex-1 lg:pr-5">
                 <MiniStat
                   icon={<History className="h-4 w-4" aria-hidden="true" />}
-                  label="Last auto-send"
-                  value={formatWhen(displaySchedule?.last_run_at ?? null)}
+                  label="Last email sent"
+                  // The last email that actually went out (api#606) — NOT
+                  // `last_run_at`, which the daily cron stamps even on runs
+                  // that send nothing, so it read "today" on quiet days.
+                  value={formatWhen(displaySchedule?.last_sent_at ?? null)}
                 />
                 {/* Reply tally for the selected class — replied vs. the class
                     total, with the not-yet-replied count. */}

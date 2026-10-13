@@ -43,6 +43,7 @@ import { ProfileNotes } from "@/components/alumni/ProfileNotes";
 import { ProfileHistory } from "@/components/alumni/ProfileHistory";
 import type { Note } from "@/types/notes";
 import { ExportProfileButton } from "@/components/alumni/ExportProfileButton";
+import { ConfirmCurrentButton } from "@/components/alumni/ConfirmCurrentButton";
 import { DrawerList } from "@/components/alumni/DrawerList";
 import { LoadError } from "@/components/shared/LoadError";
 import { MetricCard } from "@/components/shared/MetricCard";
@@ -477,6 +478,9 @@ export async function AlumniProfileView({
   // view_only). Asked of the CAPABILITY, not the role, so a permission-editor
   // change is reflected here.
   let canViewHistory = false;
+  // "Mark info confirmed" (POST /alumni/{id}/confirm-current) is gated on the
+  // same `alumni.edit` capability server-side.
+  let canConfirmCurrent = false;
   const auth = await readAuthContext();
   if (auth.status === "ok") {
     const ctx = auth.ctx;
@@ -491,6 +495,7 @@ export async function AlumniProfileView({
       "profile.completeness",
     );
     canViewHistory = canEditAlumniRecord(ctx.capabilities);
+    canConfirmCurrent = canEditAlumniRecord(ctx.capabilities);
   } else if (auth.status === "unavailable") {
     // A 401/403 leaves the flags false — that is the backend telling us this
     // account is view-only, and the reduced profile is correct. A fault is not
@@ -1067,6 +1072,14 @@ export async function AlumniProfileView({
                   {updatedBy ? (
                     <span className="block text-xs font-normal text-gray-500">
                       by {updatedBy}
+                    </span>
+                  ) : null}
+                  {/* Stamp it checked today without editing a field. On the
+                      `alumni.edit` capability — the gate the backend's
+                      confirm-current route uses — not the role. */}
+                  {canConfirmCurrent ? (
+                    <span className="block">
+                      <ConfirmCurrentButton alumniId={aid} />
                     </span>
                   ) : null}
                 </>

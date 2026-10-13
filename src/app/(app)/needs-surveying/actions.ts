@@ -1,7 +1,8 @@
 "use server";
 
 /**
- * Server action behind the Progress tab's "No reply yet" export (#836).
+ * Server action behind the Progress tab's CSV exports: "No reply yet" (#836)
+ * and "Replied" (#866).
  *
  * A server action rather than a browser fetch for the same reason as the Links
  * report (`links/actions.ts`): the backend names the file in its
@@ -13,40 +14,46 @@
 import { apiGetFile, ApiError } from "@/lib/api";
 import {
   isExportableYear,
-  noReplyExportErrorMessage,
-  noReplyExportFilename,
-  noReplyExportPath,
+  surveyExportErrorMessage,
+  surveyExportFilename,
+  surveyExportPath,
+  type SurveyExportKind,
 } from "@/components/needs-surveying/responders";
 
-export type ExportNoReplyResult =
+export type ExportSurveyListResult =
   | { ok: true; csv: string; filename: string }
   | { ok: false; error: string };
 
 /**
- * One year's "No reply yet" people as CSV text, or every year's when `year` is
- * null. The browser turns the text into a download.
+ * One year's `kind` list as CSV text, or every year's when `year` is null. The
+ * browser turns the text into a download.
  *
- * `year` is checked before it reaches a URL: a server action is a real
- * endpoint anything can call, and the backend would 422 a bad year anyway, but
- * a sentence the user can read beats a failed request they cannot.
+ * `kind` and `year` are both checked before they reach a URL: a server action
+ * is a real endpoint anything can call, and the backend would 404/422 a bad
+ * value anyway, but a sentence the user can read beats a failed request they
+ * cannot.
  */
-export async function exportNoReply(
+export async function exportSurveyList(
+  kind: SurveyExportKind,
   year: number | null,
-): Promise<ExportNoReplyResult> {
+): Promise<ExportSurveyListResult> {
+  if (kind !== "no-reply" && kind !== "replied") {
+    return { ok: false, error: surveyExportErrorMessage(null) };
+  }
   if (year !== null && !isExportableYear(year)) {
-    return { ok: false, error: noReplyExportErrorMessage(null) };
+    return { ok: false, error: surveyExportErrorMessage(null) };
   }
   try {
-    const file = await apiGetFile(noReplyExportPath(year));
+    const file = await apiGetFile(surveyExportPath(kind, year));
     return {
       ok: true,
       csv: file.text,
-      filename: file.filename ?? noReplyExportFilename(year),
+      filename: file.filename ?? surveyExportFilename(kind, year),
     };
   } catch (e) {
     return {
       ok: false,
-      error: noReplyExportErrorMessage(e instanceof ApiError ? e.status : null),
+      error: surveyExportErrorMessage(e instanceof ApiError ? e.status : null),
     };
   }
 }
