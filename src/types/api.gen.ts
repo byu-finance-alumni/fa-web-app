@@ -1537,6 +1537,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/alumni/{alumni_id}/confirm-current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Alumni Current
+         * @description "Info confirmed" (#605): mark the profile as checked today, changing no
+         *     data.
+         *
+         *     Bumps the record's "Last updated" to now and attributes it to the caller
+         *     (the same provenance a real edit stamps), and stamps the current role's
+         *     `last_verified_at` when there is one. Gated like `PATCH /alumni/{id}`
+         *     (`alumni.edit`). 404 for an unknown or archived record. Audit-logged as
+         *     `confirm_current`. Returns the same `AlumniWriteResult` as the edit, with
+         *     an empty `duplicate_warnings`.
+         */
+        post: operations["confirm_alumni_current_alumni__alumni_id__confirm_current_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/alumni/{alumni_id}/restore": {
         parameters: {
             query?: never;
@@ -4776,10 +4804,16 @@ export interface paths {
          * List Survey Schedules
          * @description All auto-send schedules (newest cohort first) + per-stage sent counts.
          *
+         *     Gated on the read-only progress view (`surveys.progress`, #605) — or
+         *     `surveys.manage`, which includes it — because this is the list the
+         *     Progress tab is drawn from. It carries counts and campaign state only, no
+         *     alumni; the one person it names is the staff member who started each
+         *     campaign (`created_by`, a display name).
+         *
          *     Also backs the engineer Surveys console (which needs who started each
          *     campaign and when) — the console reads this rather than a second endpoint,
          *     since it wants exactly this list. The engineer holds every capability, so
-         *     the full-access gate already admits them.
+         *     the gate already admits them.
          *
          *     Carries each running campaign's next send (#562) — the only schedule read
          *     that does.
@@ -4953,14 +4987,79 @@ export interface paths {
          *     manual follow-up call sheet, which also requires all three emails and so is
          *     a subset of this until the campaign ends.
          *
-         *     Columns: name, graduation year, email, phone, emails sent this cycle, last
-         *     email sent (date). Formula-injection-safe. Gated by `RequireAlumniExport`,
-         *     not the surveys guard: bulk contact details leave the system here, and every
-         *     file of alumni data does so under that one capability (as the event attendee
-         *     export does). Audit-logged as `export_survey_no_reply`. 404 = no campaign for the
-         *     year. Returns `text/csv` as `survey_no_reply_<year>_<YYYY-MM-DD>.csv`.
+         *     Columns: Name, Graduation year, Email, Phone, Emails sent this cycle, Last
+         *     email sent (date), NetID, Employer, Title, Industry, Work City, Work State,
+         *     Work Country (the employer's location), LinkedIn, Last Updated (date the
+         *     record last changed), Profile Link (the app's profile URL; empty when the
+         *     frontend URL is not configured). Formula-injection-safe. Gated by
+         *     `RequireAlumniExport`, not the surveys guard: bulk contact details leave the
+         *     system here, and every file of alumni data does so under that one capability
+         *     (as the event attendee export does). Audit-logged as
+         *     `export_survey_no_reply`. 404 = no campaign for the year. Returns `text/csv`
+         *     as `survey_no_reply_<year>_<YYYY-MM-DD>.csv`.
          */
         get: operations["export_survey_no_reply_survey_schedules__grad_year__no_reply_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/schedules/replied/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Survey Replied All
+         * @description Every year's "Replied" people as one CSV (#605).
+         *
+         *     The all-years twin of `GET /schedules/{grad_year}/replied/export`. Its row
+         *     count is the summed `replied` column minus archived alumni, which the file
+         *     leaves out. Same gate, same columns, same audit trail.
+         */
+        get: operations["export_survey_replied_all_survey_schedules_replied_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/schedules/{grad_year}/replied/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Survey Replied
+         * @description This year's "Replied" people as a CSV download (#605).
+         *
+         *     The Progress table's `replied` column — the same people the
+         *     `GET /schedules/{grad_year}/responders` "replied" hover lists: emailed in
+         *     the year's current cycle with a pending, applied or confirmed reply inside
+         *     the re-survey window that a reset has not superseded. A `rejected`-only alum
+         *     is NOT in it (they are in the no-reply file). Archived alumni are left out,
+         *     as in the no-reply file, so the row count is the column minus its archived
+         *     alumni.
+         *
+         *     Columns: every no-reply column (Name, Graduation year, Email, Phone, Emails
+         *     sent this cycle, Last email sent, NetID, Employer, Title, Industry, Work
+         *     City, Work State, Work Country, LinkedIn, Last Updated, Profile Link), then
+         *     Mailing Address 1, Mailing Address 2, Mailing City, Mailing State, Mailing
+         *     Zip, Mailing Country. Formula-injection-safe. Gated by `RequireAlumniExport`
+         *     (via the shared export rate limit) for the same reason as the no-reply file.
+         *     Audit-logged as `export_survey_replied`. 404 = no campaign for the year.
+         *     Returns `text/csv` as `survey_replied_<year>_<YYYY-MM-DD>.csv`.
+         */
+        get: operations["export_survey_replied_survey_schedules__grad_year__replied_export_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4985,8 +5084,10 @@ export interface paths {
          *     cycle, re-survey window, not superseded by a reset, distinct alumni — so
          *     each list is exactly as long as the number it hangs off.
          *
-         *     Gated like `GET /schedules` (the counts it expands) and the non-responders
-         *     call sheet. Returns only an id and a display name per alum. 404 = the year
+         *     Gated like `GET /schedules` (the counts it expands): the read-only
+         *     `surveys.progress` view, or `surveys.manage` (#605). Returns only an id, a
+         *     display name and a fill time per alum — no contact details, which is why it
+         *     can sit on the read-only gate while the non-responders call sheet cannot. 404 = the year
          *     has no campaign at all; two empty lists = nobody has answered yet.
          *     Audit-logged (``read_survey_responders``, #591).
          */
@@ -10524,6 +10625,8 @@ export interface components {
             cycle_seq: number;
             /** Last Run At */
             last_run_at: string | null;
+            /** Last Sent At */
+            last_sent_at: string | null;
             /** Created At */
             created_at: string | null;
             /** Created By */
@@ -13052,6 +13155,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AlumniHygienePreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_alumni_current_alumni__alumni_id__confirm_current_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alumni_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlumniWriteResult"];
                 };
             };
             /** @description Validation Error */
@@ -17153,6 +17287,57 @@ export interface operations {
         };
     };
     export_survey_no_reply_survey_schedules__grad_year__no_reply_export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grad_year: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_survey_replied_all_survey_schedules_replied_export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    export_survey_replied_survey_schedules__grad_year__replied_export_get: {
         parameters: {
             query?: never;
             header?: never;
