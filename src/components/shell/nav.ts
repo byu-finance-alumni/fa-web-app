@@ -8,6 +8,7 @@ import { CAPABILITY, hasCapability } from "@/constants/capabilities";
  *   (no flag)      → every role
  *   hideViewOnly   → student and up (hidden from view_only / "Professor")
  *   capability     → holders of that capability code (see @/constants/capabilities)
+ *   anyCapability  → holders of AT LEAST ONE of these codes
  *   superAdminOnly → super_admin, engineer
  *   vocabOnly      → holders of the vocab_admin capability (engineer + granted)
  *   engineerOnly   → engineer only
@@ -22,6 +23,12 @@ import { CAPABILITY, hasCapability } from "@/constants/capabilities";
 type NavGating = {
   /** Capability code required to see this item (fa-web-api #379). */
   capability?: string;
+  /**
+   * Any ONE of these codes is enough. For a screen with a full and a read-only
+   * tier — Needs Surveying shows its Progress tab alone to `surveys.progress`
+   * and the whole console to `surveys.manage` — so the entry appears for both.
+   */
+  anyCapability?: readonly string[];
   superAdminOnly?: boolean;
   engineerOnly?: boolean;
   vocabOnly?: boolean;
@@ -120,9 +127,12 @@ export const NAV: NavItem[] = [
     children: [
       { href: "/tasks", label: "Tasks", capability: CAPABILITY.REPORTS_ADVANCED },
       {
+        // Either tier (fa-web-api #866 follow-on): `surveys.manage` gets the
+        // campaign console, `surveys.progress` (students) the read-only
+        // Progress tab alone. The page itself decides which it renders.
         href: "/needs-surveying",
         label: "Needs Surveying",
-        capability: CAPABILITY.SURVEYS_MANAGE,
+        anyCapability: [CAPABILITY.SURVEYS_MANAGE, CAPABILITY.SURVEYS_PROGRESS],
       },
       {
         href: "/pay-it-forward",
@@ -336,6 +346,8 @@ export function getVisibleNav(
   const canSee = (n: NavItem) =>
     (!n.superAdminOnly || isSuperAdmin) &&
     (!n.capability || hasCapability(capabilities, n.capability)) &&
+    (!n.anyCapability ||
+      n.anyCapability.some((c) => hasCapability(capabilities, c))) &&
     (!n.engineerOnly || isEngineer) &&
     (!n.vocabOnly || canVocab) &&
     (!n.hideViewOnly || !isViewOnly);

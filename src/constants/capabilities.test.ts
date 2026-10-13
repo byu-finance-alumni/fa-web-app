@@ -16,6 +16,7 @@ import {
   canManageHeadshots,
   canManageSurveys,
   canViewDonations,
+  canViewSurveyProgress,
   canWriteNotes,
   hasCapability,
 } from "./capabilities";
@@ -310,5 +311,22 @@ describe("the Links tab gates deletion on the capability, not a role", () => {
     expect(src).toContain("active: canDelete && active");
     expect(src).not.toContain("hasFullAccess");
     expect(src).not.toContain("roles");
+  });
+});
+
+/**
+ * `surveys.progress`: the read-only Progress tab (students). Its own code, so
+ * it must neither grant nor be granted by the console capability.
+ */
+describe("surveys.progress", () => {
+  it("matches the backend code", () => {
+    expect(CAPABILITY.SURVEYS_PROGRESS).toBe("surveys.progress");
+  });
+
+  it("is independent of surveys.manage in both directions", () => {
+    expect(canViewSurveyProgress(["view", "surveys.progress"])).toBe(true);
+    expect(canManageSurveys(["view", "surveys.progress"])).toBe(false);
+    expect(canViewSurveyProgress(["view", "surveys.manage"])).toBe(false);
+    expect(canViewSurveyProgress(undefined)).toBe(false);
   });
 });

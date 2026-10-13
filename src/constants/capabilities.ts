@@ -43,6 +43,12 @@ export const CAPABILITY = {
   NOTES_MANAGE: "notes.manage",
   /** The survey console: responses review + campaign scheduling/sending. */
   SURVEYS_MANAGE: "surveys.manage",
+  /**
+   * The read-only half of Needs Surveying: the Progress tab's counts and the
+   * names behind them, nothing that sends, pauses, reviews or resets. Seeded to
+   * students. Never implied by, and never implies, `surveys.manage`.
+   */
+  SURVEYS_PROGRESS: "surveys.progress",
   /** Permanently delete opportunity links, singly or in bulk. */
   LINKS_DELETE: "links.delete",
   /** See Pay It Forward donor records and dollar amounts. */
@@ -147,6 +153,14 @@ export const canWriteNotes = (
 export const canManageSurveys = (
   capabilities: readonly string[] | null | undefined,
 ) => hasCapability(capabilities, CAPABILITY.SURVEYS_MANAGE);
+
+/**
+ * May see the Needs Surveying Progress tab (counts + names) without the
+ * console. Read-only; every campaign control still needs {@link canManageSurveys}.
+ */
+export const canViewSurveyProgress = (
+  capabilities: readonly string[] | null | undefined,
+) => hasCapability(capabilities, CAPABILITY.SURVEYS_PROGRESS);
 
 /**
  * May PERMANENTLY delete opportunity links — the Links tab's Edit/multi-select

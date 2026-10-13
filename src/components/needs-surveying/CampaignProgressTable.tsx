@@ -18,13 +18,19 @@
  *
  * Two things here DO make requests, both on demand (#836): hovering a
  * "Replied" or "Looks good" count fetches that year's names once, and
- * "Export" beside a "No reply yet" count downloads those people as a CSV. The
- * counts themselves still come only from the schedules payload.
+ * "Export" beside a "Replied" (#866) or "No reply yet" count downloads those
+ * people as a CSV. The counts themselves still come only from the schedules
+ * payload.
+ *
+ * Read-only by construction — nothing here sends, pauses, reviews or resets —
+ * which is what lets it render alone for `surveys.progress` holders
+ * (`SurveyProgressView`). Keep it that way: a control added here that needs
+ * `surveys.manage` would 403 for students.
  */
 import type { components } from "@/types/api.gen";
 import { Card } from "@/components/ui/card";
 import { MedianFillTimeCount } from "./MedianFillTimeCount";
-import { NoReplyExportButton } from "./NoReplyExportButton";
+import { SurveyExportButton } from "./SurveyExportButton";
 import { ResponderCount, useRespondersCache } from "./ResponderCount";
 import {
   formatFillTime,
@@ -46,7 +52,7 @@ export function CampaignProgressTable({
   schedules: SurveyScheduleItem[] | null;
   /** True when `GET /survey/schedules` failed, as opposed to returning none. */
   failed?: boolean;
-  /** Holds `alumni.export` (#836): offers the "No reply yet" Export links. */
+  /** Holds `alumni.export` (#836): offers the Replied / No reply yet Export links. */
   canExport?: boolean;
 }) {
   // Above the early returns: a hook cannot sit behind a condition.
@@ -116,8 +122,8 @@ export function CampaignProgressTable({
             other on a narrow laptop; below it the wrapper pans horizontally
             rather than wrapping headers. Applied/Rejected (#497) added roughly
             5rem each on top of the original 46rem; Looks good and the Export
-            links (#836) another 6rem. */}
-        <table className="w-full min-w-[70rem] border-collapse">
+            links (#836) another 6rem; the Replied Export (#866) 3rem more. */}
+        <table className="w-full min-w-[73rem] border-collapse">
           <thead>
             <tr className="border-b border-gray-200">
               <th className={TH}>Year</th>
@@ -153,14 +159,19 @@ export function CampaignProgressTable({
                 <td className={`${TD} text-right`}>
                   {r.emailed.toLocaleString()}
                 </td>
-                {/* Hover or focus either count for the names behind it. */}
-                <td className={`${TD} text-right`}>
+                {/* Hover or focus either count for the names behind it. The
+                    Export link (#866) is a sibling button, not inside the
+                    hover trigger, so the two never fight over the pointer. */}
+                <td className={`${TD} whitespace-nowrap text-right`}>
                   <ResponderCount
                     year={r.graduationYear}
                     kind="replied"
                     count={r.replied}
                     cache={responders}
                   />
+                  {canExport && r.replied > 0 ? (
+                    <SurveyExportButton kind="replied" year={r.graduationYear} />
+                  ) : null}
                 </td>
                 <td className={`${TD} text-right`}>
                   <ResponderCount
@@ -187,7 +198,7 @@ export function CampaignProgressTable({
                   {/* Only when there is someone to export: an empty file is
                       not a report. */}
                   {canExport && r.silent > 0 ? (
-                    <NoReplyExportButton year={r.graduationYear} />
+                    <SurveyExportButton kind="no-reply" year={r.graduationYear} />
                   ) : null}
                 </td>
                 {/* "To review" is the one column that is a to-do list rather
@@ -226,9 +237,13 @@ export function CampaignProgressTable({
                 {totals.emailed.toLocaleString()}
               </td>
               {/* The totals are sums across years, so there is no single
-                  year's list to hover; they stay plain numbers. */}
-              <td className={`${TD} text-right font-semibold`}>
+                  year's list to hover; they stay plain numbers. The all-years
+                  file is one request, though, so Replied gets its Export. */}
+              <td className={`${TD} whitespace-nowrap text-right font-semibold`}>
                 {totals.replied.toLocaleString()}
+                {canExport && totals.replied > 0 ? (
+                  <SurveyExportButton kind="replied" year={null} />
+                ) : null}
               </td>
               <td className={`${TD} text-right font-semibold`}>
                 {totals.confirmed.toLocaleString()}
@@ -244,7 +259,7 @@ export function CampaignProgressTable({
               <td className={`${TD} whitespace-nowrap text-right font-semibold`}>
                 {totals.silent.toLocaleString()}
                 {canExport && totals.silent > 0 ? (
-                  <NoReplyExportButton year={null} />
+                  <SurveyExportButton kind="no-reply" year={null} />
                 ) : null}
               </td>
               <td className={`${TD} text-right font-semibold`}>
@@ -272,7 +287,8 @@ export function CampaignProgressTable({
           have had all three emails and never answered. &ldquo;Looks
           good&rdquo; is the part of &ldquo;Replied&rdquo; who said their record
           was already correct. Hover a Replied or Looks good count to see the
-          names; &ldquo;Export&rdquo; downloads the No reply yet list.
+          names; &ldquo;Export&rdquo; beside Replied or No reply yet
+          downloads that list.
         </p>
         <p>
           &ldquo;Median time to complete&rdquo; is the median active time
@@ -287,8 +303,8 @@ export function CampaignProgressTable({
             people who get the Export links at all. */}
         {canExport ? (
           <p>
-            The export leaves out archived alumni, so it can have fewer rows
-            than &ldquo;No reply yet&rdquo; shows.
+            The No reply yet export leaves out archived alumni, so it can have
+            fewer rows than &ldquo;No reply yet&rdquo; shows.
           </p>
         ) : null}
         {/* The two new columns (#497) are easy to misread in exactly two ways,
