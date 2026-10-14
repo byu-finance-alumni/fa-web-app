@@ -36,19 +36,47 @@ function formatSendDay(iso: string): string {
   });
 }
 
+export type NextSendParts = {
+  /** e.g. "Wed, Oct 14". */
+  day: string;
+  /** e.g. "1-week reminder". */
+  stage: string;
+  /** e.g. "~37 people", or `null` when there is no count. */
+  people: string | null;
+};
+
 /**
- * e.g. "Next: 1-week reminder · Wed, Oct 14 · ~37 people", or `null` when the
- * campaign has no next send. The count is approximate on purpose: replies before
- * that day shrink it, and the daily cap can spread it over several days.
+ * The pieces of a campaign's next send, or `null` when it has none. Shared by
+ * the schedule card's one-liner and the engineer console's "Next send" column
+ * (#611) so the two cannot disagree. The count is approximate on purpose:
+ * replies before that day shrink it, and the daily cap can spread it over
+ * several days.
  */
-export function nextSendLine(item: NextSendFields | null): string | null {
+export function nextSendParts(
+  item: NextSendFields | null,
+): NextSendParts | null {
   if (!item || item.next_stage === null || !item.next_send_date) return null;
   const stage = STAGE_LABELS[item.next_stage];
   if (!stage) return null;
-  const parts = [`Next: ${stage}`, formatSendDay(item.next_send_date)];
   const n = item.next_send_count;
-  if (n !== null && n > 0) {
-    parts.push(`~${n.toLocaleString()} ${n === 1 ? "person" : "people"}`);
-  }
+  return {
+    day: formatSendDay(item.next_send_date),
+    stage,
+    people:
+      n !== null && n > 0
+        ? `~${n.toLocaleString()} ${n === 1 ? "person" : "people"}`
+        : null,
+  };
+}
+
+/**
+ * e.g. "Next: 1-week reminder · Wed, Oct 14 · ~37 people", or `null` when the
+ * campaign has no next send.
+ */
+export function nextSendLine(item: NextSendFields | null): string | null {
+  const next = nextSendParts(item);
+  if (!next) return null;
+  const parts = [`Next: ${next.stage}`, next.day];
+  if (next.people) parts.push(next.people);
   return parts.join(" · ");
 }

@@ -13,6 +13,7 @@ import { CampaignRemoveControl } from "@/components/engineer/CampaignRemoveContr
 import { SurveyCampaignReset } from "@/components/engineer/SurveyCampaignReset";
 import { getSurveySchedules, type SurveyScheduleItem } from "./actions";
 import { LoadError } from "@/components/shared/LoadError";
+import { nextSendParts } from "@/components/needs-surveying/next-send";
 
 /**
  * The two statuses the daily send cron picks up (`_load_schedules_due`). A
@@ -55,6 +56,31 @@ function formatDate(iso: string | null): string {
     month: "short",
     day: "numeric",
   });
+}
+
+/**
+ * When this campaign's next email goes out (#611), straight from the backend —
+ * the same answer the cron sends by, so it already skips Mondays. A dash when
+ * nothing more will send (paused, cancelled, completed, all delivered).
+ */
+function NextSendCell({ item }: { item: SurveyScheduleItem }) {
+  const next = nextSendParts(item);
+  if (!next) return <span className="text-gray-400">—</span>;
+  return (
+    <>
+      <span className="font-medium text-gray-900">{next.day}</span>
+      <span className="block text-xs text-gray-500">
+        {next.people ? `${next.stage} · ${next.people}` : next.stage}
+      </span>
+    </>
+  );
+}
+
+/** {@link NextSendCell} as one line, for the mobile cards. */
+function NextSendText({ item }: { item: SurveyScheduleItem }) {
+  const next = nextSendParts(item);
+  if (!next) return <>—</>;
+  return <>{[next.day, next.stage, next.people].filter(Boolean).join(" · ")}</>;
 }
 
 /**
@@ -128,7 +154,9 @@ export default async function EngineerSurveysPage() {
   }
 
   const running = (schedules ?? []).filter((s) => RUNNING.has(s.status));
-  const activeYears = running.map((s) => s.graduation_year).sort((a, b) => a - b);
+  const activeYears = running
+    .map((s) => s.graduation_year)
+    .sort((a, b) => a - b);
   const pausedYears = (schedules ?? [])
     .filter((s) => s.status === PAUSED)
     .map((s) => s.graduation_year)
@@ -137,7 +165,10 @@ export default async function EngineerSurveysPage() {
   return (
     <>
       <Topbar
-        breadcrumb={[{ label: "Engineer", href: "/engineer" }, { label: "Surveys" }]}
+        breadcrumb={[
+          { label: "Engineer", href: "/engineer" },
+          { label: "Surveys" },
+        ]}
       />
       <main className="flex-1 overflow-auto p-6">
         <h1 className="sr-only">Surveys</h1>
@@ -146,7 +177,9 @@ export default async function EngineerSurveysPage() {
           <LoadError
             status={error.status}
             noun="the survey campaigns"
-            title={error.status === 403 ? "Engineer access required" : undefined}
+            title={
+              error.status === 403 ? "Engineer access required" : undefined
+            }
             message={
               error.status === 403
                 ? "The survey console is restricted to engineers."
@@ -165,7 +198,9 @@ export default async function EngineerSurveysPage() {
                   </p>
                   <p
                     className={`text-4xl font-semibold tabular-nums tracking-tight ${
-                      activeYears.length > 0 ? "text-danger-600" : "text-navy-800"
+                      activeYears.length > 0
+                        ? "text-danger-600"
+                        : "text-navy-800"
                     }`}
                   >
                     {activeYears.length}
@@ -271,9 +306,12 @@ export default async function EngineerSurveysPage() {
                           Paused {formatDateTime(s.paused_at)}
                         </p>
                       ) : null}
+                      <p className="mt-1 text-xs text-gray-500">
+                        Next send: <NextSendText item={s} />
+                      </p>
                       <p className="mt-1 text-xs tabular-nums text-gray-500">
-                        Sent {s.sent_initial} initial · {s.sent_reminder_1} 1-week
-                        · {s.sent_reminder_2} 2-week
+                        Sent {s.sent_initial} initial · {s.sent_reminder_1}{" "}
+                        1-week · {s.sent_reminder_2} 2-week
                       </p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         <CampaignPauseControl
@@ -301,6 +339,7 @@ export default async function EngineerSurveysPage() {
                         <th className="px-4 py-3">Started by</th>
                         <th className="w-56 px-4 py-3">Created (Utah)</th>
                         <th className="w-56 px-4 py-3">Last run (Utah)</th>
+                        <th className="w-44 px-4 py-3">Next send</th>
                         <th className="w-40 px-4 py-3 text-right">
                           Sent (init / 1wk / 2wk)
                         </th>
@@ -346,6 +385,9 @@ export default async function EngineerSurveysPage() {
                           </td>
                           <td className="px-4 py-3 text-gray-700">
                             {formatDateTime(s.last_run_at)}
+                          </td>
+                          <td className="px-4 py-3 text-gray-700">
+                            <NextSendCell item={s} />
                           </td>
                           <td className="px-4 py-3 text-right tabular-nums text-gray-700">
                             {s.sent_initial} / {s.sent_reminder_1} /{" "}
