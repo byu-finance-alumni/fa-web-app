@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { nextSendLine } from "./next-send";
+import { nextSendLine, nextSendParts } from "./next-send";
 
 const item = (
   next_stage: number | null,
@@ -38,5 +38,17 @@ describe("nextSendLine", () => {
     expect(nextSendLine(null)).toBeNull();
     // A stage the card has no name for is not guessed at.
     expect(nextSendLine(item(3, "2026-10-14", 5))).toBeNull();
+  });
+});
+
+describe("nextSendParts", () => {
+  it("splits the line into the console column's pieces (#611)", () => {
+    expect(nextSendParts(item(1, "2026-10-20", 37))).toEqual({
+      day: "Tue, Oct 20",
+      stage: "1-week reminder",
+      people: "~37 people",
+    });
+    expect(nextSendParts(item(0, "2026-10-20", 0))?.people).toBeNull();
+    expect(nextSendParts(item(null, null, null))).toBeNull();
   });
 });
