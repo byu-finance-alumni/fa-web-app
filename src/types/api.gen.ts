@@ -16292,7 +16292,7 @@ export interface operations {
     get_vocabulary_vocabulary__category__get: {
         parameters: {
             query?: {
-                /** @description 'all' (default) returns every active term. 'primary' additionally hides the industries that may only be used as a SECONDARY industry (Law, Corporate Banking, Sales and Trading, Credit Risk) — pass it when rendering the PRIMARY industry dropdown. No effect on other categories. */
+                /** @description 'all' (default) returns every active term. 'primary' additionally hides the industries that may only be used as a SECONDARY industry (Law, Corporate Banking, Sales and Trading, Credit Risk, FP&A) — pass it when rendering the PRIMARY industry dropdown. No effect on other categories. */
                 scope?: "all" | "primary";
             };
             header?: never;
