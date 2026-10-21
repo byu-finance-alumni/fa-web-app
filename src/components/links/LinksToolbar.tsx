@@ -18,9 +18,13 @@ import {
   STATUSES,
   STATUS_LABELS,
   hasActiveLinkFilters,
+  linkCountLabel,
   linksDateRangeError,
+  semesterOptions,
   toLinksQs,
+  toggleSemester,
   type LinksFilterState,
+  type OpportunityLinkSemesterCount,
 } from "@/lib/opportunityLinks";
 
 /**
@@ -39,6 +43,7 @@ export function LinksToolbar({
   initial,
   canReview,
   createHref = null,
+  semesters = null,
 }: {
   initial: LinksFilterState;
   /**
@@ -50,6 +55,12 @@ export function LinksToolbar({
   canReview: boolean;
   /** Destination for the "Add link" button, or `null` to hide it. */
   createHref?: string | null;
+  /**
+   * The semesters that have links under the other current filters, newest
+   * first, with counts (`GET /opportunity-links/semesters`, #876). `null` when
+   * that request failed — the menu says so instead of offering no boxes.
+   */
+  semesters?: OpportunityLinkSemesterCount[] | null;
 }) {
   const router = useRouter();
   const [f, setF] = useState<LinksFilterState>(initial);
@@ -115,13 +126,17 @@ export function LinksToolbar({
     // The range counts as ONE filter however many ends are set — "1 to 2 filters
     // depending on whether you bounded both sides" is not a distinction the
     // badge is trying to draw.
-    (f.submitted_from || f.submitted_to ? 1 : 0);
+    (f.submitted_from || f.submitted_to ? 1 : 0) +
+    // Same rule for semesters: ticking three is one "semester" filter.
+    (f.semesters.length > 0 ? 1 : 0);
 
   const isDirty = hasActiveLinkFilters(f);
   // Shown under the inputs as you type, which is the only place the mistake can
   // be corrected. The page renders its own copy where the rows would be, so an
   // inverted range in a deep link is explained even with the menu closed.
   const rangeError = linksDateRangeError(f);
+  // Ticked-but-unlisted semesters are merged in so a box can always be unticked.
+  const semesterBoxes = semesterOptions(semesters ?? [], f.semesters);
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white p-3 shadow-card">
@@ -312,6 +327,62 @@ export function LinksToolbar({
                   </p>
                 )}
               </div>
+
+              <fieldset>
+                {/* Semester SUBMITTED (#876), next to the date range it ANDs
+                    with. These boxes drive the list AND the CSV — the export
+                    is always exactly the list — so this is the export's
+                    semester picker too. None ticked = every semester. */}
+                <legend className="mb-1.5 text-sm font-medium text-gray-900">
+                  Semester submitted
+                </legend>
+                {semesters === null && semesterBoxes.length === 0 ? (
+                  <p className="text-xs text-gray-500">
+                    The semester list didn’t load. Reload the page to try
+                    again.
+                  </p>
+                ) : semesterBoxes.length === 0 ? (
+                  <p className="text-xs text-gray-500">
+                    No links yet, so there are no semesters to pick.
+                  </p>
+                ) : (
+                  <div className="max-h-44 space-y-1 overflow-y-auto pr-1">
+                    {semesterBoxes.map((s) => {
+                      const id = `links-semester-${s.semester}`;
+                      return (
+                        <label
+                          key={s.semester}
+                          htmlFor={id}
+                          className="flex cursor-pointer items-center gap-2 text-sm text-gray-700"
+                        >
+                          <input
+                            id={id}
+                            type="checkbox"
+                            checked={f.semesters.includes(s.semester)}
+                            onChange={() =>
+                              set(
+                                "semesters",
+                                toggleSemester(f.semesters, s.semester),
+                              )
+                            }
+                            className="h-4 w-4 cursor-pointer accent-brand-blue-600"
+                          />
+                          <span className="flex-1">{s.label}</span>
+                          <span className="tabular-nums text-xs text-gray-500">
+                            {s.count === null ? "none" : linkCountLabel(s.count)}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+                <p className="mt-1.5 text-xs text-gray-500">
+                  Winter is Jan–Apr, Spring May–Jun, Summer Jul–Aug, Fall
+                  Sep–Dec, by the date the link was submitted. Leave all
+                  unticked for every semester. Applies to the list and to
+                  Export CSV.
+                </p>
+              </fieldset>
 
               <Button
                 type="button"

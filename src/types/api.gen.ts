@@ -3859,6 +3859,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/opportunity-links/semesters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Opportunity Link Semesters
+         * @description The semesters the Links filter offers as checkboxes (#876).
+         *
+         *     FROM THE DATA, not a fixed calendar window: every semester that has at least
+         *     one link under the other current filters, newest first, with its count. A
+         *     fixed "last N terms" range would offer boxes that can only ever return
+         *     nothing and would hide an older semester that does have postings; this
+         *     always offers exactly the terms a report could contain, and the counts tell
+         *     staff what each tick adds before they export.
+         *
+         *     Takes the list's filter parameters MINUS ``semester`` (and paging): the
+         *     options must not shrink to whatever is already ticked. Resolved by the same
+         *     :func:`_resolve_filters`, so the status default and the status gate are the
+         *     list's — a view-only caller sees counts for approved links only, and asking
+         *     for ``pending``/``rejected`` without ``surveys.manage`` is the same 403.
+         *
+         *     ⚠️ DECLARED BEFORE ``/{link_id}``, for the same reason as ``/export``.
+         */
+        get: operations["list_opportunity_link_semesters_opportunity_links_semesters_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/opportunity-links/{link_id}": {
         parameters: {
             query?: never;
@@ -9411,6 +9446,8 @@ export interface components {
             limit: number;
             /** Offset */
             offset: number;
+            /** Previous Semester */
+            previous_semester: string | null;
         };
         /**
          * OpportunityLinkRead
@@ -9469,6 +9506,38 @@ export interface components {
             reviewed_by: string | null;
             /** Reviewed At */
             reviewed_at: string | null;
+            /**
+             * Semester
+             * @description The semester as the ``semester`` query parameter spells it:
+             *     ``Fall-2026``. The Links page groups on this.
+             */
+            readonly semester: string;
+            /**
+             * Semester Label
+             * @description The same semester for display and the CSV: ``Fall 2026``.
+             */
+            readonly semester_label: string;
+        };
+        /**
+         * OpportunityLinkSemesterCount
+         * @description One semester that has links under the current filters, and how many.
+         */
+        OpportunityLinkSemesterCount: {
+            /** Semester */
+            semester: string;
+            /** Label */
+            label: string;
+            /** Count */
+            count: number;
+        };
+        /**
+         * OpportunityLinkSemesters
+         * @description The semesters the Links filter offers as checkboxes (#876): every
+         *     semester with at least one link under the current filters, newest first.
+         */
+        OpportunityLinkSemesters: {
+            /** Items */
+            items: components["schemas"]["OpportunityLinkSemesterCount"][];
         };
         /**
          * OpportunityLinkSubmitRequest
@@ -15816,6 +15885,8 @@ export interface operations {
                 submitted_from?: string | null;
                 /** @description DATE RECEIVED, inclusive upper bound: only links submitted on or before this date. The whole day counts — a link that arrived at 23:59 UTC on this date is included. */
                 submitted_to?: string | null;
+                /** @description BYU semester SUBMITTED in, repeatable: ?semester=Fall-2026&semester=Winter-2027. Winter = Jan-Apr, Spring = May-Jun, Summer = Jul-Aug, Fall = Sep-Dec, on America/Denver time. Exact form Term-YYYY; at most 12. Omit for no semester restriction. ANDed with the submitted_from/submitted_to range. */
+                semester?: string[] | null;
                 limit?: number;
                 offset?: number;
             };
@@ -15893,6 +15964,8 @@ export interface operations {
                 submitted_from?: string | null;
                 /** @description DATE RECEIVED, inclusive upper bound: only links submitted on or before this date. The whole day counts — a link that arrived at 23:59 UTC on this date is included. */
                 submitted_to?: string | null;
+                /** @description BYU semester SUBMITTED in, repeatable: ?semester=Fall-2026&semester=Winter-2027. Winter = Jan-Apr, Spring = May-Jun, Summer = Jul-Aug, Fall = Sep-Dec, on America/Denver time. Exact form Term-YYYY; at most 12. Omit for no semester restriction. ANDed with the submitted_from/submitted_to range. */
+                semester?: string[] | null;
             };
             header?: never;
             path?: never;
@@ -15907,6 +15980,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_opportunity_link_semesters_opportunity_links_semesters_get: {
+        parameters: {
+            query?: {
+                /** @description Moderation state. Omit for approved links only. 'pending' / 'rejected' require the surveys.manage capability. */
+                status?: ("pending" | "approved" | "rejected") | null;
+                /** @description Internship / full-time / both. */
+                role_type?: ("internship" | "full_time" | "both") | null;
+                /** @description Substring match on the company the link is listed under — the typed name, or the alum's employer for 'my company' entries. */
+                company?: string | null;
+                /** @description Free-text search over company, details, location and url. */
+                q?: string | null;
+                /** @description DATE RECEIVED, inclusive lower bound: only links submitted on or after this date. Matches submitted_at, NOT application_deadline. */
+                submitted_from?: string | null;
+                /** @description DATE RECEIVED, inclusive upper bound: only links submitted on or before this date. The whole day counts — a link that arrived at 23:59 UTC on this date is included. */
+                submitted_to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpportunityLinkSemesters"];
                 };
             };
             /** @description Validation Error */

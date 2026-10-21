@@ -13,6 +13,7 @@ import {
   STATUS_LABELS,
   companyDisplay,
   formatLinkDate,
+  groupLinksBySemester,
   isDeadlinePassed,
   isLinkSelected,
   isPageFullySelected,
@@ -21,6 +22,7 @@ import {
   linkAgeLabel,
   linkRowAction,
   locationDisplay,
+  semesterHeading,
   shortLinkTarget,
   submittedByDisplay,
   type OpportunityLink,
@@ -104,17 +106,30 @@ export function LinksTable({
   links,
   canReview,
   now = new Date(),
+  previousSemester = null,
+  semesterTotals = {},
 }: {
   links: OpportunityLink[];
   /** Holder of the surveys-management permission — shows the review column. */
   canReview: boolean;
   /** Injected so the age column is deterministic in tests and across hydration. */
   now?: Date;
+  /**
+   * The page envelope's `previous_semester` (#876): the semester of the row
+   * just before this page, so a group that carries over says "continued".
+   */
+  previousSemester?: string | null;
+  /** Links per semester under the current filters, for the headings. */
+  semesterTotals?: Record<string, number>;
 }) {
   const selection = useLinksSelection();
   const selecting = selection?.active ?? false;
   const selected = selection?.selected ?? [];
   const pageIds = links.map((l) => l.opportunity_link_id);
+  // Semester headings (#876). The rows arrive newest first, so each semester is
+  // one unbroken run and a heading starts wherever the semester changes.
+  const groups = groupLinksBySemester(links, previousSemester);
+  const columnCount = 8 + (selecting ? 1 : 0) + (canReview ? 1 : 0);
 
   /** The row whose full record is open, or `null`. */
   const [detail, setDetail] = useState<OpportunityLink | null>(null);
@@ -157,8 +172,9 @@ export function LinksTable({
           }`}
         >
           <caption className="sr-only">
-            Opportunity links submitted by alumni, newest first. Every cell is
-            shortened to one line. Open a row for the full record.
+            Opportunity links submitted by alumni, newest first, grouped by the
+            BYU semester they were submitted in. Every cell is shortened to one
+            line. Open a row for the full record.
           </caption>
           {/* Fixed layout + explicit shares: without a definite width a cell
               cannot ellipsise, and without ellipsising the rows grow back. */}
@@ -215,207 +231,226 @@ export function LinksTable({
               ) : null}
             </tr>
           </thead>
-          <tbody>
-            {links.map((link) => {
-              const company = companyDisplay(link);
-              const target = shortLinkTarget(link.url);
-              const stale = isStaleLink(link.submitted_at, now);
-              const deadlinePassed = isDeadlinePassed(
-                link.application_deadline,
-                now,
-              );
-              const details = link.details?.trim() ?? "";
-
-              const rowSelected =
-                selecting && isLinkSelected(selected, link.opportunity_link_id);
-
-              return (
-                <tr
-                  key={link.opportunity_link_id}
-                  onClick={(e) => handleRowClick(e, link)}
-                  className={`cursor-pointer border-b border-gray-200 last:border-0 ${
-                    rowSelected ? "bg-brand-blue-50" : "hover:bg-gray-50"
-                  }`}
+          {/* One <tbody> per semester: a table may have several, and it gives
+              each heading a real row-group for screen readers rather than a
+              styled row that only looks like one. */}
+          {groups.map((group) => (
+            <tbody
+              key={`${group.semester}-${group.continued ? "cont" : "start"}`}
+            >
+              <tr className="border-b border-gray-200 bg-gray-100">
+                <th
+                  scope="colgroup"
+                  colSpan={columnCount}
+                  className="px-3 py-1.5 text-left text-sm font-semibold text-gray-900"
                 >
-                  {selecting ? (
-                    <td className="px-3 py-2.5">
-                      <input
-                        type="checkbox"
-                        checked={rowSelected}
-                        onChange={() =>
-                          selection?.toggle(link.opportunity_link_id)
-                        }
-                        onClick={(e) => e.stopPropagation()}
-                        aria-label={`Select ${company.label} for deletion`}
-                        className="h-4 w-4 cursor-pointer accent-brand-blue-600"
-                      />
-                    </td>
-                  ) : null}
+                  {semesterHeading(group, semesterTotals[group.semester])}
+                </th>
+              </tr>
+              {group.links.map((link) => {
+                const company = companyDisplay(link);
+                const target = shortLinkTarget(link.url);
+                const stale = isStaleLink(link.submitted_at, now);
+                const deadlinePassed = isDeadlinePassed(
+                  link.application_deadline,
+                  now,
+                );
+                const details = link.details?.trim() ?? "";
 
-                  <td className="px-3 py-2.5">
-                    <div className="flex items-center gap-1.5">
-                      {/* The keyboard route into the panel. A real button rather
+                const rowSelected =
+                  selecting &&
+                  isLinkSelected(selected, link.opportunity_link_id);
+
+                return (
+                  <tr
+                    key={link.opportunity_link_id}
+                    onClick={(e) => handleRowClick(e, link)}
+                    className={`cursor-pointer border-b border-gray-200 last:border-0 ${
+                      rowSelected ? "bg-brand-blue-50" : "hover:bg-gray-50"
+                    }`}
+                  >
+                    {selecting ? (
+                      <td className="px-3 py-2.5">
+                        <input
+                          type="checkbox"
+                          checked={rowSelected}
+                          onChange={() =>
+                            selection?.toggle(link.opportunity_link_id)
+                          }
+                          onClick={(e) => e.stopPropagation()}
+                          aria-label={`Select ${company.label} for deletion`}
+                          className="h-4 w-4 cursor-pointer accent-brand-blue-600"
+                        />
+                      </td>
+                    ) : null}
+
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-1.5">
+                        {/* The keyboard route into the panel. A real button rather
                           than a tabbable <tr>: it keeps the table a table for a
                           screen reader, and it is the row's name, so its
                           accessible name is already the right one. */}
-                      {selecting ? (
-                        <span className="font-semibold text-gray-900">
-                          {company.label}
-                        </span>
+                        {selecting ? (
+                          <span className="font-semibold text-gray-900">
+                            {company.label}
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDetail(link);
+                            }}
+                            className="rounded-sm text-left font-semibold text-gray-900 hover:text-brand-blue-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500"
+                            title={`Open the full record for ${company.label}`}
+                          >
+                            {company.label}
+                          </button>
+                        )}
+                        {/* Compact markers, not a badge stack: "no employer on
+                          file" is a gap in OUR data and a reviewer has to be
+                          able to spot it down the column at a glance. */}
+                        {company.ownCompany ? (
+                          <Badge
+                            variant="tag"
+                            size="sm"
+                            className="shrink-0"
+                            title="Submitted as the alum's own company"
+                          >
+                            Own
+                          </Badge>
+                        ) : null}
+                        {company.unresolved ? (
+                          <Badge
+                            variant="warning"
+                            size="sm"
+                            className="shrink-0"
+                            title="Own company, but no employer is on file for this alum"
+                          >
+                            No employer
+                          </Badge>
+                        ) : null}
+                      </div>
+                    </td>
+
+                    <td className="px-3 py-2.5 text-gray-700">
+                      {ROLE_TYPE_LABELS[link.role_type]}
+                    </td>
+
+                    <td className="px-3 py-2.5 text-gray-700">
+                      {locationDisplay(link)}
+                    </td>
+
+                    <td className="px-3 py-2.5">
+                      {/* Public-submitted value: only ever an anchor once
+                        `linkTarget` has scheme-checked it, and the href is
+                        always the FULL url — never the shortened label. */}
+                      {target.href ? (
+                        <a
+                          href={target.href}
+                          target="_blank"
+                          rel="noopener noreferrer nofollow"
+                          onClick={(e) => e.stopPropagation()}
+                          className="font-medium text-brand-blue-600 hover:underline"
+                          title={target.href}
+                        >
+                          {linkDomain(target.href)}
+                        </a>
                       ) : (
+                        <span
+                          className="text-gray-500"
+                          title={`Not a usable http(s) address, so it is not linked: ${target.label}`}
+                        >
+                          Not a link
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="px-3 py-2.5 text-gray-500">
+                      {details ? (
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             setDetail(link);
                           }}
-                          className="rounded-sm text-left font-semibold text-gray-900 hover:text-brand-blue-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500"
-                          title={`Open the full record for ${company.label}`}
+                          className="rounded-sm text-left text-brand-blue-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500"
+                          title={details}
                         >
-                          {company.label}
+                          See details
                         </button>
+                      ) : (
+                        EM_DASH
                       )}
-                      {/* Compact markers, not a badge stack: "no employer on
-                          file" is a gap in OUR data and a reviewer has to be
-                          able to spot it down the column at a glance. */}
-                      {company.ownCompany ? (
-                        <Badge
-                          variant="tag"
-                          size="sm"
-                          className="shrink-0"
-                          title="Submitted as the alum's own company"
-                        >
-                          Own
-                        </Badge>
-                      ) : null}
-                      {company.unresolved ? (
-                        <Badge
-                          variant="warning"
-                          size="sm"
-                          className="shrink-0"
-                          title="Own company, but no employer is on file for this alum"
-                        >
-                          No employer
-                        </Badge>
-                      ) : null}
-                    </div>
-                  </td>
+                    </td>
 
-                  <td className="px-3 py-2.5 text-gray-700">
-                    {ROLE_TYPE_LABELS[link.role_type]}
-                  </td>
-
-                  <td className="px-3 py-2.5 text-gray-700">
-                    {locationDisplay(link)}
-                  </td>
-
-                  <td className="px-3 py-2.5">
-                    {/* Public-submitted value: only ever an anchor once
-                        `linkTarget` has scheme-checked it, and the href is
-                        always the FULL url — never the shortened label. */}
-                    {target.href ? (
-                      <a
-                        href={target.href}
-                        target="_blank"
-                        rel="noopener noreferrer nofollow"
-                        onClick={(e) => e.stopPropagation()}
-                        className="font-medium text-brand-blue-600 hover:underline"
-                        title={target.href}
-                      >
-                        {linkDomain(target.href)}
-                      </a>
-                    ) : (
-                      <span
-                        className="text-gray-500"
-                        title={`Not a usable http(s) address, so it is not linked: ${target.label}`}
-                      >
-                        Not a link
+                    <td className="truncate px-3 py-2.5 text-gray-700">
+                      {submittedByDisplay(link)}
+                      <span className="text-gray-400">
+                        {" "}
+                        · {SOURCE_LABELS[link.source]}
                       </span>
-                    )}
-                  </td>
+                    </td>
 
-                  <td className="px-3 py-2.5 text-gray-500">
-                    {details ? (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDetail(link);
-                        }}
-                        className="rounded-sm text-left text-brand-blue-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500"
-                        title={details}
-                      >
-                        See details
-                      </button>
-                    ) : (
-                      EM_DASH
-                    )}
-                  </td>
+                    <td
+                      className={`truncate px-3 py-2.5 tabular-nums ${
+                        stale ? "font-medium text-warning-600" : "text-gray-700"
+                      }`}
+                      title={`Submitted ${formatLinkDate(link.submitted_at)}`}
+                    >
+                      {linkAgeLabel(link.submitted_at, now)}
+                    </td>
 
-                  <td className="truncate px-3 py-2.5 text-gray-700">
-                    {submittedByDisplay(link)}
-                    <span className="text-gray-400">
-                      {" "}
-                      · {SOURCE_LABELS[link.source]}
-                    </span>
-                  </td>
+                    <td
+                      className={`truncate px-3 py-2.5 tabular-nums ${
+                        deadlinePassed ? "text-danger-600" : "text-gray-700"
+                      }`}
+                    >
+                      {link.application_deadline
+                        ? `${deadlinePassed ? "Closed " : ""}${formatLinkDate(
+                            link.application_deadline,
+                          )}`
+                        : EM_DASH}
+                    </td>
 
-                  <td
-                    className={`truncate px-3 py-2.5 tabular-nums ${
-                      stale ? "font-medium text-warning-600" : "text-gray-700"
-                    }`}
-                    title={`Submitted ${formatLinkDate(link.submitted_at)}`}
-                  >
-                    {linkAgeLabel(link.submitted_at, now)}
-                  </td>
-
-                  <td
-                    className={`truncate px-3 py-2.5 tabular-nums ${
-                      deadlinePassed ? "text-danger-600" : "text-gray-700"
-                    }`}
-                  >
-                    {link.application_deadline
-                      ? `${deadlinePassed ? "Closed " : ""}${formatLinkDate(
-                          link.application_deadline,
-                        )}`
-                      : EM_DASH}
-                  </td>
-
-                  {canReview ? (
-                    <td className="px-3 py-2.5">
-                      {/* Approve/Reject act on the row; they must not also open
+                    {canReview ? (
+                      <td className="px-3 py-2.5">
+                        {/* Approve/Reject act on the row; they must not also open
                           it. The wrapper catches clicks that miss a button but
                           still land in the cell. */}
-                      <div onClick={(e) => e.stopPropagation()}>
-                        {link.status === "pending" ? (
-                          <LinkReviewActions
-                            opportunityLinkId={link.opportunity_link_id}
-                            status={link.status}
-                            company={company.label}
-                          />
-                        ) : (
-                          <span className="flex items-center gap-1.5">
-                            <Badge
-                              variant={
-                                link.status === "approved" ? "success" : "muted"
-                              }
-                              size="sm"
-                              className="shrink-0"
-                            >
-                              {STATUS_LABELS[link.status]}
-                            </Badge>
-                            <span className="min-w-0 truncate text-xs text-gray-500">
-                              {link.reviewed_by ?? EM_DASH}
+                        <div onClick={(e) => e.stopPropagation()}>
+                          {link.status === "pending" ? (
+                            <LinkReviewActions
+                              opportunityLinkId={link.opportunity_link_id}
+                              status={link.status}
+                              company={company.label}
+                            />
+                          ) : (
+                            <span className="flex items-center gap-1.5">
+                              <Badge
+                                variant={
+                                  link.status === "approved"
+                                    ? "success"
+                                    : "muted"
+                                }
+                                size="sm"
+                                className="shrink-0"
+                              >
+                                {STATUS_LABELS[link.status]}
+                              </Badge>
+                              <span className="min-w-0 truncate text-xs text-gray-500">
+                                {link.reviewed_by ?? EM_DASH}
+                              </span>
                             </span>
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                  ) : null}
-                </tr>
-              );
-            })}
-          </tbody>
+                          )}
+                        </div>
+                      </td>
+                    ) : null}
+                  </tr>
+                );
+              })}
+            </tbody>
+          ))}
         </table>
       </div>
 
