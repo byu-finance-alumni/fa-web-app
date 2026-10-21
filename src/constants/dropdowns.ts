@@ -60,23 +60,31 @@ export const INDUSTRY_OPTIONS = [
 export type Industry = (typeof INDUSTRY_OPTIONS)[number];
 
 /**
- * Industries that may only be used as a SECONDARY industry (#452).
+ * Industries that may only be used as a SECONDARY industry (#452, #875).
  *
- * Tanya, 2026-07-16: these four aren't dashboard industries and shouldn't be
- * offered as an alumnus's PRIMARY industry — but they must stay available as a
- * secondary one, so they are hidden from the primary dropdown rather than
+ * Tanya, 2026-07-16: the first four aren't dashboard industries and shouldn't
+ * be offered as an alumnus's PRIMARY industry — but they must stay available as
+ * a secondary one, so they are hidden from the primary dropdown rather than
  * deleted from the vocabulary. Mirrors `_PRIMARY_EXCLUDED_INDUSTRIES` in
  * fa-web-api/app/core/dropdowns.py.
  *
+ * "FP&A" joined them on 2026-10-21 (#875, Jake): an FP&A alum is recorded as
+ * Corporate Finance with FP&A as the secondary. Hidden from the primary
+ * dropdown EVERYWHERE (survey and staff forms), still a secondary option. The
+ * handful of records holding it as primary are moved by hand-run prod SQL, not
+ * by this list.
+ *
  * A record that already STORES one of these as its primary stays valid — the
  * backend still accepts them on write, and the dropdown re-adds the stored
- * value via `withValue()` so editing an unrelated field can't blank it.
+ * value via `withValue()` (staff forms) or the survey's on-file option, so
+ * editing an unrelated field can't blank it.
  */
 export const PRIMARY_EXCLUDED_INDUSTRIES = [
   "Law",
   "Corporate Banking",
   "Sales and Trading",
   "Credit Risk",
+  "FP&A",
 ] as const;
 
 const PRIMARY_EXCLUDED_LOWER = new Set<string>(
@@ -103,10 +111,32 @@ export const PRIMARY_INDUSTRY_OPTIONS = filterPrimaryIndustries(INDUSTRY_OPTIONS
 
 /**
  * Fallback options for the SECONDARY industry dropdown
- * (`current_industry_secondary`) — the full vocabulary, including the four
+ * (`current_industry_secondary`) — the full vocabulary, including the ones
  * hidden from primary.
  */
 export const SECONDARY_INDUSTRY_OPTIONS: readonly string[] = INDUSTRY_OPTIONS;
+
+/**
+ * The industry lists the PUBLIC SURVEY offers (#874): the staff lists above
+ * minus "Unknown".
+ *
+ * Same reasoning as `SURVEY_EMPLOYMENT_STATUS_OPTIONS`: "Unknown" is a staff
+ * bookkeeping value, not something an alum says about their own job. "Other"
+ * stays (pinned last) and is saved as the literal "Other" — there is no
+ * free-text box behind it. Staff forms and filters keep "Unknown" (Jake,
+ * 2026-10-21) while staff clean up the records holding it; nothing is
+ * converted. A record that already holds "Unknown" still shows and re-saves it
+ * on the survey as its on-file value.
+ *
+ * Static on purpose: the survey does not read `/vocabulary`, so these cannot
+ * drift at runtime from what the survey's server-side whitelist accepts.
+ */
+export const SURVEY_INDUSTRY_OPTIONS: readonly string[] =
+  PRIMARY_INDUSTRY_OPTIONS.filter((v) => v !== "Unknown");
+
+/** Survey options for the SECONDARY industry — see `SURVEY_INDUSTRY_OPTIONS`. */
+export const SURVEY_SECONDARY_INDUSTRY_OPTIONS: readonly string[] =
+  SECONDARY_INDUSTRY_OPTIONS.filter((v) => v !== "Unknown");
 
 /**
  * Employment status — what an alum is currently doing (`alumni.employment_status`).

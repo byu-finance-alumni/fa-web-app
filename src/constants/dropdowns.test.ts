@@ -94,7 +94,6 @@ describe("PRIMARY_INDUSTRY_OPTIONS", () => {
       "Corporate Finance",
       "Equity Research",
       "Financial Services",
-      "FP&A",
       "Investment Banking",
       "Military",
       "Private Banking",
@@ -109,6 +108,20 @@ describe("PRIMARY_INDUSTRY_OPTIONS", () => {
       "Graduate Student",
       "Other",
     ]);
+  });
+
+  it("hides FP&A from the primary list but keeps it secondary (#875)", () => {
+    expect(PRIMARY_EXCLUDED_INDUSTRIES).toContain("FP&A");
+    expect(PRIMARY_INDUSTRY_OPTIONS).not.toContain("FP&A");
+    expect(SECONDARY_INDUSTRY_OPTIONS).toContain("FP&A");
+    // The live /vocabulary path is narrowed by the same helper.
+    expect(filterPrimaryIndustries(["fp&a", " FP&A ", "Corporate Finance"])).toEqual([
+      "Corporate Finance",
+    ]);
+  });
+
+  it("keeps Unknown on the STAFF primary list — only the survey drops it (#874)", () => {
+    expect(PRIMARY_INDUSTRY_OPTIONS).toContain("Unknown");
   });
 
   it("keeps Other last after filtering", () => {

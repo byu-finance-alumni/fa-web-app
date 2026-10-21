@@ -711,6 +711,9 @@ export type OpportunityLinkBulkDeleteRequest =
   Schema<"OpportunityLinkBulkDeleteRequest">;
 export type OpportunityLinkBulkDeleteResult =
   Schema<"OpportunityLinkBulkDeleteResult">;
+export type OpportunityLinkSemesters = Schema<"OpportunityLinkSemesters">;
+export type OpportunityLinkSemesterCount =
+  Schema<"OpportunityLinkSemesterCount">;
 
 export type LinkStatus = OpportunityLink["status"];
 
@@ -803,6 +806,12 @@ export interface LinksFilterState {
   submitted_from: string;
   /** DATE RECEIVED, inclusive upper bound. The WHOLE day counts. */
   submitted_to: string;
+  /**
+   * BYU semesters SUBMITTED in (#876), as keys like `Fall-2026`, newest first,
+   * de-duplicated. Empty = no semester restriction. ANDs with the date range.
+   * Always normalised by {@link normalizeSemesters} on the way in.
+   */
+  semesters: string[];
 }
 
 export const EMPTY_LINKS_FILTERS: LinksFilterState = {
@@ -812,6 +821,7 @@ export const EMPTY_LINKS_FILTERS: LinksFilterState = {
   company: "",
   submitted_from: "",
   submitted_to: "",
+  semesters: [],
 };
 
 /** The raw `searchParams` shape the route hands us. */
@@ -822,6 +832,9 @@ export type LinksSearchParams = {
   company?: string;
   submitted_from?: string;
   submitted_to?: string;
+  /** Repeatable in the URL (`?semester=Fall-2026&semester=Winter-2027`), so
+   *  Next hands it over as a string for one value and an array for several. */
+  semester?: string | string[];
   offset?: string;
 };
 
@@ -840,7 +853,26 @@ export function parseLinksFilters(sp: LinksSearchParams): LinksFilterState {
     // "no bound" rather than a 422 nobody can see the cause of.
     submitted_from: isIsoDate(sp.submitted_from) ? sp.submitted_from : "",
     submitted_to: isIsoDate(sp.submitted_to) ? sp.submitted_to : "",
+    semesters: normalizeSemesters(sp.semester),
   };
+}
+
+/**
+ * Turn a serialized `/links` query string back into the raw searchParams shape
+ * {@link parseLinksFilters} reads, KEEPING repeated keys.
+ *
+ * ⚠️ `Object.fromEntries(new URLSearchParams(qs))` is the obvious one-liner and
+ * it is wrong here: it keeps only the LAST value of a repeated key, so an
+ * export of "Fall 2026 + Winter 2027" would quietly become an export of Winter
+ * 2027 alone — a file that looks complete and is missing a semester.
+ */
+export function linksSearchParamsFromQs(qs: string): LinksSearchParams {
+  const p = new URLSearchParams(qs);
+  const out: Record<string, string | string[]> = {};
+  for (const key of new Set(p.keys())) {
+    out[key] = key === "semester" ? p.getAll(key) : (p.get(key) ?? "");
+  }
+  return out as LinksSearchParams;
 }
 
 /** Read the paging offset out of the URL. Negative / non-numeric → 0. */
@@ -863,6 +895,7 @@ export function toLinksQs(f: LinksFilterState): string {
   if (f.company.trim()) p.set("company", f.company.trim());
   if (f.submitted_from) p.set("submitted_from", f.submitted_from);
   if (f.submitted_to) p.set("submitted_to", f.submitted_to);
+  for (const s of f.semesters) p.append("semester", s);
   return p.toString();
 }
 
@@ -899,6 +932,7 @@ function linksFilterParams(f: LinksFilterState): URLSearchParams {
   if (f.q.trim()) p.set("q", f.q.trim());
   if (f.submitted_from) p.set("submitted_from", f.submitted_from);
   if (f.submitted_to) p.set("submitted_to", f.submitted_to);
+  for (const s of f.semesters) p.append("semester", s);
   return p;
 }
 
@@ -926,6 +960,17 @@ export function toLinksApiQuery(
  */
 export function toLinksExportQuery(f: LinksFilterState): string {
   return linksFilterParams(f).toString();
+}
+
+/**
+ * The backend query for `GET /opportunity-links/semesters` — the checkboxes'
+ * options. The list's own selection with the SEMESTERS removed (the options
+ * must not shrink to what is already ticked; the backend drops them too) and no
+ * paging. Same assembler, so the counts beside each box are over the same rows
+ * the list shows.
+ */
+export function toLinksSemestersQuery(f: LinksFilterState): string {
+  return linksFilterParams({ ...f, semesters: [] }).toString();
 }
 
 /**
@@ -972,12 +1017,13 @@ export function linksExportErrorMessage(status: number | null): string {
     return "You can export approved links, but pending and rejected ones need review access. Set the status filter back to Approved, or ask a Super Admin for review access.";
   }
   if (status === 413) {
-    return `That selection is too big for one file (the limit is ${MAX_EXPORT_ROWS.toLocaleString()} links). Narrow the date range, or add a company or status filter, and export again.`;
+    return `That selection is too big for one file (the limit is ${MAX_EXPORT_ROWS.toLocaleString()} links). Narrow the date range or the semesters, or add a company or status filter, and export again.`;
   }
   if (status === 422) {
-    // The only 422 this screen can produce is the inverted range, so say that
-    // rather than "invalid request".
-    return "The date range wasn’t accepted: check that the “received from” date is on or before the “received to” date.";
+    // The inverted range is caught before the request, and semesters are
+    // normalised to the backend's exact format first, so a 422 here is rare.
+    // Name both things the user picked rather than "invalid request".
+    return "The filters weren’t accepted: check that the “received from” date is on or before the “received to” date, and that the semesters are ones offered in the list.";
   }
   if (status === 401) {
     return "Your session has expired, so the export didn’t run. Sign in again and try it once more.";
@@ -995,6 +1041,156 @@ export function linksExportErrorMessage(status: number | null): string {
  */
 export function linksExportFilename(now: Date = new Date()): string {
   return `opportunity_links_${now.toISOString().slice(0, 10)}.csv`;
+}
+
+/* ------------------------------------------------------------------ *
+ * Semesters (#876)
+ *
+ * The CALENDAR (which months are which term, on Mountain time) lives on the
+ * backend in ONE place, and every link arrives already labelled with its
+ * `semester` / `semester_label`. Nothing here decides which semester a date is
+ * in. What lives here is only what the browser needs to handle the KEYS: the
+ * format check (so a hand-edited URL is dropped, not forwarded into a 422),
+ * the order, and the grouping of a page that is already sorted.
+ * ------------------------------------------------------------------ */
+
+/** Terms in calendar order. The within-year sort order; mirrors the backend. */
+export const SEMESTER_TERMS = ["Winter", "Spring", "Summer", "Fall"] as const;
+
+/** The backend's caps on the `semester` parameter (app/core/semesters.py). */
+export const MAX_SEMESTERS = 12;
+export const SEMESTER_MIN_YEAR = 2000;
+export const SEMESTER_MAX_YEAR = 2100;
+
+const SEMESTER_KEY_RE = /^(Winter|Spring|Summer|Fall)-([0-9]{4})$/;
+
+/** A semester key exactly as the backend accepts it: `Fall-2026`. */
+export function isSemesterKey(v: unknown): v is string {
+  if (typeof v !== "string") return false;
+  const m = SEMESTER_KEY_RE.exec(v);
+  if (!m) return false;
+  const year = Number(m[2]);
+  return year >= SEMESTER_MIN_YEAR && year <= SEMESTER_MAX_YEAR;
+}
+
+/** Newest-first comparator for semester keys (both already valid). */
+function compareSemesterDesc(a: string, b: string): number {
+  const [ta, ya] = a.split("-");
+  const [tb, yb] = b.split("-");
+  if (ya !== yb) return Number(yb) - Number(ya);
+  return (
+    SEMESTER_TERMS.indexOf(tb as (typeof SEMESTER_TERMS)[number]) -
+    SEMESTER_TERMS.indexOf(ta as (typeof SEMESTER_TERMS)[number])
+  );
+}
+
+/**
+ * The URL's `semester` value(s) as the filter state holds them: valid keys
+ * only, de-duplicated, newest first, at most {@link MAX_SEMESTERS}.
+ *
+ * Garbage is DROPPED rather than forwarded, the same rule every other filter in
+ * {@link parseLinksFilters} follows — a hand-edited `?semester=fall26` must
+ * become "no such semester" rather than a 422 nobody can see the cause of.
+ */
+export function normalizeSemesters(raw: string | string[] | undefined): string[] {
+  const values = raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
+  const unique = [...new Set(values.filter(isSemesterKey))];
+  return unique.sort(compareSemesterDesc).slice(0, MAX_SEMESTERS);
+}
+
+/** `Fall-2026` -> `Fall 2026`. For a key with no row to read the label from. */
+export function semesterLabel(key: string): string {
+  return key.replace("-", " ");
+}
+
+/** Tick or untick one semester, keeping the list normalised. */
+export function toggleSemester(selected: readonly string[], key: string): string[] {
+  return selected.includes(key)
+    ? selected.filter((s) => s !== key)
+    : normalizeSemesters([...selected, key]);
+}
+
+/**
+ * The checkbox options: every semester the backend says has links under the
+ * other filters, PLUS any semester that is ticked but not in that list (a deep
+ * link, or a box whose count dropped to zero after another filter changed) —
+ * so a ticked box can always be unticked. Newest first.
+ */
+export function semesterOptions(
+  available: readonly OpportunityLinkSemesterCount[],
+  selected: readonly string[],
+): { semester: string; label: string; count: number | null }[] {
+  const byKey = new Map(
+    available.map((a) => [a.semester, { ...a, count: a.count as number | null }]),
+  );
+  for (const key of selected) {
+    if (!byKey.has(key)) {
+      byKey.set(key, { semester: key, label: semesterLabel(key), count: null });
+    }
+  }
+  return [...byKey.values()].sort((a, b) =>
+    compareSemesterDesc(a.semester, b.semester),
+  );
+}
+
+export interface SemesterGroup {
+  /** `Fall-2026`. */
+  semester: string;
+  /** `Fall 2026`. */
+  label: string;
+  /** True when this group carries on from the previous page. */
+  continued: boolean;
+  links: OpportunityLink[];
+}
+
+/**
+ * Split ONE PAGE of links into semester headings.
+ *
+ * The backend orders by `submitted_at` (newest first) and a semester is a
+ * contiguous span of time, so each semester is one unbroken run of rows: a new
+ * heading starts exactly where the semester changes. The semester is the
+ * backend's own label on each row, never re-derived here.
+ *
+ * `previousSemester` is the page envelope's `previous_semester` — the semester
+ * of the row just before this page. When the first group matches it, the group
+ * is marked `continued`, so page 2 reads "Fall 2026 (continued)" instead of
+ * implying Fall 2026 starts there.
+ */
+export function groupLinksBySemester(
+  links: readonly OpportunityLink[],
+  previousSemester: string | null | undefined = null,
+): SemesterGroup[] {
+  const groups: SemesterGroup[] = [];
+  for (const link of links) {
+    const last = groups[groups.length - 1];
+    if (last && last.semester === link.semester) {
+      last.links.push(link);
+    } else {
+      groups.push({
+        semester: link.semester,
+        label: link.semester_label,
+        continued: groups.length === 0 && previousSemester === link.semester,
+        links: [link],
+      });
+    }
+  }
+  return groups;
+}
+
+/**
+ * The heading text for one group: `Fall 2026`, with the semester's total under
+ * the current filters when known (from the semesters endpoint) and a
+ * "continued" note when it started on an earlier page.
+ */
+export function semesterHeading(
+  group: Pick<SemesterGroup, "label" | "continued">,
+  total: number | null | undefined,
+): string {
+  const parts = [group.label];
+  if (typeof total === "number") parts.push(linkCountLabel(total));
+  let text = parts.join(" · ");
+  if (group.continued) text += " (continued from the previous page)";
+  return text;
 }
 
 /* ------------------------------------------------------------------ *

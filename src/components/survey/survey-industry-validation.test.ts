@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   EDIT_SECTIONS,
   SURVEY_CHOICE_OPTIONS,
+  industryOptionsFor,
   isCanonicalChoice,
   isValueOnFile,
   validateSurveyField,
@@ -14,8 +15,12 @@ import {
 import {
   INDUSTRY_OPTIONS,
   MARITAL_STATUS_OPTIONS,
+  PRIMARY_EXCLUDED_INDUSTRIES,
   PRIMARY_INDUSTRY_OPTIONS,
+  SECONDARY_INDUSTRY_OPTIONS,
   SURVEY_EMPLOYMENT_STATUS_OPTIONS,
+  SURVEY_INDUSTRY_OPTIONS,
+  SURVEY_SECONDARY_INDUSTRY_OPTIONS,
 } from "@/constants/dropdowns";
 
 /**
@@ -26,18 +31,22 @@ import {
  * and marital status on the public survey path, and IGNORES anything else —
  * quietly, returning 200, leaving the column exactly as it was. That is the
  * right disposition for an endpoint that can't safely argue with the public, but
- * it turns the form into a liar: an alum picks "Other", types "Underwater Basket
- * Weaving", is thanked for it, and we throw the answer away.
+ * it turned the form into a liar: an alum picked "Other", typed "Underwater
+ * Basket Weaving", was thanked for it, and we threw the answer away.
  *
- * So the FORM refuses it. The trap in doing that is the legacy record: an alum
- * whose industry has been off-list since before the list existed sees their own
- * value in that same box, and blocking THEM from submitting is a worse outcome
- * than the silent-loss bug. Two behaviours, one control:
+ * #874 removed that box: "Other" now saves the literal "Other", and both
+ * Industry and Secondary Industry are plain dropdowns over the survey lists
+ * (no "Unknown"). The validation rule stays as a backstop. The trap is still
+ * the legacy record: an alum whose industry has been off-list since before the
+ * list existed (or is "Unknown", or a secondary-only industry such as FP&A held
+ * as a primary) sees their own value selected, and blocking THEM from
+ * submitting is a worse outcome than the silent-loss bug. Two behaviours:
  *
- *   1. A newly typed off-list value is an ERROR, with a message that says what
- *      to do instead.
- *   2. The off-list value ALREADY ON FILE is not. It submits, it is a no-op
- *      server-side, and it is never rewritten into something more generic.
+ *   1. A new off-list value is an ERROR, with a message that says what to do
+ *      instead. (The dropdown can no longer produce one; the rule guards it.)
+ *   2. The off-list value ALREADY ON FILE is not. It stays a selectable option,
+ *      it submits, it is a no-op server-side, and it is never rewritten into
+ *      something more generic.
  *
  * The suite runs in Node with no DOM (see vitest.config.ts), so the rendering is
  * asserted against the pure helpers plus source invariants for the wiring a
@@ -57,6 +66,7 @@ const field = (key: string): EditField => {
 };
 
 const INDUSTRY = field("employment.current_industry");
+const SECONDARY = field("employment.current_industry_secondary");
 const STATUS = field("profile.employment_status");
 const MARITAL = field("profile.marital_status");
 
@@ -106,28 +116,47 @@ describe("the off-list industry already on the alum's record", () => {
     expect(validateSurveyField(INDUSTRY, OFF_LIST, " UNDERWATER BASKET WEAVING")).toBeNull();
   });
 
+  it("submits a stored Unknown even though the survey no longer offers it", () => {
+    // #874: "Unknown" came off the survey dropdowns, but nothing was converted —
+    // staff fix those records by hand. Until then the alum hands it straight back.
+    expect(SURVEY_INDUSTRY_OPTIONS).not.toContain("Unknown");
+    expect(validateSurveyField(INDUSTRY, "Unknown", "Unknown")).toBeNull();
+    expect(validateSurveyField(SECONDARY, "Unknown", "Unknown")).toBeNull();
+  });
+
+  it("submits a stored FP&A primary even though the dropdown hides it", () => {
+    // #875: FP&A is secondary-only now, but the records holding it as primary
+    // are moved by hand-run SQL, not by the survey.
+    expect(SURVEY_INDUSTRY_OPTIONS).not.toContain("FP&A");
+    expect(validateSurveyField(INDUSTRY, "FP&A", "FP&A")).toBeNull();
+  });
+
   it("is exempt for every controlled vocabulary, not just industry", () => {
+    expect(validateSurveyField(SECONDARY, OFF_LIST, OFF_LIST)).toBeNull();
     expect(validateSurveyField(STATUS, "Employed", "Employed")).toBeNull();
     expect(validateSurveyField(MARITAL, "Separated", "Separated")).toBeNull();
   });
 });
 
 describe("an ordinary pick from the list", () => {
-  it("accepts every industry the survey's own dropdown offers", () => {
-    // Drift guard: the control offers `PRIMARY_INDUSTRY_OPTIONS` while the rule
-    // checks `INDUSTRY_OPTIONS`. If those ever disagree, the survey starts
-    // refusing values it is itself offering — the worst possible failure here.
-    for (const o of PRIMARY_INDUSTRY_OPTIONS) {
+  it("accepts every industry the survey's own dropdowns offer", () => {
+    // Drift guard: the controls offer the SURVEY_ lists while the rule checks
+    // the full lists. If those ever disagree, the survey starts refusing values
+    // it is itself offering — the worst possible failure here.
+    for (const o of SURVEY_INDUSTRY_OPTIONS) {
       expect(validateSurveyField(INDUSTRY, o, "")).toBeNull();
+    }
+    for (const o of SURVEY_SECONDARY_INDUSTRY_OPTIONS) {
+      expect(validateSurveyField(SECONDARY, o, "")).toBeNull();
     }
   });
 
   it("accepts the industries the dropdown HIDES but the record may hold", () => {
-    // Law, Corporate Banking, Sales and Trading and Credit Risk are hidden from
-    // the primary dropdown (#452) yet are legitimate stored values the server
-    // writes. Validating against the offered list rather than the accepted one
-    // would refuse an alum for handing back the exact value we sent them.
-    for (const o of ["Law", "Corporate Banking", "Sales and Trading", "Credit Risk"]) {
+    // The primary-excluded industries (#452, #875) are hidden from the primary
+    // dropdown yet are legitimate stored values the server writes. Validating
+    // against the offered list rather than the accepted one would refuse an
+    // alum for handing back the exact value we sent them.
+    for (const o of PRIMARY_EXCLUDED_INDUSTRIES) {
       expect(INDUSTRY_OPTIONS).toContain(o);
       expect(validateSurveyField(INDUSTRY, o, "")).toBeNull();
     }
@@ -135,6 +164,7 @@ describe("an ordinary pick from the list", () => {
 
   it("accepts the literal Other, which IS a canonical industry", () => {
     expect(validateSurveyField(INDUSTRY, "Other", "")).toBeNull();
+    expect(validateSurveyField(SECONDARY, "Other", "")).toBeNull();
   });
 
   it("accepts a canonical value in any casing, as the server does", () => {
@@ -155,9 +185,8 @@ describe("an ordinary pick from the list", () => {
 describe("a blank answer", () => {
   it("is a skipped question, not a bad one", () => {
     // The server treats a blank on these fields as "leave what's on file alone"
-    // (`blankable=False`), so clearing the box is a legitimate way out of the
-    // error rather than a second complaint — which is exactly what the message
-    // offers as the alternative to picking from the list.
+    // (`blankable=False`), so going back to "Select an industry" is a
+    // legitimate way out of the error rather than a second complaint.
     expect(validateSurveyField(INDUSTRY, "", "")).toBeNull();
     expect(validateSurveyField(INDUSTRY, "   ", OFF_LIST)).toBeNull();
     expect(validateSurveyField(STATUS, "", "Employed")).toBeNull();
@@ -185,6 +214,7 @@ describe("the rule mirrors the server's matcher", () => {
   it("checks industry against the canonical list, not the offered one", () => {
     expect(SURVEY_CHOICE_OPTIONS.industry).toBe(INDUSTRY_OPTIONS);
     expect(SURVEY_CHOICE_OPTIONS.industry).not.toBe(PRIMARY_INDUSTRY_OPTIONS);
+    expect(SURVEY_CHOICE_OPTIONS.secondaryIndustry).toBe(SECONDARY_INDUSTRY_OPTIONS);
   });
 
   it("covers every controlled vocabulary the survey renders", () => {
@@ -194,6 +224,7 @@ describe("the rule mirrors the server's matcher", () => {
       "employmentStatus",
       "industry",
       "maritalStatus",
+      "secondaryIndustry",
     ]);
     expect(SURVEY_CHOICE_OPTIONS.employmentStatus).toBe(
       SURVEY_EMPLOYMENT_STATUS_OPTIONS,
@@ -202,16 +233,98 @@ describe("the rule mirrors the server's matcher", () => {
   });
 });
 
-describe("the wiring a pure helper can't cover", () => {
-  it("keeps the free-text 'Other' box, which is what preserves legacy values", () => {
-    // Deleting the box would "fix" the validation by making the off-list case
-    // unreachable — and would take the stored value off the alum's screen with
-    // it. The whole design is that the box still shows what we hold.
-    const control = SOURCE.slice(SOURCE.indexOf("function IndustryControl"));
-    expect(control).toContain('placeholder="Type your industry"');
+describe("the survey industry lists (#874, #875)", () => {
+  it("drop Unknown from both dropdowns and keep Other last", () => {
+    for (const list of [SURVEY_INDUSTRY_OPTIONS, SURVEY_SECONDARY_INDUSTRY_OPTIONS]) {
+      expect(list).not.toContain("Unknown");
+      expect(list.at(-1)).toBe("Other");
+    }
   });
 
-  it("validates that box on blur, not on every keystroke", () => {
+  it("otherwise match the staff lists exactly", () => {
+    // "Keep the current lists exactly as they are" — Unknown is the only change.
+    expect([...SURVEY_INDUSTRY_OPTIONS]).toEqual(
+      PRIMARY_INDUSTRY_OPTIONS.filter((v) => v !== "Unknown"),
+    );
+    expect([...SURVEY_SECONDARY_INDUSTRY_OPTIONS]).toEqual(
+      SECONDARY_INDUSTRY_OPTIONS.filter((v) => v !== "Unknown"),
+    );
+  });
+
+  it("offer the secondary-only industries on Secondary Industry, not Industry", () => {
+    for (const o of PRIMARY_EXCLUDED_INDUSTRIES) {
+      expect(SURVEY_INDUSTRY_OPTIONS).not.toContain(o);
+      expect(SURVEY_SECONDARY_INDUSTRY_OPTIONS).toContain(o);
+    }
+    expect(SURVEY_SECONDARY_INDUSTRY_OPTIONS).toContain("FP&A");
+    expect(SURVEY_SECONDARY_INDUSTRY_OPTIONS).toContain("Law");
+  });
+
+  it("render both fields as industry dropdowns", () => {
+    expect(INDUSTRY.kind).toBe("industry");
+    expect(SECONDARY.kind).toBe("secondaryIndustry");
+  });
+});
+
+describe("an off-list value on file stays selectable (industryOptionsFor)", () => {
+  for (const onFile of [OFF_LIST, "Unknown", "FP&A", "Law"]) {
+    it(`keeps a stored "${onFile}" as the first option, verbatim`, () => {
+      const opts = industryOptionsFor(SURVEY_INDUSTRY_OPTIONS, onFile, onFile);
+      expect(opts[0]).toBe(onFile);
+      expect(opts.slice(1)).toEqual([...SURVEY_INDUSTRY_OPTIONS]);
+    });
+  }
+
+  it("keeps it after the alum picks something else, so they can put it back", () => {
+    // Keyed on the on-file value, not the working one: changing your mind must
+    // not make your original answer disappear from the list.
+    const opts = industryOptionsFor(SURVEY_INDUSTRY_OPTIONS, "Consulting", "Unknown");
+    expect(opts[0]).toBe("Unknown");
+    expect(opts).toContain("Consulting");
+  });
+
+  it("adds nothing when the stored value is already offered, or blank", () => {
+    expect(industryOptionsFor(SURVEY_INDUSTRY_OPTIONS, "Other", "Other")).toBe(
+      SURVEY_INDUSTRY_OPTIONS,
+    );
+    expect(industryOptionsFor(SURVEY_INDUSTRY_OPTIONS, "", "")).toBe(
+      SURVEY_INDUSTRY_OPTIONS,
+    );
+    expect(industryOptionsFor(SURVEY_INDUSTRY_OPTIONS, "", undefined)).toBe(
+      SURVEY_INDUSTRY_OPTIONS,
+    );
+  });
+
+  it("never rewrites casing drift into the canonical spelling", () => {
+    const opts = industryOptionsFor(
+      SURVEY_INDUSTRY_OPTIONS,
+      "investment banking",
+      "investment banking",
+    );
+    expect(opts[0]).toBe("investment banking");
+  });
+});
+
+describe("the wiring a pure helper can't cover", () => {
+  it("has no free-text box behind Other — Other saves the literal value", () => {
+    // #874: the box made "Other" unanswerable (anything typed was off-list).
+    // The on-file value is preserved by `industryOptionsFor` instead.
+    const control = SOURCE.slice(
+      SOURCE.indexOf("function IndustryControl"),
+      SOURCE.indexOf("function OtherDesignationsControl"),
+    );
+    expect(control).not.toContain("<Input");
+    expect(control).not.toContain("__other__");
+    expect(control).toContain("industryOptionsFor(options, value, onFileValue)");
+  });
+
+  it("uses the survey lists, not the staff ones that still carry Unknown", () => {
+    const control = SOURCE.slice(SOURCE.indexOf("function FieldControl"));
+    expect(control).toContain("SURVEY_INDUSTRY_OPTIONS");
+    expect(control).toContain("SURVEY_SECONDARY_INDUSTRY_OPTIONS");
+  });
+
+  it("validates the dropdown on blur", () => {
     const control = SOURCE.slice(
       SOURCE.indexOf("function IndustryControl"),
       SOURCE.indexOf("function OtherDesignationsControl"),

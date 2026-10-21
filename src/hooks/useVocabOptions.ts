@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { clientGet } from "@/lib/api-client";
-import { REGION_OPTIONS } from "@/constants/dropdowns";
+import { REGION_OPTIONS, filterPrimaryIndustries } from "@/constants/dropdowns";
 import type { components } from "@/types/api.gen";
 
 /** The backend's state -> region payload, straight off the OpenAPI contract. */
@@ -21,10 +21,16 @@ export type VocabCategory =
  * query param on GET /vocabulary/{category}).
  *
  * * `"all"` (default) — every active term.
- * * `"primary"` — for `industry` only, additionally hides the four industries
- *   that may only be used as a SECONDARY industry (#452). The hidden terms are
+ * * `"primary"` — for `industry` only, additionally hides the industries that
+ *   may only be used as a SECONDARY industry (#452, #875). The hidden terms are
  *   still active vocabulary and are still accepted on write; they are only
  *   withheld from the primary dropdown. No effect on other categories.
+ *
+ *   The server filters this list, and the hook ALSO runs the fetched values
+ *   through `filterPrimaryIndustries`. Belt and braces: the exclusion list lives
+ *   in both repos, and an API deployed behind the app (or a vocab term re-added
+ *   by an admin) would otherwise put a secondary-only industry straight back on
+ *   the primary dropdown. Filtering an already-filtered list is a no-op.
  */
 export type VocabScope = "all" | "primary";
 
@@ -67,7 +73,11 @@ export function useVocabOptions(
       .then((res) => {
         // Only replace the fallback when we got a non-empty active list back.
         if (active && Array.isArray(res.values) && res.values.length > 0) {
-          setOptions(res.values);
+          setOptions(
+            category === "industry" && scope === "primary"
+              ? filterPrimaryIndustries(res.values)
+              : res.values,
+          );
         }
       })
       .catch(() => {
