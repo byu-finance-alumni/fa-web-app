@@ -54,6 +54,16 @@ import {
   toCreateBody,
   toLinksApiQuery,
   toLinksQs,
+  toLinksSemestersQuery,
+  groupLinksBySemester,
+  isSemesterKey,
+  linksSearchParamsFromQs,
+  normalizeSemesters,
+  semesterHeading,
+  semesterLabel,
+  semesterOptions,
+  toggleSemester,
+  MAX_SEMESTERS,
   validateAddLink,
   validateAddLinkStep,
   type LinksFilterState,
@@ -554,6 +564,8 @@ function link(overrides: Partial<OpportunityLink> = {}): OpportunityLink {
     submitted_at: "2026-08-01T12:00:00Z",
     reviewed_by: null,
     reviewed_at: null,
+    semester: "Summer-2026",
+    semester_label: "Summer 2026",
     ...overrides,
   };
 }
@@ -577,6 +589,7 @@ describe("parseLinksFilters", () => {
         company: "gold",
         submitted_from: "2026-08-01",
         submitted_to: "2026-08-28",
+        semester: ["Fall-2026", "Winter-2027"],
       }),
     ).toEqual({
       q: "goldman",
@@ -585,6 +598,7 @@ describe("parseLinksFilters", () => {
       company: "gold",
       submitted_from: "2026-08-01",
       submitted_to: "2026-08-28",
+      semesters: ["Winter-2027", "Fall-2026"],
     });
   });
 
@@ -639,6 +653,7 @@ describe("toLinksQs", () => {
         company: "zions",
         submitted_from: "",
         submitted_to: "",
+        semesters: [],
       },
       {
         q: "",
@@ -647,6 +662,7 @@ describe("toLinksQs", () => {
         company: "",
         submitted_from: "",
         submitted_to: "",
+        semesters: [],
       },
       {
         q: "goldman sachs",
@@ -655,6 +671,7 @@ describe("toLinksQs", () => {
         company: "",
         submitted_from: "",
         submitted_to: "",
+        semesters: [],
       },
       // The report selection (#771): the deep link a staff member pastes into
       // an email has to come back as the same range.
@@ -665,6 +682,7 @@ describe("toLinksQs", () => {
         company: "",
         submitted_from: "2026-07-01",
         submitted_to: "2026-07-31",
+        semesters: [],
       },
       {
         q: "analyst",
@@ -673,6 +691,7 @@ describe("toLinksQs", () => {
         company: "zions",
         submitted_from: "2026-01-01",
         submitted_to: "",
+        semesters: [],
       },
       {
         q: "",
@@ -681,10 +700,18 @@ describe("toLinksQs", () => {
         company: "",
         submitted_from: "",
         submitted_to: "2026-12-31",
+        semesters: [],
       },
     ];
+    // Semesters (#876) are the one multi-valued filter, so the round trip has
+    // to go through the repeat-preserving reader.
+    cases.push({
+      ...EMPTY_LINKS_FILTERS,
+      submitted_from: "2026-09-01",
+      semesters: ["Winter-2027", "Fall-2026"],
+    });
     for (const f of cases) {
-      const sp = Object.fromEntries(new URLSearchParams(toLinksQs(f)));
+      const sp = linksSearchParamsFromQs(toLinksQs(f));
       expect(parseLinksFilters(sp)).toEqual(f);
     }
   });
@@ -735,6 +762,7 @@ describe("toLinksApiQuery", () => {
       company: " zions ",
       submitted_from: "2026-07-01",
       submitted_to: "2026-07-31",
+      semesters: [],
     };
     expect(params(f)).toEqual({
       status: "pending",
@@ -769,6 +797,7 @@ describe("toLinksApiQuery", () => {
           company: "b",
           submitted_from: "2026-07-01",
           submitted_to: "2026-07-31",
+          semesters: [],
         }),
       ).keys(),
     );
@@ -781,6 +810,7 @@ describe("toLinksApiQuery", () => {
           company: "b",
           submitted_from: "2026-07-01",
           submitted_to: "2026-07-31",
+          semesters: [],
         }),
       ).keys(),
     );
@@ -911,6 +941,7 @@ describe("the CSV covers exactly the population the list is showing", () => {
       company: "zions",
       submitted_from: "2026-01-01",
       submitted_to: "2026-12-31",
+      semesters: [],
     },
   ];
 
@@ -953,6 +984,7 @@ describe("the CSV covers exactly the population the list is showing", () => {
       company: "b",
       submitted_from: "2026-07-01",
       submitted_to: "2026-07-31",
+      semesters: [],
     };
     const urlKeys = [...new URLSearchParams(toLinksQs(everything)).keys()];
     const exportKeys = new Set(
@@ -968,7 +1000,7 @@ describe("the CSV covers exactly the population the list is showing", () => {
     // A hand-built filter object arriving from the client is the drift.
     const src = read("src/app/(app)/links/actions.ts");
     expect(src).toContain("export async function exportLinks(qs: string)");
-    expect(src).toContain("parseLinksFilters(");
+    expect(src).toContain("parseLinksFilters(linksSearchParamsFromQs(qs))");
     expect(src).toContain("toLinksExportQuery(filters)");
     // No second assembler on the export path.
     expect(src).not.toContain("new URLSearchParams()");
@@ -2621,5 +2653,210 @@ describe("opportunity links stay OUT of the survey's three-list machinery", () =
     expect(src).not.toContain('"links.location_country"');
     expect(src).not.toContain('"links.state"');
     expect(read("src/lib/sampleAlumni.ts")).not.toContain("location_country");
+  });
+});
+
+
+/* ==================================================================== *
+ * Semesters (#876): group by the semester SUBMITTED in, pick on export
+ * ==================================================================== */
+
+describe("isSemesterKey", () => {
+  it("accepts exactly the backend's Term-YYYY form", () => {
+    expect(isSemesterKey("Fall-2026")).toBe(true);
+    expect(isSemesterKey("Winter-2027")).toBe(true);
+    expect(isSemesterKey("Spring-2000")).toBe(true);
+    expect(isSemesterKey("Summer-2100")).toBe(true);
+  });
+
+  it.each([
+    "fall-2026",
+    "Fall 2026",
+    "Fall-26",
+    "Autumn-2026",
+    "Fall-1999",
+    "Fall-2101",
+    " Fall-2026",
+    "Fall-2026\n",
+    "Fall-２０２６",
+    "",
+  ])("refuses %j", (raw) => {
+    expect(isSemesterKey(raw)).toBe(false);
+  });
+
+  it("refuses non-strings", () => {
+    expect(isSemesterKey(undefined)).toBe(false);
+    expect(isSemesterKey(["Fall-2026"])).toBe(false);
+  });
+});
+
+describe("normalizeSemesters", () => {
+  it("accepts one value or many, dedupes and sorts newest first", () => {
+    expect(normalizeSemesters("Fall-2026")).toEqual(["Fall-2026"]);
+    expect(
+      normalizeSemesters(["Winter-2026", "Fall-2026", "Winter-2027", "Fall-2026"]),
+    ).toEqual(["Winter-2027", "Fall-2026", "Winter-2026"]);
+    // Within a year: Fall > Summer > Spring > Winter.
+    expect(
+      normalizeSemesters(["Winter-2026", "Spring-2026", "Fall-2026", "Summer-2026"]),
+    ).toEqual(["Fall-2026", "Summer-2026", "Spring-2026", "Winter-2026"]);
+  });
+
+  it("drops garbage rather than forwarding it into a 422", () => {
+    expect(normalizeSemesters(["Fall-2026", "nonsense", "fall-2027"])).toEqual([
+      "Fall-2026",
+    ]);
+    expect(normalizeSemesters(undefined)).toEqual([]);
+  });
+
+  it("never sends more than the backend's cap", () => {
+    const many = [2023, 2024, 2025, 2026].flatMap((y) =>
+      ["Winter", "Spring", "Summer", "Fall"].map((t) => `${t}-${y}`),
+    );
+    const out = normalizeSemesters(many);
+    expect(out).toHaveLength(MAX_SEMESTERS);
+    // The NEWEST are kept.
+    expect(out[0]).toBe("Fall-2026");
+  });
+});
+
+describe("semester filter wiring", () => {
+  const f = {
+    ...EMPTY_LINKS_FILTERS,
+    semesters: ["Winter-2027", "Fall-2026"],
+  };
+
+  it("puts every ticked semester in the URL, the list query and the export query", () => {
+    expect(new URLSearchParams(toLinksQs(f)).getAll("semester")).toEqual([
+      "Winter-2027",
+      "Fall-2026",
+    ]);
+    expect(new URLSearchParams(toLinksApiQuery(f)).getAll("semester")).toEqual([
+      "Winter-2027",
+      "Fall-2026",
+    ]);
+    expect(new URLSearchParams(toLinksExportQuery(f)).getAll("semester")).toEqual([
+      "Winter-2027",
+      "Fall-2026",
+    ]);
+  });
+
+  it("the export query is the list query minus paging, semesters included", () => {
+    const list = new URLSearchParams(toLinksApiQuery(f));
+    list.delete("limit");
+    list.delete("offset");
+    expect(list.toString()).toBe(toLinksExportQuery(f));
+  });
+
+  it("the facet query is the list's selection minus semesters and paging", () => {
+    const facet = new URLSearchParams(
+      toLinksSemestersQuery({ ...f, submitted_from: "2026-01-01", company: "acme" }),
+    );
+    expect(facet.getAll("semester")).toEqual([]);
+    expect(facet.get("submitted_from")).toBe("2026-01-01");
+    expect(facet.get("company")).toBe("acme");
+    expect(facet.get("status")).toBe("approved");
+    expect(facet.has("limit")).toBe(false);
+  });
+
+  it("counts as an active filter, and no semesters is the default view", () => {
+    expect(hasActiveLinkFilters(f)).toBe(true);
+    expect(hasActiveLinkFilters(EMPTY_LINKS_FILTERS)).toBe(false);
+    expect(EMPTY_LINKS_FILTERS.semesters).toEqual([]);
+  });
+
+  it("survives the export action's re-parse with EVERY semester (not just the last)", () => {
+    // `Object.fromEntries(new URLSearchParams(qs))` keeps only the last value of
+    // a repeated key — the bug this reader exists to avoid.
+    const parsed = parseLinksFilters(linksSearchParamsFromQs(toLinksQs(f)));
+    expect(parsed.semesters).toEqual(["Winter-2027", "Fall-2026"]);
+  });
+
+  it("toggles a semester on and off, staying normalised", () => {
+    expect(toggleSemester([], "Fall-2026")).toEqual(["Fall-2026"]);
+    expect(toggleSemester(["Fall-2026"], "Winter-2027")).toEqual([
+      "Winter-2027",
+      "Fall-2026",
+    ]);
+    expect(toggleSemester(["Winter-2027", "Fall-2026"], "Winter-2027")).toEqual([
+      "Fall-2026",
+    ]);
+  });
+
+  it("labels a key for display", () => {
+    expect(semesterLabel("Fall-2026")).toBe("Fall 2026");
+  });
+});
+
+describe("semesterOptions", () => {
+  it("offers what the backend listed, newest first, plus anything ticked but unlisted", () => {
+    const options = semesterOptions(
+      [
+        { semester: "Fall-2026", label: "Fall 2026", count: 4 },
+        { semester: "Summer-2026", label: "Summer 2026", count: 2 },
+      ],
+      ["Winter-2027", "Fall-2026"],
+    );
+    expect(options.map((o) => [o.semester, o.count])).toEqual([
+      ["Winter-2027", null],
+      ["Fall-2026", 4],
+      ["Summer-2026", 2],
+    ]);
+  });
+});
+
+describe("groupLinksBySemester", () => {
+  const row = (id: number, semester: string) =>
+    link({
+      opportunity_link_id: id,
+      semester,
+      semester_label: semester.replace("-", " "),
+    });
+
+  it("starts a heading wherever the semester changes", () => {
+    const groups = groupLinksBySemester([
+      row(1, "Fall-2026"),
+      row(2, "Fall-2026"),
+      row(3, "Summer-2026"),
+      row(4, "Winter-2026"),
+    ]);
+    expect(groups.map((g) => [g.label, g.links.map((l) => l.opportunity_link_id)])).toEqual([
+      ["Fall 2026", [1, 2]],
+      ["Summer 2026", [3]],
+      ["Winter 2026", [4]],
+    ]);
+    expect(groups.every((g) => !g.continued)).toBe(true);
+  });
+
+  it("marks the first group continued when the previous page ended in the same semester", () => {
+    const groups = groupLinksBySemester(
+      [row(51, "Fall-2026"), row(52, "Summer-2026")],
+      "Fall-2026",
+    );
+    expect(groups[0].continued).toBe(true);
+    expect(groups[1].continued).toBe(false);
+  });
+
+  it("does not mark it continued when the previous page ended in another semester", () => {
+    const groups = groupLinksBySemester([row(51, "Summer-2026")], "Fall-2026");
+    expect(groups[0].continued).toBe(false);
+  });
+
+  it("returns no groups for no rows", () => {
+    expect(groupLinksBySemester([], "Fall-2026")).toEqual([]);
+  });
+});
+
+describe("semesterHeading", () => {
+  it("names the semester, its total when known, and a continuation", () => {
+    expect(semesterHeading({ label: "Fall 2026", continued: false }, 63)).toBe(
+      "Fall 2026 · 63 links",
+    );
+    expect(semesterHeading({ label: "Fall 2026", continued: true }, 1)).toBe(
+      "Fall 2026 · 1 link (continued from the previous page)",
+    );
+    expect(semesterHeading({ label: "Fall 2026", continued: false }, undefined)).toBe(
+      "Fall 2026",
+    );
   });
 });
