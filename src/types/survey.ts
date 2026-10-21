@@ -114,6 +114,8 @@ export const SURVEY_FIELDS: SurveyField[] = [
   // --- Employment (current_employment) ---
   { key: "employment.current_employer", table: "current_employment", column: "current_employer", label: "Current employer", group: "employment", kind: "text" },
   { key: "employment.current_title", table: "current_employment", column: "current_title", label: "Current title", group: "employment", kind: "text" },
+  // Industry and Secondary Industry are both dropdowns on the form (#874); this
+  // list only drives how the on-file value is DISPLAYED, so they stay "text".
   { key: "employment.current_industry", table: "current_employment", column: "current_industry", label: "Industry", group: "employment", kind: "text" },
   { key: "employment.current_industry_secondary", table: "current_employment", column: "current_industry_secondary", label: "Secondary industry", group: "employment", kind: "text" },
   { key: "employment.current_city", table: "current_employment", column: "current_city", label: "Work city", group: "employment", kind: "text" },

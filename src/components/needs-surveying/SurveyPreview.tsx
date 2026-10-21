@@ -31,7 +31,8 @@ import {
  * It renders the SAME screens the alum gets, from
  * `components/survey/survey-screens`, over `SAMPLE_ALUM` instead of a real
  * record: review, the section menu, every section's real controls (the
- * Employment Status and Industry dropdowns, the state/country selects, the
+ * Employment Status, Industry and Secondary Industry dropdowns, the
+ * state/country selects, the
  * Yes/No engagement questions), and the thank-you screen. The whole walkthrough
  * is clickable, so staff can check wording and field order the way an alum
  * meets them.

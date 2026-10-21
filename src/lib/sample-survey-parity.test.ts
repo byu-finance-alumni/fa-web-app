@@ -3,6 +3,10 @@ import { describe, expect, it } from "vitest";
 import { SAMPLE_ALUM } from "./sampleAlumni";
 import { INFO_SECTIONS } from "@/components/survey/survey-screens";
 import { SURVEY_FIELD_BY_KEY } from "@/types/survey";
+import {
+  SURVEY_INDUSTRY_OPTIONS,
+  SURVEY_SECONDARY_INDUSTRY_OPTIONS,
+} from "@/constants/dropdowns";
 
 /**
  * The SAMPLE SURVEY must reflect the real survey. Standing instruction from
@@ -57,6 +61,17 @@ describe("sample survey parity with the real survey", () => {
     expect(SURVEY_FIELD_BY_KEY["profile.middle_name"]?.label).toBe(
       "Middle or Maiden name",
     );
+  });
+
+  it("samples industries the survey dropdowns actually offer (#874)", () => {
+    // Both industry fields are dropdowns now. A sample value off the offered
+    // list would show staff the "on file, we'll keep it" case instead of an
+    // ordinary answer — and "Unknown" is no longer offered at all.
+    const industry = SAMPLE_ALUM["employment.current_industry"];
+    const secondary = SAMPLE_ALUM["employment.current_industry_secondary"];
+    expect(SURVEY_INDUSTRY_OPTIONS).toContain(industry);
+    expect(SURVEY_SECONDARY_INDUSTRY_OPTIONS).toContain(secondary);
+    expect(secondary).not.toBe(industry);
   });
 
   it("never surfaces birth_name — maiden names live in middle_name", () => {
