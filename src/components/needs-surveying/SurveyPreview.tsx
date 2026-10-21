@@ -9,6 +9,7 @@ import { SAMPLE_ALUM, SAMPLE_ALUM_NAME } from "@/lib/sampleAlumni";
 import { emptyLinkEntry, type LinkEntry } from "@/lib/opportunityLinks";
 import { type WaysToHelpMode } from "@/lib/surveyWaysToHelp";
 import { SurveyContactLink } from "@/components/survey/SurveyContactLink";
+import { renderBold } from "@/lib/surveyBold";
 import { surveyMessageByline } from "@/lib/surveyMessage";
 import {
   useSurveyMessage,
@@ -31,7 +32,8 @@ import {
  * It renders the SAME screens the alum gets, from
  * `components/survey/survey-screens`, over `SAMPLE_ALUM` instead of a real
  * record: review, the section menu, every section's real controls (the
- * Employment Status and Industry dropdowns, the state/country selects, the
+ * Employment Status, Industry and Secondary Industry dropdowns, the
+ * state/country selects, the
  * Yes/No engagement questions), and the thank-you screen. The whole walkthrough
  * is clickable, so staff can check wording and field order the way an alum
  * meets them.
@@ -439,7 +441,10 @@ function EmailCopyBlock({
             {greeting ? (
               <p className="mb-2 text-sm text-gray-900">{greeting}</p>
             ) : null}
-            <p className="whitespace-pre-wrap text-sm text-gray-700">{value}</p>
+            {/* `**bold**` renders exactly as the real email does (#877). */}
+            <p className="whitespace-pre-wrap text-sm text-gray-700">
+              {value !== undefined ? renderBold(value) : null}
+            </p>
           </>
         )}
       </div>

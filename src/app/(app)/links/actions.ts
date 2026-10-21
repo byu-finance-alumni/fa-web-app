@@ -18,6 +18,7 @@ import {
   linksDateRangeError,
   linksExportErrorMessage,
   linksExportFilename,
+  linksSearchParamsFromQs,
   parseLinksFilters,
   toBulkDeleteIds,
   toCreateBody,
@@ -236,9 +237,9 @@ export type ExportLinksResult =
  * under the same dated name.
  */
 export async function exportLinks(qs: string): Promise<ExportLinksResult> {
-  const filters = parseLinksFilters(
-    Object.fromEntries(new URLSearchParams(qs)),
-  );
+  // Repeated keys survive the re-parse: `?semester=` is multi-valued, and
+  // `Object.fromEntries` would keep only the last semester ticked (#876).
+  const filters = parseLinksFilters(linksSearchParamsFromQs(qs));
 
   // Refuse the doomed request rather than translating its 422 afterwards: an
   // inverted range is a typo in a form, and the user should read that instead of

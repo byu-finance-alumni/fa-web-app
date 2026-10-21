@@ -20,8 +20,10 @@ import {
   parseLinksFilters,
   parseLinksOffset,
   toLinksApiQuery,
+  toLinksSemestersQuery,
   type LinksSearchParams,
   type OpportunityLinkPage,
+  type OpportunityLinkSemesters,
 } from "@/lib/opportunityLinks";
 
 /**
@@ -48,6 +50,14 @@ import {
  * though they keep `surveys.manage` for approve/reject. Approve and reject are
  * reversible bookkeeping; delete destroys the row. The blue Edit button and the
  * whole selection mode behind it appear only for holders of that capability.
+ *
+ * SEMESTERS (#876). Rows are grouped under BYU-semester headings ("Fall 2026"),
+ * by the semester each link was SUBMITTED in. The semester comes labelled on
+ * every row from the backend, which owns the calendar. The checkbox options
+ * come from `GET /opportunity-links/semesters` — the semesters that actually
+ * have links under the other filters, with counts — fetched alongside the list.
+ * Ticking semesters filters the list AND the CSV, since the export is always
+ * exactly the list (#771).
  */
 
 export default async function LinksPage({
@@ -95,6 +105,10 @@ export default async function LinksPage({
   const rangeError = linksDateRangeError(effectiveFilters);
 
   let data: OpportunityLinkPage | null = null;
+  // The semester checkboxes' options. Its own failure is NOT the page's: if it
+  // cannot load, the list still renders and the Filters menu says the options
+  // are unavailable.
+  let semesters: OpportunityLinkSemesters | null = null;
   // An unreadable capability list is itself a load failure — surface it with the
   // same card rather than silently downgrading the page to the read-only view.
   let error: ApiError | null =
@@ -103,17 +117,34 @@ export default async function LinksPage({
       : null;
 
   if (!error && !rangeError) {
-    try {
-      data = await apiGet<OpportunityLinkPage>(
+    const [listResult, semestersResult] = await Promise.allSettled([
+      apiGet<OpportunityLinkPage>(
         `/opportunity-links?${toLinksApiQuery(effectiveFilters, {
           limit: LINKS_PAGE_SIZE,
           offset,
         })}`,
-      );
-    } catch (e) {
+      ),
+      apiGet<OpportunityLinkSemesters>(
+        `/opportunity-links/semesters?${toLinksSemestersQuery(effectiveFilters)}`,
+      ),
+    ]);
+    if (listResult.status === "fulfilled") {
+      data = listResult.value;
+    } else {
+      const e = listResult.reason;
       error = e instanceof ApiError ? e : new ApiError(0, "Failed to load links.");
     }
+    if (semestersResult.status === "fulfilled") {
+      semesters = semestersResult.value;
+    }
   }
+
+  // Per-semester totals under the current filters, for the group headings.
+  // The facet ignores the semester selection, but ticking only removes OTHER
+  // semesters, so a ticked semester's total is the same either way.
+  const semesterTotals: Record<string, number> = Object.fromEntries(
+    (semesters?.items ?? []).map((s) => [s.semester, s.count]),
+  );
 
   const rows = data?.items ?? null;
   // The ids selection mode is allowed to act on: exactly what is on screen.
@@ -140,6 +171,7 @@ export default async function LinksPage({
             initial={effectiveFilters}
             canReview={canReview}
             createHref={canReview ? "/links/new" : null}
+            semesters={semesters?.items ?? null}
           />
 
           <LinksBulkDeleteBar />
@@ -170,7 +202,13 @@ export default async function LinksPage({
             </Card>
           ) : (
             <>
-              <LinksTable links={rows!} canReview={canReview} now={now} />
+              <LinksTable
+                links={rows!}
+                canReview={canReview}
+                now={now}
+                previousSemester={data!.previous_semester}
+                semesterTotals={semesterTotals}
+              />
 
               <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
                 <span className="tabular-nums">

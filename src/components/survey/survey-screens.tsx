@@ -60,8 +60,10 @@ import {
   COUNTRY_OPTIONS,
   INDUSTRY_OPTIONS,
   MARITAL_STATUS_OPTIONS,
-  PRIMARY_INDUSTRY_OPTIONS,
+  SECONDARY_INDUSTRY_OPTIONS,
   SURVEY_EMPLOYMENT_STATUS_OPTIONS,
+  SURVEY_INDUSTRY_OPTIONS,
+  SURVEY_SECONDARY_INDUSTRY_OPTIONS,
   isEmploymentStatusPlaceholder,
 } from "@/constants/dropdowns";
 import { HEADSHOT_OBJECT_POSITION } from "@/constants/headshot";
@@ -75,12 +77,6 @@ export type Fields = Record<string, string>;
 // stored value outside this list is still preserved by the select (see
 // `SelectControl`). Same arrangement as `MARITAL_STATUS_OPTIONS` below.
 export { COUNTRY_OPTIONS };
-
-// Industry choices for the current-industry dropdown (#525). "Other" is broken
-// out separately so selecting it reveals a free-text input.
-const INDUSTRY_CHOICES: readonly string[] = PRIMARY_INDUSTRY_OPTIONS.filter(
-  (o) => o !== "Other",
-);
 
 /**
  * Marital status choices (#647) — re-exported from the shared constants module
@@ -163,6 +159,10 @@ export type FieldKind =
   | "usState"
   | "country"
   | "industry"
+  // Secondary industry (#874). Its own kind, not `industry` with a different
+  // list, because the two offer DIFFERENT lists (secondary keeps the industries
+  // hidden from primary, e.g. Law and FP&A) and the kind is what names the list.
+  | "secondaryIndustry"
   | "employmentStatus"
   // A URL the alum types that STAFF later click from a signed-in session (api
   // #418). Its own kind for the same reason `employmentStatus` is one: the kind
@@ -253,13 +253,19 @@ export function displayValue(field: EditField, value: string): string {
  *
  * THIS IS NOT THE LIST THE CONTROL OFFERS, and the difference is load-bearing:
  *
- *   * industry — offers `INDUSTRY_CHOICES` (the primary list minus "Other"),
- *     but ACCEPTS all of `INDUSTRY_OPTIONS`. The four primary-excluded
- *     industries (Law, Corporate Banking, Sales and Trading, Credit Risk) and
- *     the literal "Other" are hidden from the dropdown yet are perfectly good
- *     stored values the server still writes. Validating against the narrower
- *     offered list would refuse an alum whose record says "Law" for handing us
- *     back the exact value we sent them, which is the opposite of the point.
+ *   * industry — offers `SURVEY_INDUSTRY_OPTIONS` (the primary list minus
+ *     "Unknown", with "Other" last, #874), but ACCEPTS all of
+ *     `INDUSTRY_OPTIONS`. The primary-excluded industries (Law, Corporate
+ *     Banking, Sales and Trading, Credit Risk, FP&A) and "Unknown" are hidden
+ *     from the dropdown yet are perfectly good stored values the server still
+ *     writes. Validating against the narrower offered list would refuse an alum
+ *     whose record says "Law" for handing us back the exact value we sent them,
+ *     which is the opposite of the point.
+ *   * secondaryIndustry — offers `SURVEY_SECONDARY_INDUSTRY_OPTIONS` and
+ *     accepts `SECONDARY_INDUSTRY_OPTIONS` (the same full list as primary). The
+ *     server keeps this column free text, so it is the more permissive side:
+ *     everything the dropdown can produce is accepted there, and an off-list
+ *     value already on file is exempt here exactly as for industry.
  *   * employmentStatus / maritalStatus — the offered list and the accepted list
  *     coincide today; they are listed so a `SelectControl` that later gains an
  *     "Other" escape hatch inherits the rule instead of reopening this hole.
@@ -268,6 +274,7 @@ export function displayValue(field: EditField, value: string): string {
  */
 export const SURVEY_CHOICE_OPTIONS: Partial<Record<FieldKind, readonly string[]>> = {
   industry: INDUSTRY_OPTIONS,
+  secondaryIndustry: SECONDARY_INDUSTRY_OPTIONS,
   employmentStatus: SURVEY_EMPLOYMENT_STATUS_OPTIONS,
   maritalStatus: MARITAL_STATUS_OPTIONS,
 };
@@ -282,7 +289,9 @@ export const SURVEY_CHOICE_OPTIONS: Partial<Record<FieldKind, readonly string[]>
  */
 const SURVEY_CHOICE_ERRORS: Partial<Record<FieldKind, string>> = {
   industry:
-    "We can only save an industry from the list above. Pick the closest match, or clear this box to leave the industry on your record as it is.",
+    "We can only save an industry from the list above. Pick the closest match, or Other if none fits.",
+  secondaryIndustry:
+    "We can only save an industry from the list above. Pick the closest match, or Other if none fits.",
   employmentStatus:
     "We can only save a status from the list. Please pick one of the options above.",
   maritalStatus:
@@ -385,7 +394,7 @@ export const INFO_SECTIONS: Section[] = [
       { key: "employment.current_employer", label: "Company", kind: "text" },
       { key: "employment.current_title", label: "Job Title", kind: "text" },
       { key: "employment.current_industry", label: "Industry", kind: "industry" },
-      { key: "employment.current_industry_secondary", label: "Secondary Industry", kind: "text" },
+      { key: "employment.current_industry_secondary", label: "Secondary Industry", kind: "secondaryIndustry" },
       { key: "employment.current_city", label: "Employment city", kind: "text" },
       { key: "employment.current_state", label: "Employment state", kind: "usState" },
       { key: "employment.current_country", label: "Employment country", kind: "country" },
@@ -2187,29 +2196,58 @@ function SelectControl({
 }
 
 /**
- * Current industry (#525): the controlled industry list with an "Other" option
- * that reveals a free-text input. A stored value outside the list is treated as
- * "Other" and shown in the text box, so nothing on file is lost.
+ * The options an industry dropdown shows (#874): the offered list, with the
+ * value ON FILE prepended when the list doesn't offer it.
  *
- * THAT PRESERVATION IS THE POINT OF THE TEXT BOX and must survive any change
- * here — an alum whose record says "Underwater Basket Weaving" opens the survey,
- * sees their own answer, and can submit an unrelated correction without it being
- * blanked or rewritten into something more generic.
+ * This is what preserves an off-list industry now that there is no free-text
+ * box. An alum whose record says "Underwater Basket Weaving" — or "Unknown",
+ * which the survey no longer offers, or "FP&A" as a primary (#875) — opens the
+ * survey and sees that exact value selected, and can submit an unrelated
+ * correction without it being blanked or rewritten into something more generic.
  *
- * What CHANGED in #426: the box no longer accepts arbitrary new text in silence.
- * The server now writes only values on `INDUSTRY_OPTIONS` and ignores everything
- * else — returning success either way — so typing a brand-new off-list industry
- * used to end with the alum being thanked for an answer we discarded. The rule
- * is now enforced here, where it can actually be explained, with the on-file
- * value exempted so the legacy case above is untouched. See
- * `validateSurveyField` / `isValueOnFile`.
+ * Keyed on the ON-FILE value, not the working one, unlike `withStoredValue`: an
+ * alum who picks something else and then changes their mind must still find
+ * their original answer in the list to put back. The working value is prepended
+ * too (defensively — a select can only hold an offered or on-file value) so the
+ * control never renders a value with no matching option.
+ *
+ * Exact-string match on purpose, like `withStoredValue`: a stored
+ * "investment banking" is shown as itself rather than silently swapped for the
+ * canonical spelling, which would be an edit the alum didn't make.
+ */
+export function industryOptionsFor(
+  offered: readonly string[],
+  value: string,
+  onFile: string | null | undefined,
+): readonly string[] {
+  return withStoredValue(withStoredValue(offered, onFile ?? ""), value);
+}
+
+/**
+ * Industry and Secondary Industry (#525, #874): a plain dropdown over the
+ * survey's industry list. Picking "Other" saves the literal "Other" — a
+ * canonical industry the server writes — with no box to type into.
+ *
+ * Until #874 "Other" revealed a free-text box, and the form refused anything
+ * typed there that wasn't on the list (the server ignores off-list answers
+ * silently, #426), so nobody could actually answer "Other". The box was also
+ * what showed an off-list value already on file; that job now belongs to
+ * `industryOptionsFor`, which keeps the on-file value as a selectable option,
+ * plus the hint below saying we'll keep it.
+ *
+ * The validation rule still runs (`validateSurveyField` / `isValueOnFile`) as a
+ * backstop: the dropdown can only produce an offered value or the on-file one,
+ * both of which pass, so it should never fire — but if it ever did, an error
+ * beats the server quietly discarding an answer.
  *
  * `onFileValue` is the record's value, not the working one, which is what lets
- * the hint under the box tell those two situations apart.
+ * the hint tell "the odd value already on your record" from anything else.
  */
 function IndustryControl({
   id,
   value,
+  options,
+  placeholder,
   onFileValue,
   onChange,
   onBlur,
@@ -2218,82 +2256,55 @@ function IndustryControl({
 }: {
   id: string;
   value: string;
+  /** What the dropdown offers — `SURVEY_INDUSTRY_OPTIONS` or the secondary list. */
+  options: readonly string[];
+  placeholder: string;
   onFileValue?: string;
   onChange: (v: string) => void;
   onBlur?: () => void;
   error?: string;
   errorId?: string;
 }) {
-  const inList = INDUSTRY_CHOICES.includes(value);
-  const [other, setOther] = useState(value !== "" && !inList);
-  const selectValue = other ? "__other__" : inList ? value : "";
+  const opts = industryOptionsFor(options, value, onFileValue);
   const hintId = `${id}-industry-hint`;
-  // The box currently holds the off-list value the record already had — the one
-  // case that is NOT a mistake. Checked against the accepted list, not the
-  // offered one, so a stored "Law" (hidden from the dropdown, but a perfectly
-  // good stored value) reads as an ordinary industry rather than as a legacy
-  // oddity we're apologising for.
+  // The selected value is one the list doesn't offer, and it's the one the
+  // record already had — "Unknown", a primary-excluded industry such as Law or
+  // FP&A, or a legacy free-text answer. Say we'll keep it, so an unfamiliar
+  // option at the top of the list doesn't read as something to fix.
   const showsValueOnFile =
-    !isCanonicalChoice(INDUSTRY_OPTIONS, value) &&
-    isValueOnFile(value, onFileValue);
+    !options.includes(value) && isValueOnFile(value, onFileValue);
   return (
     <>
       <select
         id={id}
-        value={selectValue}
-        onChange={(e) => {
-          const v = e.target.value;
-          if (v === "__other__") {
-            setOther(true);
-            onChange("");
-          } else {
-            setOther(false);
-            onChange(v);
-          }
-        }}
-        className={SELECT_CLASS}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={errorId ?? (showsValueOnFile ? hintId : undefined)}
+        className={
+          error
+            ? `${SELECT_CLASS} border-danger-600 focus-visible:ring-danger-600`
+            : SELECT_CLASS
+        }
       >
-        <option value="">Select an industry</option>
-        {INDUSTRY_CHOICES.map((o) => (
+        <option value="">{placeholder}</option>
+        {opts.map((o) => (
           <option key={o} value={o}>
             {o}
           </option>
         ))}
-        <option value="__other__">Other</option>
       </select>
-      {other ? (
-        <>
-          {/*
-            Validated on BLUR, like the LinkedIn field and for the same reason:
-            a complaint that appears on the "U" of "Underwater" reads as the form
-            arguing with someone who is typing fine.
-          */}
-          <Input
-            className={
-              error
-                ? "mt-2 border-danger-600 focus-visible:ring-danger-600"
-                : "mt-2"
-            }
-            value={value}
-            aria-invalid={error ? true : undefined}
-            aria-describedby={errorId ?? hintId}
-            placeholder="Type your industry"
-            onChange={(e) => onChange(e.target.value)}
-            onBlur={onBlur}
-          />
-          {/*
-            The hint is suppressed while the error is up — `FieldControl` renders
-            that message directly below this, and two lines of guidance stacked
-            on one input is noise at the moment the alum is least able to read it.
-          */}
-          {error ? null : (
-            <p id={hintId} className="mt-1 text-xs leading-relaxed text-gray-500">
-              {showsValueOnFile
-                ? "This is the industry we have on file, and we'll keep it as it is. To change it, pick one from the list above."
-                : "We can only save industries from the list above. If yours isn't there, pick the closest match."}
-            </p>
-          )}
-        </>
+      {/*
+        The hint is suppressed while the error is up — `FieldControl` renders
+        that message directly below this, and two lines of guidance stacked on
+        one control is noise at the moment the alum is least able to read it.
+      */}
+      {showsValueOnFile && !error ? (
+        <p id={hintId} className="mt-1 text-xs leading-relaxed text-gray-500">
+          This is the industry we have on file, and we&apos;ll keep it as it is. To
+          change it, pick one from the list.
+        </p>
       ) : null}
     </>
   );
@@ -2500,10 +2511,18 @@ function FieldControl({
             placeholder="Select an option"
             onChange={onChange}
           />
-        ) : field.kind === "industry" ? (
+        ) : field.kind === "industry" || field.kind === "secondaryIndustry" ? (
+          // SURVEY_ lists, not the staff ones: no "Unknown" on the survey
+          // (#874). Staff forms keep it while records are cleaned up by hand.
           <IndustryControl
             id={controlId}
             value={value}
+            options={
+              field.kind === "industry"
+                ? SURVEY_INDUSTRY_OPTIONS
+                : SURVEY_SECONDARY_INDUSTRY_OPTIONS
+            }
+            placeholder="Select an industry"
             onFileValue={onFileValue}
             onChange={onChange}
             onBlur={onBlur}

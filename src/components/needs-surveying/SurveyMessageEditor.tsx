@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/Toast";
 import { InitialsAvatar } from "@/components/shared/InitialsAvatar";
 import { SAMPLE_ALUM, SAMPLE_ALUM_NAME } from "@/lib/sampleAlumni";
+import { renderBold, toggleBold } from "@/lib/surveyBold";
 import {
   surveyMessageByline,
   surveyMessageDirty,
@@ -61,6 +62,9 @@ const EMAIL_FIELD_GROUPS = (
     ),
   ],
 }));
+
+/** The copy fields that take `**bold**` (#877). The subject never does. */
+type BoldField = "reminder_note" | "intro" | "closing";
 
 /** What the last save attempt did, so the dialog can say so out loud. */
 type SaveState =
@@ -175,6 +179,40 @@ export function SurveyMessageEditor({
     setSaveState({ kind: "idle" });
     setDraft((prev) => (prev ? { ...prev, ...change } : prev));
   };
+
+  // The Bold button (#877) acts on the copy box that was focused last. Clicking
+  // a button moves focus to it, so "the focused textarea" has to be remembered
+  // rather than read from document.activeElement. A textarea keeps its
+  // selection after it blurs, so the selection is still there to read.
+  const reminderBox = useRef<HTMLTextAreaElement>(null);
+  const introBox = useRef<HTMLTextAreaElement>(null);
+  const closingBox = useRef<HTMLTextAreaElement>(null);
+  const lastBox = useRef<BoldField>("intro");
+  const boxFor = (field: BoldField) =>
+    field === "reminder_note"
+      ? reminderBox.current
+      : field === "intro"
+        ? introBox.current
+        : closingBox.current;
+
+  function applyBold() {
+    if (!draft) return;
+    const field = lastBox.current;
+    const el = boxFor(field);
+    const value = draft[field];
+    const start = el?.selectionStart ?? value.length;
+    const end = el?.selectionEnd ?? value.length;
+    const edit = toggleBold(value, start, end);
+    patch({ [field]: edit.value });
+    // After React has written the new value into the box: put focus back and
+    // re-select the same words, so pressing Bold again undoes it.
+    requestAnimationFrame(() => {
+      const box = boxFor(field);
+      if (!box) return;
+      box.focus();
+      box.setSelectionRange(edit.selectionStart, edit.selectionEnd);
+    });
+  }
 
   const toggleField = (key: string) => {
     if (!draft) return;
@@ -350,8 +388,12 @@ export function SurveyMessageEditor({
                   </p>
                   <Textarea
                     id="email-reminder-note"
+                    ref={reminderBox}
                     value={draft.reminder_note}
                     onChange={(e) => patch({ reminder_note: e.target.value })}
+                    onFocus={() => {
+                      lastBox.current = "reminder_note";
+                    }}
                     disabled={!editable}
                     rows={2}
                     className="mt-2"
@@ -368,8 +410,12 @@ export function SurveyMessageEditor({
                   </p>
                   <Textarea
                     id="email-message"
+                    ref={introBox}
                     value={draft.intro}
                     onChange={(e) => patch({ intro: e.target.value })}
+                    onFocus={() => {
+                      lastBox.current = "intro";
+                    }}
                     disabled={!editable}
                     rows={5}
                     className="mt-2"
@@ -385,12 +431,36 @@ export function SurveyMessageEditor({
                   </p>
                   <Textarea
                     id="email-closing"
+                    ref={closingBox}
                     value={draft.closing}
                     onChange={(e) => patch({ closing: e.target.value })}
+                    onFocus={() => {
+                      lastBox.current = "closing";
+                    }}
                     disabled={!editable}
                     rows={6}
                     className="mt-2"
                   />
+                </div>
+
+                {/* Bold (#877). A text button, per the no-icons rule. It wraps
+                    the selection in whichever copy box was focused last;
+                    preventDefault on mousedown keeps that box's focus and
+                    selection while the button is clicked. */}
+                <div className="-mt-2 flex flex-wrap items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={applyBold}
+                    disabled={!editable}
+                  >
+                    Bold
+                  </Button>
+                  <p className="text-xs text-gray-500">
+                    Wrap words in **double asterisks** to make them bold.
+                  </p>
                 </div>
 
                 {/* Field picker */}
@@ -474,10 +544,13 @@ export function SurveyMessageEditor({
                     <div className="space-y-3 bg-white px-4 py-4">
                       <p className="whitespace-pre-wrap text-sm text-gray-700">
                         Hello {SAMPLE_FIRST_NAME},{"\n\n"}
-                        {previewFollowUp && draft.reminder_note.trim()
-                          ? `${draft.reminder_note.trim()}\n\n`
-                          : ""}
-                        {draft.intro}
+                        {previewFollowUp && draft.reminder_note.trim() ? (
+                          <>
+                            {renderBold(draft.reminder_note.trim())}
+                            {"\n\n"}
+                          </>
+                        ) : null}
+                        {renderBold(draft.intro)}
                       </p>
                       {previewFollowUp && !draft.reminder_note.trim() ? (
                         <p className="text-xs italic text-gray-400">
@@ -536,7 +609,7 @@ export function SurveyMessageEditor({
                       </div>
 
                       <p className="whitespace-pre-wrap text-sm text-gray-700">
-                        {draft.closing}
+                        {renderBold(draft.closing)}
                       </p>
                     </div>
                   </div>

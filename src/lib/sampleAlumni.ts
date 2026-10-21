@@ -49,6 +49,10 @@ export const SAMPLE_ALUM: Record<string, string> = {
   // Employment
   "employment.current_employer": "Goldman Sachs",
   "employment.current_title": "Investment Banking Analyst",
+  // Both are dropdowns on the survey (#874), so both values must be options the
+  // survey actually OFFERS — an off-list sample would render as an "on file"
+  // value with the keep-it hint, which is the wrong thing to show staff as the
+  // ordinary case. Enforced in sample-survey-parity.test.ts.
   "employment.current_industry": "Investment Banking",
   "employment.current_industry_secondary": "Private Equity",
   "employment.current_city": "New York",
