@@ -865,14 +865,26 @@ export function parseLinksFilters(sp: LinksSearchParams): LinksFilterState {
  * it is wrong here: it keeps only the LAST value of a repeated key, so an
  * export of "Fall 2026 + Winter 2027" would quietly become an export of Winter
  * 2027 alone — a file that looks complete and is missing a semester.
+ *
+ * Reads ONLY the known keys, by name. Copying every key the string carries
+ * onto an object let a caller-chosen name (`__proto__`, `constructor`) become a
+ * property write — CodeQL `js/remote-property-injection` — and `qs` arrives via
+ * a server action anything can call. An unknown key was ignored downstream
+ * anyway, so nothing is lost.
  */
 export function linksSearchParamsFromQs(qs: string): LinksSearchParams {
   const p = new URLSearchParams(qs);
-  const out: Record<string, string | string[]> = {};
-  for (const key of new Set(p.keys())) {
-    out[key] = key === "semester" ? p.getAll(key) : (p.get(key) ?? "");
-  }
-  return out as LinksSearchParams;
+  const one = (key: string) => p.get(key) ?? undefined;
+  return {
+    q: one("q"),
+    status: one("status"),
+    role_type: one("role_type"),
+    company: one("company"),
+    submitted_from: one("submitted_from"),
+    submitted_to: one("submitted_to"),
+    semester: p.has("semester") ? p.getAll("semester") : undefined,
+    offset: one("offset"),
+  };
 }
 
 /** Read the paging offset out of the URL. Negative / non-numeric → 0. */

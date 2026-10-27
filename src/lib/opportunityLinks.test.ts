@@ -715,6 +715,18 @@ describe("toLinksQs", () => {
       expect(parseLinksFilters(sp)).toEqual(f);
     }
   });
+
+  it("reads only the known keys, so a crafted name cannot become a property write", () => {
+    const sp = linksSearchParamsFromQs(
+      "__proto__=x&constructor=y&polluted=1&status=pending&semester=Fall-2026",
+    );
+    expect(Object.getPrototypeOf(sp)).toBe(Object.prototype);
+    expect(Object.prototype.hasOwnProperty.call(sp, "polluted")).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(sp, "constructor")).toBe(false);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    expect(sp.status).toBe("pending");
+    expect(sp.semester).toEqual(["Fall-2026"]);
+  });
 });
 
 describe("linksHref", () => {
