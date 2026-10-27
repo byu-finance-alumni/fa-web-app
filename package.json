@@ -28,7 +28,7 @@
     "d3-geo": "^3.1.1",
     "fflate": "^0.8.3",
     "lucide-react": "^1.17.0",
-    "next": "^16.4.0",
+    "next": "^16.4.2",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-hook-form": "^7.77.0",
@@ -36,7 +36,7 @@
     "topojson-client": "^3.1.0",
     "us-atlas": "^3.0.1",
     "world-atlas": "^2.0.2",
-    "zod": "^4.4.3"
+    "zod": "^4.6.7"
   },
   "overrides": {
     "nanoid": "^3.3.18",
@@ -52,7 +52,7 @@
     "autoprefixer": "^10.4.20",
     "cross-env": "^10.1.0",
     "eslint": "^9.39.5",
-    "eslint-config-next": "^16.4.0",
+    "eslint-config-next": "^16.4.2",
     "openapi-typescript": "^7.13.0",
     "postcss": "^8.5.26",
     "tailwindcss": "^3.4.17",
