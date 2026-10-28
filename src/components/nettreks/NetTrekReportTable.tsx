@@ -33,21 +33,21 @@ export const NETTREK_TABLE_COLUMNS = [
  * hover text. Widths sum to 100%.
  */
 export const NETTREK_SCREEN_COLUMNS = [
-  { label: "First", w: "w-[7%]" },
-  { label: "Middle", w: "w-[5%]" },
-  { label: "Last", w: "w-[8%]" },
+  { label: "First", w: "w-[6%]" },
+  { label: "Middle", w: "w-[4%]" },
+  { label: "Last", w: "w-[7%]" },
   { label: "Company", w: "w-[9%]" },
   { label: "Industry", w: "w-[9%]" },
-  { label: "Secondary", w: "w-[7%]" },
-  { label: "City", w: "w-[7%]" },
+  { label: "Secondary", w: "w-[8%]" },
+  { label: "City", w: "w-[8%]" },
   { label: "State", w: "w-[4%]", center: true },
-  { label: "Personal email", w: "w-[9%]" },
+  { label: "Personal email", w: "w-[10%]" },
   { label: "Work email", w: "w-[8%]" },
-  { label: "Phone", w: "w-[10%]" },
-  { label: "LinkedIn", w: "w-[6%]", center: true },
-  { label: "Gender", w: "w-[5%]", center: true },
-  { label: "Grad", w: "w-[3%]", center: true },
-  { label: "Host", w: "w-[3%]", center: true },
+  { label: "Phone", w: "w-[9%]" },
+  { label: "LinkedIn", w: "w-[5%]", center: true },
+  { label: "Gender", w: "w-[4%]", center: true },
+  { label: "Grad", w: "w-[5%]", center: true },
+  { label: "Host", w: "w-[4%]", center: true },
 ] as const;
 
 // The alumni list's container, header, row and cell classes (AlumniTable,
