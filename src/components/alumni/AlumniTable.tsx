@@ -6,6 +6,7 @@ import { ArrowDown, ArrowUp, ChevronsUpDown, ExternalLink } from "lucide-react";
 import { RowAvatar } from "@/components/shared/RowAvatar";
 import { AlumniRowActions } from "@/components/alumni/AlumniRowActions";
 import { abbreviateState } from "@/lib/usStates";
+import { genderLabel } from "@/lib/format";
 import { safeExternalHref } from "@/lib/urlSafety";
 import { cn } from "@/lib/utils";
 import type { Alumni } from "@/types/alumni";
@@ -38,18 +39,6 @@ function currentLocation(a: Alumni): { city: string | null; state: string | null
     current_state?: string | null;
   };
   return { city: row.current_city ?? null, state: row.current_state ?? null };
-}
-
-/**
- * Compact gender label for a list row (#359). The stored value comes from the
- * import (free-text), so normalize the common spellings to a single letter:
- * "Male"/"male"/"M" → "M", "Female"/"F" → "F". Anything else (blank/unknown)
- * yields "" so the cell renders an em-dash instead of a stray value.
- */
-function genderLabel(value: string | null | undefined): string {
-  if (!value) return "";
-  const c = value.trim()[0]?.toUpperCase();
-  return c === "M" || c === "F" ? c : "";
 }
 
 /**

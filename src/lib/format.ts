@@ -25,3 +25,19 @@ export function daysAgo(iso: string | null): string {
   if (diffDays === 1) return "Yesterday";
   return `${diffDays} days ago`;
 }
+
+/**
+ * Compact gender label for a list row (#359). The stored value comes from the
+ * import (free-text), so normalize the common spellings to a single letter:
+ * "Male"/"male"/"M" → "M", "Female"/"F" → "F". Anything else (blank/unknown)
+ * yields "" so the cell renders an em-dash instead of a stray value.
+ *
+ * Lives here, not in AlumniTable, because that file is `"use client"`: a
+ * Server Component (the NetTreks report, #887) calling a function exported
+ * from a client module fails at render time.
+ */
+export function genderLabel(value: string | null | undefined): string {
+  if (!value) return "";
+  const c = value.trim()[0]?.toUpperCase();
+  return c === "M" || c === "F" ? c : "";
+}
