@@ -222,8 +222,15 @@ export function CampaignProgressTable({
                 <td className={`${TD} text-right`}>
                   {r.rejected.toLocaleString()}
                 </td>
-                <td className={`${TD} text-right`}>
+                {/* The call list (#889): the people to phone, as a file. */}
+                <td className={`${TD} whitespace-nowrap text-right`}>
                   {r.needsFollowUp.toLocaleString()}
+                  {canExport && r.needsFollowUp > 0 ? (
+                    <SurveyExportButton
+                      kind="needs-follow-up"
+                      year={r.graduationYear}
+                    />
+                  ) : null}
                 </td>
               </tr>
             ))}
@@ -238,7 +245,8 @@ export function CampaignProgressTable({
               </td>
               {/* The totals are sums across years, so there is no single
                   year's list to hover; they stay plain numbers. The all-years
-                  file is one request, though, so Replied gets its Export. */}
+                  file is one request, though, so each exportable column gets
+                  its Export. */}
               <td className={`${TD} whitespace-nowrap text-right font-semibold`}>
                 {totals.replied.toLocaleString()}
                 {canExport && totals.replied > 0 ? (
@@ -271,8 +279,11 @@ export function CampaignProgressTable({
               <td className={`${TD} text-right font-semibold`}>
                 {totals.rejected.toLocaleString()}
               </td>
-              <td className={`${TD} text-right font-semibold`}>
+              <td className={`${TD} whitespace-nowrap text-right font-semibold`}>
                 {totals.needsFollowUp.toLocaleString()}
+                {canExport && totals.needsFollowUp > 0 ? (
+                  <SurveyExportButton kind="needs-follow-up" year={null} />
+                ) : null}
               </td>
             </tr>
           </tfoot>
@@ -287,8 +298,8 @@ export function CampaignProgressTable({
           have had all three emails and never answered. &ldquo;Looks
           good&rdquo; is the part of &ldquo;Replied&rdquo; who said their record
           was already correct. Hover a Replied or Looks good count to see the
-          names; &ldquo;Export&rdquo; beside Replied or No reply yet
-          downloads that list.
+          names; &ldquo;Export&rdquo; beside Replied, No reply yet or Needs
+          follow-up downloads that list.
         </p>
         <p>
           &ldquo;Median time to complete&rdquo; is the median active time
@@ -303,8 +314,8 @@ export function CampaignProgressTable({
             people who get the Export links at all. */}
         {canExport ? (
           <p>
-            The No reply yet export leaves out archived alumni, so it can have
-            fewer rows than &ldquo;No reply yet&rdquo; shows.
+            The exports leave out archived alumni, so a file can have fewer
+            rows than the count beside its link.
           </p>
         ) : null}
         {/* The two new columns (#497) are easy to misread in exactly two ways,

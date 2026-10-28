@@ -9,10 +9,11 @@ import { EXPORT_KIND_PHRASE, type SurveyExportKind } from "./responders";
 
 /**
  * "Export" beside a Progress-table count: that column's people as a CSV.
- * `kind` picks the column — "No reply yet" (#836) or "Replied" (#866).
+ * `kind` picks the column — "No reply yet" (#836), "Replied" (#866) or
+ * "Needs follow-up" (#889).
  *
  * `year` null is the totals row — every year in one file. The file is built by
- * the backend from the same predicate as the count; the no-reply file also
+ * the backend from the same predicate as the count; each file also
  * drops archived alumni (which the count keeps), so it can be a few rows
  * shorter than the number it sits beside — never longer. Text only, per the standing no-icons rule;
  * the in-flight state is the word "Exporting". A failure is a toast rather than

@@ -53,6 +53,7 @@ import {
   splitOtherDesignationSlots,
 } from "@/lib/designations";
 import {
+  SURVEY_COMMENTS_MAX,
   waysToHelpCopy,
   type WaysToHelpMode,
 } from "@/lib/surveyWaysToHelp";
@@ -1192,7 +1193,8 @@ export function EditFlow({
  *  * NOT gated on having answered anything. Submit works with the page
  *    untouched on both branches — see `waysToHelpThanksBody` and
  *    `waysToHelpCopy`, which say what actually happened rather than claiming
- *    something that didn't.
+ *    something that didn't. That includes the comments box (#890), which is
+ *    the last thing above the button and is never required.
  *
  * No shell, no `<main>`, no footer: the caller wraps this in `SurveyPageShell`,
  * which already provides all three.
@@ -1204,6 +1206,8 @@ export function WaysToHelp({
   setEdit,
   links,
   setLinks,
+  comments,
+  setComments,
   onNeedChanges,
   onSubmit,
   submitting,
@@ -1221,6 +1225,13 @@ export function WaysToHelp({
   /** Owned by the caller, like the edit flow's: they go to their OWN endpoint. */
   links: LinkEntry[];
   setLinks: (next: LinkEntry[]) => void;
+  /**
+   * The "Anything else you'd like to share?" box (#890). Owned by the caller,
+   * because the caller builds the body it rides in — as a top-level `comments`
+   * key beside `fields`, never inside it, since it maps to no column.
+   */
+  comments: string;
+  setComments: (next: string) => void;
   /**
    * The way back into the edit flow. On the confirm branch that is the review
    * screen ("I need to make changes"); on the edit branch it is the section
@@ -1329,6 +1340,14 @@ export function WaysToHelp({
       </section>
 
       {/*
+        LAST, directly above the button (#890), so it reads as the closing
+        question rather than a third ask competing with the two above.
+      */}
+      <section className="mt-10" aria-labelledby={SURVEY_COMMENTS_HEADING_ID}>
+        <SurveyCommentsBox value={comments} onChange={setComments} />
+      </section>
+
+      {/*
         Navy on BOTH branches, not the survey's `submit-green` button. That
         green is a documented single-control exception in UX-UI.md — the edit
         flow's forward button, which an alum reaches only after filling a long
@@ -1369,6 +1388,63 @@ export function WaysToHelp({
       </div>
 
       <TrustNote />
+    </>
+  );
+}
+
+/** The comments box's heading, which also labels the textarea and its section. */
+const SURVEY_COMMENTS_HEADING_ID = "survey-comments-heading";
+
+/**
+ * The optional "Anything else you'd like to share?" box (#890).
+ *
+ * Free text with no column behind it, which is why it is NOT an `EditField` in
+ * `INFO_SECTIONS` / `SURVEY_FIELDS`: those lists are columns the record holds
+ * and the email can show "on file", and there is nothing on file to show for
+ * a comment. Staff read it in the review queue, and applying the response
+ * saves it as a note on the profile.
+ *
+ * Never a gate. It has no validation of its own: `maxLength` stops typing at
+ * the cap the backend enforces, and the counter says how close the alum is.
+ * The counter is polite-live so a screen reader hears it without being
+ * interrupted on every keystroke.
+ */
+export function SurveyCommentsBox({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const counterId = "survey-comments-count";
+  return (
+    <>
+      <h2
+        id={SURVEY_COMMENTS_HEADING_ID}
+        className="text-lg font-semibold text-navy-800"
+      >
+        Anything else you&apos;d like to share?
+      </h2>
+      <p className="mt-1 max-w-prose text-sm leading-relaxed text-gray-500">
+        Optional. Our team reads every comment.
+      </p>
+      <Textarea
+        id="survey-comments"
+        aria-labelledby={SURVEY_COMMENTS_HEADING_ID}
+        className="mt-3"
+        value={value}
+        maxLength={SURVEY_COMMENTS_MAX}
+        rows={4}
+        aria-describedby={counterId}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <p
+        id={counterId}
+        aria-live="polite"
+        className="mt-1 text-right text-xs text-gray-500"
+      >
+        {value.length.toLocaleString()} / {SURVEY_COMMENTS_MAX.toLocaleString()}
+      </p>
     </>
   );
 }

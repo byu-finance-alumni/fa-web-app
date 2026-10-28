@@ -110,6 +110,26 @@ export function waysToHelpCopy(
 }
 
 /**
+ * Longest "Anything else you'd like to share?" comment (#890), in characters.
+ * The SAME number the backend enforces (`SURVEY_COMMENTS_MAX`, a 422 above it);
+ * the box's `maxLength` and counter use it so an alum can never type past it.
+ */
+export const SURVEY_COMMENTS_MAX = 2000;
+
+/**
+ * The comment as it goes on the wire, or `null` when there is nothing to send
+ * (#890).
+ *
+ * Optional and never a gate: a blank or whitespace-only box sends NO key, so a
+ * submission without a comment is byte-for-byte what it was before the box
+ * existed. The backend cleans and checks it again and never trusts this.
+ */
+export function commentsToSubmit(value: string | null | undefined): string | null {
+  const trimmed = (value ?? "").trim();
+  return trimmed === "" ? null : trimmed;
+}
+
+/**
  * The body of the edit flow's ONE field submission — `POST
  * /survey/respond/{token}` — carrying the alum's profile edits AND whatever they
  * answered on the ways-to-help step, together.
@@ -146,18 +166,30 @@ export function waysToHelpCopy(
  * the key is included only when a real, non-negative whole number was measured,
  * so a missing or nonsense timer leaves the body byte-for-byte what it was
  * before this existed. The backend clamps it further and never trusts it.
+ *
+ * `comments` (#890) is the "Anything else?" box, also a SIBLING of `fields`
+ * rather than a survey field: it maps to no column, and the backend stores it
+ * apart and turns it into a profile note only when staff apply the response.
+ * Same rule as the timer — the key is present only when there is something to
+ * send (see `commentsToSubmit`).
  */
 export function editSubmitBody(
   edits: Record<string, string>,
   hasPhoto: boolean,
   fillSeconds?: number | null,
+  comments?: string | null,
 ): {
   fields: Record<string, string>;
   has_photo: boolean;
   fill_seconds?: number;
+  comments?: string;
 } {
-  const body: { fields: Record<string, string>; has_photo: boolean; fill_seconds?: number } =
-    { fields: edits, has_photo: hasPhoto };
+  const body: {
+    fields: Record<string, string>;
+    has_photo: boolean;
+    fill_seconds?: number;
+    comments?: string;
+  } = { fields: edits, has_photo: hasPhoto };
   if (
     typeof fillSeconds === "number" &&
     Number.isFinite(fillSeconds) &&
@@ -165,5 +197,7 @@ export function editSubmitBody(
   ) {
     body.fill_seconds = Math.round(fillSeconds);
   }
+  const comment = commentsToSubmit(comments);
+  if (comment !== null) body.comments = comment;
   return body;
 }

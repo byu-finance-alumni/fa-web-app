@@ -8,7 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/ui/Toast";
 import { ApiClientError, clientPost } from "@/lib/api-client";
-import { pendingReviewCount } from "@/components/needs-surveying/pending-review";
+import {
+  noChangesText,
+  pendingReviewCount,
+  submissionComment,
+} from "@/components/needs-surveying/pending-review";
 import type { PendingSubmissionsQueue } from "@/components/needs-surveying/use-pending-submissions";
 import type { components } from "@/types/api.gen";
 import { HEADSHOT_OBJECT_POSITION } from "@/constants/headshot";
@@ -44,7 +48,12 @@ export function PendingSubmissions({
   const count = pendingReviewCount(items);
   const [busyId, setBusyId] = useState<number | null>(null);
 
-  const act = async (id: number, action: "apply" | "reject", name: string) => {
+  const act = async (
+    id: number,
+    action: "apply" | "reject",
+    name: string,
+    hasComment = false,
+  ) => {
     setBusyId(id);
     try {
       const result = await clientPost<ApplyResult | undefined>(
@@ -69,9 +78,13 @@ export function PendingSubmissions({
             .join(" ")}`,
         );
       } else {
+        // A comment becomes a profile note on apply only (#890) — say so, so
+        // the reviewer knows where to find it again.
         toast.success(
           action === "apply"
-            ? `Applied ${name}'s updates.`
+            ? hasComment
+              ? `Applied ${name}'s updates. Their comment was saved as a note on the profile.`
+              : `Applied ${name}'s updates.`
             : `Rejected ${name}'s submission.`,
         );
       }
@@ -109,85 +122,114 @@ export function PendingSubmissions({
             No submissions waiting for review in this graduation year.
           </p>
         ) : (
-          items.map((r) => (
-            <div
-              key={r.survey_response_id}
-              className="rounded-md border border-gray-200 bg-white p-3"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-sm font-semibold text-gray-900">
-                  {r.name}
-                </span>
-                <span className="shrink-0 text-xs text-gray-400">
-                  {formatWhen(r.submitted_at)}
-                </span>
-              </div>
-
-              {r.changes.length === 0 ? (
-                <p className="mt-2 text-xs italic text-gray-400">
-                  Confirmed, nothing changed.
-                </p>
-              ) : (
-                <dl className="mt-2 space-y-1.5">
-                  {r.changes.map((c) => (
-                    <div key={c.field_key}>
-                      <dt className="text-xs text-gray-500">{c.label}</dt>
-                      <dd className="flex flex-wrap items-center gap-2 text-sm">
-                        <span className="text-gray-400 line-through">
-                          {c.before || "—"}
-                        </span>
-                        <span aria-hidden="true" className="text-gray-400">
-                          →
-                        </span>
-                        <span className="font-medium text-gray-900">
-                          {c.after || "—"}
-                        </span>
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              )}
-
-              {r.photo_preview_url ? (
-                <div className="mt-3">
-                  <p className="text-xs text-gray-500">New profile photo</p>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={r.photo_preview_url}
-                    alt={`New profile photo submitted by ${r.name}`}
-                    className={`mt-1 h-16 w-16 rounded-full object-cover ${HEADSHOT_OBJECT_POSITION}`}
-                  />
+          items.map((r) => {
+            const comment = submissionComment(r);
+            return (
+              <div
+                key={r.survey_response_id}
+                className="rounded-md border border-gray-200 bg-white p-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="truncate text-sm font-semibold text-gray-900">
+                      {r.name}
+                    </span>
+                    {/* The marker (#890): a comment is easy to miss under a long
+                        diff, and it is the one thing on the card the alum wrote
+                        in their own words. */}
+                    {comment ? (
+                      <Badge variant="tag" size="sm" className="shrink-0">
+                        Has comment
+                      </Badge>
+                    ) : null}
+                  </span>
+                  <span className="shrink-0 text-xs text-gray-400">
+                    {formatWhen(r.submitted_at)}
+                  </span>
                 </div>
-              ) : null}
 
-              <div className="mt-3 flex gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="navy"
-                  disabled={busyId === r.survey_response_id}
-                  onClick={() =>
-                    act(r.survey_response_id, "apply", r.name)
-                  }
-                >
-                  <CheckCircle2 aria-hidden="true" />
-                  Apply
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  disabled={busyId === r.survey_response_id}
-                  onClick={() =>
-                    act(r.survey_response_id, "reject", r.name)
-                  }
-                >
-                  <XCircle aria-hidden="true" />
-                  Reject
-                </Button>
+                {r.changes.length === 0 ? (
+                  <p className="mt-2 text-xs italic text-gray-400">
+                    {noChangesText(comment !== null)}
+                  </p>
+                ) : (
+                  <dl className="mt-2 space-y-1.5">
+                    {r.changes.map((c) => (
+                      <div key={c.field_key}>
+                        <dt className="text-xs text-gray-500">{c.label}</dt>
+                        <dd className="flex flex-wrap items-center gap-2 text-sm">
+                          <span className="text-gray-400 line-through">
+                            {c.before || "—"}
+                          </span>
+                          <span aria-hidden="true" className="text-gray-400">
+                            →
+                          </span>
+                          <span className="font-medium text-gray-900">
+                            {c.after || "—"}
+                          </span>
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+
+                {comment ? (
+                  <div className="mt-3">
+                    <p className="text-xs text-gray-500">Their comment</p>
+                    {/* Plain text from a public form: rendered as a React text
+                        node (escaped), never as HTML. `pre-wrap` keeps the
+                        alum's line breaks; `break-words` stops one long word
+                        from widening the card. */}
+                    <p className="mt-1 whitespace-pre-wrap break-words rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-900">
+                      {comment}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-400">
+                      Applying saves this as a note on their profile.
+                    </p>
+                  </div>
+                ) : null}
+
+                {r.photo_preview_url ? (
+                  <div className="mt-3">
+                    <p className="text-xs text-gray-500">New profile photo</p>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={r.photo_preview_url}
+                      alt={`New profile photo submitted by ${r.name}`}
+                      className={`mt-1 h-16 w-16 rounded-full object-cover ${HEADSHOT_OBJECT_POSITION}`}
+                    />
+                  </div>
+                ) : null}
+
+                <div className="mt-3 flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="navy"
+                    disabled={busyId === r.survey_response_id}
+                    onClick={() =>
+                      act(r.survey_response_id, "apply", r.name, comment !== null)
+                    }
+                  >
+                    <CheckCircle2 aria-hidden="true" />
+                    Apply
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    disabled={busyId === r.survey_response_id}
+                    onClick={() =>
+                      act(r.survey_response_id, "reject", r.name)
+                    }
+                  >
+                    <XCircle aria-hidden="true" />
+                    Reject
+                  </Button>
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </Card>
