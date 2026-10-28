@@ -271,7 +271,10 @@ export function AlumniTable({
               </td>
               <td className="truncate px-3 py-2.5 text-gray-700">
                 {/* For "Other" alumni, show their secondary (non-finance)
-                    industry instead of just "Other" (Tanya, 2026-07-11). */}
+                    industry instead of just "Other" (Tanya, 2026-07-11).
+                    The Industry SORT orders by this same rule on the backend
+                    (`displayed_industry` in fa-web-api
+                    app/repositories/alumni.py, #891) — change both together. */}
                 {(a.current_industry?.toLowerCase() === "other" &&
                 a.current_industry_secondary
                   ? a.current_industry_secondary
