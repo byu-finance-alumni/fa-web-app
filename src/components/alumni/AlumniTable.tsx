@@ -46,7 +46,7 @@ function currentLocation(a: Alumni): { city: string | null; state: string | null
  * "Male"/"male"/"M" → "M", "Female"/"F" → "F". Anything else (blank/unknown)
  * yields "" so the cell renders an em-dash instead of a stray value.
  */
-function genderLabel(value: string | null | undefined): string {
+export function genderLabel(value: string | null | undefined): string {
   if (!value) return "";
   const c = value.trim()[0]?.toUpperCase();
   return c === "M" || c === "F" ? c : "";
