@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { genderLabel } from "@/components/alumni/AlumniTable";
+import { genderLabel } from "@/lib/format";
 import { netTrekDisplayName, type NetTrekRow } from "@/lib/nettreks";
 import { abbreviateState } from "@/lib/usStates";
 import { safeExternalHref } from "@/lib/urlSafety";
