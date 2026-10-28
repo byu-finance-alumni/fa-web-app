@@ -125,6 +125,8 @@ describe("failed loads use the shared error state", () => {
     "src/app/(app)/events/page.tsx",
     "src/app/(app)/links/page.tsx",
     "src/app/(app)/map/page.tsx",
+    "src/app/(app)/nettreks/page.tsx",
+    "src/app/(app)/nettreks/[area]/[kind]/page.tsx",
     "src/app/(app)/pay-it-forward/page.tsx",
     "src/app/(app)/tasks/page.tsx",
     "src/app/(app)/vocabulary/page.tsx",

@@ -3242,6 +3242,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/nettreks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Nettreks Summary
+         * @description Every NetTrek report with its count, in landing-page order: the seven
+         *     areas (each with a Hosts and an Area Alumni report), then Other (Hosts
+         *     only; ``area_alumni`` is null).
+         */
+        get: operations["nettreks_summary_nettreks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nettreks/{area}/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Nettreks Report
+         * @description One report's people, sorted by last name, paginated. 404 for Other's
+         *     Area Alumni (it has none). Gender is null for a caller who cannot edit
+         *     alumni. Audited as ``view`` on ``nettrek_report`` (who looked at which
+         *     report — never the rows).
+         */
+        get: operations["nettreks_report_nettreks__area___kind__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nettreks/{area}/{kind}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Nettreks Report Export
+         * @description The whole report as a CSV download, columns in the issue's order: First
+         *     Name, Middle Name, Last Name, Company, Industry, Secondary Industry, Company
+         *     City, Company State, Permanent Email, Work Email, Phone, LinkedIn URL,
+         *     Gender, Graduation Year, Willing to Host a NetTrek (Yes/blank).
+         *     Formula-injection-safe. Audit-logged as ``export_nettrek_report`` and
+         *     counted against the global export budget. 404 for Other's Area Alumni.
+         *     Returns ``text/csv`` as ``<area>_nettrek_hosts_<YYYY-MM-DD>.csv`` or
+         *     ``<area>_area_alumni_<YYYY-MM-DD>.csv``.
+         */
+        get: operations["nettreks_report_export_nettreks__area___kind__export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/donations/donors": {
         parameters: {
             query?: never;
@@ -9330,6 +9402,98 @@ export interface components {
             message: string | null;
         };
         /**
+         * NetTrekAreaKey
+         * @description The fixed set of NetTrek areas. ``other`` has only a Hosts report.
+         * @enum {string}
+         */
+        NetTrekAreaKey: "dallas" | "san_francisco" | "los_angeles" | "phoenix" | "seattle" | "washington_dc" | "wasatch" | "other";
+        /** NetTrekAreaSummary */
+        NetTrekAreaSummary: {
+            key: components["schemas"]["NetTrekAreaKey"];
+            /** Name */
+            name: string;
+            hosts: components["schemas"]["NetTrekReportCount"];
+            area_alumni: components["schemas"]["NetTrekReportCount"] | null;
+        };
+        /**
+         * NetTrekReportCount
+         * @description One report link on the landing page.
+         */
+        NetTrekReportCount: {
+            kind: components["schemas"]["NetTrekReportKind"];
+            /** Title */
+            title: string;
+            /** Count */
+            count: number;
+        };
+        /**
+         * NetTrekReportKind
+         * @enum {string}
+         */
+        NetTrekReportKind: "hosts" | "area_alumni";
+        /** NetTrekReportPage */
+        NetTrekReportPage: {
+            area: components["schemas"]["NetTrekAreaKey"];
+            /** Area Name */
+            area_name: string;
+            kind: components["schemas"]["NetTrekReportKind"];
+            /** Title */
+            title: string;
+            /** Items */
+            items: components["schemas"]["NetTrekRow"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+        };
+        /**
+         * NetTrekRow
+         * @description One person on a report — the issue's columns, in order, plus the id the
+         *     UI links to the profile with. ``gender`` is ``None`` for a caller who cannot
+         *     edit alumni (it is a view_only-hidden field).
+         */
+        NetTrekRow: {
+            /** Alumni Id */
+            alumni_id: number;
+            /** First Name */
+            first_name: string | null;
+            /** Middle Name */
+            middle_name: string | null;
+            /** Last Name */
+            last_name: string | null;
+            /** Company */
+            company: string | null;
+            /** Industry */
+            industry: string | null;
+            /** Secondary Industry */
+            secondary_industry: string | null;
+            /** Company City */
+            company_city: string | null;
+            /** Company State */
+            company_state: string | null;
+            /** Permanent Email */
+            permanent_email: string | null;
+            /** Work Email */
+            work_email: string | null;
+            /** Phone */
+            phone: string | null;
+            /** Linkedin Url */
+            linkedin_url: string | null;
+            /** Gender */
+            gender: string | null;
+            /** Graduation Year */
+            graduation_year: number | null;
+            /** Willing To Host */
+            willing_to_host: boolean;
+        };
+        /** NetTrekSummary */
+        NetTrekSummary: {
+            /** Areas */
+            areas: components["schemas"]["NetTrekAreaSummary"][];
+        };
+        /**
          * NoteCreate
          * @description Body for creating a note. ``extra='forbid'`` rejects unknown keys.
          */
@@ -15038,6 +15202,93 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AttendeeFriendResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    nettreks_summary_nettreks_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NetTrekSummary"];
+                };
+            };
+        };
+    };
+    nettreks_report_nettreks__area___kind__get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                area: components["schemas"]["NetTrekAreaKey"];
+                kind: components["schemas"]["NetTrekReportKind"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NetTrekReportPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    nettreks_report_export_nettreks__area___kind__export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                area: components["schemas"]["NetTrekAreaKey"];
+                kind: components["schemas"]["NetTrekReportKind"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

@@ -79,6 +79,11 @@ export const NAV: NavItem[] = [
     ],
   },
   { href: "/events", label: "Events" },
+  // NetTreks (#887): Amy's per-area NetTrek Hosts / Area Alumni reports. Every
+  // backend route behind it is gated on `alumni.export` — the reports are lists
+  // of named alumni with contact details, built to be downloaded — so the tab
+  // is gated on the same code rather than shown to roles it would 403.
+  { href: "/nettreks", label: "NetTreks", capability: CAPABILITY.ALUMNI_EXPORT },
   // Map, Statistics, Activity and Internship Links: places you go to look at
   // something, rather than places you work out of. Seven top-level entries now.
   //
