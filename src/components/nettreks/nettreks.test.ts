@@ -15,7 +15,11 @@ import {
   type NetTrekRow,
 } from "@/lib/nettreks";
 import { NetTrekReportLinks } from "./NetTrekReportLinks";
-import { NETTREK_TABLE_COLUMNS, NetTrekReportTable } from "./NetTrekReportTable";
+import {
+  NETTREK_SCREEN_COLUMNS,
+  NETTREK_TABLE_COLUMNS,
+  NetTrekReportTable,
+} from "./NetTrekReportTable";
 
 /**
  * NetTreks tab (#887): nav visibility by capability, the landing page's report
@@ -29,9 +33,16 @@ describe("NetTreks nav entry", () => {
   const hrefs = (caps: string[], role: string = ROLE.STUDENT) =>
     getVisibleNav(role, false, caps).flatMap(leafHrefs);
 
-  it("sits directly after Events in the top bar", () => {
-    const labels = NAV.map((i) => i.label);
-    expect(labels.indexOf("NetTreks")).toBe(labels.indexOf("Events") + 1);
+  it("shares the Outreach menu with Events, NetTreks right after Events", () => {
+    const outreach = NAV.find((i) => i.label === "Outreach");
+    expect(outreach?.children?.map((c) => c.label)).toEqual(["Events", "NetTreks"]);
+    expect(NAV.some((i) => i.label === "Events" || i.label === "NetTreks")).toBe(false);
+  });
+
+  it("keeps Outreach (and Events) for a role without alumni.export", () => {
+    const visible = getVisibleNav(ROLE.VIEW_ONLY, false);
+    const outreach = visible.find((i) => i.label === "Outreach");
+    expect(outreach?.children?.map((c) => c.label)).toEqual(["Events"]);
   });
 
   it("shows for a holder of alumni.export", () => {
@@ -173,7 +184,12 @@ describe("NetTrek report table", () => {
     const html = renderToStaticMarkup(
       createElement(NetTrekReportTable, { rows: [row({})] }),
     );
-    expect(headers(html)).toEqual([...NETTREK_TABLE_COLUMNS]);
+    // Short screen labels, one per CSV column and in the same order; each
+    // header's hover text is the full CSV name.
+    expect(headers(html)).toEqual(NETTREK_SCREEN_COLUMNS.map((c) => c.label));
+    for (const name of NETTREK_TABLE_COLUMNS) expect(html).toContain(`title="${name}"`);
+    const pct = NETTREK_SCREEN_COLUMNS.reduce((n, c) => n + Number(c.w.match(/\d+/)![0]), 0);
+    expect(pct).toBe(100);
     expect(NETTREK_TABLE_COLUMNS).toEqual([
       "First Name",
       "Middle Name",

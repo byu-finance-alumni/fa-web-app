@@ -25,7 +25,7 @@ export default async function NetTreksPage() {
     <>
       <Topbar title="NetTreks" />
       <main className="flex-1 overflow-auto p-4 md:p-6">
-        <div className="mx-auto max-w-5xl space-y-5">
+        <div className="space-y-5">
           <div>
             <h1 className="text-xl font-semibold tracking-tight text-gray-900">
               NetTreks

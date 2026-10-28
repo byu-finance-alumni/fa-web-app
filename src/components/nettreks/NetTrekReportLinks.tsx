@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Card } from "@/components/ui/card";
 import {
   netTrekReportHref,
   type NetTrekAreaSummary,
@@ -14,23 +13,26 @@ import {
  */
 export function NetTrekReportLinks({ areas }: { areas: NetTrekAreaSummary[] }) {
   return (
-    <Card className="overflow-hidden p-0">
-      <table className="w-full text-sm">
+    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-card">
+      <table className="w-full table-fixed text-sm">
         <thead>
-          <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-            <th className="px-4 py-2.5">Area</th>
-            <th className="px-4 py-2.5">NetTrek hosts</th>
-            <th className="px-4 py-2.5">Area alumni</th>
+          <tr className="border-b border-gray-200 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <th className="w-[20%] bg-gray-50 px-3 py-2.5">Area</th>
+            <th className="w-[40%] bg-gray-50 px-3 py-2.5">NetTrek hosts</th>
+            <th className="w-[40%] bg-gray-50 px-3 py-2.5">Area alumni</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody>
           {areas.map((area) => (
-            <tr key={area.key}>
-              <td className="px-4 py-3 font-medium text-gray-900">{area.name}</td>
-              <td className="px-4 py-3">
+            <tr
+              key={area.key}
+              className="border-b border-gray-200 last:border-0 even:bg-gray-50/50"
+            >
+              <td className="px-3 py-2.5 font-medium text-gray-900">{area.name}</td>
+              <td className="px-3 py-2.5">
                 <ReportLink area={area} report={area.hosts} />
               </td>
-              <td className="px-4 py-3">
+              <td className="px-3 py-2.5">
                 {area.area_alumni ? (
                   <ReportLink area={area} report={area.area_alumni} />
                 ) : (
@@ -41,7 +43,7 @@ export function NetTrekReportLinks({ areas }: { areas: NetTrekAreaSummary[] }) {
           ))}
         </tbody>
       </table>
-    </Card>
+    </div>
   );
 }
 
