@@ -10664,6 +10664,8 @@ export interface components {
             changes: components["schemas"]["SurveyChange"][];
             /** Photo Preview Url */
             photo_preview_url: string | null;
+            /** Comments */
+            comments: string | null;
         };
         /**
          * SurveyScheduleBulkRequest
@@ -10983,6 +10985,8 @@ export interface components {
             confirmed_only: boolean;
             /** Fill Seconds */
             fill_seconds?: number | null;
+            /** Comments */
+            comments?: string | null;
         };
         /**
          * SurveySubmitResult

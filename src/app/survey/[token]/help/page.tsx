@@ -15,6 +15,7 @@ import {
   surveyReviewHref,
   waysToHelpThanksBody,
 } from "@/lib/surveyConfirm";
+import { commentsToSubmit } from "@/lib/surveyWaysToHelp";
 import {
   InvalidPanel,
   SuccessPanel,
@@ -77,6 +78,8 @@ export default function SurveyWaysToHelpPage({
   const [fields, setFields] = useState<Fields>({});
   const [edits, setEdits] = useState<Fields>({});
   const [links, setLinks] = useState<LinkEntry[]>(() => [emptyLinkEntry()]);
+  // The optional "Anything else?" box (#890).
+  const [comments, setComments] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -84,6 +87,7 @@ export default function SurveyWaysToHelpPage({
   // what happened instead of claiming updates are in when nothing was sent.
   const [answerCount, setAnswerCount] = useState(0);
   const [linkCount, setLinkCount] = useState(0);
+  const [commentSent, setCommentSent] = useState(false);
   // Which steps have already landed, so pressing Submit again after a links
   // failure retries ONLY the links. Without it, a retry would stage the
   // involvement answers a second time and leave a reviewer two pending rows for
@@ -149,15 +153,21 @@ export default function SurveyWaysToHelpPage({
    * screen — their confirmation already counted, so there is nothing to gate
    * the button on, and posting an empty body would only stage a response row
    * with no changes in it for a reviewer to open and close again.
+   *
+   * A comment (#890) is content too: it goes in the same POST, beside
+   * `fields`, and a comment on its own is reason enough to send one — the
+   * backend upgrades the confirmation to a submission so a reviewer reads it.
    */
   const handleSubmit = async () => {
     const payload = answeredFields(edits, WAYS_TO_HELP_FIELD_KEYS);
     const linkPayload = linksToSubmit(links);
     const answers = Object.keys(payload).length;
+    const comment = commentsToSubmit(comments);
 
     if (token === "demo") {
       setAnswerCount(answers);
       setLinkCount(linkPayload.length);
+      setCommentSent(comment !== null);
       setDone(true);
       return;
     }
@@ -165,13 +175,17 @@ export default function SurveyWaysToHelpPage({
     setSubmitting(true);
     setSubmitError(null);
     try {
-      if (answers > 0 && !fieldsStaged) {
+      if ((answers > 0 || comment !== null) && !fieldsStaged) {
         const res = await fetch(
           `${API_URL}/survey/respond/${encodeURIComponent(token)}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fields: payload, has_photo: false }),
+            body: JSON.stringify({
+              fields: payload,
+              has_photo: false,
+              ...(comment !== null ? { comments: comment } : {}),
+            }),
           },
         );
         if (!res.ok) throw new Error(String(res.status));
@@ -205,6 +219,7 @@ export default function SurveyWaysToHelpPage({
 
       setAnswerCount(answers);
       setLinkCount(linkPayload.length);
+      setCommentSent(comment !== null);
       setDone(true);
     } catch {
       setSubmitError(
@@ -233,7 +248,7 @@ export default function SurveyWaysToHelpPage({
       ) : done ? (
         <SuccessPanel
           title={`Thank you, ${firstName}`}
-          body={waysToHelpThanksBody({ answerCount, linkCount })}
+          body={waysToHelpThanksBody({ answerCount, linkCount, commentSent })}
         />
       ) : (
         <WaysToHelp
@@ -242,6 +257,8 @@ export default function SurveyWaysToHelpPage({
           setEdit={setEdit}
           links={links}
           setLinks={setLinks}
+          comments={comments}
+          setComments={setComments}
           // Back to REVIEW, not straight into the form: `?step=edit` is
           // demo-only by design, and the review panel is where an alum is told
           // what we hold before they change it. "I need to make changes" is the
