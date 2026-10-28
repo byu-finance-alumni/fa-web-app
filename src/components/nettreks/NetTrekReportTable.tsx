@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Card } from "@/components/ui/card";
 import { netTrekDisplayName, type NetTrekRow } from "@/lib/nettreks";
 import { safeExternalHref } from "@/lib/urlSafety";
 
@@ -44,7 +43,10 @@ const COLUMN_WIDTHS = [
   "w-[4%]",
 ] as const;
 
-const cell = "truncate px-2 py-2";
+// The alumni list's own cell, header and row classes (AlumniTable, #268), so a
+// NetTrek report reads as the same table.
+const cell = "truncate px-3 py-2.5 text-gray-700";
+const TH_BASE = "sticky top-0 z-10 bg-gray-50 px-3 py-2.5";
 const dash = <span className="text-gray-400">—</span>;
 
 function text(value: string | number | null | undefined) {
@@ -63,20 +65,23 @@ function full(value: string | number | null | undefined) {
  */
 export function NetTrekReportTable({ rows }: { rows: NetTrekRow[] }) {
   return (
-    <Card className="overflow-hidden p-0">
+    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-card">
       <table className="w-full table-fixed text-sm">
         <thead>
-          <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+          <tr className="border-b border-gray-200 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
             {NETTREK_TABLE_COLUMNS.map((c, i) => (
-              <th key={c} className={`${COLUMN_WIDTHS[i]} px-2 py-2.5 align-bottom`}>
+              <th key={c} className={`${TH_BASE} ${COLUMN_WIDTHS[i]} align-bottom leading-tight`}>
                 {c}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100 text-gray-700">
+        <tbody>
           {rows.map((r) => (
-            <tr key={r.alumni_id}>
+            <tr
+              key={r.alumni_id}
+              className="border-b border-gray-200 last:border-0 even:bg-gray-50/50 hover:bg-gray-50"
+            >
               <td className={cell} title={full(r.first_name)}>
                 {text(r.first_name)}
               </td>
@@ -142,6 +147,6 @@ export function NetTrekReportTable({ rows }: { rows: NetTrekRow[] }) {
           ))}
         </tbody>
       </table>
-    </Card>
+    </div>
   );
 }

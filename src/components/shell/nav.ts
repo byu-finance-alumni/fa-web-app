@@ -78,12 +78,22 @@ export const NAV: NavItem[] = [
       { href: "/friends", label: "Friends" },
     ],
   },
-  { href: "/events", label: "Events" },
-  // NetTreks (#887): Amy's per-area NetTrek Hosts / Area Alumni reports. Every
+  // Outreach (#887): Events and NetTreks under one entry, at the owner's
+  // request. Named "Outreach" rather than "Activities" because Insights already
+  // holds an "Activity" page and the two would read as the same thing.
+  // NetTreks is Amy's per-area NetTrek Hosts / Area Alumni reports. Every
   // backend route behind it is gated on `alumni.export` — the reports are lists
-  // of named alumni with contact details, built to be downloaded — so the tab
-  // is gated on the same code rather than shown to roles it would 403.
-  { href: "/nettreks", label: "NetTreks", capability: CAPABILITY.ALUMNI_EXPORT },
+  // of named alumni with contact details, built to be downloaded — so the entry
+  // is gated on the same code rather than shown to roles it would 403. Events
+  // stays visible to everyone, so the group always appears.
+  {
+    href: "/events",
+    label: "Outreach",
+    children: [
+      { href: "/events", label: "Events" },
+      { href: "/nettreks", label: "NetTreks", capability: CAPABILITY.ALUMNI_EXPORT },
+    ],
+  },
   // Map, Statistics, Activity and Internship Links: places you go to look at
   // something, rather than places you work out of. Seven top-level entries now.
   //

@@ -29,9 +29,16 @@ describe("NetTreks nav entry", () => {
   const hrefs = (caps: string[], role: string = ROLE.STUDENT) =>
     getVisibleNav(role, false, caps).flatMap(leafHrefs);
 
-  it("sits directly after Events in the top bar", () => {
-    const labels = NAV.map((i) => i.label);
-    expect(labels.indexOf("NetTreks")).toBe(labels.indexOf("Events") + 1);
+  it("shares the Outreach menu with Events, NetTreks right after Events", () => {
+    const outreach = NAV.find((i) => i.label === "Outreach");
+    expect(outreach?.children?.map((c) => c.label)).toEqual(["Events", "NetTreks"]);
+    expect(NAV.some((i) => i.label === "Events" || i.label === "NetTreks")).toBe(false);
+  });
+
+  it("keeps Outreach (and Events) for a role without alumni.export", () => {
+    const visible = getVisibleNav(ROLE.VIEW_ONLY, false);
+    const outreach = visible.find((i) => i.label === "Outreach");
+    expect(outreach?.children?.map((c) => c.label)).toEqual(["Events"]);
   });
 
   it("shows for a holder of alumni.export", () => {
