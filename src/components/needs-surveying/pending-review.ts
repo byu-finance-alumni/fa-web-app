@@ -81,3 +81,30 @@ export function yearOptionLabel(
     ? `${year} (${pending.toLocaleString()})`
     : String(year);
 }
+
+/**
+ * The alum's "Anything else you'd like to share?" comment on a submission
+ * (#890), or `null` when there is none to show.
+ *
+ * `comments` is missing altogether on every submission made before the box
+ * existed (and from an API that predates it), and `null` when the alum left it
+ * blank — both read as "no comment", so a card never shows an empty quote.
+ * Whatever comes back is rendered as plain text, never as HTML.
+ */
+export function submissionComment(item: {
+  comments?: string | null;
+}): string | null {
+  const text = (item.comments ?? "").trim();
+  return text === "" ? null : text;
+}
+
+/**
+ * The line a card shows when the submission changes no field.
+ *
+ * "Confirmed, nothing changed" was right while a field-less row could only be a
+ * confirmation or a photo. A comment on its own now stages one too (#890), and
+ * calling that a confirmation would misdescribe what the alum sent.
+ */
+export function noChangesText(hasComment: boolean): string {
+  return hasComment ? "No changes to their details." : "Confirmed, nothing changed.";
+}

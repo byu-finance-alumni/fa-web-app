@@ -127,6 +127,9 @@ export default function SurveyConfirmPage({
   // shows a form rather than an empty page with a button on it; a blank entry
   // submits nothing, so an alum who looks and backs out sends nothing.
   const [links, setLinks] = useState<LinkEntry[]>(() => [emptyLinkEntry()]);
+  // The optional "Anything else?" box at the foot of the ways-to-help step
+  // (#890). Rides in the ONE field submission, beside `fields`.
+  const [comments, setComments] = useState("");
   // Which steps have already landed, so pressing Submit again after a failure
   // RETRIES only what failed. Without this, a links failure the alum fixes and
   // resubmits would stage their field response a second time — two pending rows
@@ -322,7 +325,12 @@ export default function SurveyConfirmPage({
             // creates a response row (and returns its id) even when `fields` is
             // empty (#537).
             body: JSON.stringify(
-              editSubmitBody(edits, photoFile != null, getFillSeconds()),
+              editSubmitBody(
+                edits,
+                photoFile != null,
+                getFillSeconds(),
+                comments,
+              ),
             ),
           },
         );
@@ -438,6 +446,8 @@ export default function SurveyConfirmPage({
           setEdit={setEdit}
           links={links}
           setLinks={setLinks}
+          comments={comments}
+          setComments={setComments}
           // Back to the section menu they came from, with everything they typed
           // still in it — not to the review screen, which would make an alum
           // with one more change to make walk the whole fork again.

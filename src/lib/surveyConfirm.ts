@@ -128,15 +128,21 @@ export function answeredFields(
 export function waysToHelpThanksBody({
   answerCount,
   linkCount,
+  commentSent = false,
 }: {
   answerCount: number;
   linkCount: number;
+  /** The alum left a comment in the "Anything else?" box (#890). */
+  commentSent?: boolean;
 }): string {
   const parts: string[] = [];
   if (answerCount > 0) {
     parts.push(
       "We've recorded what you're open to helping with. Our team reviews every response before anything is added to your record, and someone will be in touch before you're asked to do anything.",
     );
+  }
+  if (commentSent) {
+    parts.push("Thank you for your comment. Our team reads every one.");
   }
   if (linkCount > 0) {
     parts.push(

@@ -5103,6 +5103,65 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/survey/schedules/needs-follow-up/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Survey Needs Follow Up All
+         * @description Every year's "Needs follow-up" people as one CSV (#889).
+         *
+         *     The all-years twin of `GET /schedules/{grad_year}/needs-follow-up/export`.
+         *     Its row count is the summed `non_responders` column minus archived alumni,
+         *     which the file leaves out. Same gate, same columns, same audit trail.
+         */
+        get: operations["export_survey_needs_follow_up_all_survey_schedules_needs_follow_up_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/schedules/{grad_year}/needs-follow-up/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Survey Needs Follow Up
+         * @description This year's "Needs follow-up" people as a CSV download (#889).
+         *
+         *     The Progress table's "Needs follow-up" column (`non_responders` on
+         *     `SurveyScheduleItem`): received all three of the year's current-cycle
+         *     emails and never replied — the same people as the call sheet
+         *     `GET /schedules/{grad_year}/non-responders`, built from the same select as
+         *     the count. Archived alumni are left out, as on the call sheet, so the row
+         *     count is the column minus its archived alumni.
+         *
+         *     Columns: the no-reply file's (Name, Graduation year, Email, Phone, Emails
+         *     sent this cycle, Last email sent, NetID, Employer, Title, Industry, Work
+         *     City, Work State, Work Country, LinkedIn, Last Updated, Profile Link).
+         *     Formula-injection-safe. Gated by `RequireAlumniExport` (via the shared
+         *     export rate limit) for the same reason as the no-reply file. Audit-logged
+         *     as `export_survey_needs_follow_up`. 404 = no campaign for the year. Returns
+         *     `text/csv` as `survey_needs_follow_up_<year>_<YYYY-MM-DD>.csv`.
+         */
+        get: operations["export_survey_needs_follow_up_survey_schedules__grad_year__needs_follow_up_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/survey/schedules/{grad_year}/responders": {
         parameters: {
             query?: never;
@@ -10605,6 +10664,8 @@ export interface components {
             changes: components["schemas"]["SurveyChange"][];
             /** Photo Preview Url */
             photo_preview_url: string | null;
+            /** Comments */
+            comments: string | null;
         };
         /**
          * SurveyScheduleBulkRequest
@@ -10924,6 +10985,8 @@ export interface components {
             confirmed_only: boolean;
             /** Fill Seconds */
             fill_seconds?: number | null;
+            /** Comments */
+            comments?: string | null;
         };
         /**
          * SurveySubmitResult
@@ -17453,6 +17516,57 @@ export interface operations {
         };
     };
     export_survey_replied_survey_schedules__grad_year__replied_export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grad_year: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_survey_needs_follow_up_all_survey_schedules_needs_follow_up_export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    export_survey_needs_follow_up_survey_schedules__grad_year__needs_follow_up_export_get: {
         parameters: {
             query?: never;
             header?: never;

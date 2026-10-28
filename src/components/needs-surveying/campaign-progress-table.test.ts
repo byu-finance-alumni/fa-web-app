@@ -102,9 +102,9 @@ describe("Progress table (#836)", () => {
   it("says the export leaves out archived alumni, to those who can export", () => {
     const items = [item({ recipients: 10, replied: 4 })];
     expect(render(items)).toContain(
-      "The No reply yet export leaves out archived alumni",
+      "The exports leave out archived alumni",
     );
-    expect(render(items, false)).not.toContain("leaves out archived alumni");
+    expect(render(items, false)).not.toContain("leave out archived alumni");
   });
 
   it("offers a Replied Export beside the hoverable count (#866)", () => {
@@ -123,6 +123,24 @@ describe("Progress table (#836)", () => {
     const withReplies = [item({ graduation_year: 2019, recipients: 10, replied: 4 })];
     expect(render(withReplies, false)).not.toContain("who replied");
     expect(render([item({ recipients: 5 })])).not.toContain("who replied");
+  });
+
+  it("offers a Needs follow-up Export only where the count is above 0 (#889)", () => {
+    const html = render([
+      item({ graduation_year: 2019, recipients: 10, replied: 4, non_responders: 3 }),
+      item({ graduation_year: 2018, recipients: 10, replied: 4, non_responders: 0 }),
+    ]);
+    expect(html).toContain("Export the 2019 alumni needing follow-up as CSV");
+    expect(html).not.toContain("Export the 2018 alumni needing follow-up");
+    expect(html).toContain("Export everyone needing follow-up, all years, as CSV");
+  });
+
+  it("offers no Needs follow-up Export without alumni.export, or at 0", () => {
+    const due = [item({ recipients: 10, replied: 4, non_responders: 3 })];
+    expect(render(due, false)).not.toContain("needing follow-up");
+    // Mid-campaign: people with no reply yet, but nobody has had all three emails.
+    const midCampaign = [item({ recipients: 10, replied: 4, non_responders: 0 })];
+    expect(render(midCampaign)).not.toContain("needing follow-up");
   });
 
   it("makes the median time hoverable once a year has repliers (#543)", () => {
