@@ -1,8 +1,8 @@
 "use server";
 
 /**
- * Server action behind the Progress tab's CSV exports: "No reply yet" (#836)
- * and "Replied" (#866).
+ * Server action behind the Progress tab's CSV exports: "No reply yet" (#836),
+ * "Replied" (#866) and "Needs follow-up" (#889).
  *
  * A server action rather than a browser fetch for the same reason as the Links
  * report (`links/actions.ts`): the backend names the file in its
@@ -13,6 +13,7 @@
 
 import { apiGetFile, ApiError } from "@/lib/api";
 import {
+  SURVEY_EXPORT_KINDS,
   isExportableYear,
   surveyExportErrorMessage,
   surveyExportFilename,
@@ -37,7 +38,7 @@ export async function exportSurveyList(
   kind: SurveyExportKind,
   year: number | null,
 ): Promise<ExportSurveyListResult> {
-  if (kind !== "no-reply" && kind !== "replied") {
+  if (!SURVEY_EXPORT_KINDS.includes(kind)) {
     return { ok: false, error: surveyExportErrorMessage(null) };
   }
   if (year !== null && !isExportableYear(year)) {

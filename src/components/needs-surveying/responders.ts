@@ -1,13 +1,14 @@
 /**
- * The names behind the Progress tab's counts, and its "No reply yet" (#836)
- * and "Replied" (#866) exports.
+ * The names behind the Progress tab's counts, and its "No reply yet" (#836),
+ * "Replied" (#866) and "Needs follow-up" (#889) exports.
  *
  * `GET /survey/schedules/{year}/responders` lists who is behind a year's
  * "Replied" and "Looks good" counts; the backend builds it from the SAME
  * predicate as the counts, so each list is as long as its number.
  * `GET /survey/schedules/{year}/no-reply/export` (and the all-years
  * `/survey/schedules/no-reply/export`) download the "No reply yet" column as a
- * CSV; `…/replied/export` does the same for "Replied". The pure parts —
+ * CSV; `…/replied/export` does the same for "Replied", and
+ * `…/needs-follow-up/export` for "Needs follow-up". The pure parts —
  * paths, which list a cell reads, the sentences — live here so they can be
  * pinned by a test without a DOM, like `held-out.ts` and `campaign-progress.ts`
  * next door.
@@ -84,7 +85,7 @@ export function respondersDriftNote(shown: number, count: number): string {
   return `This list has ${shown.toLocaleString()}; the table showed ${count.toLocaleString()} when it loaded. Reload the page to update the counts.`;
 }
 
-/* --------------------------------------------- Replied / no-reply export --- */
+/* ----------------------------- Replied / no-reply / needs-follow-up export --- */
 
 // The API's accepted graduation-year range (`_GRAD_YEAR_MIN`/`_MAX` in
 // fa-web-api `routes/survey.py`; 1900 is the test cohort). The server action
@@ -103,23 +104,33 @@ export function isExportableYear(year: unknown): year is number {
 }
 
 /**
- * Which Progress-table column a CSV export downloads: "No reply yet" (#836) or
- * "Replied" (#866). Both are built server-side from the same predicate as the
- * count they sit beside, minus archived alumni, and share one route shape and
- * one error vocabulary — so one set of helpers serves both.
+ * Which Progress-table column a CSV export downloads: "No reply yet" (#836),
+ * "Replied" (#866) or "Needs follow-up" (#889). Each is built server-side from
+ * the same predicate as the count it sits beside, minus archived alumni, and
+ * they share one route shape and one error vocabulary — so one set of helpers
+ * serves all three.
  */
-export type SurveyExportKind = "no-reply" | "replied";
+export type SurveyExportKind = "no-reply" | "replied" | "needs-follow-up";
+
+/** Every kind, for the server action's runtime check of its argument. */
+export const SURVEY_EXPORT_KINDS: readonly SurveyExportKind[] = [
+  "no-reply",
+  "replied",
+  "needs-follow-up",
+];
 
 /** The backend's filename stem: `survey_<stem>_<year|all>_<YYYY-MM-DD>.csv`. */
 const EXPORT_FILE_STEM: Record<SurveyExportKind, string> = {
   "no-reply": "no_reply",
   replied: "replied",
+  "needs-follow-up": "needs_follow_up",
 };
 
 /** The phrase an Export link's accessible name uses for each column. */
 export const EXPORT_KIND_PHRASE: Record<SurveyExportKind, string> = {
   "no-reply": "with no reply yet",
   replied: "who replied",
+  "needs-follow-up": "needing follow-up",
 };
 
 /**
@@ -137,7 +148,8 @@ export function surveyExportPath(
 
 /**
  * The name used when the backend's `Content-Disposition` is missing or unsafe.
- * Matches the backend's own `survey_<no_reply|replied>_<year|all>_<YYYY-MM-DD>.csv`,
+ * Matches the backend's own
+ * `survey_<no_reply|replied|needs_follow_up>_<year|all>_<YYYY-MM-DD>.csv`,
  * so the file is named the same either way.
  */
 export function surveyExportFilename(

@@ -93,7 +93,7 @@ describe("median-hover fill times (#543 follow-on)", () => {
   });
 });
 
-describe("no-reply (#836) and replied (#866) exports", () => {
+describe("no-reply (#836), replied (#866) and needs-follow-up (#889) exports", () => {
   it("has a per-year path and an all-years path", () => {
     expect(surveyExportPath("no-reply", 2019)).toBe(
       "/survey/schedules/2019/no-reply/export",
@@ -106,6 +106,12 @@ describe("no-reply (#836) and replied (#866) exports", () => {
     );
     expect(surveyExportPath("replied", null)).toBe(
       "/survey/schedules/replied/export",
+    );
+    expect(surveyExportPath("needs-follow-up", 2019)).toBe(
+      "/survey/schedules/2019/needs-follow-up/export",
+    );
+    expect(surveyExportPath("needs-follow-up", null)).toBe(
+      "/survey/schedules/needs-follow-up/export",
     );
   });
 
@@ -122,6 +128,12 @@ describe("no-reply (#836) and replied (#866) exports", () => {
     );
     expect(surveyExportFilename("replied", null, now)).toBe(
       "survey_replied_all_2026-09-23.csv",
+    );
+    expect(surveyExportFilename("needs-follow-up", 2019, now)).toBe(
+      "survey_needs_follow_up_2019_2026-09-23.csv",
+    );
+    expect(surveyExportFilename("needs-follow-up", null, now)).toBe(
+      "survey_needs_follow_up_all_2026-09-23.csv",
     );
   });
 
