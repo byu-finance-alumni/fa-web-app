@@ -172,6 +172,10 @@ function PreviewBody({
   // the preview walks through it too — same component, same rules. Plain local
   // state that nothing reads: this dialog posts nothing anywhere.
   const [links, setLinks] = useState<LinkEntry[]>(() => [emptyLinkEntry()]);
+  // The "Anything else?" box (#890) — shown so staff see the whole ending an
+  // alum gets. Starts empty, as it does for every alum: there is nothing on
+  // file to pre-fill, which is also why it has no `SAMPLE_ALUM` value.
+  const [comments, setComments] = useState("");
 
   // The email copy is the ONE thing in this dialog that is real, so it is read
   // from the server rather than held here (#524). Intro and closing render
@@ -235,6 +239,8 @@ function PreviewBody({
           setEdit={setEdit}
           links={links}
           setLinks={setLinks}
+          comments={comments}
+          setComments={setComments}
           onNeedChanges={() => {
             setOpenSection(null);
             setStatus("editing");

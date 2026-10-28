@@ -1,7 +1,16 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { SAMPLE_ALUM } from "./sampleAlumni";
-import { INFO_SECTIONS } from "@/components/survey/survey-screens";
+import {
+  ENGAGEMENT_SECTION,
+  INFO_SECTIONS,
+  WaysToHelp,
+} from "@/components/survey/survey-screens";
 import { SURVEY_FIELD_BY_KEY } from "@/types/survey";
 import {
   SURVEY_INDUSTRY_OPTIONS,
@@ -78,5 +87,54 @@ describe("sample survey parity with the real survey", () => {
     expect(valueFields.some((f) => f.key.includes("birth_name"))).toBe(false);
     expect(SURVEY_FIELD_BY_KEY["profile.birth_name"]).toBeUndefined();
     expect(SAMPLE_ALUM["profile.birth_name"]).toBeUndefined();
+  });
+
+  it("shows the comments box in the sample, as an extra rather than a column (#890)", () => {
+    // The "Anything else you'd like to share?" box is free text with NO column
+    // behind it. So it is deliberately absent from all three lists: it is not a
+    // form FIELD (nothing to apply column-by-column), the email cannot offer it
+    // "on file" (nothing is on file), and the sample gives it no value (every
+    // alum meets it empty). What keeps the sample honest instead is that the
+    // preview renders the very screen that carries it.
+    const formKeys = [...INFO_SECTIONS, ENGAGEMENT_SECTION].flatMap((s) =>
+      s.fields.map((f) => f.key),
+    );
+    expect(formKeys.some((k) => k.includes("comment"))).toBe(false);
+    expect(
+      Object.keys(SURVEY_FIELD_BY_KEY).some((k) => k.includes("comment")),
+    ).toBe(false);
+    expect(Object.keys(SAMPLE_ALUM).some((k) => k.includes("comment"))).toBe(
+      false,
+    );
+
+    const html = renderToStaticMarkup(
+      createElement(WaysToHelp, {
+        firstName: "Jordan",
+        valueOf: (key: string) => SAMPLE_ALUM[key] ?? "",
+        setEdit: () => {},
+        links: [],
+        setLinks: () => {},
+        comments: "",
+        setComments: () => {},
+        onNeedChanges: () => {},
+        onSubmit: () => {},
+        submitting: false,
+        submitError: null,
+      }),
+    );
+    expect(html).toContain("Anything else you&#x27;d like to share?");
+
+    const preview = readFileSync(
+      fileURLToPath(
+        new URL(
+          "../components/needs-surveying/SurveyPreview.tsx",
+          import.meta.url,
+        ),
+      ),
+      "utf8",
+    );
+    const step = preview.slice(preview.indexOf("<WaysToHelp"));
+    expect(step).toContain("comments={comments}");
+    expect(step).toContain("setComments={setComments}");
   });
 });
