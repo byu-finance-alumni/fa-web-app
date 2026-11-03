@@ -33,14 +33,14 @@ describe("NetTreks nav entry", () => {
   const hrefs = (caps: string[], role: string = ROLE.STUDENT) =>
     getVisibleNav(role, false, caps).flatMap(leafHrefs);
 
-  it("shares the Outreach menu with Events, NetTreks right after Events", () => {
+  it("shares the Outreach menu with Events, the event entries kept together", () => {
     const outreach = NAV.find((i) => i.label === "Outreach");
     expect(outreach?.children?.map((c) => c.label)).toEqual([
       "Events",
-      "NetTreks",
-      "Conference Interest",
       "Event Speakers",
       "Event Sponsors",
+      "Conference Interest",
+      "NetTreks",
       "Alumni Mentors",
     ]);
     expect(NAV.some((i) => i.label === "Events" || i.label === "NetTreks")).toBe(false);
