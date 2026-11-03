@@ -490,7 +490,9 @@ export interface paths {
          * @description Record a login attempt outcome and return the resulting throttle status.
          *
          *     Unauthenticated. Only FAILURES are accumulated here: a failure may trip the
-         *     cooldown and (for a registered email) the hard lock. A ``success=true`` from
+         *     short cooldown and NOTHING longer — it never arms, extends or re-arms the
+         *     24h hard lock, because anyone can send a failure for any email (BT-1103-1).
+         *     A ``success=true`` from
          *     this unauthenticated caller is deliberately IGNORED — it must NOT clear the
          *     rolling counter, because an attacker could otherwise POST ``{email,
          *     success:true}`` to wipe a legitimately-set cooldown and brute-force
@@ -498,10 +500,9 @@ export interface paths {
          *     (``POST /auth/login`` -> ``_clear_login_attempts``), which only a real,
          *     signed-in user can reach.
          *
-         *     The ``locked`` flag the service returns is intentionally NOT echoed to the
-         *     client (anti-enumeration), and the ``reason`` is counter-derived: the failure
-         *     that hard-locks a real account returns the same ``cooldown`` body an unknown
-         *     address gets on the same failure count.
+         *     The ``reason`` is counter-derived, so a real account, a hard-locked account
+         *     and an unknown address get the same body on the same failure count
+         *     (anti-enumeration).
          *
          *     On a failure, in addition to bumping the rolling counter, a per-attempt
          *     ``login_failures`` row is logged (attempted email snapshotted + forwarded IP /
@@ -9202,10 +9203,15 @@ export interface components {
          * LoginContext
          * @description Optional client context for a sign-in attempt, forwarded by the frontend
          *     login action from the incoming request — the client IP (``x-forwarded-for``)
-         *     and Vercel's IP-geolocation headers. All optional and length-bounded; purely
-         *     informational (never trusted for authorization), stored on the
-         *     ``login_events`` row (success) or ``login_failures`` row (failure) for the
-         *     engineer Logins tabs. ``extra='forbid'`` rejects unknown keys.
+         *     and Vercel's IP-geolocation headers. All optional and length-bounded; never
+         *     trusted for authorization. Stored on the ``login_events`` row (success) or
+         *     ``login_failures`` row (failure) for the engineer Logins tabs, and
+         *     ``ip_address`` is also the source key for the #457 automatic block and the
+         *     #456 abuse alerts. It is caller-supplied, so that block is built to survive a
+         *     forged value (see app/services/login_block.py, property 1). It cannot be
+         *     replaced by the request's own forwarded address: these routes are called
+         *     server-to-server from the frontend, so that address is the frontend's egress
+         *     for every legitimate sign-in. ``extra='forbid'`` rejects unknown keys.
          */
         LoginContext: {
             /** Ip Address */
