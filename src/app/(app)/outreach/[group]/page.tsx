@@ -1,16 +1,12 @@
 import { notFound } from "next/navigation";
 import { LoadError } from "@/components/shared/LoadError";
-import { IndustryBarList } from "@/components/shared/IndustryBarList";
+import { MentorLists } from "@/components/outreach/MentorLists";
 import { OutreachListLinks } from "@/components/outreach/OutreachListLinks";
 import { Topbar } from "@/components/shell/Topbar";
-import { Card } from "@/components/ui/card";
 import { ApiError, apiGet } from "@/lib/api";
 import {
   isOutreachGroupKey,
-  mentorChartRows,
-  mentorIndustryLinks,
   outreachGroupLabel,
-  showMentorChart,
   type OutreachGroupSummary,
 } from "@/lib/outreach";
 
@@ -21,9 +17,8 @@ import {
  * someone who reaches this URL without it gets the backend's 403 rendered as
  * the shared error card. The backend decides who is on each list.
  *
- * Alumni Mentors also draws a bar of mentors per industry (the dashboard's
- * Industry breakdown component), beside the links, once there are enough
- * mentors for it to say something — see `showMentorChart`.
+ * Alumni Mentors draws each industry's link with its own bar and count once
+ * there are enough mentors for bars to say something — see `showMentorChart`.
  */
 export default async function OutreachGroupPage({
   params,
@@ -60,37 +55,5 @@ export default async function OutreachGroupPage({
         </div>
       </main>
     </>
-  );
-}
-
-function MentorLists({ links }: { links: OutreachGroupSummary["links"] }) {
-  const byIndustry = mentorIndustryLinks(links);
-  const women = links.filter((l) => l.key === "women");
-  const lists = (
-    <div className="space-y-5">
-      <OutreachListLinks
-        group="mentors"
-        links={byIndustry}
-        heading="Mentors by industry"
-        emptyLabel="No alumni have offered to mentor yet."
-      />
-      <OutreachListLinks group="mentors" links={women} heading="Women in finance" />
-    </div>
-  );
-  if (!showMentorChart(links)) return lists;
-  // The links and the graph sit side by side (Jake, 2026-11-03); they stack
-  // only on a narrow screen.
-  return (
-    <div className="grid items-start gap-5 lg:grid-cols-2">
-      {lists}
-      <Card className="p-4">
-        <h2 className="mb-3 text-sm font-semibold text-gray-900">Industry breakdown</h2>
-        <IndustryBarList
-          rows={mentorChartRows(links)}
-          emptyLabel="No mentors yet."
-          linkLabel={(r) => `View ${r.label} mentors (${r.count})`}
-        />
-      </Card>
-    </div>
   );
 }
