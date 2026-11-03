@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import { endApiSession } from "@/lib/endApiSession";
 import { ApiClientError, clientGet } from "@/lib/api-client";
 import { isAccountLocked } from "@/lib/accountLocked";
 import { currentReturnPath, loginPathWithNext } from "@/lib/urlSafety";
@@ -45,6 +46,10 @@ export function SessionGuard() {
 
     async function signOutTo(path: string) {
       kicked.current = true;
+      // Best-effort and never throws. Usually a no-op here (the API has already
+      // moved the account to another session), but every sign-out path ends the
+      // API session before clearing the Supabase one.
+      await endApiSession();
       try {
         await createClient().auth.signOut();
       } catch {

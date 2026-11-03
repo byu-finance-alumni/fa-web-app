@@ -298,6 +298,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Logout
+         * @description End the caller's session on the API at sign-out.
+         *
+         *     The frontend calls this right BEFORE the Supabase sign-out, best-effort.
+         *     Supabase's sign-out ends the refresh token, but the access token already
+         *     issued is verified by signature alone and would otherwise keep working here
+         *     until it expires (~1 hour). This stamps ``users.active_session_id`` with a
+         *     never-matching sentinel, so ``_enforce_single_session`` rejects that same
+         *     token (401 ``session_superseded``) on the very next request.
+         *
+         *     Only the caller's OWN current session is ended: the stamp is a single
+         *     conditional UPDATE that applies only while the account's active session is
+         *     this token's session (or unclaimed, NULL — the fail-open state in which this
+         *     token would otherwise stay accepted). If a newer sign-in elsewhere has
+         *     already claimed the account, nothing is written and that device is
+         *     unaffected. ``active_session_at`` moves to now, so an older surviving
+         *     session cannot re-claim the account through ``POST /auth/login``; a genuine
+         *     new sign-in (a newer ``auth.sessions`` row) still can — engineers included,
+         *     so this can never lock an engineer out.
+         *
+         *     Uses the force-password-change-EXEMPT resolver (it does not reject a
+         *     superseded session or a paused site), so sign-out always works; it reads and
+         *     writes only the caller's own row, keyed on the token's identity.
+         */
+        post: operations["logout_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/password/complete": {
         parameters: {
             query?: never;
@@ -9419,6 +9460,17 @@ export interface components {
             retry_after_seconds: number | null;
         };
         /**
+         * LogoutResponse
+         * @description Result of ``POST /auth/logout``. ``ended`` is true when this call ended
+         *     the caller's session on the API; false when there was nothing to end (the
+         *     token carried no session id, or the account's active session is already a
+         *     different one).
+         */
+        LogoutResponse: {
+            /** Ended */
+            ended: boolean;
+        };
+        /**
          * MaintenanceEnableRequest
          * @description Optional override for the public maintenance message.
          *
@@ -11865,6 +11917,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SessionActiveResponse"];
+                };
+            };
+        };
+    };
+    logout_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogoutResponse"];
                 };
             };
         };

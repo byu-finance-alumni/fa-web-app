@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import { endApiSession } from "@/lib/endApiSession";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -23,6 +24,9 @@ export function SignOutButton({ onDark = false }: { onDark?: boolean } = {}) {
 
   async function handleSignOut() {
     setLoading(true);
+    // End the session on the API first (best-effort), while the token is still
+    // here to send; then clear the Supabase session.
+    await endApiSession();
     const supabase = createClient();
     await supabase.auth.signOut();
     // Refresh so middleware re-evaluates the (now empty) session and the server
