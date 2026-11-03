@@ -91,16 +91,11 @@ export const NAV: NavItem[] = [
     label: "Outreach",
     children: [
       { href: "/events", label: "Events" },
-      { href: "/nettreks", label: "NetTreks", capability: CAPABILITY.ALUMNI_EXPORT },
       // The Outreach interest lists — who said on the survey they would come
       // to a conference, speak, sponsor or mentor. Same lists of named alumni
       // with contact details as NetTreks, behind the same `alumni.export` gate
-      // on every backend route, so the same gate here.
-      {
-        href: "/outreach/conference",
-        label: "Conference Interest",
-        capability: CAPABILITY.ALUMNI_EXPORT,
-      },
+      // on every backend route, so the same gate here. The event-related
+      // entries sit together right under Events (Jake, 2026-11-03).
       {
         href: "/outreach/speakers",
         label: "Event Speakers",
@@ -111,6 +106,12 @@ export const NAV: NavItem[] = [
         label: "Event Sponsors",
         capability: CAPABILITY.ALUMNI_EXPORT,
       },
+      {
+        href: "/outreach/conference",
+        label: "Conference Interest",
+        capability: CAPABILITY.ALUMNI_EXPORT,
+      },
+      { href: "/nettreks", label: "NetTreks", capability: CAPABILITY.ALUMNI_EXPORT },
       {
         href: "/outreach/mentors",
         label: "Alumni Mentors",
