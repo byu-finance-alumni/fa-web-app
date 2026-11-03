@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import { endApiSession } from "@/lib/endApiSession";
 import { currentReturnPath, loginPathWithNext } from "@/lib/urlSafety";
 import { Button } from "@/components/ui/button";
 
@@ -86,6 +87,9 @@ export function SessionTimeout({
       clearTick();
       channel?.postMessage({ t: "logout" });
       try {
+        // Best-effort and never throws: end the API session while the token
+        // is still here, then clear the Supabase session.
+        await endApiSession();
         await createClient().auth.signOut();
       } finally {
         // Refresh so the middleware re-evaluates the (now empty) session.

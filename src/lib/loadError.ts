@@ -117,7 +117,7 @@ export function describeLoadFailure(
     return {
       kind: "rate-limited",
       title: "Too many requests",
-      message: `The service is throttling requests, so ${noun} wasn’t loaded. Wait a few seconds and try again.`,
+      message: `The service is throttling requests, so ${noun} wasn’t loaded. Wait a few minutes and try again.`,
       retryable: true,
       reference: status,
     };
