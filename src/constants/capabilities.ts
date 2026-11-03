@@ -39,7 +39,15 @@ export const CAPABILITY = {
   EVENTS_IMPORT: "events.import",
   /** Edit/delete an event and manage its attendee roster. */
   EVENTS_MANAGE: "events.manage",
-  /** Write, edit, and delete notes. Reading them only needs `view`. */
+  /**
+   * Add a note on an alumni profile, and edit / delete only notes you wrote.
+   * Seeded to students (Finance Society leaders) and every `notes.manage` role.
+   */
+  NOTES_CREATE: "notes.create",
+  /**
+   * Write, edit, and delete ANY note — alumni, interaction, or event. Implies
+   * everything `notes.create` allows. Reading notes only needs `view`.
+   */
   NOTES_MANAGE: "notes.manage",
   /** The survey console: responses review + campaign scheduling/sending. */
   SURVEYS_MANAGE: "surveys.manage",
@@ -144,10 +152,27 @@ export const canManageEvents = (
   capabilities: readonly string[] | null | undefined,
 ) => hasCapability(capabilities, CAPABILITY.EVENTS_MANAGE);
 
-/** May write, edit, or delete notes. Reading them needs only `view`. */
+/**
+ * May write, edit, or delete ANY note, at any level (`notes.manage`). Gates the
+ * interaction and event note threads. For the alumni-profile Notes tab use
+ * {@link canAddProfileNotes}, and for a single note's edit / delete use the
+ * note's own `can_edit` (the backend decides "is this yours").
+ */
 export const canWriteNotes = (
   capabilities: readonly string[] | null | undefined,
 ) => hasCapability(capabilities, CAPABILITY.NOTES_MANAGE);
+
+/**
+ * May add a note on an alumni PROFILE: `notes.create` (students — they may then
+ * edit / delete only their own) or `notes.manage` (which implies it). Gates the
+ * add-note field and the "Add note" shortcuts only; whether a given note can be
+ * edited or deleted comes from that note's `can_edit`.
+ */
+export const canAddProfileNotes = (
+  capabilities: readonly string[] | null | undefined,
+) =>
+  hasCapability(capabilities, CAPABILITY.NOTES_CREATE) ||
+  hasCapability(capabilities, CAPABILITY.NOTES_MANAGE);
 
 /** May use the survey console. */
 export const canManageSurveys = (

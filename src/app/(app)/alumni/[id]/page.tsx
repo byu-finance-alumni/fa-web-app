@@ -15,6 +15,7 @@ import {
   canExportAlumni,
   canManageHeadshots,
   canWriteNotes as canWriteNotesCap,
+  canAddProfileNotes as canAddProfileNotesCap,
 } from "@/constants/capabilities";
 import { Topbar } from "@/components/shell/Topbar";
 import { TopbarSearch } from "@/components/shared/TopbarSearch";
@@ -461,6 +462,10 @@ export async function AlumniProfileView({
   let canManagePhotos = false;
   let canExport = false;
   let canWriteNotes = false;
+  // Adding a note on THIS profile: `notes.create` (students) or `notes.manage`.
+  // Narrower than canWriteNotes, which still gates the interaction-level note
+  // threads. Edit / delete of a single note follows that note's `can_edit`.
+  let canAddProfileNotes = false;
   // Deleting a donation is the donations.manage tier (super_admin+), matching
   // the tightened backend gate.
   let canDeleteDonation = false;
@@ -490,6 +495,7 @@ export async function AlumniProfileView({
     canManagePhotos = canManageHeadshots(ctx.capabilities);
     canExport = canExportAlumni(ctx.capabilities);
     canWriteNotes = canWriteNotesCap(ctx.capabilities);
+    canAddProfileNotes = canAddProfileNotesCap(ctx.capabilities);
     canDeleteDonation = isUserAdmin(ctx.roles);
     canViewCompleteness = (ctx.capabilities ?? []).includes(
       "profile.completeness",
@@ -1516,7 +1522,8 @@ export async function AlumniProfileView({
             }
             notes={
               /* Unified notes (#39) in their own tab. Visible to every role;
-                 writing needs the `notes.manage` capability, re-enforced +
+                 adding needs `notes.create` or `notes.manage`; each note's
+                 edit / delete follows its `can_edit`. All re-enforced +
                  audit-logged server-side. ProfileNotes renders its own empty state. */
               <Panel title="Notes">
                 {notesError ? (
@@ -1525,7 +1532,7 @@ export async function AlumniProfileView({
                   <ProfileNotes
                     alumniId={aid}
                     notes={notes}
-                    canWrite={canWriteNotes}
+                    canWrite={canAddProfileNotes}
                   />
                 )}
               </Panel>
@@ -2274,7 +2281,7 @@ export async function AlumniProfileView({
         {canAdd ? (
           <ProfileFab>
             <AddInteractionButton alumniId={aid} label="Add interaction" />
-            {canWriteNotes ? <AddNoteButton /> : null}
+            {canAddProfileNotes ? <AddNoteButton /> : null}
             {canEdit ? (
               <>
                 <AddTaskButton alumniId={aid} label="Create task" />
@@ -2308,7 +2315,7 @@ export async function AlumniProfileView({
         <ProfileLogLauncher
           alumniId={aid}
           canAdd={canAdd}
-          canWriteNotes={canWriteNotes}
+          canWriteNotes={canAddProfileNotes}
         />
       </main>
     </>
