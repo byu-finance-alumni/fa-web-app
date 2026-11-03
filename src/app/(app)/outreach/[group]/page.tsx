@@ -22,8 +22,8 @@ import {
  * the shared error card. The backend decides who is on each list.
  *
  * Alumni Mentors also draws a bar of mentors per industry (the dashboard's
- * Industry breakdown component) once there are enough mentors for it to say
- * something — see `showMentorChart`.
+ * Industry breakdown component), beside the links, once there are enough
+ * mentors for it to say something — see `showMentorChart`.
  */
 export default async function OutreachGroupPage({
   params,
@@ -66,20 +66,8 @@ export default async function OutreachGroupPage({
 function MentorLists({ links }: { links: OutreachGroupSummary["links"] }) {
   const byIndustry = mentorIndustryLinks(links);
   const women = links.filter((l) => l.key === "women");
-  return (
+  const lists = (
     <div className="space-y-5">
-      {showMentorChart(links) && (
-        <Card className="p-4">
-          <h2 className="mb-3 text-sm font-semibold text-gray-900">
-            Mentors by industry
-          </h2>
-          <IndustryBarList
-            rows={mentorChartRows(links)}
-            emptyLabel="No mentors yet."
-            linkLabel={(r) => `View ${r.label} mentors (${r.count})`}
-          />
-        </Card>
-      )}
       <OutreachListLinks
         group="mentors"
         links={byIndustry}
@@ -87,6 +75,22 @@ function MentorLists({ links }: { links: OutreachGroupSummary["links"] }) {
         emptyLabel="No alumni have offered to mentor yet."
       />
       <OutreachListLinks group="mentors" links={women} heading="Women in finance" />
+    </div>
+  );
+  if (!showMentorChart(links)) return lists;
+  // The links and the graph sit side by side (Jake, 2026-11-03); they stack
+  // only on a narrow screen.
+  return (
+    <div className="grid items-start gap-5 lg:grid-cols-2">
+      {lists}
+      <Card className="p-4">
+        <h2 className="mb-3 text-sm font-semibold text-gray-900">Industry breakdown</h2>
+        <IndustryBarList
+          rows={mentorChartRows(links)}
+          emptyLabel="No mentors yet."
+          linkLabel={(r) => `View ${r.label} mentors (${r.count})`}
+        />
+      </Card>
     </div>
   );
 }
