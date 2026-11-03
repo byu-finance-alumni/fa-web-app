@@ -13,6 +13,9 @@ import { sortIndustryRows } from "@/lib/industryBreakdown";
  */
 
 const DASHBOARD = "src/app/(app)/dashboard/page.tsx";
+// The bar list itself moved into a shared component (the Alumni Mentors page
+// reuses it), so the panel is the page PLUS that component.
+const BAR_LIST = "src/components/shared/IndustryBarList.tsx";
 const read = (relPath: string): string =>
   readFileSync(resolve(process.cwd(), relPath), "utf8");
 
@@ -129,7 +132,14 @@ describe("sortIndustryRows", () => {
 });
 
 describe("the dashboard panel uses it", () => {
-  const src = read(DASHBOARD);
+  const src = read(DASHBOARD) + read(BAR_LIST);
+
+  it("renders the shared bar list", () => {
+    expect(read(DASHBOARD)).toContain(
+      'import { IndustryBarList } from "@/components/shared/IndustryBarList";',
+    );
+    expect(read(DASHBOARD)).toContain("<IndustryBarList");
+  });
 
   it("orders the list through the shared helper, not the API's order", () => {
     expect(src).toContain("sortIndustryRows(rows)");
