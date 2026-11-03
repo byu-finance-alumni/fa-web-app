@@ -298,6 +298,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Logout
+         * @description End the caller's session on the API at sign-out.
+         *
+         *     The frontend calls this right BEFORE the Supabase sign-out, best-effort.
+         *     Supabase's sign-out ends the refresh token, but the access token already
+         *     issued is verified by signature alone and would otherwise keep working here
+         *     until it expires (~1 hour). This stamps ``users.active_session_id`` with a
+         *     never-matching sentinel, so ``_enforce_single_session`` rejects that same
+         *     token (401 ``session_superseded``) on the very next request.
+         *
+         *     Only the caller's OWN current session is ended: the stamp is a single
+         *     conditional UPDATE that applies only while the account's active session is
+         *     this token's session (or unclaimed, NULL — the fail-open state in which this
+         *     token would otherwise stay accepted). If a newer sign-in elsewhere has
+         *     already claimed the account, nothing is written and that device is
+         *     unaffected. ``active_session_at`` moves to now, so an older surviving
+         *     session cannot re-claim the account through ``POST /auth/login``; a genuine
+         *     new sign-in (a newer ``auth.sessions`` row) still can — engineers included,
+         *     so this can never lock an engineer out.
+         *
+         *     Uses the force-password-change-EXEMPT resolver (it does not reject a
+         *     superseded session or a paused site), so sign-out always works; it reads and
+         *     writes only the caller's own row, keyed on the token's identity.
+         */
+        post: operations["logout_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/password/complete": {
         parameters: {
             query?: never;
@@ -449,7 +490,9 @@ export interface paths {
          * @description Record a login attempt outcome and return the resulting throttle status.
          *
          *     Unauthenticated. Only FAILURES are accumulated here: a failure may trip the
-         *     cooldown and (for a registered email) the hard lock. A ``success=true`` from
+         *     short cooldown and NOTHING longer — it never arms, extends or re-arms the
+         *     24h hard lock, because anyone can send a failure for any email (BT-1103-1).
+         *     A ``success=true`` from
          *     this unauthenticated caller is deliberately IGNORED — it must NOT clear the
          *     rolling counter, because an attacker could otherwise POST ``{email,
          *     success:true}`` to wipe a legitimately-set cooldown and brute-force
@@ -457,10 +500,9 @@ export interface paths {
          *     (``POST /auth/login`` -> ``_clear_login_attempts``), which only a real,
          *     signed-in user can reach.
          *
-         *     The ``locked`` flag the service returns is intentionally NOT echoed to the
-         *     client (anti-enumeration), and the ``reason`` is counter-derived: the failure
-         *     that hard-locks a real account returns the same ``cooldown`` body an unknown
-         *     address gets on the same failure count.
+         *     The ``reason`` is counter-derived, so a real account, a hard-locked account
+         *     and an unknown address get the same body on the same failure count
+         *     (anti-enumeration).
          *
          *     On a failure, in addition to bumping the rolling counter, a per-attempt
          *     ``login_failures`` row is logged (attempted email snapshotted + forwarded IP /
@@ -9161,10 +9203,15 @@ export interface components {
          * LoginContext
          * @description Optional client context for a sign-in attempt, forwarded by the frontend
          *     login action from the incoming request — the client IP (``x-forwarded-for``)
-         *     and Vercel's IP-geolocation headers. All optional and length-bounded; purely
-         *     informational (never trusted for authorization), stored on the
-         *     ``login_events`` row (success) or ``login_failures`` row (failure) for the
-         *     engineer Logins tabs. ``extra='forbid'`` rejects unknown keys.
+         *     and Vercel's IP-geolocation headers. All optional and length-bounded; never
+         *     trusted for authorization. Stored on the ``login_events`` row (success) or
+         *     ``login_failures`` row (failure) for the engineer Logins tabs, and
+         *     ``ip_address`` is also the source key for the #457 automatic block and the
+         *     #456 abuse alerts. It is caller-supplied, so that block is built to survive a
+         *     forged value (see app/services/login_block.py, property 1). It cannot be
+         *     replaced by the request's own forwarded address: these routes are called
+         *     server-to-server from the frontend, so that address is the frontend's egress
+         *     for every legitimate sign-in. ``extra='forbid'`` rejects unknown keys.
          */
         LoginContext: {
             /** Ip Address */
@@ -9417,6 +9464,17 @@ export interface components {
             reason: string;
             /** Retry After Seconds */
             retry_after_seconds: number | null;
+        };
+        /**
+         * LogoutResponse
+         * @description Result of ``POST /auth/logout``. ``ended`` is true when this call ended
+         *     the caller's session on the API; false when there was nothing to end (the
+         *     token carried no session id, or the account's active session is already a
+         *     different one).
+         */
+        LogoutResponse: {
+            /** Ended */
+            ended: boolean;
         };
         /**
          * MaintenanceEnableRequest
@@ -11865,6 +11923,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SessionActiveResponse"];
+                };
+            };
+        };
+    };
+    logout_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogoutResponse"];
                 };
             };
         };
