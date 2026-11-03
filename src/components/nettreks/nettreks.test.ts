@@ -35,7 +35,14 @@ describe("NetTreks nav entry", () => {
 
   it("shares the Outreach menu with Events, NetTreks right after Events", () => {
     const outreach = NAV.find((i) => i.label === "Outreach");
-    expect(outreach?.children?.map((c) => c.label)).toEqual(["Events", "NetTreks"]);
+    expect(outreach?.children?.map((c) => c.label)).toEqual([
+      "Events",
+      "NetTreks",
+      "Conference Interest",
+      "Event Speakers",
+      "Event Sponsors",
+      "Alumni Mentors",
+    ]);
     expect(NAV.some((i) => i.label === "Events" || i.label === "NetTreks")).toBe(false);
   });
 

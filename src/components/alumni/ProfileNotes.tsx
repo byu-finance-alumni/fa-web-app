@@ -14,9 +14,12 @@ import { Textarea } from "@/components/ui/textarea";
 import type { Note } from "@/types/notes";
 
 /**
- * Unified-notes card for an alumni profile (#39). Read is open to every role;
- * writing (add / edit / delete) is gated to `canWrite` (full_access) AND
- * re-enforced + audit-logged by the backend. Notes arrive newest-first from the
+ * Unified-notes card for an alumni profile (#39). Read is open to every role.
+ * `canWrite` gates the ADD field (`notes.create` or `notes.manage` — students
+ * can add); each note's edit / delete is gated by that note's own `can_edit`,
+ * which the backend sets per viewer (every note for `notes.manage`, only your
+ * own for `notes.create`). Every write is re-enforced + audit-logged
+ * server-side. Notes arrive newest-first from the
  * server; after a mutation we `router.refresh()` so the list and the Audit tab
  * reflect the change.
  *
@@ -171,7 +174,7 @@ export function ProfileNotes({
                       {n.author ?? "—"} · {fmt(n.created_at)}
                       {n.updated_at !== n.created_at ? " · edited" : ""}
                     </p>
-                    {canWrite ? (
+                    {n.can_edit ? (
                       confirmingId === n.note_id ? (
                         <span className="flex shrink-0 items-center gap-2 text-xs">
                           <span className="text-gray-500">Delete?</span>

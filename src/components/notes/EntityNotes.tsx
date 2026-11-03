@@ -11,9 +11,10 @@ import type { Note, NoteEntityType } from "@/types/notes";
 
 /**
  * Reusable unified-notes thread for any supported entity (alumni / interaction
- * / event) — generalized from `ProfileNotes` (#39). Read is open to every role;
- * writing (add / edit / delete) is gated to `canWrite` (full_access) AND
- * re-enforced + audit-logged by the backend. Notes arrive newest-first from the
+ * / event) — generalized from `ProfileNotes` (#39). Read is open to every role.
+ * `canWrite` gates the ADD field; each note's edit / delete is gated by that
+ * note's own `can_edit`, set per viewer by the backend. Every write is
+ * re-enforced + audit-logged server-side. Notes arrive newest-first from the
  * caller; after a mutation we call `onChanged?.()` (so the caller can re-fetch)
  * AND `router.refresh()` so any server-rendered view reflects the change.
  *
@@ -172,7 +173,7 @@ export function EntityNotes({
                       {n.author ?? "—"} · {fmt(n.created_at)}
                       {n.updated_at !== n.created_at ? " · edited" : ""}
                     </p>
-                    {canWrite ? (
+                    {n.can_edit ? (
                       confirmingId === n.note_id ? (
                         <span className="flex shrink-0 items-center gap-2 text-xs">
                           <span className="text-gray-500">Delete?</span>
