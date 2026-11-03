@@ -3314,6 +3314,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/outreach/{group}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Outreach Summary
+         * @description One Outreach landing page: its lists, each with a count. Alumni Mentors
+         *     has one ``industry`` link per industry with a mentor (most first, the
+         *     industry in ``industry``), then ``no_industry`` if anyone is in it, then
+         *     ``women``.
+         */
+        get: operations["outreach_summary_outreach__group__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/outreach/{group}/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Outreach List
+         * @description One list's people, sorted by last name, paginated — the NetTrek report
+         *     rows. 404 for a list the group does not have, an ``industry`` list without
+         *     ``industry``, or ``industry`` on any other list. Gender is null for a
+         *     caller who cannot edit alumni. Audited as ``view`` on ``outreach_list``.
+         */
+        get: operations["outreach_list_outreach__group___key__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/outreach/{group}/{key}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Outreach List Export
+         * @description The whole list as a CSV download, in the NetTrek reports' columns.
+         *     Formula-injection-safe. Audit-logged as ``export_outreach_list`` and counted
+         *     against the global export budget. Same 404s as the list. Returns
+         *     ``text/csv`` as ``<group>_<key>[_<industry>]_<YYYY-MM-DD>.csv``.
+         */
+        get: operations["outreach_list_export_outreach__group___key__export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/donations/donors": {
         parameters: {
             query?: never;
@@ -9883,6 +9952,60 @@ export interface components {
             details: string | null;
         };
         /**
+         * OutreachGroupKey
+         * @description One Outreach landing page.
+         * @enum {string}
+         */
+        OutreachGroupKey: "conference" | "speakers" | "sponsors" | "mentors";
+        /** OutreachGroupSummary */
+        OutreachGroupSummary: {
+            group: components["schemas"]["OutreachGroupKey"];
+            /** Title */
+            title: string;
+            /** Links */
+            links: components["schemas"]["OutreachListLink"][];
+        };
+        /**
+         * OutreachListKey
+         * @description One list on a landing page. Which keys a group has is fixed by the
+         *     backend (``outreach_lists.GROUP_LISTS``); ``industry`` (Alumni Mentors)
+         *     also takes an ``industry`` query parameter naming the industry.
+         * @enum {string}
+         */
+        OutreachListKey: "real_estate" | "corporate_finance" | "financial_services" | "utah" | "out_of_state" | "industry" | "no_industry" | "women";
+        /**
+         * OutreachListLink
+         * @description One report link on a landing page.
+         */
+        OutreachListLink: {
+            key: components["schemas"]["OutreachListKey"];
+            /** Industry */
+            industry: string | null;
+            /** Title */
+            title: string;
+            /** Count */
+            count: number;
+        };
+        /** OutreachListPage */
+        OutreachListPage: {
+            group: components["schemas"]["OutreachGroupKey"];
+            /** Group Title */
+            group_title: string;
+            key: components["schemas"]["OutreachListKey"];
+            /** Industry */
+            industry: string | null;
+            /** Title */
+            title: string;
+            /** Items */
+            items: components["schemas"]["NetTrekRow"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+        };
+        /**
          * PasswordChangeRequest
          * @description Body for ``POST /auth/password/change``: the new password only. There is
          *     no user id — the route acts on the token's own account.
@@ -15292,6 +15415,107 @@ export interface operations {
             path: {
                 area: components["schemas"]["NetTrekAreaKey"];
                 kind: components["schemas"]["NetTrekReportKind"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    outreach_summary_outreach__group__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group: components["schemas"]["OutreachGroupKey"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutreachGroupSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    outreach_list_outreach__group___key__get: {
+        parameters: {
+            query?: {
+                industry?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                group: components["schemas"]["OutreachGroupKey"];
+                key: components["schemas"]["OutreachListKey"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutreachListPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    outreach_list_export_outreach__group___key__export_get: {
+        parameters: {
+            query?: {
+                industry?: string | null;
+            };
+            header?: never;
+            path: {
+                group: components["schemas"]["OutreachGroupKey"];
+                key: components["schemas"]["OutreachListKey"];
             };
             cookie?: never;
         };
