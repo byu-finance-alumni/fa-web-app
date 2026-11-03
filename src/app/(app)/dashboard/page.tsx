@@ -19,8 +19,8 @@ import {
   canAddInteraction,
   canCreateAlumni,
   canCreateEvents,
+  canAddProfileNotes,
   canImportEvents,
-  canWriteNotes,
 } from "@/constants/capabilities";
 import type { UserContext } from "@/types/alumni";
 import type { FilterOptions } from "@/types/filters";
@@ -371,7 +371,9 @@ export default async function DashboardPage() {
   // is not the same grant as the bulk CSV upload.
   const dashCaps = ctx?.capabilities ?? null;
   const canLogInteraction = canAddInteraction(dashCaps);
-  const canAddNote = canWriteNotes(dashCaps);
+  // "Add note" lands on the chosen alumnus's profile Notes field, so it asks for
+  // the profile-note capability (students hold `notes.create`), not notes.manage.
+  const canAddNote = canAddProfileNotes(dashCaps);
   const canCreateEvent = canCreateEvents(dashCaps);
   const canImportEvent = canImportEvents(dashCaps);
   const canCreate = canCreateAlumni(dashCaps);

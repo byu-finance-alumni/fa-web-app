@@ -154,6 +154,7 @@ describe("the #379 per-section capabilities", () => {
     expect(CAPABILITY.ALUMNI_PHOTOS).toBe("alumni.photos");
     expect(CAPABILITY.EVENTS_MANAGE).toBe("events.manage");
     expect(CAPABILITY.NOTES_MANAGE).toBe("notes.manage");
+    expect(CAPABILITY.NOTES_CREATE).toBe("notes.create");
     expect(CAPABILITY.SURVEYS_MANAGE).toBe("surveys.manage");
     expect(CAPABILITY.DONATIONS_VIEW).toBe("donations.view");
     expect(CAPABILITY.REPORTS_ADVANCED).toBe("reports.advanced");

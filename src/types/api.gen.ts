@@ -3803,8 +3803,10 @@ export interface paths {
         put?: never;
         /**
          * Create Note
-         * @description Create a note on an alumni / interaction / event (notes.manage). 404 if the
-         *     target entity doesn't exist.
+         * @description Create a note. ``notes.manage`` may attach it to an alumni, interaction,
+         *     or event; ``notes.create`` alone may attach it to an alumni profile only
+         *     (403 otherwise). 404 if the target doesn't exist — or is an archived alumnus
+         *     the caller cannot see.
          */
         post: operations["create_note_notes_post"];
         delete?: never;
@@ -3825,15 +3827,19 @@ export interface paths {
         post?: never;
         /**
          * Delete Note
-         * @description Delete a note (full_access). 404 if the note doesn't exist. The body is
-         *     snapshotted to the audit trail before removal.
+         * @description Delete a note. ``notes.manage`` may delete any note; ``notes.create``
+         *     alone may delete only a note the caller wrote (403 otherwise). 404 if the
+         *     note doesn't exist. The body is snapshotted to the audit trail before
+         *     removal.
          */
         delete: operations["delete_note_notes__note_id__delete"];
         options?: never;
         head?: never;
         /**
          * Update Note
-         * @description Edit a note's body (full_access). 404 if the note doesn't exist.
+         * @description Edit a note's body. ``notes.manage`` may edit any note; ``notes.create``
+         *     alone may edit only a note the caller wrote (403 otherwise). 404 if the note
+         *     doesn't exist.
          */
         patch: operations["update_note_notes__note_id__patch"];
         trace?: never;
@@ -9515,6 +9521,10 @@ export interface components {
          * @description A note as returned to clients. ``author`` is the resolved display name of
          *     the creator (snapshot of the user record at read time, or ``None`` if the
          *     user was deleted).
+         *
+         *     ``can_edit`` is per CALLER: whether the requesting user may edit and delete
+         *     this note (any note with ``notes.manage``; only their own with
+         *     ``notes.create``). A display hint only — the server re-checks every write.
          */
         NoteRead: {
             /** Note Id */
@@ -9526,6 +9536,11 @@ export interface components {
             body: string;
             /** Author */
             author: string | null;
+            /**
+             * Can Edit
+             * @default false
+             */
+            can_edit: boolean;
             /**
              * Created At
              * Format: date-time
