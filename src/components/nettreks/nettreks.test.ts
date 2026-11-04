@@ -20,7 +20,7 @@ import {
   type ReportFilterOptions,
 } from "@/lib/reportView";
 import { NetTrekReportLinks } from "./NetTrekReportLinks";
-import { ReportBackLinks } from "./ReportBackLinks";
+import { ReportBackButton } from "./ReportBackButton";
 import { clickOpensRow } from "./ReportRow";
 import { ReportFiltersBar } from "./ReportFiltersBar";
 import {
@@ -285,13 +285,13 @@ describe("NetTrek report table", () => {
 });
 
 describe("Back", () => {
-  it("is a visible text button beside the link, both to the parent page", () => {
+  it("is one visible text button naming the parent page", () => {
     const html = renderToStaticMarkup(
-      createElement(ReportBackLinks, { href: "/nettreks", label: "All NetTrek reports" }),
+      createElement(ReportBackButton, { href: "/nettreks", label: "All NetTrek reports" }),
     );
-    expect(html.match(/href="\/nettreks"/g)?.length).toBe(2);
-    expect(html).toMatch(/>Back<\/a>/);
-    expect(html).toContain("All NetTrek reports");
+    expect(html.match(/href="\/nettreks"/g)?.length).toBe(1);
+    expect(html).toContain("Back to All NetTrek reports");
+    expect(html.match(/<a /g)?.length).toBe(1);
     expect(html).not.toContain("<svg");
   });
 });

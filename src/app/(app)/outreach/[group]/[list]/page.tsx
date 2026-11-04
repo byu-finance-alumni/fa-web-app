@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { LoadError } from "@/components/shared/LoadError";
 import { ScrollToTopOnPageChange } from "@/components/shared/ScrollToTopOnPageChange";
 import { NetTrekReportTable } from "@/components/nettreks/NetTrekReportTable";
-import { ReportBackLinks } from "@/components/nettreks/ReportBackLinks";
+import { ReportBackButton } from "@/components/nettreks/ReportBackButton";
 import { ReportFiltersBar } from "@/components/nettreks/ReportFiltersBar";
 import { OutreachExportButton } from "@/components/outreach/OutreachExportButton";
 import { Topbar } from "@/components/shell/Topbar";
@@ -75,11 +75,11 @@ export default async function OutreachListRoute({
         <div className="space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div className="min-w-0">
-              <ReportBackLinks
+              <ReportBackButton
                 href={outreachGroupHref(group)}
                 label={`All ${groupLabel} lists`}
               />
-              <h1 className="mt-1 text-xl font-semibold tracking-tight text-gray-900">
+              <h1 className="mt-3 text-xl font-semibold tracking-tight text-gray-900">
                 {title}
               </h1>
               {data && (
