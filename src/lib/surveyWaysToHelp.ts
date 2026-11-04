@@ -138,19 +138,19 @@ export function commentsToSubmit(value: string | null | undefined): string | nul
  * because the backend cannot make it. `submit_response` upgrades a live
  * `confirmed` row in place under a row lock — which is what lets the CONFIRM
  * path post twice (the confirmation, then the involvement answers) and still
- * end with one row. It does NOT do that for a `pending` row: a second POST after
- * a real submission stages a SECOND row on purpose, because two submissions are
- * two things a reviewer must see ("a submission, then another after spotting a
- * typo").
+ * end with one row. A second POST after a real submission now merges into the
+ * `pending` row (api#655), but only while it is still pending: once staff have
+ * reviewed it, or if the merge would go over a cap, a second POST stages a SECOND
+ * row.
  *
- * So the edit path cannot copy the confirm path's two-POST shape. Instead the
+ * So the edit path still does not copy the confirm path's two-POST shape. Instead the
  * ways-to-help step is shown BEFORE the submission rather than after it, and
  * both halves ride in this single body: the involvement questions write into the
  * same `edits` map the section menu writes into, so by the time this is built
  * there is nothing left to send separately.
  *
  * If you find yourself adding a second `POST /survey/respond/{token}` to the
- * edit path — to "just send the involvement answers" — stop: that is the
+ * edit path — to "just send the involvement answers" — stop: that can be the
  * duplicate row, and it looks completely fine on screen.
  *
  * No `confirmed_only` flag: the backend ignores it on a body carrying content
