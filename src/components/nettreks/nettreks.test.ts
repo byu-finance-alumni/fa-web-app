@@ -178,7 +178,6 @@ function row(over: Partial<NetTrekRow>): NetTrekRow {
     linkedin_url: "https://www.linkedin.com/in/jane",
     gender: "F",
     graduation_year: 2015,
-    willing_to_host: true,
     ...over,
   };
 }
@@ -212,22 +211,20 @@ describe("NetTrek report table", () => {
       "LinkedIn URL",
       "Gender",
       "Graduation Year",
-      "Willing to Host a NetTrek",
     ]);
   });
 
   it("renders a row, linking the name to the profile", () => {
     const html = renderToStaticMarkup(
       createElement(NetTrekReportTable, {
-        rows: [row({ alumni_id: 42 }), row({ alumni_id: 43, willing_to_host: false })],
+        rows: [row({ alumni_id: 42 })],
       }),
     );
     expect(html).toContain('href="/alumni/42"');
     expect(html).toContain("Goldman Sachs");
     expect(html).toContain("jane@dev.example");
     expect(html).toContain('href="https://www.linkedin.com/in/jane"');
-    // Willing to host: "Yes" or blank.
-    expect(html.match(/>Yes</g)?.length).toBe(1);
+    expect(html).not.toContain("Host");
   });
 
   it("never makes an unsafe LinkedIn value a link", () => {

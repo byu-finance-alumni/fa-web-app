@@ -22,37 +22,35 @@ export const NETTREK_TABLE_COLUMNS = [
   "LinkedIn URL",
   "Gender",
   "Graduation Year",
-  "Willing to Host a NetTrek",
 ] as const;
 
 /**
  * Screen label, pinned width and alignment for each column above, in the same
- * order. Fifteen columns only fit the page if the headers are short and the
+ * order. Fourteen columns only fit the page if the headers are short and the
  * widths follow the content — so state shows as "UT" and gender as "M"/"F",
  * exactly as on the alumni list, and the full CSV names sit in each header's
  * hover text. Widths sum to 100%.
  */
 export const NETTREK_SCREEN_COLUMNS = [
   { label: "First", w: "w-[6%]" },
-  { label: "Middle", w: "w-[5%]" },
+  { label: "Middle", w: "w-[6%]" },
   { label: "Last", w: "w-[6%]" },
   { label: "Company", w: "w-[9%]" },
   { label: "Industry", w: "w-[9%]" },
   { label: "Secondary", w: "w-[7%]" },
   { label: "City", w: "w-[7%]" },
-  { label: "State", w: "w-[4%]", center: true },
+  { label: "State", w: "w-[5%]", center: true },
   { label: "Personal email", w: "w-[10%]" },
   { label: "Work email", w: "w-[8%]" },
   { label: "Phone", w: "w-[10%]" },
   { label: "LinkedIn", w: "w-[6%]", center: true },
-  { label: "Gender", w: "w-[5%]", center: true },
-  { label: "Grad", w: "w-[4%]", center: true },
-  { label: "Host", w: "w-[4%]", center: true },
+  { label: "Gender", w: "w-[6%]", center: true },
+  { label: "Grad", w: "w-[5%]", center: true },
 ] as const;
 
 // The alumni list's container, header, row and cell classes (AlumniTable,
 // #268), so a NetTrek report reads as the same table. Horizontal padding is
-// px-2 rather than the list's px-3: the list has 9 columns, this has 15, and
+// px-2 rather than the list's px-3: the list has 9 columns, this has 14, and
 // the difference is what lets every column fit the page with nothing cut off.
 const TH = "sticky top-0 z-10 truncate bg-gray-50 px-2 py-2.5";
 const TD = "truncate px-2 py-2.5 text-gray-700";
@@ -74,7 +72,7 @@ function phoneLabel(value: string | null | undefined) {
 }
 
 /**
- * One NetTrek report's page of people. All 15 columns fit the page width, as
+ * One NetTrek report's page of people. All 14 columns fit the page width, as
  * on the alumni list — nothing scrolls sideways; long values truncate with the
  * full text on hover. The last name links to the profile.
  */
@@ -147,7 +145,6 @@ export function NetTrekReportTable({ rows }: { rows: NetTrekRow[] }) {
                 {text(genderLabel(r.gender))}
               </td>
               <td className={`${TD} text-center tabular-nums`}>{text(r.graduation_year)}</td>
-              <td className={`${TD} text-center`}>{r.willing_to_host ? "Yes" : ""}</td>
             </tr>
           ))}
         </tbody>
