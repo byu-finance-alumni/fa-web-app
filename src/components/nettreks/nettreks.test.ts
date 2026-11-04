@@ -285,11 +285,11 @@ describe("NetTrek report table", () => {
 });
 
 describe("Back", () => {
-  it("is a visible text button beside the link, both to the parent page", () => {
+  it("is one visible text button naming the parent page", () => {
     const html = renderToStaticMarkup(
       createElement(ReportBackButton, { href: "/nettreks", label: "All NetTrek reports" }),
     );
-    expect(html.match(/href="\/nettreks"/g)?.length).toBe(2);
+    expect(html.match(/href="\/nettreks"/g)?.length).toBe(1);
     expect(html).toContain("Back to All NetTrek reports");
     expect(html.match(/<a /g)?.length).toBe(1);
     expect(html).not.toContain("<svg");
