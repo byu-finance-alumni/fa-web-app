@@ -4594,6 +4594,9 @@ export interface paths {
          * Survey Submit Photo
          * @description PUBLIC (token-gated): attach a NEW profile photo to a just-staged response.
          *
+         *     That can be an existing pending row: a repeat submission merges into it and
+         *     returns its id (#655), and the newest photo replaces the older staged one.
+         *
          *     A separate step from the JSON field-submit so the field submit is unaffected.
          *     The signed token gates it (no login).
          *
@@ -11398,7 +11401,9 @@ export interface components {
          *
          *     `survey_response_id` is the id of the staged row (None when nothing was
          *     staged); the public survey page uses it to attach an optional profile photo
-         *     via `POST /survey/respond/{token}/photo`.
+         *     via `POST /survey/respond/{token}/photo`. After a repeat submission that is
+         *     the existing pending row it merged into, and `change_count` is the fields now
+         *     on that row (#655).
          */
         SurveySubmitResult: {
             /** Staged */
