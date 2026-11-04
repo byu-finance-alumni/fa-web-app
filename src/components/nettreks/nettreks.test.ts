@@ -336,8 +336,22 @@ describe("Outreach filters", () => {
         path: "/x",
         view,
         options: { ...options, ...over },
+        initialOpen: true,
       }),
     );
+
+  it("starts closed, even on a filtered list, with the count on the button", () => {
+    const closed = (view = DEFAULT_REPORT_VIEW) =>
+      renderToStaticMarkup(
+        createElement(ReportFiltersBar, { path: "/x", view, options }),
+      );
+    expect(closed()).not.toContain("<form");
+    expect(closed()).toContain(">Filters<");
+    const filtered = closed({ ...DEFAULT_REPORT_VIEW, filters: { f_company_state: "WY" } });
+    expect(filtered).not.toContain("<form");
+    expect(filtered).toContain("Filters (1)");
+    expect(filtered).toContain("Clear filters");
+  });
 
   it("has a control for every column, dropdowns offering the list's values", () => {
     const html = bar();
