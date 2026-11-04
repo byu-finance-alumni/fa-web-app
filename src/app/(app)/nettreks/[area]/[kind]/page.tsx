@@ -4,11 +4,12 @@ import { LoadError } from "@/components/shared/LoadError";
 import { ScrollToTopOnPageChange } from "@/components/shared/ScrollToTopOnPageChange";
 import { NetTrekExportButton } from "@/components/nettreks/NetTrekExportButton";
 import { NetTrekReportTable } from "@/components/nettreks/NetTrekReportTable";
+import { ReportFiltersBar } from "@/components/nettreks/ReportFiltersBar";
 import { Topbar } from "@/components/shell/Topbar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ApiError, apiGet } from "@/lib/api";
-import { parseReportView, type ReportView } from "@/lib/reportView";
+import { isReportFiltered, parseReportView, type ReportView } from "@/lib/reportView";
 import {
   NETTREKS_PAGE_SIZE,
   isNetTrekAreaKey,
@@ -58,6 +59,7 @@ export default async function NetTrekReportRoute({
   const from = data && data.total > 0 ? offset + 1 : 0;
   const to = data ? Math.min(offset + data.items.length, data.total) : 0;
   const hasPrev = offset > 0;
+  const filtered = isReportFiltered(view);
   const hasNext = data ? offset + NETTREKS_PAGE_SIZE < data.total : false;
 
   return (
@@ -81,6 +83,7 @@ export default async function NetTrekReportRoute({
                 <p className="mt-1 text-sm tabular-nums text-gray-500">
                   {data.total.toLocaleString("en-US")}{" "}
                   {data.total === 1 ? "person" : "people"}
+                  {filtered ? " · filtered" : ""}
                 </p>
               )}
             </div>
@@ -89,12 +92,23 @@ export default async function NetTrekReportRoute({
             )}
           </div>
 
+          {data && (data.total > 0 || filtered) && (
+            <ReportFiltersBar
+              key={JSON.stringify(view.filters)}
+              path={netTrekReportHref(area, kind)}
+              view={view}
+              options={data.filter_options}
+            />
+          )}
+
           {error ? (
             <LoadError status={error.status} noun="this report" />
           ) : data!.items.length === 0 ? (
             <Card className="p-10 text-center text-sm text-gray-500">
               {data!.total === 0
-                ? "Nobody is on this report yet."
+                ? filtered
+                  ? "Nobody on this report matches these filters."
+                  : "Nobody is on this report yet."
                 : "This page is past the end of the report."}
             </Card>
           ) : (

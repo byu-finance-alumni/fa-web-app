@@ -1,6 +1,6 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { getVisibleNav, leafHrefs, NAV } from "@/components/shell/nav";
 import { ROLE } from "@/constants/roles";
@@ -14,13 +14,20 @@ import {
   type NetTrekAreaSummary,
   type NetTrekRow,
 } from "@/lib/nettreks";
-import { DEFAULT_REPORT_VIEW, withReportView } from "@/lib/reportView";
+import {
+  DEFAULT_REPORT_VIEW,
+  withReportView,
+  type ReportFilterOptions,
+} from "@/lib/reportView";
 import { NetTrekReportLinks } from "./NetTrekReportLinks";
+import { ReportFiltersBar } from "./ReportFiltersBar";
 import {
   NETTREK_SCREEN_COLUMNS,
   NETTREK_TABLE_COLUMNS,
   NetTrekReportTable,
 } from "./NetTrekReportTable";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 /**
  * NetTreks tab (#887): nav visibility by capability, the landing page's report
@@ -272,5 +279,49 @@ describe("NetTrek report table", () => {
     expect(
       netTrekDisplayName(row({ first_name: null, last_name: null })),
     ).toBe("Unnamed alumnus");
+  });
+});
+
+describe("Outreach filters", () => {
+  const options = {
+    industry: ["Banking"],
+    secondary_industry: [],
+    company_state: ["TX", "UT"],
+    gender: ["F", "M"],
+    graduation_year: [2015],
+  };
+  const bar = (over: Partial<ReportFilterOptions> = {}, view = DEFAULT_REPORT_VIEW) =>
+    renderToStaticMarkup(
+      createElement(ReportFiltersBar, {
+        path: "/x",
+        view,
+        options: { ...options, ...over },
+      }),
+    );
+
+  it("has a control for every column, dropdowns offering the list's values", () => {
+    const html = bar();
+    expect(html.match(/<input/g)?.length).toBe(9);
+    expect(html.match(/<select/g)?.length).toBe(5);
+    expect(html).toContain('<option value="UT">UT</option>');
+    expect(html).toContain('<option value="2015">2015</option>');
+  });
+
+  it("leaves Gender out for someone it is hidden from", () => {
+    const html = bar({ gender: null });
+    expect(html.match(/<select/g)?.length).toBe(4);
+    expect(html).not.toContain("report-filter-f_gender");
+    expect(html).not.toContain(">Gender<");
+  });
+
+  it("keeps a filter from the URL selectable, and offers Clear only when filtered", () => {
+    expect(bar()).not.toContain("Clear filters");
+    const html = bar({}, { ...DEFAULT_REPORT_VIEW, filters: { f_company_state: "WY" } });
+    expect(html).toContain("Clear filters");
+    expect(html).toMatch(/<option value="WY" selected="">WY<\/option>/);
+  });
+
+  it("renders no icons but the shared dropdown's", () => {
+    expect(bar({}).match(/<svg/g)?.length).toBe(5);
   });
 });

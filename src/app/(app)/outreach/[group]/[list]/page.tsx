@@ -3,12 +3,13 @@ import { notFound } from "next/navigation";
 import { LoadError } from "@/components/shared/LoadError";
 import { ScrollToTopOnPageChange } from "@/components/shared/ScrollToTopOnPageChange";
 import { NetTrekReportTable } from "@/components/nettreks/NetTrekReportTable";
+import { ReportFiltersBar } from "@/components/nettreks/ReportFiltersBar";
 import { OutreachExportButton } from "@/components/outreach/OutreachExportButton";
 import { Topbar } from "@/components/shell/Topbar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ApiError, apiGet } from "@/lib/api";
-import { parseReportView, type ReportView } from "@/lib/reportView";
+import { isReportFiltered, parseReportView, type ReportView } from "@/lib/reportView";
 import { parseNetTrekOffset } from "@/lib/nettreks";
 import {
   OUTREACH_PAGE_SIZE,
@@ -62,6 +63,7 @@ export default async function OutreachListRoute({
   const from = data && data.total > 0 ? offset + 1 : 0;
   const to = data ? Math.min(offset + data.items.length, data.total) : 0;
   const hasPrev = offset > 0;
+  const filtered = isReportFiltered(view);
   const hasNext = data ? offset + OUTREACH_PAGE_SIZE < data.total : false;
 
   return (
@@ -85,6 +87,7 @@ export default async function OutreachListRoute({
                 <p className="mt-1 text-sm tabular-nums text-gray-500">
                   {data.total.toLocaleString("en-US")}{" "}
                   {data.total === 1 ? "person" : "people"}
+                  {filtered ? " · filtered" : ""}
                 </p>
               )}
             </div>
@@ -98,12 +101,23 @@ export default async function OutreachListRoute({
             )}
           </div>
 
+          {data && (data.total > 0 || filtered) && (
+            <ReportFiltersBar
+              key={JSON.stringify(view.filters)}
+              path={outreachListHref(group, list, industry)}
+              view={view}
+              options={data.filter_options}
+            />
+          )}
+
           {error ? (
             <LoadError status={error.status} noun="this list" />
           ) : data!.items.length === 0 ? (
             <Card className="p-10 text-center text-sm text-gray-500">
               {data!.total === 0
-                ? "Nobody is on this list yet."
+                ? filtered
+                  ? "Nobody on this list matches these filters."
+                  : "Nobody is on this list yet."
                 : "This page is past the end of the list."}
             </Card>
           ) : (

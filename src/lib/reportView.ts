@@ -1,21 +1,101 @@
 /**
- * How an Outreach people table is sorted (#917), shared by the NetTrek reports
- * and the Outreach lists: it lives in the URL, and the same params go to the
- * backend, which owns the order (a page is only 50 of the list). See fa-web-api
- * `app/services/report_view.py`.
+ * How an Outreach people table is sorted and filtered (#917, #918), shared by
+ * the NetTrek reports and the Outreach lists: it lives in the URL, and the same
+ * params go to the backend, which owns both (a page is only 50 of the list). See
+ * fa-web-api `app/services/report_view.py`.
  */
-import type { Schema } from "@/types/api";
+import type { QueryParams, Schema } from "@/types/api";
 
 export type ReportSort = Schema<"ReportSortColumn">;
 export type ReportSortDir = Schema<"ReportSortDir">;
+
+export type ReportFilterOptions = Schema<"ReportFilterOptions">;
+
+type ListQuery = QueryParams<"nettreks_report_nettreks__area___kind__get"> &
+  QueryParams<"outreach_list_outreach__group___key__get">;
+
+/** The filter params both list routes take: `f_` plus the column's name. */
+export type ReportFilterParam = Extract<keyof ListQuery, `f_${string}`>;
+
+export type ReportFilters = Partial<Record<ReportFilterParam, string>>;
 
 export interface ReportView {
   /** Null is the default order: last name, then first name. */
   sort: ReportSort | null;
   dir: ReportSortDir;
+  filters: ReportFilters;
 }
 
-export const DEFAULT_REPORT_VIEW: ReportView = { sort: null, dir: "asc" };
+export const DEFAULT_REPORT_VIEW: ReportView = { sort: null, dir: "asc", filters: {} };
+
+/** The API's bounds on a filter value. */
+const TEXT_MAX = 100;
+const CHOICE_MAX = 255;
+
+/**
+ * Every filter, in column order. Keyed on the generated params, so one the API
+ * adds or drops fails tsc. `options` names the dropdown's choices in
+ * `filter_options`; the rest are text matches.
+ */
+const FILTERS: Record<
+  ReportFilterParam,
+  { label: string; max: number; options?: keyof ReportFilterOptions; valid?: RegExp }
+> = {
+  f_first_name: { label: "First", max: TEXT_MAX },
+  f_middle_name: { label: "Middle", max: TEXT_MAX },
+  f_last_name: { label: "Last", max: TEXT_MAX },
+  f_company: { label: "Company", max: TEXT_MAX },
+  f_industry: { label: "Industry", max: CHOICE_MAX, options: "industry" },
+  f_secondary_industry: {
+    label: "Secondary",
+    max: CHOICE_MAX,
+    options: "secondary_industry",
+  },
+  f_company_city: { label: "City", max: TEXT_MAX },
+  f_company_state: { label: "State", max: CHOICE_MAX, options: "company_state" },
+  f_permanent_email: { label: "Personal email", max: TEXT_MAX },
+  f_work_email: { label: "Work email", max: TEXT_MAX },
+  f_phone: { label: "Phone", max: TEXT_MAX },
+  f_linkedin_url: { label: "LinkedIn", max: TEXT_MAX },
+  f_gender: { label: "Gender", max: 1, options: "gender", valid: /^[MF]$/ },
+  f_graduation_year: {
+    label: "Grad",
+    max: 4,
+    options: "graduation_year",
+    valid: /^[1-9][0-9]{0,3}$/,
+  },
+};
+
+export const REPORT_FILTERS = (
+  Object.entries(FILTERS) as [
+    ReportFilterParam,
+    (typeof FILTERS)[ReportFilterParam],
+  ][]
+).map(([param, filter]) => ({ param, ...filter }));
+
+const CONTROL_CHARACTERS = /[\x00-\x1f\x7f-\x9f]/;
+
+/** A filter value the API accepts, else null. Blank is no filter. */
+function cleanFilter(param: ReportFilterParam, raw: string | undefined): string | null {
+  const { max, valid } = FILTERS[param];
+  const value = raw?.trim();
+  if (!value || value.length > max || CONTROL_CHARACTERS.test(value)) return null;
+  return !valid || valid.test(value) ? value : null;
+}
+
+/** Only the filters that are set and that the API accepts. */
+export function cleanReportFilters(raw: ReportFilters): ReportFilters {
+  const filters: ReportFilters = {};
+  for (const { param } of REPORT_FILTERS) {
+    const value = cleanFilter(param, raw[param]);
+    if (value !== null) filters[param] = value;
+  }
+  return filters;
+}
+
+export function isReportFiltered(view: ReportView): boolean {
+  return Object.keys(view.filters).length > 0;
+}
 
 /** The column the default order sorts by, so its header shows an arrow. */
 const DEFAULT_SORT: ReportSort = "last_name";
@@ -49,9 +129,12 @@ function first(raw: string | string[] | undefined): string | undefined {
 export function parseReportView(sp: SearchParams): ReportView {
   const sort = first(sp.sort);
   const known = sort !== undefined && Object.hasOwn(SORT_COLUMNS, sort);
+  const raw: ReportFilters = {};
+  for (const { param } of REPORT_FILTERS) raw[param] = first(sp[param]);
   return {
     sort: known ? (sort as ReportSort) : null,
     dir: known && first(sp.dir) === "desc" ? "desc" : "asc",
+    filters: cleanReportFilters(raw),
   };
 }
 
@@ -61,6 +144,10 @@ export function reportViewParams(view: ReportView): [string, string][] {
   if (view.sort) {
     params.push(["sort", view.sort]);
     if (view.dir === "desc") params.push(["dir", "desc"]);
+  }
+  for (const { param } of REPORT_FILTERS) {
+    const value = view.filters[param];
+    if (value) params.push([param, value]);
   }
   return params;
 }
