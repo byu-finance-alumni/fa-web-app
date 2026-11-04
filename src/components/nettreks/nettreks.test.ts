@@ -20,6 +20,7 @@ import {
   type ReportFilterOptions,
 } from "@/lib/reportView";
 import { NetTrekReportLinks } from "./NetTrekReportLinks";
+import { clickOpensRow } from "./ReportRow";
 import { ReportFiltersBar } from "./ReportFiltersBar";
 import {
   NETTREK_SCREEN_COLUMNS,
@@ -279,6 +280,32 @@ describe("NetTrek report table", () => {
     expect(
       netTrekDisplayName(row({ first_name: null, last_name: null })),
     ).toBe("Unnamed alumnus");
+  });
+});
+
+describe("clicking a row", () => {
+  const element = (inLink: boolean) =>
+    ({ closest: () => (inLink ? {} : null) }) as unknown as Element;
+
+  it("opens the profile from anywhere but a link", () => {
+    expect(clickOpensRow(element(false), "")).toBe(true);
+    expect(clickOpensRow(element(true), "")).toBe(false);
+  });
+
+  it("does not navigate when text was selected", () => {
+    expect(clickOpensRow(element(false), "jane@dev.example")).toBe(false);
+  });
+
+  it("asks about links and controls", () => {
+    const seen: string[] = [];
+    clickOpensRow({ closest: (s: string) => (seen.push(s), null) } as unknown as Element, "");
+    expect(seen[0].split(", ")).toEqual(["a", "button", "input", "select", "textarea"]);
+  });
+
+  it("has a pointer cursor and keeps the last name a real link", () => {
+    const html = table([row({ alumni_id: 42 })]);
+    expect(html).toContain('<tr class="cursor-pointer');
+    expect(html).toContain('href="/alumni/42"');
   });
 });
 

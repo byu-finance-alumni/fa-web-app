@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ReportRow } from "@/components/nettreks/ReportRow";
 import { SortTh } from "@/components/shared/SortTh";
 import { genderLabel } from "@/lib/format";
 import { netTrekDisplayName, type NetTrekRow } from "@/lib/nettreks";
@@ -81,7 +82,8 @@ function full(value: string | number | null | undefined) {
 /**
  * One NetTrek report's page of people. All 14 columns fit the page width, as
  * on the alumni list — nothing scrolls sideways; long values truncate with the
- * full text on hover. The last name links to the profile. Every header sorts
+ * full text on hover. Clicking a row opens the profile, and the last name stays
+ * a real link for keyboard and new-tab use (#920). Every header sorts
  * the whole list on the server through the page URL (#917), except Gender for
  * someone it is hidden from: the backend ignores that sort for them.
  */
@@ -128,8 +130,9 @@ export function NetTrekReportTable({
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr
+            <ReportRow
               key={r.alumni_id}
+              href={`/alumni/${r.alumni_id}`}
               className="border-b border-gray-200 last:border-0 even:bg-gray-50/50 hover:bg-gray-50"
             >
               <td className={TD} title={full(r.first_name)}>{text(r.first_name)}</td>
@@ -178,7 +181,7 @@ export function NetTrekReportTable({
                 {text(genderLabel(r.gender))}
               </td>
               <td className={`${TD} text-center tabular-nums`}>{text(r.graduation_year)}</td>
-            </tr>
+            </ReportRow>
           ))}
         </tbody>
       </table>
