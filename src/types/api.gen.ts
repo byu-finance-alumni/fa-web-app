@@ -3293,7 +3293,7 @@ export interface paths {
         };
         /**
          * Nettreks Summary
-         * @description Every NetTrek report with its count, in landing-page order: the seven
+         * @description Every NetTrek report with its count, in landing-page order: the
          *     areas (each with a Hosts and an Area Alumni report), then Other (Hosts
          *     only; ``area_alumni`` is null).
          */
@@ -3315,10 +3315,13 @@ export interface paths {
         };
         /**
          * Nettreks Report
-         * @description One report's people, sorted by last name, paginated. 404 for Other's
-         *     Area Alumni (it has none). Gender is null for a caller who cannot edit
-         *     alumni. Audited as ``view`` on ``nettrek_report`` (who looked at which
-         *     report — never the rows).
+         * @description One report's people, paginated: sorted by last name, or by ``sort`` and
+         *     ``dir`` with blanks last, and narrowed by the ``f_*`` filters. ``total`` and
+         *     ``filter_options`` follow the filters. 404 for Other's Area Alumni (it has
+         *     none). Gender is null for a caller who cannot edit alumni, and
+         *     ``sort=gender`` and ``f_gender`` are ignored for them. Audited as ``view`` on
+         *     ``nettrek_report`` (who looked at which report, with any filters — never the
+         *     rows).
          */
         get: operations["nettreks_report_nettreks__area___kind__get"];
         put?: never;
@@ -3338,14 +3341,15 @@ export interface paths {
         };
         /**
          * Nettreks Report Export
-         * @description The whole report as a CSV download, columns in the issue's order: First
+         * @description The report as a CSV download: the whole report, or as the page's ``sort``,
+         *     ``dir`` and ``f_*`` params order and narrow it, columns in the issue's order: First
          *     Name, Middle Name, Last Name, Company, Industry, Secondary Industry, Company
          *     City, Company State, Permanent Email, Work Email, Phone, LinkedIn URL,
-         *     Gender, Graduation Year, Willing to Host a NetTrek (Yes/blank).
-         *     Formula-injection-safe. Audit-logged as ``export_nettrek_report`` and
-         *     counted against the global export budget. 404 for Other's Area Alumni.
-         *     Returns ``text/csv`` as ``<area>_nettrek_hosts_<YYYY-MM-DD>.csv`` or
-         *     ``<area>_area_alumni_<YYYY-MM-DD>.csv``.
+         *     Gender, Graduation Year. Formula-injection-safe. Audit-logged as ``export_nettrek_report``, with
+         *     any filters, and counted against the global export budget. 404 for Other's
+         *     Area Alumni. Returns ``text/csv`` as ``<area>_nettrek_hosts_<YYYY-MM-DD>.csv``
+         *     or ``<area>_area_alumni_<YYYY-MM-DD>.csv``, with ``_filtered`` before the date
+         *     when filters narrowed it.
          */
         get: operations["nettreks_report_export_nettreks__area___kind__export_get"];
         put?: never;
@@ -3388,10 +3392,13 @@ export interface paths {
         };
         /**
          * Outreach List
-         * @description One list's people, sorted by last name, paginated — the NetTrek report
-         *     rows. 404 for a list the group does not have, an ``industry`` list without
-         *     ``industry``, or ``industry`` on any other list. Gender is null for a
-         *     caller who cannot edit alumni. Audited as ``view`` on ``outreach_list``.
+         * @description One list's people, paginated — the NetTrek report rows, sorted by last
+         *     name, or by ``sort`` and ``dir`` with blanks last, and narrowed by the ``f_*``
+         *     filters. ``total`` and ``filter_options`` follow the filters. 404 for a list
+         *     the group does not have, an ``industry`` list without ``industry``, or
+         *     ``industry`` on any other list. Gender is null for a
+         *     caller who cannot edit alumni, and ``sort=gender`` and ``f_gender`` are
+         *     ignored for them. Audited as ``view`` on ``outreach_list``.
          */
         get: operations["outreach_list_outreach__group___key__get"];
         put?: never;
@@ -3411,10 +3418,12 @@ export interface paths {
         };
         /**
          * Outreach List Export
-         * @description The whole list as a CSV download, in the NetTrek reports' columns.
-         *     Formula-injection-safe. Audit-logged as ``export_outreach_list`` and counted
-         *     against the global export budget. Same 404s as the list. Returns
-         *     ``text/csv`` as ``<group>_<key>[_<industry>]_<YYYY-MM-DD>.csv``.
+         * @description The list as a CSV download, in the NetTrek reports' columns: the whole
+         *     list, or as the page's ``sort``, ``dir`` and ``f_*`` params order and narrow
+         *     it. Formula-injection-safe. Audit-logged as ``export_outreach_list``, with
+         *     any filters, and counted against the global export budget. Same 404s as the
+         *     list. Returns ``text/csv`` as
+         *     ``<group>_<key>[_<industry>][_filtered]_<YYYY-MM-DD>.csv``.
          */
         get: operations["outreach_list_export_outreach__group___key__export_get"];
         put?: never;
@@ -9539,7 +9548,7 @@ export interface components {
          * @description The fixed set of NetTrek areas. ``other`` has only a Hosts report.
          * @enum {string}
          */
-        NetTrekAreaKey: "dallas" | "san_francisco" | "los_angeles" | "phoenix" | "seattle" | "washington_dc" | "wasatch" | "other";
+        NetTrekAreaKey: "dallas" | "san_francisco" | "los_angeles" | "phoenix" | "seattle" | "washington_dc" | "new_york" | "wasatch" | "other";
         /** NetTrekAreaSummary */
         NetTrekAreaSummary: {
             key: components["schemas"]["NetTrekAreaKey"];
@@ -9580,6 +9589,7 @@ export interface components {
             limit: number;
             /** Offset */
             offset: number;
+            filter_options: components["schemas"]["ReportFilterOptions"];
         };
         /**
          * NetTrekRow
@@ -9618,8 +9628,6 @@ export interface components {
             gender: string | null;
             /** Graduation Year */
             graduation_year: number | null;
-            /** Willing To Host */
-            willing_to_host: boolean;
         };
         /** NetTrekSummary */
         NetTrekSummary: {
@@ -10062,6 +10070,7 @@ export interface components {
             limit: number;
             /** Offset */
             offset: number;
+            filter_options: components["schemas"]["ReportFilterOptions"];
         };
         /**
          * PasswordChangeRequest
@@ -10317,6 +10326,39 @@ export interface components {
             /** Radius Miles */
             radius_miles: number;
         };
+        /**
+         * ReportFilterOptions
+         * @description The choices for a list's dropdown filters: only values on the list, and
+         *     for each column only those still reachable under the OTHER active filters,
+         *     so no choice leads to an empty table (fa-web-app #918). ``gender`` is
+         *     ``None`` for a caller who cannot edit alumni: they may not filter or sort
+         *     on it.
+         */
+        ReportFilterOptions: {
+            /** Industry */
+            industry: string[];
+            /** Secondary Industry */
+            secondary_industry: string[];
+            /** Company State */
+            company_state: string[];
+            /** Gender */
+            gender: string[] | null;
+            /** Graduation Year */
+            graduation_year: number[];
+        };
+        /**
+         * ReportSortColumn
+         * @description Every column of an Outreach people table, named after its
+         *     :class:`NetTrekRow` field. The whitelist for the ``sort`` query parameter on
+         *     the NetTrek reports and the Outreach lists (fa-web-app #917).
+         * @enum {string}
+         */
+        ReportSortColumn: "first_name" | "middle_name" | "last_name" | "company" | "industry" | "secondary_industry" | "company_city" | "company_state" | "permanent_email" | "work_email" | "phone" | "linkedin_url" | "gender" | "graduation_year";
+        /**
+         * ReportSortDir
+         * @enum {string}
+         */
+        ReportSortDir: "asc" | "desc";
         /**
          * ResetPasswordResponse
          * @description The one-time temporary password, shown to the super_admin exactly once.
@@ -15456,6 +15498,22 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
+                sort?: components["schemas"]["ReportSortColumn"] | null;
+                dir?: components["schemas"]["ReportSortDir"];
+                f_first_name?: string | null;
+                f_middle_name?: string | null;
+                f_last_name?: string | null;
+                f_company?: string | null;
+                f_industry?: string | null;
+                f_secondary_industry?: string | null;
+                f_company_city?: string | null;
+                f_company_state?: string | null;
+                f_permanent_email?: string | null;
+                f_work_email?: string | null;
+                f_phone?: string | null;
+                f_linkedin_url?: string | null;
+                f_gender?: string | null;
+                f_graduation_year?: number | null;
             };
             header?: never;
             path: {
@@ -15488,7 +15546,24 @@ export interface operations {
     };
     nettreks_report_export_nettreks__area___kind__export_get: {
         parameters: {
-            query?: never;
+            query?: {
+                sort?: components["schemas"]["ReportSortColumn"] | null;
+                dir?: components["schemas"]["ReportSortDir"];
+                f_first_name?: string | null;
+                f_middle_name?: string | null;
+                f_last_name?: string | null;
+                f_company?: string | null;
+                f_industry?: string | null;
+                f_secondary_industry?: string | null;
+                f_company_city?: string | null;
+                f_company_state?: string | null;
+                f_permanent_email?: string | null;
+                f_work_email?: string | null;
+                f_phone?: string | null;
+                f_linkedin_url?: string | null;
+                f_gender?: string | null;
+                f_graduation_year?: number | null;
+            };
             header?: never;
             path: {
                 area: components["schemas"]["NetTrekAreaKey"];
@@ -15555,6 +15630,22 @@ export interface operations {
                 industry?: string | null;
                 limit?: number;
                 offset?: number;
+                sort?: components["schemas"]["ReportSortColumn"] | null;
+                dir?: components["schemas"]["ReportSortDir"];
+                f_first_name?: string | null;
+                f_middle_name?: string | null;
+                f_last_name?: string | null;
+                f_company?: string | null;
+                f_industry?: string | null;
+                f_secondary_industry?: string | null;
+                f_company_city?: string | null;
+                f_company_state?: string | null;
+                f_permanent_email?: string | null;
+                f_work_email?: string | null;
+                f_phone?: string | null;
+                f_linkedin_url?: string | null;
+                f_gender?: string | null;
+                f_graduation_year?: number | null;
             };
             header?: never;
             path: {
@@ -15589,6 +15680,22 @@ export interface operations {
         parameters: {
             query?: {
                 industry?: string | null;
+                sort?: components["schemas"]["ReportSortColumn"] | null;
+                dir?: components["schemas"]["ReportSortDir"];
+                f_first_name?: string | null;
+                f_middle_name?: string | null;
+                f_last_name?: string | null;
+                f_company?: string | null;
+                f_industry?: string | null;
+                f_secondary_industry?: string | null;
+                f_company_city?: string | null;
+                f_company_state?: string | null;
+                f_permanent_email?: string | null;
+                f_work_email?: string | null;
+                f_phone?: string | null;
+                f_linkedin_url?: string | null;
+                f_gender?: string | null;
+                f_graduation_year?: number | null;
             };
             header?: never;
             path: {

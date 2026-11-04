@@ -22,6 +22,7 @@ export const NETTREK_AREA_KEYS: readonly NetTrekAreaKey[] = [
   "phoenix",
   "seattle",
   "washington_dc",
+  "new_york",
   "wasatch",
   "other",
 ];
