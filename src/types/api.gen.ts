@@ -6227,6 +6227,8 @@ export interface components {
              * @default false
              */
             duplicate: boolean;
+            /** Comment Filter */
+            comment_filter: ("survey_comment" | "any_note") | null;
             /** Kind */
             kind: ("alumni" | "friend" | "all") | null;
             /** Is Alumni */
@@ -12223,6 +12225,8 @@ export interface operations {
                 radius?: number | null;
                 /** @description Sort order: relevance | name | grad_desc | grad_asc | industry | city | state | employer | gender | updated. Omitted means relevance when a free-text 'q' is given (best match first) and name otherwise. */
                 sort?: ("relevance" | "name" | "grad_desc" | "grad_asc" | "industry" | "city" | "state" | "employer" | "gender" | "updated") | null;
+                /** @description Only alumni who left a comment: 'survey_comment' (an approved survey response with a comment) or 'any_note' (any note on the profile, including staff notes). 'survey_comment' is ignored for a caller who can't edit alumni. */
+                comment_filter?: ("survey_comment" | "any_note") | null;
                 limit?: number;
                 offset?: number;
             };

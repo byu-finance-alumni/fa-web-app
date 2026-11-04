@@ -167,7 +167,8 @@ export async function AlumniRoster({
   const canEditRows = canEditAlumni(roles);
   const canAddInteractionRows = canAddInteraction(caps);
   // Gender and Net ID are hidden fields below the edit tier, and the backend
-  // silently ignores filtering / sorting on them for such a viewer. Strip them
+  // silently ignores filtering / sorting on them (and the Survey comment
+  // filter, #923) for such a viewer. Strip them
   // from the state the panel, chips, sort and EXPORT read, so none of them
   // claims a narrowing the list above never applied (#592 parity). The same
   // `canEditAlumni` test the backend's `can_edit_alumni` mirrors.
