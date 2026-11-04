@@ -5,6 +5,7 @@
  * fa-web-api `app/services/nettreks.py`. This module only knows the shapes, the
  * URL scheme, and the words shown around them.
  */
+import { DEFAULT_REPORT_VIEW, withReportView, type ReportView } from "@/lib/reportView";
 import type { Schema } from "@/types/api";
 
 export type NetTrekSummary = Schema<"NetTrekSummary">;
@@ -22,6 +23,7 @@ export const NETTREK_AREA_KEYS: readonly NetTrekAreaKey[] = [
   "phoenix",
   "seattle",
   "washington_dc",
+  "new_york",
   "wasatch",
   "other",
 ];
@@ -54,9 +56,11 @@ export function netTrekReportHref(
   area: NetTrekAreaKey,
   kind: NetTrekReportKind,
   offset = 0,
+  view: ReportView = DEFAULT_REPORT_VIEW,
 ): string {
-  const base = `/nettreks/${area}/${kind}`;
-  return offset > 0 ? `${base}?offset=${offset}` : base;
+  const base = withReportView(`/nettreks/${area}/${kind}`, view);
+  if (offset <= 0) return base;
+  return `${base}${base.includes("?") ? "&" : "?"}offset=${offset}`;
 }
 
 /** The backend list route, one page of it. */
@@ -64,17 +68,19 @@ export function netTrekReportApiPath(
   area: NetTrekAreaKey,
   kind: NetTrekReportKind,
   offset: number,
+  view: ReportView = DEFAULT_REPORT_VIEW,
   limit = NETTREKS_PAGE_SIZE,
 ): string {
-  return `/nettreks/${area}/${kind}?limit=${limit}&offset=${offset}`;
+  return withReportView(`/nettreks/${area}/${kind}?limit=${limit}&offset=${offset}`, view);
 }
 
 /** The backend CSV route. */
 export function netTrekExportPath(
   area: NetTrekAreaKey,
   kind: NetTrekReportKind,
+  view: ReportView = DEFAULT_REPORT_VIEW,
 ): string {
-  return `/nettreks/${area}/${kind}/export`;
+  return withReportView(`/nettreks/${area}/${kind}/export`, view);
 }
 
 /** A non-negative whole-number `?offset=`, else 0. */
@@ -88,16 +94,18 @@ export function parseNetTrekOffset(raw: string | string[] | undefined): number {
 /**
  * The name used when the backend's `Content-Disposition` is missing or unsafe.
  * Matches the backend's `<area>_nettrek_hosts_<YYYY-MM-DD>.csv` /
- * `<area>_area_alumni_<YYYY-MM-DD>.csv`, so the file is named the same either
- * way.
+ * `<area>_area_alumni_<YYYY-MM-DD>.csv`, with `_filtered` before the date when
+ * filters narrowed it, so the file is named the same either way.
  */
 export function netTrekExportFilename(
   area: NetTrekAreaKey,
   kind: NetTrekReportKind,
   now: Date = new Date(),
+  filtered = false,
 ): string {
   const middle = kind === "hosts" ? "nettrek_hosts" : "area_alumni";
-  return `${area}_${middle}_${now.toISOString().slice(0, 10)}.csv`;
+  const tag = filtered ? "_filtered" : "";
+  return `${area}_${middle}${tag}_${now.toISOString().slice(0, 10)}.csv`;
 }
 
 /** What to tell someone whose download failed — and what to do about it. */

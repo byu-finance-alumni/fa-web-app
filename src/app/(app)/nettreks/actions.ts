@@ -11,6 +11,7 @@
  */
 
 import { apiGetFile, ApiError } from "@/lib/api";
+import { isReportFiltered, parseReportViewQuery } from "@/lib/reportView";
 import {
   isNetTrekAreaKey,
   isNetTrekReportKind,
@@ -27,13 +28,15 @@ export type ExportNetTrekReportResult =
   | { ok: false; error: string };
 
 /**
- * One report as CSV text; the browser turns it into a download. `area` and
- * `kind` are checked before they reach a URL — a server action is a real
- * endpoint anything can call.
+ * One report as CSV text; the browser turns it into a download. Filtered and
+ * sorted as the page is (`viewQuery`, #919). `area`, `kind` and the view are
+ * checked before they reach a URL — a server action is a real endpoint anything
+ * can call.
  */
 export async function exportNetTrekReport(
   area: NetTrekAreaKey,
   kind: NetTrekReportKind,
+  viewQuery = "",
 ): Promise<ExportNetTrekReportResult> {
   if (
     !isNetTrekAreaKey(area) ||
@@ -42,12 +45,15 @@ export async function exportNetTrekReport(
   ) {
     return { ok: false, error: netTrekExportErrorMessage(null) };
   }
+  const view = parseReportViewQuery(viewQuery);
   try {
-    const file = await apiGetFile(netTrekExportPath(area, kind));
+    const file = await apiGetFile(netTrekExportPath(area, kind, view));
     return {
       ok: true,
       csv: file.text,
-      filename: file.filename ?? netTrekExportFilename(area, kind),
+      filename:
+        file.filename ??
+        netTrekExportFilename(area, kind, new Date(), isReportFiltered(view)),
     };
   } catch (e) {
     return {

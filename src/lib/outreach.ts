@@ -8,6 +8,7 @@
  * page reuses the NetTreks table. This module only knows the shapes, the URL
  * scheme, and the words shown around them.
  */
+import { DEFAULT_REPORT_VIEW, withReportView, type ReportView } from "@/lib/reportView";
 import type { Schema } from "@/types/api";
 
 export type OutreachGroupKey = Schema<"OutreachGroupKey">;
@@ -89,11 +90,11 @@ export function outreachListHref(
   key: OutreachListKey,
   industry: string | null = null,
   offset = 0,
+  view: ReportView = DEFAULT_REPORT_VIEW,
 ): string {
-  return `/outreach/${group}/${key}${query({
-    industry,
-    offset: offset > 0 ? offset : null,
-  })}`;
+  const base = withReportView(`/outreach/${group}/${key}${query({ industry })}`, view);
+  if (offset <= 0) return base;
+  return `${base}${base.includes("?") ? "&" : "?"}offset=${offset}`;
 }
 
 /** The backend list route, one page of it. */
@@ -102,9 +103,10 @@ export function outreachListApiPath(
   key: OutreachListKey,
   industry: string | null,
   offset: number,
+  view: ReportView = DEFAULT_REPORT_VIEW,
   limit = OUTREACH_PAGE_SIZE,
 ): string {
-  return `/outreach/${group}/${key}${query({ industry, limit, offset })}`;
+  return withReportView(`/outreach/${group}/${key}${query({ industry, limit, offset })}`, view);
 }
 
 /** The backend CSV route. */
@@ -112,19 +114,21 @@ export function outreachExportPath(
   group: OutreachGroupKey,
   key: OutreachListKey,
   industry: string | null,
+  view: ReportView = DEFAULT_REPORT_VIEW,
 ): string {
-  return `/outreach/${group}/${key}/export${query({ industry })}`;
+  return withReportView(`/outreach/${group}/${key}/export${query({ industry })}`, view);
 }
 
 /**
  * The name used when the backend's `Content-Disposition` is missing or unsafe.
- * Matches the backend's `<group>_<key>[_<industry>]_<YYYY-MM-DD>.csv`.
+ * Matches the backend's `<group>_<key>[_<industry>][_filtered]_<YYYY-MM-DD>.csv`.
  */
 export function outreachExportFilename(
   group: OutreachGroupKey,
   key: OutreachListKey,
   industry: string | null,
   now: Date = new Date(),
+  filtered = false,
 ): string {
   const parts: string[] = [group, key];
   if (industry) {
@@ -135,6 +139,7 @@ export function outreachExportFilename(
       .slice(0, 60);
     parts.push(slug || "industry");
   }
+  if (filtered) parts.push("filtered");
   return `${parts.join("_")}_${now.toISOString().slice(0, 10)}.csv`;
 }
 

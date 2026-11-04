@@ -103,6 +103,7 @@ const MAXIMAL: AlumniFilterState = {
   designations: ["CFA", "CFP"],
   gender: "F",
   industryGroup: "other",
+  commentFilter: "survey_comment",
   contactedAfter: "2024-01-01",
   contactedBefore: "2026-01-01",
   neverContacted: true,
@@ -659,6 +660,7 @@ function exportBodyAsParams(e: AlumniExportFilters): URLSearchParams {
   multi("status_label", e.status_label);
   multi("leadership_role", e.leadership_role);
   multi("survey_status", e.survey_status);
+  text("comment_filter", e.comment_filter);
   flag("never_contacted", e.never_contacted);
   flag("attended_event", e.attended_event);
   flag("donor", e.donor);
@@ -736,6 +738,8 @@ const SINGLE_FILTERS: [string, Partial<AlumniFilterState>][] = [
   ["grad year range", { ymin: "2008", ymax: "2015" }],
   ["gender", { gender: "F" }],
   ["industry_group", { industryGroup: "other" }],
+  ["comment_filter survey", { commentFilter: "survey_comment" }],
+  ["comment_filter any note", { commentFilter: "any_note" }],
   ["contacted_after", { contactedAfter: "2024-01-01" }],
   ["contacted_before", { contactedBefore: "2026-01-01" }],
   ["deceased only", { deceased: "only" }],
@@ -743,6 +747,45 @@ const SINGLE_FILTERS: [string, Partial<AlumniFilterState>][] = [
   ["designations", { designations: ["CFA"] }],
   ["needs_survey", { needsSurvey: true }],
 ];
+
+describe("the left-a-comment filter (#923)", () => {
+  it("is off by default and sends no predicate at all", () => {
+    expect(EMPTY_FILTERS.commentFilter).toBe("");
+    expect(toAlumniFilterQs(EMPTY_FILTERS)).toBe("");
+    expect(toAlumniPopulationParams(EMPTY_FILTERS).has("comment_filter")).toBe(
+      false,
+    );
+    expect(toExportFilters(EMPTY_FILTERS).comment_filter).toBeNull();
+  });
+
+  it.each(["survey_comment", "any_note"] as const)(
+    "round-trips %s through the URL, the list and the export",
+    (value) => {
+      const f = parseAlumniFilters({ comment_filter: value });
+      expect(f.commentFilter).toBe(value);
+      expect(toAlumniFilterQs(f)).toBe(`comment_filter=${value}`);
+      expect(parseAlumniFilters({ comment_filter: value })).toEqual({
+        ...EMPTY_FILTERS,
+        commentFilter: value,
+      });
+      expect(toAlumniPopulationParams(f).get("comment_filter")).toBe(value);
+      // The #592 bug in its exact shape: a null here would be a list narrowed
+      // and an export that isn't.
+      expect(toExportFilters(f).comment_filter).toBe(value);
+      expect(exportParityGaps(f)).toEqual([]);
+    },
+  );
+
+  it("ignores a value the API would refuse", () => {
+    expect(parseAlumniFilters({ comment_filter: "both" }).commentFilter).toBe("");
+  });
+
+  it("counts as one active filter", () => {
+    expect(
+      countActiveFilters({ ...EMPTY_FILTERS, commentFilter: "any_note" }),
+    ).toBe(1);
+  });
+});
 
 describe("the CSV export covers the same people as the list (#592)", () => {
   it("constrains an alumni-list export to alumni — never 'alumni AND friends'", () => {
