@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowUp, ChevronsUpDown, ExternalLink } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { RowAvatar } from "@/components/shared/RowAvatar";
+import { SortTh, TH_BASE } from "@/components/shared/SortTh";
 import { AlumniRowActions } from "@/components/alumni/AlumniRowActions";
 import { abbreviateState } from "@/lib/usStates";
 import { genderLabel } from "@/lib/format";
@@ -335,57 +336,6 @@ export function AlumniTable({
 }
 
 /* --------------------------------------------------------------- headers ----- */
-
-const TH_BASE = "sticky top-0 z-10 bg-gray-50 px-3 py-2.5";
-
-/** A clickable, server-backed sort header (#495). Shows the active direction; an
- *  inactive-but-sortable header shows a faint up/down affordance. */
-function SortTh({
-  label,
-  w,
-  href,
-  active,
-  dir,
-  align,
-}: {
-  label: string;
-  w: string;
-  href: string;
-  active: boolean;
-  dir: "asc" | "desc";
-  align?: "center" | "right";
-}) {
-  const Icon = active ? (dir === "asc" ? ArrowUp : ArrowDown) : ChevronsUpDown;
-  return (
-    <th
-      className={cn(
-        TH_BASE,
-        w,
-        align === "right" && "text-right",
-        align === "center" && "text-center",
-      )}
-      aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : "none"}
-    >
-      <Link
-        href={href}
-        scroll={false}
-        className="group inline-flex max-w-full items-center gap-1 align-middle hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
-        title={`Sort by ${label.toLowerCase()}`}
-      >
-        <span className="truncate">{label}</span>
-        <Icon
-          className={cn(
-            "h-3.5 w-3.5 shrink-0",
-            active
-              ? "text-brand-blue-600"
-              : "text-gray-300 group-hover:text-gray-500",
-          )}
-          aria-hidden="true"
-        />
-      </Link>
-    </th>
-  );
-}
 
 /** A non-sortable header (the backend has no sort for these fields). */
 function PlainTh({

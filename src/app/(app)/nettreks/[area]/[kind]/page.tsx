@@ -4,10 +4,13 @@ import { LoadError } from "@/components/shared/LoadError";
 import { ScrollToTopOnPageChange } from "@/components/shared/ScrollToTopOnPageChange";
 import { NetTrekExportButton } from "@/components/nettreks/NetTrekExportButton";
 import { NetTrekReportTable } from "@/components/nettreks/NetTrekReportTable";
+import { ReportBackButton } from "@/components/nettreks/ReportBackButton";
+import { ReportFiltersBar } from "@/components/nettreks/ReportFiltersBar";
 import { Topbar } from "@/components/shell/Topbar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ApiError, apiGet } from "@/lib/api";
+import { isReportFiltered, parseReportView, type ReportView } from "@/lib/reportView";
 import {
   NETTREKS_PAGE_SIZE,
   isNetTrekAreaKey,
@@ -22,8 +25,8 @@ import {
 /**
  * One NetTrek report (#887): "<Area> NetTrek Hosts" or "<Area> Area Alumni".
  *
- * The issue's columns, server-side pagination, and a Download CSV of the whole
- * report. `GET /nettreks/{area}/{kind}` is gated on `alumni.export` and writes
+ * The issue's columns, server-side sort, filters and pagination, and a Download
+ * CSV of the whole report as filtered and sorted. `GET /nettreks/{area}/{kind}` is gated on `alumni.export` and writes
  * a disclosure-audit row; the CSV is rate-limited and audit-logged as an
  * export. An unknown area or kind, or Other's Area Alumni (it has none), is a
  * 404 here before any request is made.
@@ -33,18 +36,20 @@ export default async function NetTrekReportRoute({
   searchParams,
 }: {
   params: Promise<{ area: string; kind: string }>;
-  searchParams: Promise<{ offset?: string | string[] }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { area, kind } = await params;
   if (!isNetTrekAreaKey(area) || !isNetTrekReportKind(kind)) notFound();
   if (!netTrekReportExists(area, kind)) notFound();
-  const offset = parseNetTrekOffset((await searchParams).offset);
+  const sp = await searchParams;
+  const offset = parseNetTrekOffset(sp.offset);
+  const view = parseReportView(sp);
 
   let data: NetTrekReportPage | null = null;
   let error: ApiError | null = null;
   try {
     data = await apiGet<NetTrekReportPage>(
-      netTrekReportApiPath(area, kind, offset),
+      netTrekReportApiPath(area, kind, offset, view),
     );
   } catch (e) {
     error = e instanceof ApiError ? e : new ApiError(0, "Failed to load the report.");
@@ -55,6 +60,7 @@ export default async function NetTrekReportRoute({
   const from = data && data.total > 0 ? offset + 1 : 0;
   const to = data ? Math.min(offset + data.items.length, data.total) : 0;
   const hasPrev = offset > 0;
+  const filtered = isReportFiltered(view);
   const hasNext = data ? offset + NETTREKS_PAGE_SIZE < data.total : false;
 
   return (
@@ -65,38 +71,50 @@ export default async function NetTrekReportRoute({
         <div className="space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div className="min-w-0">
-              <Link
-                href="/nettreks"
-                className="text-sm text-brand-blue-600 underline-offset-4 hover:underline"
-              >
-                All NetTrek reports
-              </Link>
-              <h1 className="mt-1 text-xl font-semibold tracking-tight text-gray-900">
+              <ReportBackButton href="/nettreks" label="All NetTrek reports" />
+              <h1 className="mt-3 text-xl font-semibold tracking-tight text-gray-900">
                 {title}
               </h1>
               {data && (
                 <p className="mt-1 text-sm tabular-nums text-gray-500">
                   {data.total.toLocaleString("en-US")}{" "}
                   {data.total === 1 ? "person" : "people"}
+                  {filtered ? " · filtered" : ""}
                 </p>
               )}
             </div>
             {data && data.total > 0 && (
-              <NetTrekExportButton area={area} kind={kind} title={title} />
+              <NetTrekExportButton area={area} kind={kind} title={title} view={view} />
             )}
           </div>
+
+          {data && (data.total > 0 || filtered) && (
+            <ReportFiltersBar
+              key={JSON.stringify(view.filters)}
+              path={netTrekReportHref(area, kind)}
+              view={view}
+              options={data.filter_options}
+            />
+          )}
 
           {error ? (
             <LoadError status={error.status} noun="this report" />
           ) : data!.items.length === 0 ? (
             <Card className="p-10 text-center text-sm text-gray-500">
               {data!.total === 0
-                ? "Nobody is on this report yet."
+                ? filtered
+                  ? "Nobody on this report matches these filters."
+                  : "Nobody is on this report yet."
                 : "This page is past the end of the report."}
             </Card>
           ) : (
             <>
-              <NetTrekReportTable rows={data!.items} />
+              <NetTrekReportTable
+                rows={data!.items}
+                view={view}
+                viewHref={(v: ReportView) => netTrekReportHref(area, kind, 0, v)}
+                canSeeGender={data!.filter_options.gender !== null}
+              />
               <div className="flex items-center justify-between text-sm text-gray-500">
                 <span className="tabular-nums">
                   Showing {from}–{to} of {data!.total.toLocaleString("en-US")}
@@ -107,12 +125,13 @@ export default async function NetTrekReportRoute({
                       area,
                       kind,
                       Math.max(0, offset - NETTREKS_PAGE_SIZE),
+                      view,
                     )}
                     enabled={hasPrev}
                     label="‹ Prev"
                   />
                   <PageLink
-                    href={netTrekReportHref(area, kind, offset + NETTREKS_PAGE_SIZE)}
+                    href={netTrekReportHref(area, kind, offset + NETTREKS_PAGE_SIZE, view)}
                     enabled={hasNext}
                     label="Next ›"
                   />

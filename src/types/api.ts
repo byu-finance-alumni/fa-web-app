@@ -20,6 +20,11 @@ export type Schemas = components["schemas"];
 /** A single named backend model, e.g. `Schema<"ProfileRead">`. */
 export type Schema<K extends keyof Schemas> = Schemas[K];
 
+/** The query parameters an operation takes. */
+export type QueryParams<K extends keyof operations> = NonNullable<
+  operations[K]["parameters"]["query"]
+>;
+
 /**
  * The 200 JSON response body of an operation, for endpoints whose response is
  * an inline schema rather than a named model. Use `Schema<...>` when a named

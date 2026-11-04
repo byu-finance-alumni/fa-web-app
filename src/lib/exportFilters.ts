@@ -61,6 +61,10 @@ type ParamExport =
   | { as: "tristate"; field: TriStateField }
   /** Roster scope: `kind=alumni|friend` → `kind` + `is_alumni=true|false`. */
   | { as: "scope" }
+  /** The "left a comment" choice (#923). Its own case because the body field is
+   *  the literal union, not `string | null`, so it is read off the state, where
+   *  `parseAlumniFilters` has already whitelisted it. */
+  | { as: "comment" }
   /** `POST /alumni/export` has no field for this one, so an export cannot honour
    *  it. The label is what the user is told (see `exportParityGaps`) — the
    *  export is BLOCKED rather than quietly widened. */
@@ -109,6 +113,7 @@ const EXPORT_MAPPING: Record<string, ParamExport> = {
   email: { as: "text", field: "email" },
   gender: { as: "text", field: "gender" },
   industry_group: { as: "text", field: "industry_group" },
+  comment_filter: { as: "comment" },
   contacted_after: { as: "text", field: "contacted_after" },
   contacted_before: { as: "text", field: "contacted_before" },
   // Flags.
@@ -178,6 +183,7 @@ const NO_PREDICATE: AlumniExportFilters = {
   deceased: null,
   gender: null,
   industry_group: null,
+  comment_filter: null,
   employer: null,
   past_employer: null,
   industry: null,
@@ -273,6 +279,9 @@ export function toExportFilters(
         // Only emitted when a real predicate applies, so the value IS the
         // predicate ("false" = exclude, not "no filter").
         out[mapping.field] = values[0] === "true";
+        break;
+      case "comment":
+        out.comment_filter = f.commentFilter || null;
         break;
       case "scope": {
         const friend = values[0] === "friend";

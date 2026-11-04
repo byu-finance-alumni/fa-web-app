@@ -109,7 +109,8 @@ export function AlumniFilters({
    *  does, so they travel into the export body (#592). */
   passThrough?: PassThroughFilters;
   /** May filter / sort on the fields hidden from viewers who can't edit
-   *  alumni (gender here; Net ID is a pass-through with no control). The
+   *  alumni (gender and the Survey comment option here; Net ID is a
+   *  pass-through with no control). The
    *  backend ignores those params from such a viewer, so offering the control
    *  would only promise a narrowing that never happens. Off unless the roster
    *  says so (`canEditAlumni`) — fails closed. */
@@ -271,6 +272,12 @@ export function AlumniFilters({
     chips.push({
       label: `Working in ${f.workedInYear}`,
       remove: () => set("workedInYear", ""),
+    });
+  }
+  if (f.commentFilter) {
+    chips.push({
+      label: `Comments: ${f.commentFilter === "survey_comment" ? "Survey comment" : "Any note"}`,
+      remove: () => set("commentFilter", ""),
     });
   }
   if (f.contactedAfter)
@@ -606,6 +613,29 @@ export function AlumniFilters({
                   <option value="">Any</option>
                   <option value="other">Other (non-finance)</option>
                   <option value="unknown">Missing industry</option>
+                </Select>
+              </div>
+
+              <div>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Comments
+                </p>
+                <Select
+                  value={f.commentFilter}
+                  onChange={(e) =>
+                    set(
+                      "commentFilter",
+                      e.target.value as AlumniFilterState["commentFilter"],
+                    )
+                  }
+                  aria-label="Filter by comments"
+                >
+                  <option value="">Any</option>
+                  {/* Editors only: see `withoutHiddenFieldFilters`. */}
+                  {canUseHiddenFields ? (
+                    <option value="survey_comment">Survey comment</option>
+                  ) : null}
+                  <option value="any_note">Any note</option>
                 </Select>
               </div>
 

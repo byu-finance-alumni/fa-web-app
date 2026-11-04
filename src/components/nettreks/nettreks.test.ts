@@ -1,6 +1,6 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { getVisibleNav, leafHrefs, NAV } from "@/components/shell/nav";
 import { ROLE } from "@/constants/roles";
@@ -14,12 +14,22 @@ import {
   type NetTrekAreaSummary,
   type NetTrekRow,
 } from "@/lib/nettreks";
+import {
+  DEFAULT_REPORT_VIEW,
+  withReportView,
+  type ReportFilterOptions,
+} from "@/lib/reportView";
 import { NetTrekReportLinks } from "./NetTrekReportLinks";
+import { ReportBackButton } from "./ReportBackButton";
+import { clickOpensRow } from "./ReportRow";
+import { ReportFiltersBar } from "./ReportFiltersBar";
 import {
   NETTREK_SCREEN_COLUMNS,
   NETTREK_TABLE_COLUMNS,
   NetTrekReportTable,
 } from "./NetTrekReportTable";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 /**
  * NetTreks tab (#887): nav visibility by capability, the landing page's report
@@ -178,19 +188,30 @@ function row(over: Partial<NetTrekRow>): NetTrekRow {
     linkedin_url: "https://www.linkedin.com/in/jane",
     gender: "F",
     graduation_year: 2015,
-    willing_to_host: true,
     ...over,
   };
 }
 
 const headers = (html: string) =>
-  [...html.matchAll(/<th[^>]*>([^<]*)<\/th>/g)].map((m) => m[1]);
+  [...html.matchAll(/<th\s[^>]*>(?:<a[^>]*><span[^>]*>)?([^<]*)</g)].map((m) => m[1]);
+
+const table = (
+  rows: NetTrekRow[],
+  over: Partial<Parameters<typeof NetTrekReportTable>[0]> = {},
+) =>
+  renderToStaticMarkup(
+    createElement(NetTrekReportTable, {
+      rows,
+      view: DEFAULT_REPORT_VIEW,
+      viewHref: (v) => withReportView("/nettreks/dallas/hosts", v),
+      canSeeGender: true,
+      ...over,
+    }),
+  );
 
 describe("NetTrek report table", () => {
   it("has the issue's columns, in order", () => {
-    const html = renderToStaticMarkup(
-      createElement(NetTrekReportTable, { rows: [row({})] }),
-    );
+    const html = table([row({})]);
     // Short screen labels, one per CSV column and in the same order; each
     // header's hover text is the full CSV name.
     expect(headers(html)).toEqual(NETTREK_SCREEN_COLUMNS.map((c) => c.label));
@@ -212,31 +233,47 @@ describe("NetTrek report table", () => {
       "LinkedIn URL",
       "Gender",
       "Graduation Year",
-      "Willing to Host a NetTrek",
     ]);
   });
 
   it("renders a row, linking the name to the profile", () => {
-    const html = renderToStaticMarkup(
-      createElement(NetTrekReportTable, {
-        rows: [row({ alumni_id: 42 }), row({ alumni_id: 43, willing_to_host: false })],
-      }),
-    );
+    const html = table([row({ alumni_id: 42 })]);
     expect(html).toContain('href="/alumni/42"');
     expect(html).toContain("Goldman Sachs");
     expect(html).toContain("jane@dev.example");
     expect(html).toContain('href="https://www.linkedin.com/in/jane"');
-    // Willing to host: "Yes" or blank.
-    expect(html.match(/>Yes</g)?.length).toBe(1);
+    expect(html).not.toContain("Host");
+  });
+
+  it("shows a phone as the profile does, and an unknown one as stored", () => {
+    const html = table([
+      row({ alumni_id: 1, phone: "+1 8015551234" }),
+      row({ alumni_id: 2, phone: "+44 20 7946 0958" }),
+    ]);
+    expect(html).toContain(">(801) 555-1234<");
+    expect(html).toContain(">+44 20 7946 0958<");
   });
 
   it("never makes an unsafe LinkedIn value a link", () => {
-    const html = renderToStaticMarkup(
-      createElement(NetTrekReportTable, {
-        rows: [row({ linkedin_url: "javascript:alert(1)" })],
-      }),
-    );
+    const html = table([row({ linkedin_url: "javascript:alert(1)" })]);
     expect(html).not.toContain('href="javascript:');
+  });
+
+  it("sorts on every column, in the alumni list's header style", () => {
+    const html = table([row({})]);
+    expect(html.match(/aria-sort=/g)?.length).toBe(NETTREK_SCREEN_COLUMNS.length);
+    expect(html).toContain('href="/nettreks/dallas/hosts?sort=company"');
+    // The default order is by last name, so that header is the active one and
+    // a click reverses it.
+    expect(html).toContain('aria-sort="ascending"');
+    expect(html).toContain('href="/nettreks/dallas/hosts?sort=last_name&amp;dir=desc"');
+  });
+
+  it("offers no gender sort to someone gender is hidden from", () => {
+    const html = table([row({})], { canSeeGender: false });
+    expect(html).not.toContain("sort=gender");
+    expect(headers(html)).toContain("Gender");
+    expect(html.match(/aria-sort=/g)?.length).toBe(NETTREK_SCREEN_COLUMNS.length - 1);
   });
 
   it("builds a display name from whatever name parts exist", () => {
@@ -244,5 +281,101 @@ describe("NetTrek report table", () => {
     expect(
       netTrekDisplayName(row({ first_name: null, last_name: null })),
     ).toBe("Unnamed alumnus");
+  });
+});
+
+describe("Back", () => {
+  it("is one visible text button naming the parent page", () => {
+    const html = renderToStaticMarkup(
+      createElement(ReportBackButton, { href: "/nettreks", label: "All NetTrek reports" }),
+    );
+    expect(html.match(/href="\/nettreks"/g)?.length).toBe(1);
+    expect(html).toContain("Back to All NetTrek reports");
+    expect(html.match(/<a /g)?.length).toBe(1);
+    expect(html).not.toContain("<svg");
+  });
+});
+
+describe("clicking a row", () => {
+  const element = (inLink: boolean) =>
+    ({ closest: () => (inLink ? {} : null) }) as unknown as Element;
+
+  it("opens the profile from anywhere but a link", () => {
+    expect(clickOpensRow(element(false), "")).toBe(true);
+    expect(clickOpensRow(element(true), "")).toBe(false);
+  });
+
+  it("does not navigate when text was selected", () => {
+    expect(clickOpensRow(element(false), "jane@dev.example")).toBe(false);
+  });
+
+  it("asks about links and controls", () => {
+    const seen: string[] = [];
+    clickOpensRow({ closest: (s: string) => (seen.push(s), null) } as unknown as Element, "");
+    expect(seen[0].split(", ")).toEqual(["a", "button", "input", "select", "textarea"]);
+  });
+
+  it("has a pointer cursor and keeps the last name a real link", () => {
+    const html = table([row({ alumni_id: 42 })]);
+    expect(html).toContain('<tr class="cursor-pointer');
+    expect(html).toContain('href="/alumni/42"');
+  });
+});
+
+describe("Outreach filters", () => {
+  const options = {
+    industry: ["Banking"],
+    secondary_industry: [],
+    company_state: ["TX", "UT"],
+    gender: ["F", "M"],
+    graduation_year: [2015],
+  };
+  const bar = (over: Partial<ReportFilterOptions> = {}, view = DEFAULT_REPORT_VIEW) =>
+    renderToStaticMarkup(
+      createElement(ReportFiltersBar, {
+        path: "/x",
+        view,
+        options: { ...options, ...over },
+        initialOpen: true,
+      }),
+    );
+
+  it("starts closed, even on a filtered list, with the count on the button", () => {
+    const closed = (view = DEFAULT_REPORT_VIEW) =>
+      renderToStaticMarkup(
+        createElement(ReportFiltersBar, { path: "/x", view, options }),
+      );
+    expect(closed()).not.toContain("<form");
+    expect(closed()).toContain(">Filters<");
+    const filtered = closed({ ...DEFAULT_REPORT_VIEW, filters: { f_company_state: "WY" } });
+    expect(filtered).not.toContain("<form");
+    expect(filtered).toContain("Filters (1)");
+    expect(filtered).toContain("Clear filters");
+  });
+
+  it("has a control for every column, dropdowns offering the list's values", () => {
+    const html = bar();
+    expect(html.match(/<input/g)?.length).toBe(9);
+    expect(html.match(/<select/g)?.length).toBe(5);
+    expect(html).toContain('<option value="UT">UT</option>');
+    expect(html).toContain('<option value="2015">2015</option>');
+  });
+
+  it("leaves Gender out for someone it is hidden from", () => {
+    const html = bar({ gender: null });
+    expect(html.match(/<select/g)?.length).toBe(4);
+    expect(html).not.toContain("report-filter-f_gender");
+    expect(html).not.toContain(">Gender<");
+  });
+
+  it("keeps a filter from the URL selectable, and offers Clear only when filtered", () => {
+    expect(bar()).not.toContain("Clear filters");
+    const html = bar({}, { ...DEFAULT_REPORT_VIEW, filters: { f_company_state: "WY" } });
+    expect(html).toContain("Clear filters");
+    expect(html).toMatch(/<option value="WY" selected="">WY<\/option>/);
+  });
+
+  it("renders no icons but the shared dropdown's", () => {
+    expect(bar({}).match(/<svg/g)?.length).toBe(5);
   });
 });
