@@ -227,6 +227,19 @@ describe("NetTrek report table", () => {
     expect(html).not.toContain("Host");
   });
 
+  it("shows a phone as the profile does, and an unknown one as stored", () => {
+    const html = renderToStaticMarkup(
+      createElement(NetTrekReportTable, {
+        rows: [
+          row({ alumni_id: 1, phone: "+1 8015551234" }),
+          row({ alumni_id: 2, phone: "+44 20 7946 0958" }),
+        ],
+      }),
+    );
+    expect(html).toContain(">(801) 555-1234<");
+    expect(html).toContain(">+44 20 7946 0958<");
+  });
+
   it("never makes an unsafe LinkedIn value a link", () => {
     const html = renderToStaticMarkup(
       createElement(NetTrekReportTable, {

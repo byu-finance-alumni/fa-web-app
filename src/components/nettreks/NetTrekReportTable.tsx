@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { genderLabel } from "@/lib/format";
 import { netTrekDisplayName, type NetTrekRow } from "@/lib/nettreks";
+import { formatPhone } from "@/lib/phone";
 import { abbreviateState } from "@/lib/usStates";
 import { safeExternalHref } from "@/lib/urlSafety";
 
@@ -65,12 +66,6 @@ function full(value: string | number | null | undefined) {
   return value === null || value === undefined || value === "" ? undefined : String(value);
 }
 
-/** A US number without its "+1 " prefix, which buys the column a few
-    characters; anything else is shown as stored. The CSV keeps the value. */
-function phoneLabel(value: string | null | undefined) {
-  return value ? value.replace(/^\+1\s+/, "") : value;
-}
-
 /**
  * One NetTrek report's page of people. All 14 columns fit the page width, as
  * on the alumni list — nothing scrolls sideways; long values truncate with the
@@ -122,7 +117,7 @@ export function NetTrekReportTable({ rows }: { rows: NetTrekRow[] }) {
               <td className={TD} title={full(r.permanent_email)}>{text(r.permanent_email)}</td>
               <td className={TD} title={full(r.work_email)}>{text(r.work_email)}</td>
               <td className={`${TD} tabular-nums`} title={full(r.phone)}>
-                {text(phoneLabel(r.phone))}
+                {text(formatPhone(r.phone))}
               </td>
               <td className={`${TD} text-center`}>
                 {/* Scheme-checked before it can become an href, as on the
