@@ -5,6 +5,7 @@
  * fa-web-api `app/services/nettreks.py`. This module only knows the shapes, the
  * URL scheme, and the words shown around them.
  */
+import { DEFAULT_REPORT_VIEW, withReportView, type ReportView } from "@/lib/reportView";
 import type { Schema } from "@/types/api";
 
 export type NetTrekSummary = Schema<"NetTrekSummary">;
@@ -55,9 +56,11 @@ export function netTrekReportHref(
   area: NetTrekAreaKey,
   kind: NetTrekReportKind,
   offset = 0,
+  view: ReportView = DEFAULT_REPORT_VIEW,
 ): string {
-  const base = `/nettreks/${area}/${kind}`;
-  return offset > 0 ? `${base}?offset=${offset}` : base;
+  const base = withReportView(`/nettreks/${area}/${kind}`, view);
+  if (offset <= 0) return base;
+  return `${base}${base.includes("?") ? "&" : "?"}offset=${offset}`;
 }
 
 /** The backend list route, one page of it. */
@@ -65,9 +68,10 @@ export function netTrekReportApiPath(
   area: NetTrekAreaKey,
   kind: NetTrekReportKind,
   offset: number,
+  view: ReportView = DEFAULT_REPORT_VIEW,
   limit = NETTREKS_PAGE_SIZE,
 ): string {
-  return `/nettreks/${area}/${kind}?limit=${limit}&offset=${offset}`;
+  return withReportView(`/nettreks/${area}/${kind}?limit=${limit}&offset=${offset}`, view);
 }
 
 /** The backend CSV route. */

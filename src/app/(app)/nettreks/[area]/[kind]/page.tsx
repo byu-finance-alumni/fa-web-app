@@ -8,6 +8,7 @@ import { Topbar } from "@/components/shell/Topbar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ApiError, apiGet } from "@/lib/api";
+import { parseReportView, type ReportView } from "@/lib/reportView";
 import {
   NETTREKS_PAGE_SIZE,
   isNetTrekAreaKey,
@@ -33,18 +34,20 @@ export default async function NetTrekReportRoute({
   searchParams,
 }: {
   params: Promise<{ area: string; kind: string }>;
-  searchParams: Promise<{ offset?: string | string[] }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { area, kind } = await params;
   if (!isNetTrekAreaKey(area) || !isNetTrekReportKind(kind)) notFound();
   if (!netTrekReportExists(area, kind)) notFound();
-  const offset = parseNetTrekOffset((await searchParams).offset);
+  const sp = await searchParams;
+  const offset = parseNetTrekOffset(sp.offset);
+  const view = parseReportView(sp);
 
   let data: NetTrekReportPage | null = null;
   let error: ApiError | null = null;
   try {
     data = await apiGet<NetTrekReportPage>(
-      netTrekReportApiPath(area, kind, offset),
+      netTrekReportApiPath(area, kind, offset, view),
     );
   } catch (e) {
     error = e instanceof ApiError ? e : new ApiError(0, "Failed to load the report.");
@@ -96,7 +99,12 @@ export default async function NetTrekReportRoute({
             </Card>
           ) : (
             <>
-              <NetTrekReportTable rows={data!.items} />
+              <NetTrekReportTable
+                rows={data!.items}
+                view={view}
+                viewHref={(v: ReportView) => netTrekReportHref(area, kind, 0, v)}
+                canSeeGender={data!.filter_options.gender !== null}
+              />
               <div className="flex items-center justify-between text-sm text-gray-500">
                 <span className="tabular-nums">
                   Showing {from}–{to} of {data!.total.toLocaleString("en-US")}
@@ -107,12 +115,13 @@ export default async function NetTrekReportRoute({
                       area,
                       kind,
                       Math.max(0, offset - NETTREKS_PAGE_SIZE),
+                      view,
                     )}
                     enabled={hasPrev}
                     label="‹ Prev"
                   />
                   <PageLink
-                    href={netTrekReportHref(area, kind, offset + NETTREKS_PAGE_SIZE)}
+                    href={netTrekReportHref(area, kind, offset + NETTREKS_PAGE_SIZE, view)}
                     enabled={hasNext}
                     label="Next ›"
                   />

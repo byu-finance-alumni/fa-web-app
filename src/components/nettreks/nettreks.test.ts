@@ -14,6 +14,7 @@ import {
   type NetTrekAreaSummary,
   type NetTrekRow,
 } from "@/lib/nettreks";
+import { DEFAULT_REPORT_VIEW, withReportView } from "@/lib/reportView";
 import { NetTrekReportLinks } from "./NetTrekReportLinks";
 import {
   NETTREK_SCREEN_COLUMNS,
@@ -183,13 +184,25 @@ function row(over: Partial<NetTrekRow>): NetTrekRow {
 }
 
 const headers = (html: string) =>
-  [...html.matchAll(/<th[^>]*>([^<]*)<\/th>/g)].map((m) => m[1]);
+  [...html.matchAll(/<th\s[^>]*>(?:<a[^>]*><span[^>]*>)?([^<]*)</g)].map((m) => m[1]);
+
+const table = (
+  rows: NetTrekRow[],
+  over: Partial<Parameters<typeof NetTrekReportTable>[0]> = {},
+) =>
+  renderToStaticMarkup(
+    createElement(NetTrekReportTable, {
+      rows,
+      view: DEFAULT_REPORT_VIEW,
+      viewHref: (v) => withReportView("/nettreks/dallas/hosts", v),
+      canSeeGender: true,
+      ...over,
+    }),
+  );
 
 describe("NetTrek report table", () => {
   it("has the issue's columns, in order", () => {
-    const html = renderToStaticMarkup(
-      createElement(NetTrekReportTable, { rows: [row({})] }),
-    );
+    const html = table([row({})]);
     // Short screen labels, one per CSV column and in the same order; each
     // header's hover text is the full CSV name.
     expect(headers(html)).toEqual(NETTREK_SCREEN_COLUMNS.map((c) => c.label));
@@ -215,11 +228,7 @@ describe("NetTrek report table", () => {
   });
 
   it("renders a row, linking the name to the profile", () => {
-    const html = renderToStaticMarkup(
-      createElement(NetTrekReportTable, {
-        rows: [row({ alumni_id: 42 })],
-      }),
-    );
+    const html = table([row({ alumni_id: 42 })]);
     expect(html).toContain('href="/alumni/42"');
     expect(html).toContain("Goldman Sachs");
     expect(html).toContain("jane@dev.example");
@@ -228,25 +237,34 @@ describe("NetTrek report table", () => {
   });
 
   it("shows a phone as the profile does, and an unknown one as stored", () => {
-    const html = renderToStaticMarkup(
-      createElement(NetTrekReportTable, {
-        rows: [
-          row({ alumni_id: 1, phone: "+1 8015551234" }),
-          row({ alumni_id: 2, phone: "+44 20 7946 0958" }),
-        ],
-      }),
-    );
+    const html = table([
+      row({ alumni_id: 1, phone: "+1 8015551234" }),
+      row({ alumni_id: 2, phone: "+44 20 7946 0958" }),
+    ]);
     expect(html).toContain(">(801) 555-1234<");
     expect(html).toContain(">+44 20 7946 0958<");
   });
 
   it("never makes an unsafe LinkedIn value a link", () => {
-    const html = renderToStaticMarkup(
-      createElement(NetTrekReportTable, {
-        rows: [row({ linkedin_url: "javascript:alert(1)" })],
-      }),
-    );
+    const html = table([row({ linkedin_url: "javascript:alert(1)" })]);
     expect(html).not.toContain('href="javascript:');
+  });
+
+  it("sorts on every column, in the alumni list's header style", () => {
+    const html = table([row({})]);
+    expect(html.match(/aria-sort=/g)?.length).toBe(NETTREK_SCREEN_COLUMNS.length);
+    expect(html).toContain('href="/nettreks/dallas/hosts?sort=company"');
+    // The default order is by last name, so that header is the active one and
+    // a click reverses it.
+    expect(html).toContain('aria-sort="ascending"');
+    expect(html).toContain('href="/nettreks/dallas/hosts?sort=last_name&amp;dir=desc"');
+  });
+
+  it("offers no gender sort to someone gender is hidden from", () => {
+    const html = table([row({})], { canSeeGender: false });
+    expect(html).not.toContain("sort=gender");
+    expect(headers(html)).toContain("Gender");
+    expect(html.match(/aria-sort=/g)?.length).toBe(NETTREK_SCREEN_COLUMNS.length - 1);
   });
 
   it("builds a display name from whatever name parts exist", () => {

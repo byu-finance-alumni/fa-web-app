@@ -8,6 +8,7 @@ import { Topbar } from "@/components/shell/Topbar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ApiError, apiGet } from "@/lib/api";
+import { parseReportView, type ReportView } from "@/lib/reportView";
 import { parseNetTrekOffset } from "@/lib/nettreks";
 import {
   OUTREACH_PAGE_SIZE,
@@ -35,10 +36,7 @@ export default async function OutreachListRoute({
   searchParams,
 }: {
   params: Promise<{ group: string; list: string }>;
-  searchParams: Promise<{
-    offset?: string | string[];
-    industry?: string | string[];
-  }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { group, list } = await params;
   const sp = await searchParams;
@@ -47,12 +45,13 @@ export default async function OutreachListRoute({
   if (!outreachListExists(group, list, industry)) notFound();
   if (industry !== null && industry.length > 255) notFound();
   const offset = parseNetTrekOffset(sp.offset);
+  const view = parseReportView(sp);
 
   let data: OutreachListPage | null = null;
   let error: ApiError | null = null;
   try {
     data = await apiGet<OutreachListPage>(
-      outreachListApiPath(group, list, industry, offset),
+      outreachListApiPath(group, list, industry, offset, view),
     );
   } catch (e) {
     error = e instanceof ApiError ? e : new ApiError(0, "Failed to load the list.");
@@ -109,7 +108,12 @@ export default async function OutreachListRoute({
             </Card>
           ) : (
             <>
-              <NetTrekReportTable rows={data!.items} />
+              <NetTrekReportTable
+                rows={data!.items}
+                view={view}
+                viewHref={(v: ReportView) => outreachListHref(group, list, industry, 0, v)}
+                canSeeGender={data!.filter_options.gender !== null}
+              />
               <div className="flex items-center justify-between text-sm text-gray-500">
                 <span className="tabular-nums">
                   Showing {from}–{to} of {data!.total.toLocaleString("en-US")}
@@ -121,12 +125,13 @@ export default async function OutreachListRoute({
                       list,
                       industry,
                       Math.max(0, offset - OUTREACH_PAGE_SIZE),
+                      view,
                     )}
                     enabled={hasPrev}
                     label="‹ Prev"
                   />
                   <PageLink
-                    href={outreachListHref(group, list, industry, offset + OUTREACH_PAGE_SIZE)}
+                    href={outreachListHref(group, list, industry, offset + OUTREACH_PAGE_SIZE, view)}
                     enabled={hasNext}
                     label="Next ›"
                   />

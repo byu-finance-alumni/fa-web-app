@@ -8,6 +8,7 @@
  * page reuses the NetTreks table. This module only knows the shapes, the URL
  * scheme, and the words shown around them.
  */
+import { DEFAULT_REPORT_VIEW, withReportView, type ReportView } from "@/lib/reportView";
 import type { Schema } from "@/types/api";
 
 export type OutreachGroupKey = Schema<"OutreachGroupKey">;
@@ -89,11 +90,11 @@ export function outreachListHref(
   key: OutreachListKey,
   industry: string | null = null,
   offset = 0,
+  view: ReportView = DEFAULT_REPORT_VIEW,
 ): string {
-  return `/outreach/${group}/${key}${query({
-    industry,
-    offset: offset > 0 ? offset : null,
-  })}`;
+  const base = withReportView(`/outreach/${group}/${key}${query({ industry })}`, view);
+  if (offset <= 0) return base;
+  return `${base}${base.includes("?") ? "&" : "?"}offset=${offset}`;
 }
 
 /** The backend list route, one page of it. */
@@ -102,9 +103,10 @@ export function outreachListApiPath(
   key: OutreachListKey,
   industry: string | null,
   offset: number,
+  view: ReportView = DEFAULT_REPORT_VIEW,
   limit = OUTREACH_PAGE_SIZE,
 ): string {
-  return `/outreach/${group}/${key}${query({ industry, limit, offset })}`;
+  return withReportView(`/outreach/${group}/${key}${query({ industry, limit, offset })}`, view);
 }
 
 /** The backend CSV route. */

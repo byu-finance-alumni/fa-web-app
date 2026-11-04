@@ -1,7 +1,14 @@
 import Link from "next/link";
+import { SortTh } from "@/components/shared/SortTh";
 import { genderLabel } from "@/lib/format";
 import { netTrekDisplayName, type NetTrekRow } from "@/lib/nettreks";
 import { formatPhone } from "@/lib/phone";
+import {
+  reportSortState,
+  toggleReportSort,
+  type ReportSort,
+  type ReportView,
+} from "@/lib/reportView";
 import { abbreviateState } from "@/lib/usStates";
 import { safeExternalHref } from "@/lib/urlSafety";
 
@@ -32,22 +39,27 @@ export const NETTREK_TABLE_COLUMNS = [
  * exactly as on the alumni list, and the full CSV names sit in each header's
  * hover text. Widths sum to 100%.
  */
-export const NETTREK_SCREEN_COLUMNS = [
-  { label: "First", w: "w-[6%]" },
-  { label: "Middle", w: "w-[6%]" },
-  { label: "Last", w: "w-[6%]" },
-  { label: "Company", w: "w-[9%]" },
-  { label: "Industry", w: "w-[9%]" },
-  { label: "Secondary", w: "w-[7%]" },
-  { label: "City", w: "w-[7%]" },
-  { label: "State", w: "w-[5%]", center: true },
-  { label: "Personal email", w: "w-[10%]" },
-  { label: "Work email", w: "w-[8%]" },
-  { label: "Phone", w: "w-[10%]" },
-  { label: "LinkedIn", w: "w-[6%]", center: true },
-  { label: "Gender", w: "w-[6%]", center: true },
-  { label: "Grad", w: "w-[5%]", center: true },
-] as const;
+export const NETTREK_SCREEN_COLUMNS: readonly {
+  label: string;
+  sort: ReportSort;
+  w: string;
+  center?: boolean;
+}[] = [
+  { label: "First", sort: "first_name", w: "w-[6%]" },
+  { label: "Middle", sort: "middle_name", w: "w-[6%]" },
+  { label: "Last", sort: "last_name", w: "w-[6%]" },
+  { label: "Company", sort: "company", w: "w-[9%]" },
+  { label: "Industry", sort: "industry", w: "w-[9%]" },
+  { label: "Secondary", sort: "secondary_industry", w: "w-[7%]" },
+  { label: "City", sort: "company_city", w: "w-[7%]" },
+  { label: "State", sort: "company_state", w: "w-[5%]", center: true },
+  { label: "Personal email", sort: "permanent_email", w: "w-[10%]" },
+  { label: "Work email", sort: "work_email", w: "w-[8%]" },
+  { label: "Phone", sort: "phone", w: "w-[10%]" },
+  { label: "LinkedIn", sort: "linkedin_url", w: "w-[6%]", center: true },
+  { label: "Gender", sort: "gender", w: "w-[6%]", center: true },
+  { label: "Grad", sort: "graduation_year", w: "w-[5%]", center: true },
+];
 
 // The alumni list's container, header, row and cell classes (AlumniTable,
 // #268), so a NetTrek report reads as the same table. Horizontal padding is
@@ -69,23 +81,49 @@ function full(value: string | number | null | undefined) {
 /**
  * One NetTrek report's page of people. All 14 columns fit the page width, as
  * on the alumni list — nothing scrolls sideways; long values truncate with the
- * full text on hover. The last name links to the profile.
+ * full text on hover. The last name links to the profile. Every header sorts
+ * the whole list on the server through the page URL (#917), except Gender for
+ * someone it is hidden from: the backend ignores that sort for them.
  */
-export function NetTrekReportTable({ rows }: { rows: NetTrekRow[] }) {
+export function NetTrekReportTable({
+  rows,
+  view,
+  viewHref,
+  canSeeGender,
+}: {
+  rows: NetTrekRow[];
+  view: ReportView;
+  /** This list's page URL for a view, first page. */
+  viewHref: (view: ReportView) => string;
+  canSeeGender: boolean;
+}) {
   return (
     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-card">
       <table className="w-full table-fixed text-sm">
         <thead>
           <tr className="border-b border-gray-200 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-            {NETTREK_SCREEN_COLUMNS.map((c, i) => (
-              <th
-                key={c.label}
-                title={NETTREK_TABLE_COLUMNS[i]}
-                className={`${TH} ${c.w}${"center" in c ? " text-center" : ""}`}
-              >
-                {c.label}
-              </th>
-            ))}
+            {NETTREK_SCREEN_COLUMNS.map((c, i) =>
+              c.sort === "gender" && !canSeeGender ? (
+                <th
+                  key={c.label}
+                  title={NETTREK_TABLE_COLUMNS[i]}
+                  className={`${TH} ${c.w} text-center`}
+                >
+                  {c.label}
+                </th>
+              ) : (
+                <SortTh
+                  key={c.label}
+                  label={c.label}
+                  title={NETTREK_TABLE_COLUMNS[i]}
+                  w={c.w}
+                  base={TH}
+                  align={c.center ? "center" : undefined}
+                  href={viewHref(toggleReportSort(view, c.sort))}
+                  {...reportSortState(view, c.sort)}
+                />
+              ),
+            )}
           </tr>
         </thead>
         <tbody>
