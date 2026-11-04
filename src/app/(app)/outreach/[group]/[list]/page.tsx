@@ -26,8 +26,8 @@ import {
 
 /**
  * One Outreach list ("Potential Alumni Speakers in Utah", "Investment Banking
- * Mentors", …): the NetTrek reports' table, server-side pagination and a
- * Download CSV of the whole list. `GET /outreach/{group}/{key}` is gated on
+ * Mentors", …): the NetTrek reports' table, server-side sort, filters and
+ * pagination, and a Download CSV of the whole list as filtered and sorted. `GET /outreach/{group}/{key}` is gated on
  * `alumni.export` and writes a disclosure-audit row; the CSV is rate-limited
  * and audit-logged as an export. A list the page does not have is a 404 here
  * before any request is made.
@@ -97,6 +97,7 @@ export default async function OutreachListRoute({
                 listKey={list}
                 industry={industry}
                 title={title}
+                view={view}
               />
             )}
           </div>

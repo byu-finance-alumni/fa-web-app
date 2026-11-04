@@ -78,8 +78,9 @@ export function netTrekReportApiPath(
 export function netTrekExportPath(
   area: NetTrekAreaKey,
   kind: NetTrekReportKind,
+  view: ReportView = DEFAULT_REPORT_VIEW,
 ): string {
-  return `/nettreks/${area}/${kind}/export`;
+  return withReportView(`/nettreks/${area}/${kind}/export`, view);
 }
 
 /** A non-negative whole-number `?offset=`, else 0. */
@@ -93,16 +94,18 @@ export function parseNetTrekOffset(raw: string | string[] | undefined): number {
 /**
  * The name used when the backend's `Content-Disposition` is missing or unsafe.
  * Matches the backend's `<area>_nettrek_hosts_<YYYY-MM-DD>.csv` /
- * `<area>_area_alumni_<YYYY-MM-DD>.csv`, so the file is named the same either
- * way.
+ * `<area>_area_alumni_<YYYY-MM-DD>.csv`, with `_filtered` before the date when
+ * filters narrowed it, so the file is named the same either way.
  */
 export function netTrekExportFilename(
   area: NetTrekAreaKey,
   kind: NetTrekReportKind,
   now: Date = new Date(),
+  filtered = false,
 ): string {
   const middle = kind === "hosts" ? "nettrek_hosts" : "area_alumni";
-  return `${area}_${middle}_${now.toISOString().slice(0, 10)}.csv`;
+  const tag = filtered ? "_filtered" : "";
+  return `${area}_${middle}${tag}_${now.toISOString().slice(0, 10)}.csv`;
 }
 
 /** What to tell someone whose download failed — and what to do about it. */

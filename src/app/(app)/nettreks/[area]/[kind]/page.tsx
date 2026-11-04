@@ -24,8 +24,8 @@ import {
 /**
  * One NetTrek report (#887): "<Area> NetTrek Hosts" or "<Area> Area Alumni".
  *
- * The issue's columns, server-side pagination, and a Download CSV of the whole
- * report. `GET /nettreks/{area}/{kind}` is gated on `alumni.export` and writes
+ * The issue's columns, server-side sort, filters and pagination, and a Download
+ * CSV of the whole report as filtered and sorted. `GET /nettreks/{area}/{kind}` is gated on `alumni.export` and writes
  * a disclosure-audit row; the CSV is rate-limited and audit-logged as an
  * export. An unknown area or kind, or Other's Area Alumni (it has none), is a
  * 404 here before any request is made.
@@ -88,7 +88,7 @@ export default async function NetTrekReportRoute({
               )}
             </div>
             {data && data.total > 0 && (
-              <NetTrekExportButton area={area} kind={kind} title={title} />
+              <NetTrekExportButton area={area} kind={kind} title={title} view={view} />
             )}
           </div>
 

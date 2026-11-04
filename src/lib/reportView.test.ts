@@ -1,14 +1,26 @@
 import { describe, expect, it } from "vitest";
 
-import { netTrekReportApiPath, netTrekReportHref } from "./nettreks";
-import { outreachListApiPath, outreachListHref } from "./outreach";
+import {
+  netTrekExportFilename,
+  netTrekExportPath,
+  netTrekReportApiPath,
+  netTrekReportHref,
+} from "./nettreks";
+import {
+  outreachExportFilename,
+  outreachExportPath,
+  outreachListApiPath,
+  outreachListHref,
+} from "./outreach";
 import {
   DEFAULT_REPORT_VIEW,
   REPORT_FILTERS,
   cleanReportFilters,
   isReportFiltered,
   parseReportView,
+  parseReportViewQuery,
   reportSortState,
+  reportViewQuery,
   toggleReportSort,
   withReportView,
   type ReportView,
@@ -162,5 +174,36 @@ describe("paging a filtered, sorted list", () => {
     expect(netTrekReportHref("dallas", "hosts", 0, next)).toBe(
       "/nettreks/dallas/hosts?sort=phone&f_company=acme",
     );
+  });
+});
+
+describe("the export", () => {
+  const view: ReportView = { sort: "phone", dir: "desc", filters: { f_gender: "F" } };
+
+  it("sends the page's sort and filters, or nothing for the whole list", () => {
+    expect(netTrekExportPath("dallas", "hosts", view)).toBe(
+      "/nettreks/dallas/hosts/export?sort=phone&dir=desc&f_gender=F",
+    );
+    expect(netTrekExportPath("dallas", "hosts")).toBe("/nettreks/dallas/hosts/export");
+    expect(outreachExportPath("mentors", "industry", "Sales", view)).toBe(
+      "/outreach/mentors/industry/export?industry=Sales&sort=phone&dir=desc&f_gender=F",
+    );
+  });
+
+  it("names a filtered fallback file like the backend does", () => {
+    const day = new Date("2026-11-04T12:00:00Z");
+    expect(netTrekExportFilename("new_york", "hosts", day, true)).toBe(
+      "new_york_nettrek_hosts_filtered_2026-11-04.csv",
+    );
+    expect(outreachExportFilename("mentors", "industry", "Sales", day, true)).toBe(
+      "mentors_industry_sales_filtered_2026-11-04.csv",
+    );
+  });
+
+  it("re-checks the view a server action receives", () => {
+    expect(parseReportViewQuery(reportViewQuery(view))).toEqual(view);
+    expect(parseReportViewQuery("sort=evil&f_gender=X&f_nope=1")).toEqual(DEFAULT_REPORT_VIEW);
+    expect(parseReportViewQuery({ sort: "phone" })).toEqual(DEFAULT_REPORT_VIEW);
+    expect(parseReportViewQuery(undefined)).toEqual(DEFAULT_REPORT_VIEW);
   });
 });

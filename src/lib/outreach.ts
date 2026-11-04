@@ -114,19 +114,21 @@ export function outreachExportPath(
   group: OutreachGroupKey,
   key: OutreachListKey,
   industry: string | null,
+  view: ReportView = DEFAULT_REPORT_VIEW,
 ): string {
-  return `/outreach/${group}/${key}/export${query({ industry })}`;
+  return withReportView(`/outreach/${group}/${key}/export${query({ industry })}`, view);
 }
 
 /**
  * The name used when the backend's `Content-Disposition` is missing or unsafe.
- * Matches the backend's `<group>_<key>[_<industry>]_<YYYY-MM-DD>.csv`.
+ * Matches the backend's `<group>_<key>[_<industry>][_filtered]_<YYYY-MM-DD>.csv`.
  */
 export function outreachExportFilename(
   group: OutreachGroupKey,
   key: OutreachListKey,
   industry: string | null,
   now: Date = new Date(),
+  filtered = false,
 ): string {
   const parts: string[] = [group, key];
   if (industry) {
@@ -137,6 +139,7 @@ export function outreachExportFilename(
       .slice(0, 60);
     parts.push(slug || "industry");
   }
+  if (filtered) parts.push("filtered");
   return `${parts.join("_")}_${now.toISOString().slice(0, 10)}.csv`;
 }
 

@@ -152,9 +152,21 @@ export function reportViewParams(view: ReportView): [string, string][] {
   return params;
 }
 
+/** The view as a query string, to hand to a server action. */
+export function reportViewQuery(view: ReportView): string {
+  return new URLSearchParams(reportViewParams(view)).toString();
+}
+
+/** The view in a query string. A server action is a real endpoint anything can
+ *  call, so the string is untrusted and goes through the same parse as a URL. */
+export function parseReportViewQuery(query: unknown): ReportView {
+  const params = new URLSearchParams(typeof query === "string" ? query : "");
+  return parseReportView(Object.fromEntries(params));
+}
+
 /** `path` (which may already have a query) with the view on it. */
 export function withReportView(path: string, view: ReportView): string {
-  const query = new URLSearchParams(reportViewParams(view)).toString();
+  const query = reportViewQuery(view);
   if (!query) return path;
   return `${path}${path.includes("?") ? "&" : "?"}${query}`;
 }
