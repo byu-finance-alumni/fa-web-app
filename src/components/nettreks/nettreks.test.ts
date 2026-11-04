@@ -20,6 +20,7 @@ import {
   type ReportFilterOptions,
 } from "@/lib/reportView";
 import { NetTrekReportLinks } from "./NetTrekReportLinks";
+import { ReportBackLinks } from "./ReportBackLinks";
 import { clickOpensRow } from "./ReportRow";
 import { ReportFiltersBar } from "./ReportFiltersBar";
 import {
@@ -280,6 +281,18 @@ describe("NetTrek report table", () => {
     expect(
       netTrekDisplayName(row({ first_name: null, last_name: null })),
     ).toBe("Unnamed alumnus");
+  });
+});
+
+describe("Back", () => {
+  it("is a visible text button beside the link, both to the parent page", () => {
+    const html = renderToStaticMarkup(
+      createElement(ReportBackLinks, { href: "/nettreks", label: "All NetTrek reports" }),
+    );
+    expect(html.match(/href="\/nettreks"/g)?.length).toBe(2);
+    expect(html).toMatch(/>Back<\/a>/);
+    expect(html).toContain("All NetTrek reports");
+    expect(html).not.toContain("<svg");
   });
 });
 

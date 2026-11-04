@@ -4,6 +4,7 @@ import { LoadError } from "@/components/shared/LoadError";
 import { ScrollToTopOnPageChange } from "@/components/shared/ScrollToTopOnPageChange";
 import { NetTrekExportButton } from "@/components/nettreks/NetTrekExportButton";
 import { NetTrekReportTable } from "@/components/nettreks/NetTrekReportTable";
+import { ReportBackLinks } from "@/components/nettreks/ReportBackLinks";
 import { ReportFiltersBar } from "@/components/nettreks/ReportFiltersBar";
 import { Topbar } from "@/components/shell/Topbar";
 import { Button } from "@/components/ui/button";
@@ -70,12 +71,7 @@ export default async function NetTrekReportRoute({
         <div className="space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div className="min-w-0">
-              <Link
-                href="/nettreks"
-                className="text-sm text-brand-blue-600 underline-offset-4 hover:underline"
-              >
-                All NetTrek reports
-              </Link>
+              <ReportBackLinks href="/nettreks" label="All NetTrek reports" />
               <h1 className="mt-1 text-xl font-semibold tracking-tight text-gray-900">
                 {title}
               </h1>
