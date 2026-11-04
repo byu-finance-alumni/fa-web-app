@@ -77,6 +77,12 @@ export interface AlumniFilterState {
    *  bucket, "unknown" = missing industry. Mutually exclusive with picking
    *  specific industries; "" = no grouping filter. */
   industryGroup: "" | "other" | "unknown";
+  /** "Left a comment" (#923): one choice, off by default ("").
+   *  `survey_comment` = an APPROVED survey response with a comment (pending and
+   *  rejected don't count). `any_note` = any note on the profile, staff's
+   *  included. `survey_comment` is an editor-only option, see
+   *  `withoutHiddenFieldFilters`. */
+  commentFilter: "" | "survey_comment" | "any_note";
   // Last-contacted (derived from interactions).
   contactedAfter: string;
   contactedBefore: string;
@@ -153,6 +159,7 @@ export const EMPTY_FILTERS: AlumniFilterState = {
   designations: [],
   gender: "",
   industryGroup: "",
+  commentFilter: "",
   contactedAfter: "",
   contactedBefore: "",
   neverContacted: false,
@@ -430,6 +437,13 @@ export function parseAlumniFilters(sp: SearchParamMap): AlumniFilterState {
         : one(sp.industry_group).toLowerCase() === "unknown"
           ? "unknown"
           : "",
+    // Whitelisted: anything else would be a 422 from the API.
+    commentFilter:
+      one(sp.comment_filter) === "survey_comment"
+        ? "survey_comment"
+        : one(sp.comment_filter) === "any_note"
+          ? "any_note"
+          : "",
     contactedAfter: one(sp.contacted_after),
     contactedBefore: one(sp.contacted_before),
     deceased: isTrue(sp.deceased)
@@ -468,6 +482,7 @@ export function toAlumniFilterQs(f: AlumniFilterState): string {
   for (const v of f.designations) p.append("designations", v);
   if (f.gender) p.set("gender", f.gender);
   if (f.industryGroup) p.set("industry_group", f.industryGroup);
+  if (f.commentFilter) p.set("comment_filter", f.commentFilter);
   if (f.contactedAfter) p.set("contacted_after", f.contactedAfter);
   if (f.contactedBefore) p.set("contacted_before", f.contactedBefore);
   for (const flag of BOOLEAN_FLAGS) {
@@ -629,6 +644,7 @@ export function toAlumniPopulationParams(
   for (const v of f.designations) p.append("designations", v);
   if (f.gender) p.set("gender", f.gender);
   if (f.industryGroup) p.set("industry_group", f.industryGroup);
+  if (f.commentFilter) p.set("comment_filter", f.commentFilter);
   if (f.contactedAfter) p.set("contacted_after", f.contactedAfter);
   if (f.contactedBefore) p.set("contacted_before", f.contactedBefore);
   for (const flag of BOOLEAN_FLAGS) {
@@ -684,6 +700,10 @@ const BACKEND_FRIEND_ID = /^\s*friend[\s\-_]*0*(\d{1,12})\s*$/i;
  * from the same state every consumer reads, keeps the chips, the sort and the
  * export body (derived via `toAlumniPopulationParams`) describing exactly the
  * population the backend returned (#592 parity).
+ *
+ * `comment_filter=survey_comment` (#923) follows the same rule: it answers from
+ * survey responses, whose text such a viewer doesn't get. `any_note` stays,
+ * because every role reads the notes on a profile.
  */
 export function withoutHiddenFieldFilters(
   f: AlumniFilterState,
@@ -693,6 +713,7 @@ export function withoutHiddenFieldFilters(
     filters: {
       ...f,
       gender: "",
+      commentFilter: f.commentFilter === "survey_comment" ? "" : f.commentFilter,
       sort: f.sort === "gender" ? "name" : f.sort,
     },
     passThrough: {
@@ -721,6 +742,7 @@ export function countActiveFilters(f: AlumniFilterState): number {
     f.designations.length +
     (f.gender ? 1 : 0) +
     (f.industryGroup ? 1 : 0) +
+    (f.commentFilter ? 1 : 0) +
     (f.ymin.trim() || f.ymax.trim() ? 1 : 0) +
     (f.workedInYear.trim() ? 1 : 0) +
     (f.contactedAfter ? 1 : 0) +

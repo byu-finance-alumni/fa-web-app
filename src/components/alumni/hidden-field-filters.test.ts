@@ -39,6 +39,25 @@ const DEEP_LINK = {
 };
 
 describe("withoutHiddenFieldFilters", () => {
+  it("drops the Survey comment filter, which the backend ignores (#923)", () => {
+    const { filters } = withoutHiddenFieldFilters(
+      parseAlumniFilters({ comment_filter: "survey_comment" }),
+      EMPTY_PASS_THROUGH,
+    );
+    expect(filters.commentFilter).toBe("");
+    expect(toExportFilters(filters).comment_filter).toBeNull();
+    expect(toAlumniPopulationParams(filters).has("comment_filter")).toBe(false);
+  });
+
+  it("keeps Any note: every role reads the notes on a profile (#923)", () => {
+    const { filters } = withoutHiddenFieldFilters(
+      parseAlumniFilters({ comment_filter: "any_note" }),
+      EMPTY_PASS_THROUGH,
+    );
+    expect(filters.commentFilter).toBe("any_note");
+    expect(toExportFilters(filters).comment_filter).toBe("any_note");
+  });
+
   it("drops gender, the gender sort and a Net ID search", () => {
     const { filters, passThrough } = withoutHiddenFieldFilters(
       parseAlumniFilters(DEEP_LINK),
@@ -146,6 +165,30 @@ describe("the controls are not offered below the edit tier", () => {
     const gate = src.lastIndexOf("{canUseHiddenFields ? (", picker);
     expect(gate).toBeGreaterThan(-1);
     expect(picker - gate).toBeLessThan(600);
+  });
+
+  it("AlumniFilters offers Survey comment to editors only, Any note to all (#923)", () => {
+    const src = readFileSync(
+      resolve(process.cwd(), "src/components/alumni/AlumniFilters.tsx"),
+      "utf8",
+    );
+    const survey = src.indexOf('<option value="survey_comment">');
+    const gate = src.lastIndexOf("{canUseHiddenFields ? (", survey);
+    expect(survey - gate).toBeLessThan(80);
+    // The gate closes before Any note, which every role gets.
+    expect(src.indexOf(") : null}", survey)).toBeLessThan(
+      src.indexOf('<option value="any_note">'),
+    );
+  });
+
+  it("AlumniFilters shows a removable chip for the chosen option (#923)", async () => {
+    const { AlumniFilters } = await import("./AlumniFilters");
+    const html = renderToStaticMarkup(
+      createElement(AlumniFilters, {
+        initial: { ...EMPTY_FILTERS, commentFilter: "any_note" },
+      }),
+    );
+    expect(html).toContain("Comments: Any note");
   });
 
   async function dashboard(canUseHiddenFields: boolean) {
