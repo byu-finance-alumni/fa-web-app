@@ -5666,6 +5666,194 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/survey/new/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * New People Survey Info
+         * @description PUBLIC: the rules the form renders from. No PII: the required field keys
+         *     and the one support contact the normal survey already shows.
+         */
+        get: operations["new_people_survey_info_survey_new__key__get"];
+        put?: never;
+        /**
+         * New People Survey Submit
+         * @description PUBLIC: hold a submission for review. Nothing is added to the database.
+         *
+         *     * Wrong key or link off: 404, the same message for both.
+         *     * Honeypot (``website``) filled: 200 ``{"received": true}`` and NOTHING is
+         *       stored, so a bot learns nothing from the response.
+         *     * Over the survey's size caps: 413, nothing stored.
+         *     * A required group unanswered (or answered with a value the survey refuses):
+         *       422 naming the field keys.
+         *     * Holding queue full: 429, nothing stored.
+         */
+        post: operations["new_people_survey_submit_survey_new__key__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/new-people/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get New People Link
+         * @description The shared link. Created, switched OFF, the first time it is read.
+         */
+        get: operations["get_new_people_link_survey_new_people_link_get"];
+        /**
+         * Update New People Link
+         * @description Switch the link on or off. Audited (never the key).
+         */
+        put: operations["update_new_people_link_survey_new_people_link_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/new-people/link/reissue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reissue New People Link
+         * @description A new key. The old URL stops working immediately; on/off is unchanged.
+         */
+        post: operations["reissue_new_people_link_survey_new_people_link_reissue_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/new-people/submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List New People Submissions
+         * @description Pending submissions, oldest first, with possible matches. Audit-logged
+         *     like the survey review queue (the rows carry submitted PII).
+         */
+        get: operations["list_new_people_submissions_survey_new_people_submissions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/new-people/submissions/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bulk Reject New People Submissions
+         * @description Reject many at once (1-500 ids). Each pending one is purged like a single
+         *     reject; ids that are not pending are skipped. One audit row with the count.
+         *
+         *     No path collision with ``/{submission_id}/reject``: that one has an extra
+         *     segment, so ``/submissions/reject`` can never be read as an id.
+         */
+        post: operations["bulk_reject_new_people_submissions_survey_new_people_submissions_reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/new-people/submissions/{submission_id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview New People Merge
+         * @description What a MERGE into ``alumni_id`` would change, and which of those changes
+         *     would replace populated data. 404 when the submission is not pending or the
+         *     record does not exist or is archived. Audit-logged: it shows the record's
+         *     current values.
+         */
+        get: operations["preview_new_people_merge_survey_new_people_submissions__submission_id__preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/new-people/submissions/{submission_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve New People Submission
+         * @description Create a record from the submission, or apply it to an existing one.
+         *
+         *     404 when it is not pending; 409 when ``submitted_at`` does not match the
+         *     row (it changed since the reviewer opened it).
+         */
+        post: operations["approve_new_people_submission_survey_new_people_submissions__submission_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/new-people/submissions/{submission_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject New People Submission
+         * @description Refuse it. The held answers are purged; an audit row (no PII) remains.
+         */
+        post: operations["reject_new_people_submission_survey_new_people_submissions__submission_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -9638,6 +9826,221 @@ export interface components {
         NetTrekSummary: {
             /** Areas */
             areas: components["schemas"]["NetTrekAreaSummary"][];
+        };
+        /**
+         * NewPeopleBulkRejectRequest
+         * @description ``POST /survey/new-people/submissions/reject``.
+         */
+        NewPeopleBulkRejectRequest: {
+            /** Submission Ids */
+            submission_ids: number[];
+        };
+        /**
+         * NewPeopleBulkRejectResult
+         * @description How many of the ids were pending and are now rejected (and purged).
+         */
+        NewPeopleBulkRejectResult: {
+            /** Rejected */
+            rejected: number;
+        };
+        /**
+         * NewPeopleLinkRead
+         * @description The shared link as staff see it. ``key`` is the secret in the public URL.
+         */
+        NewPeopleLinkRead: {
+            /** Enabled */
+            enabled: boolean;
+            /** Key */
+            key: string;
+            /** Updated At */
+            updated_at: string;
+        };
+        /**
+         * NewPeopleLinkUpdate
+         * @description ``PUT /survey/new-people/link``: the on/off switch.
+         */
+        NewPeopleLinkUpdate: {
+            /** Enabled */
+            enabled: boolean;
+        };
+        /**
+         * NewPeopleRequiredFields
+         * @description Required fields per kind. Each inner list is an ANY-OF group: at least one
+         *     key in it must be answered (so the email group is personal OR work).
+         */
+        NewPeopleRequiredFields: {
+            /** Alum */
+            alum: string[][];
+            /** Friend */
+            friend: string[][];
+        };
+        /**
+         * NewPeopleSurveyInfo
+         * @description ``GET /survey/new/{key}``: what the public form needs before it renders.
+         *     The server is the single source of truth for which fields are required.
+         */
+        NewPeopleSurveyInfo: {
+            required_fields: components["schemas"]["NewPeopleRequiredFields"];
+            support_contact: components["schemas"]["SurveySupportContact"] | null;
+        };
+        /**
+         * NewPersonApproveRequest
+         * @description ``POST /survey/new-people/submissions/{id}/approve``.
+         *
+         *     ``create`` makes a new record (``kind`` overrides the submitted kind; null
+         *     keeps it). ``merge`` applies the answers to ``alumni_id`` (required) as if
+         *     that person had answered the normal survey. ``submitted_at`` must equal the
+         *     row's, or the approve is refused with 409.
+         */
+        NewPersonApproveRequest: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "create" | "merge";
+            /** Kind */
+            kind?: ("alum" | "friend") | null;
+            /** Alumni Id */
+            alumni_id?: number | null;
+            /** Submitted At */
+            submitted_at: string;
+            /** Overwrite Fields */
+            overwrite_fields?: string[];
+        };
+        /**
+         * NewPersonApproveResult
+         * @description The record the approval created or updated, plus soft duplicate warnings
+         *     (never blocking: the write is already committed).
+         */
+        NewPersonApproveResult: {
+            /** Alumni Id */
+            alumni_id: number;
+            /** Created */
+            created: boolean;
+            /**
+             * Duplicate Warnings
+             * @default []
+             */
+            duplicate_warnings: components["schemas"]["DuplicateWarning"][];
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: string[];
+        };
+        /**
+         * NewPersonMergePreview
+         * @description What a MERGE of a submission into ``alumni_id`` would change.
+         */
+        NewPersonMergePreview: {
+            /** Alumni Id */
+            alumni_id: number;
+            /** Name */
+            name: string;
+            /** Deceased */
+            deceased: boolean;
+            /** Changes */
+            changes: components["schemas"]["SurveyChange"][];
+            /** Overwrites */
+            overwrites: string[];
+        };
+        /**
+         * NewPersonPossibleMatch
+         * @description A live record that may be the same person (email or first + last name).
+         */
+        NewPersonPossibleMatch: {
+            /** Alumni Id */
+            alumni_id: number;
+            /** Name */
+            name: string;
+            /** Graduation Year */
+            graduation_year: number | null;
+            /** Is Friend */
+            is_friend: boolean;
+            /**
+             * Match Reason
+             * @enum {string}
+             */
+            match_reason: "email" | "name";
+        };
+        /**
+         * NewPersonSubmissionField
+         * @description One answered question, in display form.
+         */
+        NewPersonSubmissionField: {
+            /** Field Key */
+            field_key: string;
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+        };
+        /**
+         * NewPersonSubmissionItem
+         * @description One pending submission in the New people review queue.
+         */
+        NewPersonSubmissionItem: {
+            /** Submission Id */
+            submission_id: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "alum" | "friend";
+            /** Submitted At */
+            submitted_at: string;
+            /** Name */
+            name: string;
+            /** Email */
+            email: string | null;
+            /** Fields */
+            fields: components["schemas"]["NewPersonSubmissionField"][];
+            /** Comments */
+            comments: string | null;
+            /** Possible Matches */
+            possible_matches: components["schemas"]["NewPersonPossibleMatch"][];
+        };
+        /**
+         * NewPersonSubmitRequest
+         * @description ``POST /survey/new/{key}``.
+         *
+         *     ``fields`` takes the same keys, caps and cleaning as
+         *     ``SurveySubmitRequest.fields``; ``comments`` and ``fill_seconds`` follow the
+         *     same rules as there. ``website`` is a HONEYPOT: a hidden input a person never
+         *     fills. Anything in it means a bot, and the server answers 200 while storing
+         *     nothing.
+         */
+        NewPersonSubmitRequest: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "alum" | "friend";
+            /** Fields */
+            fields: {
+                [key: string]: string;
+            };
+            /** Comments */
+            comments?: string | null;
+            /** Fill Seconds */
+            fill_seconds?: number | null;
+            /**
+             * Website
+             * @default
+             */
+            website: string;
+        };
+        /**
+         * NewPersonSubmitResult
+         * @description Always the same body, so a bot cannot tell a held submission from a
+         *     honeypot drop.
+         */
+        NewPersonSubmitResult: {
+            /**
+             * Received
+             * @default true
+             */
+            received: boolean;
         };
         /**
          * NoteCreate
@@ -18554,6 +18957,295 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SurveyScheduleRunSummary"];
+                };
+            };
+        };
+    };
+    new_people_survey_info_survey_new__key__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewPeopleSurveyInfo"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    new_people_survey_submit_survey_new__key__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewPersonSubmitRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewPersonSubmitResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_new_people_link_survey_new_people_link_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewPeopleLinkRead"];
+                };
+            };
+        };
+    };
+    update_new_people_link_survey_new_people_link_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewPeopleLinkUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewPeopleLinkRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reissue_new_people_link_survey_new_people_link_reissue_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewPeopleLinkRead"];
+                };
+            };
+        };
+    };
+    list_new_people_submissions_survey_new_people_submissions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewPersonSubmissionItem"][];
+                };
+            };
+        };
+    };
+    bulk_reject_new_people_submissions_survey_new_people_submissions_reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewPeopleBulkRejectRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewPeopleBulkRejectResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_new_people_merge_survey_new_people_submissions__submission_id__preview_get: {
+        parameters: {
+            query: {
+                alumni_id: number;
+            };
+            header?: never;
+            path: {
+                submission_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewPersonMergePreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_new_people_submission_survey_new_people_submissions__submission_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                submission_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewPersonApproveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewPersonApproveResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_new_people_submission_survey_new_people_submissions__submission_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                submission_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

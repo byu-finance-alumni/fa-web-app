@@ -41,6 +41,7 @@ import {
   clientPostJson,
 } from "@/lib/api-client";
 import { PendingSubmissions } from "@/components/needs-surveying/PendingSubmissions";
+import { NewPeoplePanel } from "@/components/needs-surveying/NewPeoplePanel";
 import { CampaignProgressTable } from "@/components/needs-surveying/CampaignProgressTable";
 import { SurveyBouncedList } from "@/components/needs-surveying/SurveyBouncedList";
 import { usePendingSubmissions } from "@/components/needs-surveying/use-pending-submissions";
@@ -533,7 +534,13 @@ export function SurveyCampaignConsole({
   // reach (#497). The strip now always renders; the year-scoped triggers are
   // disabled instead, and Progress is what shows until a year is chosen.
   const yearScopedTabsDisabled = selected === null;
-  const visibleTab = yearScopedTabsDisabled ? "progress" : activeTab;
+  // "New people" (api#661) is not about a year either, so it stays reachable
+  // with no year selected; only the two year-scoped tabs fall back.
+  const visibleTab =
+    yearScopedTabsDisabled &&
+    (activeTab === "schedule" || activeTab === "submissions")
+      ? "progress"
+      : activeTab;
 
   // Only a RUNNABLE schedule (scheduled/active) counts as "this year is
   // scheduled". A cancelled/completed row is treated as no schedule, so the
@@ -1012,6 +1019,7 @@ export function SurveyCampaignConsole({
             <PendingCountBadge count={pendingCount} />
           </TabsTrigger>
           <TabsTrigger value="progress">Progress</TabsTrigger>
+          <TabsTrigger value="new-people">New people</TabsTrigger>
         </TabsList>
 
         {/* ── Tab 1: a SINGLE box — the year's overview + status badge with
@@ -1350,6 +1358,12 @@ export function SurveyCampaignConsole({
             failed={schedulesFailed}
             canExport={canExport}
           />
+        </TabsContent>
+
+        {/* ── Tab 4: the new-people survey (api#661) — its shared link and its
+            own review queue. Not year-scoped, so always reachable. ── */}
+        <TabsContent value="new-people">
+          <NewPeoplePanel />
         </TabsContent>
       </Tabs>
 

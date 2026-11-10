@@ -2438,7 +2438,11 @@ function OtherDesignationsControl({
   );
 }
 
-function FieldControl({
+/**
+ * One question's control. Exported for the new-people survey (api#661), which
+ * asks these same questions in a paged wizard instead of the section menu.
+ */
+export function FieldControl({
   field,
   value: storedValue,
   onFileValue,
@@ -2514,9 +2518,16 @@ function FieldControl({
             id={controlId}
             value={value}
             required={field.required}
-            aria-describedby={helpId}
+            // An error on a plain text field only ever comes from a REQUIRED
+            // check (the new-people survey, api#661); the edit flow never sets
+            // one, so its fields render exactly as before.
+            aria-invalid={error ? true : undefined}
+            aria-describedby={errorId ?? helpId}
             placeholder={field.placeholder ?? "Add a value"}
             onChange={(e) => onChange(e.target.value)}
+            className={
+              error ? "border-danger-600 focus-visible:ring-danger-600" : undefined
+            }
           />
         ) : field.kind === "linkedin" ? (
           // The same text box, plus the rule. `type="url"` (not `text`) gets
@@ -2562,6 +2573,11 @@ function FieldControl({
             options={COUNTRY_OPTIONS}
             placeholder="Select a country"
             onChange={onChange}
+            className={
+              error ? "border-danger-600 focus-visible:ring-danger-600" : undefined
+            }
+            aria-invalid={error ? true : undefined}
+            aria-describedby={errorId}
           />
         ) : field.kind === "employmentStatus" ? (
           // SURVEY_ not EMPLOYMENT_STATUS_OPTIONS: "Unknown" is a real option
