@@ -5,7 +5,13 @@ import {
   INFO_SECTIONS,
 } from "@/components/survey/survey-screens";
 import {
+  BYU_ID_FORMAT_MESSAGE,
   NEW_BYU_DEGREE_KEY,
+  NEW_BYU_ID_KEY,
+  effectiveRequiredGroups,
+  isStateRequiredCountry,
+  normalizeByuId,
+  validateByuId,
   NEW_GRADUATION_YEAR_KEY,
   NEW_PEOPLE_INTRO_PARAGRAPHS,
   NEW_PEOPLE_INTRO_SIGNOFF,
@@ -338,5 +344,112 @@ describe("rendered screens", () => {
     expect(html).toContain("Please fill in First name.");
     expect(html).toContain('aria-invalid="true"');
     expect(html).not.toContain("<svg");
+  });
+});
+
+const US_LIST = ["united states", "united states of america", "usa", "us", "u.s.", "u.s.a."];
+
+describe("State required for a US employment country", () => {
+  it("matches the server's list trimmed and case-insensitive", () => {
+    for (const c of ["United States", "  USA ", "u.s.a.", "US", "United States of America"]) {
+      expect(isStateRequiredCountry(c, US_LIST), c).toBe(true);
+    }
+    for (const c of ["Canada", "", "  ", "Russia", "United Kingdom"]) {
+      expect(isStateRequiredCountry(c, US_LIST), c).toBe(false);
+    }
+  });
+
+  it("uses only the server's list, never a hard-coded one", () => {
+    expect(isStateRequiredCountry("United States", [])).toBe(false);
+    expect(isStateRequiredCountry("United States", undefined)).toBe(false);
+    expect(isStateRequiredCountry("Canada", ["canada"])).toBe(true);
+  });
+
+  it("adds the State group only when the country is the US", () => {
+    const base = [["employment.current_country"]];
+    expect(effectiveRequiredGroups(base, { "employment.current_country": "Canada" }, US_LIST)).toBe(base);
+    expect(
+      effectiveRequiredGroups(base, { "employment.current_country": "United States" }, US_LIST),
+    ).toEqual([...base, ["employment.current_state"]]);
+  });
+
+  it("blocks Next on the employment page and marks State, for BOTH kinds", () => {
+    for (const kind of ["alum", "friend"] as const) {
+      const values = {
+        "employment.current_employer": "Acme",
+        "employment.current_industry": "Banking",
+        "employment.current_city": "Provo",
+        "employment.current_country": "United States",
+        "profile.linkedin_url": "https://www.linkedin.com/in/ada",
+      };
+      const groups = effectiveRequiredGroups(requiredGroupsFor(REQUIRED, kind), values, US_LIST);
+      const emp = page(kind, "employment");
+      const errors = validatePage(emp, kind, groups, values);
+      expect(Object.keys(errors)).toContain("employment.current_state");
+      const marked = withRequiredMarkers(emp.fields, groups);
+      expect(marked.find((f) => f.key === "employment.current_state")?.required).toBe(true);
+
+      const noState = validatePage(emp, kind, groups, {
+        ...values,
+        "employment.current_state": "Utah",
+      });
+      expect(noState["employment.current_state"]).toBeUndefined();
+    }
+  });
+
+  it("leaves State optional outside the US", () => {
+    const values = { "employment.current_country": "Canada" };
+    const groups = effectiveRequiredGroups(requiredGroupsFor(REQUIRED, "friend"), values, US_LIST);
+    const marked = withRequiredMarkers(page("friend", "employment").fields, groups);
+    expect(marked.find((f) => f.key === "employment.current_state")?.required).toBeUndefined();
+  });
+});
+
+describe("optional BYU ID", () => {
+  it("is on the alum education page only, optional, with its helper text", () => {
+    const edu = page("alum", "education");
+    const f = edu.fields.find((x) => x.key === NEW_BYU_ID_KEY)!;
+    expect(f.label).toBe("BYU ID (optional)");
+    expect(f.helpText).toBe("9 digits, if you know it.");
+    expect(f.required).toBeUndefined();
+    expect(fieldKeysFor("friend")).not.toContain(NEW_BYU_ID_KEY);
+  });
+
+  it("strips spaces and dashes and wants exactly 9 digits", () => {
+    expect(normalizeByuId(" 12-345 6789 ")).toBe("123456789");
+    expect(validateByuId("")).toBeNull();
+    expect(validateByuId("   ")).toBeNull();
+    expect(validateByuId("12-345-6789")).toBeNull();
+    expect(validateByuId("12345678")).toBe(BYU_ID_FORMAT_MESSAGE);
+    expect(validateByuId("1234567890")).toBe(BYU_ID_FORMAT_MESSAGE);
+    expect(validateByuId("12345678a")).toBe(BYU_ID_FORMAT_MESSAGE);
+  });
+
+  it("blocks Next on a bad one and lets a blank one through", () => {
+    const edu = page("alum", "education");
+    const filled = { [NEW_GRADUATION_YEAR_KEY]: "2008", [NEW_BYU_DEGREE_KEY]: "MBA" };
+    const groups = requiredGroupsFor(REQUIRED, "alum");
+    expect(validatePage(edu, "alum", groups, filled)).toEqual({});
+    expect(
+      validatePage(edu, "alum", groups, { ...filled, [NEW_BYU_ID_KEY]: "1234" })[NEW_BYU_ID_KEY],
+    ).toBe(BYU_ID_FORMAT_MESSAGE);
+  });
+
+  it("is sent digits-only, and never by a friend", () => {
+    const common = { comments: "", fillSeconds: null, website: "" };
+    expect(
+      buildSubmitBody({ kind: "alum", values: { [NEW_BYU_ID_KEY]: " 123-45 6789" }, ...common })
+        .fields,
+    ).toEqual({ [NEW_BYU_ID_KEY]: "123456789" });
+    expect(
+      buildSubmitBody({ kind: "friend", values: { [NEW_BYU_ID_KEY]: "123456789" }, ...common })
+        .fields,
+    ).toEqual({});
+  });
+
+  it("explains a server 422 on the BYU ID as a format problem, not 'fill in'", () => {
+    const body = { error: { message: "new.byu_id: BYU ID must be 9 digits." } };
+    expect(submitErrorMessage(422, body, "alum")).toContain(BYU_ID_FORMAT_MESSAGE);
+    expect(submitErrorMessage(422, body, "alum")).not.toContain("Please fill in");
   });
 });

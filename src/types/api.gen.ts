@@ -9949,6 +9949,8 @@ export interface components {
         NewPeopleSurveyInfo: {
             required_fields: components["schemas"]["NewPeopleRequiredFields"];
             support_contact: components["schemas"]["SurveySupportContact"] | null;
+            /** State Required Countries */
+            state_required_countries: string[];
         };
         /**
          * NewPersonApproveRequest

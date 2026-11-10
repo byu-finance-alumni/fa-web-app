@@ -1,7 +1,9 @@
 "use client";
 
 import {
+  NEW_PEOPLE_CONTACT_PROMPT,
   SURVEY_CONTACT_PROMPT,
+  newPeopleContactLinkText,
   surveyContactFrom,
   surveyContactLinkText,
   surveyContactMailtoHref,
@@ -43,22 +45,27 @@ import {
  */
 export function SurveyContactLink({
   contact: raw,
+  variant = "survey",
 }: {
   /** Straight from `support_contact` on the survey payload, or the row the
    *  sample survey resolved. `null`/absent renders nothing. */
   contact?: { name?: string | null; email?: string | null } | null;
+  /** `newPeople` (api#661 pages only) reads "Questions? Email <name>". The
+   *  normal alumni survey keeps the default, opt-out wording. */
+  variant?: "survey" | "newPeople";
 }) {
   const contact = surveyContactFrom(raw ?? {});
   if (!contact) return null;
+  const newPeople = variant === "newPeople";
 
   return (
     <p className="mt-8 text-center text-sm leading-relaxed text-gray-500">
-      {SURVEY_CONTACT_PROMPT}{" "}
+      {newPeople ? NEW_PEOPLE_CONTACT_PROMPT : SURVEY_CONTACT_PROMPT}{" "}
       <a
         href={surveyContactMailtoHref(contact)}
         className="font-medium text-brand-blue-600 hover:text-brand-blue-500 hover:underline"
       >
-        {surveyContactLinkText(contact)}
+        {newPeople ? newPeopleContactLinkText(contact) : surveyContactLinkText(contact)}
       </a>
     </p>
   );

@@ -36,6 +36,7 @@ import {
   kindLabel,
   matchProfileHref,
   matchReasonLabel,
+  submissionFieldLabel,
   mergeButtonLabel,
   type NewPersonDecision,
 } from "@/components/needs-surveying/new-people-review";
@@ -510,7 +511,7 @@ function MergeReviewDialog({
                       return (
                         <tr key={c.field_key} className="border-b border-gray-100 align-top">
                           <td className="py-2 pr-3 text-gray-700">
-                            {c.label}
+                            {submissionFieldLabel(c.field_key, c.label)}
                             {isEmailField(c.field_key) ? (
                               <p className="mt-0.5 text-xs text-warning-600">
                                 {EMAIL_CHANGE_CAUTION}
@@ -849,7 +850,9 @@ function NewPeopleQueue() {
                   <dl className="mt-2 grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
                     {r.fields.map((f) => (
                       <div key={f.field_key}>
-                        <dt className="text-xs text-gray-500">{f.label}</dt>
+                        <dt className="text-xs text-gray-500">
+                          {submissionFieldLabel(f.field_key, f.label)}
+                        </dt>
                         <dd className="break-words text-sm font-medium text-gray-900">
                           {f.value || "—"}
                         </dd>

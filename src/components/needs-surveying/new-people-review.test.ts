@@ -16,6 +16,7 @@ import {
   matchProfileHref,
   matchReasonLabel,
   mergeButtonLabel,
+  submissionFieldLabel,
 } from "./new-people-review";
 
 const item = { submitted_at: "2026-11-10T17:00:00.123456Z", name: "Ada Lovelace", comments: null };
@@ -137,5 +138,19 @@ describe("bulk reject selection (round 2)", () => {
     expect(chunks.map((c) => c.length)).toEqual([BULK_REJECT_MAX, BULK_REJECT_MAX, 201]);
     expect(chunks.flat()).toEqual(ids);
     expect(bulkRejectChunks([])).toEqual([]);
+  });
+});
+
+describe("BYU ID in the staff queue (api#661)", () => {
+  it("labels new.byu_id as BYU ID, and leaves other labels to the server", () => {
+    expect(submissionFieldLabel("new.byu_id", "new.byu_id")).toBe("BYU ID");
+    expect(submissionFieldLabel("new.byu_id", null)).toBe("BYU ID");
+    expect(submissionFieldLabel("profile.first_name", "First name")).toBe("First name");
+    expect(submissionFieldLabel("x.y", "")).toBe("x.y");
+  });
+
+  it("names a BYU ID match", () => {
+    expect(matchReasonLabel("byu_id")).toBe("Same BYU ID");
+    expect(matchReasonLabel("email")).toBe("Same email");
   });
 });
