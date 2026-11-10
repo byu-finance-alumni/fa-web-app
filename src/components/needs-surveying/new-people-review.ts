@@ -5,6 +5,7 @@
 import type {
   NewPersonApproveRequest,
   NewPersonKind,
+  NewPersonMergePreview,
   NewPersonPossibleMatch,
   NewPersonSubmissionItem,
 } from "@/types/new-people-survey";
@@ -16,7 +17,12 @@ export const NEW_PERSON_STALE_MESSAGE =
 /** One reviewer decision on a queued submission. */
 export type NewPersonDecision =
   | { action: "create"; kind: NewPersonKind }
-  | { action: "merge"; alumniId: number };
+  | {
+      action: "merge";
+      alumniId: number;
+      /** Populated fields the reviewer ticked "Replace" on. Blanks fill regardless. */
+      overwriteFields?: string[];
+    };
 
 /**
  * The approve body. `submitted_at` is ALWAYS the value the card was rendered
@@ -39,6 +45,7 @@ export function approveRequestBody(
         kind: null,
         alumni_id: decision.alumniId,
         submitted_at: item.submitted_at,
+        overwrite_fields: [...(decision.overwriteFields ?? [])],
       };
 }
 
@@ -81,4 +88,91 @@ export function formatSubmittedDate(iso: string): string {
   return Number.isNaN(d.getTime())
     ? ""
     : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+/* ------------------------------------------------- merge review (round 2) -- */
+
+/**
+ * What a merge does to one row of the preview: a blank on the record is FILLED
+ * automatically; a populated one is only REPLACED when the reviewer ticks it.
+ */
+export function mergeRowKind(
+  preview: Pick<NewPersonMergePreview, "overwrites">,
+  fieldKey: string,
+): "fill" | "overwrite" {
+  return preview.overwrites.includes(fieldKey) ? "overwrite" : "fill";
+}
+
+/**
+ * `overwrite_fields` for the approve body: the ticked keys that the preview
+ * actually lists as overwrites, in the preview's order. A stale tick for a key
+ * that is no longer an overwrite is dropped rather than sent.
+ */
+export function overwriteFieldsFrom(
+  preview: Pick<NewPersonMergePreview, "overwrites">,
+  checked: ReadonlySet<string>,
+): string[] {
+  return preview.overwrites.filter((k) => checked.has(k));
+}
+
+/** Email fields carry a caution: they decide where future surveys go. */
+export function isEmailField(fieldKey: string): boolean {
+  return /email/i.test(fieldKey.split(".").pop() ?? "");
+}
+
+export const EMAIL_CHANGE_CAUTION = "Changing an email changes where future surveys go.";
+
+export const DECEASED_MESSAGE = "This person is marked deceased";
+
+/**
+ * The approve result's `warnings`, in the reviewer's words. Unknown codes are
+ * shown as they came rather than dropped, so a new server warning is not lost.
+ */
+export function approveWarningsText(
+  warnings: readonly string[] | null | undefined,
+  submittedKind: NewPersonKind,
+): string[] {
+  return (warnings ?? []).map((w) =>
+    w === "kind_mismatch"
+      ? `Note: submitted as ${submittedKind === "friend" ? "a friend" : "an alum"} but merged into a record of the other kind.`
+      : `Note: ${w}`,
+  );
+}
+
+/* --------------------------------------------------- selection (round 2) -- */
+
+/** Most ids one bulk-reject call accepts. */
+export const BULK_REJECT_MAX = 500;
+
+export function toggleSelected(selected: ReadonlySet<number>, id: number): Set<number> {
+  const next = new Set(selected);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  return next;
+}
+
+/** "Select all": every id if any is unselected, otherwise none. */
+export function toggleAll(
+  selected: ReadonlySet<number>,
+  ids: readonly number[],
+): Set<number> {
+  return ids.length > 0 && ids.every((id) => selected.has(id)) ? new Set() : new Set(ids);
+}
+
+/** The selection limited to ids still in the queue, so a gone card can't be rejected. */
+export function pruneSelection(
+  selected: ReadonlySet<number>,
+  ids: readonly number[],
+): Set<number> {
+  const present = new Set(ids);
+  return new Set([...selected].filter((id) => present.has(id)));
+}
+
+/** Ids in chunks the bulk endpoint accepts (1–500 each). */
+export function bulkRejectChunks(ids: readonly number[]): number[][] {
+  const chunks: number[][] = [];
+  for (let i = 0; i < ids.length; i += BULK_REJECT_MAX) {
+    chunks.push(ids.slice(i, i + BULK_REJECT_MAX));
+  }
+  return chunks;
 }

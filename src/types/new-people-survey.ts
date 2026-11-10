@@ -76,6 +76,11 @@ export type NewPersonApproveRequest = {
   /** merge only (required for merge). */
   alumni_id: number | null;
   submitted_at: string;
+  /**
+   * merge only (round 2). A merge always fills BLANK fields; it replaces a
+   * POPULATED field only when its key is listed here. Default: fill blanks only.
+   */
+  overwrite_fields?: string[];
 };
 
 /** `POST /survey/new-people/submissions/{id}/approve` 200 response. */
@@ -83,4 +88,27 @@ export type NewPersonApproveResult = {
   alumni_id: number;
   created: boolean;
   duplicate_warnings: components["schemas"]["DuplicateWarning"][];
+  /** Round 2: e.g. "kind_mismatch" when the submitted kind differs from the record's. */
+  warnings?: string[];
 };
+
+/**
+ * `GET /survey/new-people/submissions/{id}/preview?alumni_id={id}` (round 2):
+ * what a MERGE into that record would change.
+ */
+export type NewPersonMergePreview = {
+  alumni_id: number;
+  /** The existing record's name. */
+  name: string;
+  deceased: boolean;
+  /** Only fields that would actually change. */
+  changes: components["schemas"]["SurveyChange"][];
+  /** Keys in `changes` whose `before` is non-blank: populated data a merge would replace. */
+  overwrites: string[];
+};
+
+/** `POST /survey/new-people/submissions/reject` body (1–500 ids). */
+export type NewPersonBulkRejectRequest = { submission_ids: number[] };
+
+/** `POST /survey/new-people/submissions/reject` response. */
+export type NewPersonBulkRejectResult = { rejected: number };
