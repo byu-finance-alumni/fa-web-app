@@ -15,6 +15,7 @@ import {
 } from "@/components/survey/new-people-screens";
 import {
   buildSubmitBody,
+  effectiveRequiredGroups,
   missingKeysFromError,
   pageIndexOfKey,
   pageSequence,
@@ -42,7 +43,9 @@ import type {
  * wrong, reissued or switched-off key is a 404 and reads "This survey link is
  * closed."
  *
- * Which fields are required comes from the GET, never from this file.
+ * Which fields are required comes from the GET, never from this file: the
+ * server's `required_fields`, plus Employment state when the employment country
+ * is in the server's `state_required_countries`.
  */
 type LoadState = "loading" | "ready" | "closed" | "failed";
 type Step = "intro" | "kind" | "wizard" | "submitted";
@@ -107,9 +110,14 @@ export default function NewPeopleSurveyPage({
   }, [key]);
 
   const pages = useMemo(() => pageSequence(kind), [kind]);
-  const groups = useMemo(
+  const serverGroups = useMemo(
     () => requiredGroupsFor(info?.required_fields, kind),
     [info, kind],
+  );
+  // Plus State when the employment country is the US (the server's list).
+  const groups = useMemo(
+    () => effectiveRequiredGroups(serverGroups, values, info?.state_required_countries),
+    [serverGroups, values, info],
   );
   const page = pages[Math.min(pageIndex, pages.length - 1)];
   const pageFields = useMemo(
@@ -279,7 +287,10 @@ export default function NewPeopleSurveyPage({
       )}
 
       {/* Every state, the closed link included, when a contact is set. */}
-      <SurveyContactLink contact={info?.support_contact ?? closedContact} />
+      <SurveyContactLink
+        contact={info?.support_contact ?? closedContact}
+        variant="newPeople"
+      />
     </SurveyPageShell>
   );
 }

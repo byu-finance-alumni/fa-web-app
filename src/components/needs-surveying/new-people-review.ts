@@ -53,8 +53,28 @@ export function kindLabel(kind: NewPersonKind): string {
   return kind === "alum" ? "BYU alum" : "Non-BYU professional (friend)";
 }
 
-export function matchReasonLabel(reason: NewPersonPossibleMatch["match_reason"]): string {
+/**
+ * Why a record is offered as a match. `byu_id` is accepted ahead of the
+ * generated enum (api#661 matches on an active record's BYU ID too), so a BYU
+ * ID match never reads as "Similar name".
+ */
+export function matchReasonLabel(
+  reason: NewPersonPossibleMatch["match_reason"] | "byu_id",
+): string {
+  if (reason === "byu_id") return "Same BYU ID";
   return reason === "email" ? "Same email" : "Similar name";
+}
+
+/**
+ * Labels the staff queue and merge preview always use for these keys. Every
+ * other key shows the server's label (or the raw key when it sent none).
+ */
+const STAFF_FIELD_LABELS: Readonly<Record<string, string>> = {
+  "new.byu_id": "BYU ID",
+};
+
+export function submissionFieldLabel(fieldKey: string, serverLabel?: string | null): string {
+  return STAFF_FIELD_LABELS[fieldKey] ?? ((serverLabel ?? "").trim() || fieldKey);
 }
 
 /** The match's profile page: friends live under /friends, alumni under /alumni. */

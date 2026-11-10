@@ -9,8 +9,8 @@
  * The QUESTIONS are not redefined here. Every field is looked up by key in the
  * live survey's own lists (`INFO_SECTIONS`, `ENGAGEMENT_SECTION`), so a label,
  * kind or rule changed there changes here too. The only fields this file
- * defines are the two the existing survey has no use for: `new.graduation_year`
- * and `new.byu_degree`, asked of the BYU-alum path only.
+ * defines are the three the existing survey has no use for: `new.graduation_year`,
+ * `new.byu_degree` and the optional `new.byu_id`, asked of the BYU-alum path only.
  *
  * WHICH FIELDS ARE REQUIRED is not decided here either. It comes from the
  * server's `required_fields[kind]` (ANY-OF groups) on every load, and nothing in
@@ -55,8 +55,13 @@ export const NEW_PERSON_KIND_OPTIONS: readonly { kind: NewPersonKind; label: str
 
 export const NEW_GRADUATION_YEAR_KEY = "new.graduation_year";
 export const NEW_BYU_DEGREE_KEY = "new.byu_degree";
+/** Optional, BYU path only. Sent digits-only; the backend validates again. */
+export const NEW_BYU_ID_KEY = "new.byu_id";
 
-/** The two questions only this survey asks. */
+export const EMPLOYMENT_COUNTRY_KEY = "employment.current_country";
+export const EMPLOYMENT_STATE_KEY = "employment.current_state";
+
+/** The questions only this survey asks. */
 export const NEW_EDUCATION_FIELDS: EditField[] = [
   {
     key: NEW_GRADUATION_YEAR_KEY,
@@ -69,6 +74,12 @@ export const NEW_EDUCATION_FIELDS: EditField[] = [
     label: "BYU degree",
     kind: "text",
     placeholder: "e.g. BS Finance, MBA",
+  },
+  {
+    key: NEW_BYU_ID_KEY,
+    label: "BYU ID (optional)",
+    kind: "text",
+    helpText: "9 digits, if you know it.",
   },
 ];
 
@@ -210,6 +221,51 @@ function labelFor(key: string): string {
   return all.find((f) => f.key === key)?.label ?? key;
 }
 
+/**
+ * Whether a country answer is the United States, per the server's
+ * `state_required_countries` (lower-case). Trimmed and case-insensitive; the
+ * list itself is never hard-coded here.
+ */
+export function isStateRequiredCountry(
+  country: string | null | undefined,
+  stateRequiredCountries: readonly string[] | null | undefined,
+): boolean {
+  const c = (country ?? "").trim().toLowerCase();
+  if (!c) return false;
+  return (stateRequiredCountries ?? []).some((x) => x.trim().toLowerCase() === c);
+}
+
+/**
+ * The server's groups plus `[employment.current_state]` when the chosen
+ * employment country is the US. Feeds both the "*" markers and Next/Submit
+ * validation, so the State question turns required the moment the country does.
+ */
+export function effectiveRequiredGroups(
+  groups: string[][],
+  values: Fields,
+  stateRequiredCountries: readonly string[] | null | undefined,
+): string[][] {
+  if (!isStateRequiredCountry(values[EMPLOYMENT_COUNTRY_KEY], stateRequiredCountries)) {
+    return groups;
+  }
+  if (groups.some((g) => g.length === 1 && g[0] === EMPLOYMENT_STATE_KEY)) return groups;
+  return [...groups, [EMPLOYMENT_STATE_KEY]];
+}
+
+/** A BYU ID with spaces and dashes removed. */
+export function normalizeByuId(value: string): string {
+  return value.replace(/[\s-]/g, "");
+}
+
+export const BYU_ID_FORMAT_MESSAGE = "BYU ID must be 9 digits.";
+
+/** Blank is "not given"; otherwise exactly 9 digits once spaces and dashes go. */
+export function validateByuId(value: string): string | null {
+  const v = normalizeByuId(value);
+  if (!v) return null;
+  return /^\d{9}$/.test(v) ? null : BYU_ID_FORMAT_MESSAGE;
+}
+
 function labelsFor(keys: string[]): string[] {
   return keys.map(labelFor);
 }
@@ -261,7 +317,9 @@ export function validatePage(
     const msg =
       f.key === NEW_GRADUATION_YEAR_KEY
         ? validateGraduationYear(value)
-        : validateSurveyField(f, value, null);
+        : f.key === NEW_BYU_ID_KEY
+          ? validateByuId(value)
+          : validateSurveyField(f, value, null);
     if (msg) errors[f.key] = msg;
   }
   return errors;
@@ -295,7 +353,8 @@ export function buildSubmitBody({
 }): NewPersonSubmitRequest {
   const fields: Record<string, string> = {};
   for (const key of fieldKeysFor(kind)) {
-    const v = (values[key] ?? "").trim();
+    const raw = (values[key] ?? "").trim();
+    const v = key === NEW_BYU_ID_KEY ? normalizeByuId(raw) : raw;
     if (v) fields[key] = v;
   }
   return {
@@ -348,7 +407,12 @@ export function submitErrorMessage(
 ): string {
   switch (status) {
     case 422: {
-      const missing = missingKeysFromError(body, kind);
+      const named = missingKeysFromError(body, kind);
+      // A BYU ID is never required, so its 422 is a format complaint, not "fill in".
+      const missing = named.filter((k) => k !== NEW_BYU_ID_KEY);
+      if (named.includes(NEW_BYU_ID_KEY) && missing.length === 0) {
+        return `${BYU_ID_FORMAT_MESSAGE} Use Back to return to that question.`;
+      }
       if (missing.length > 0) {
         return `Please fill in: ${labelsFor(missing).join(", ")}. Use Back to return to those questions.`;
       }

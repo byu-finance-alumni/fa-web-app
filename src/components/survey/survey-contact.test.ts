@@ -9,6 +9,8 @@ import {
   SURVEY_CONTACT_PROMPT,
   SURVEY_CONTACT_SUBJECT,
   isPlausibleEmail,
+  NEW_PEOPLE_CONTACT_PROMPT,
+  newPeopleContactLinkText,
   surveyContactFrom,
   surveyContactLinkText,
   surveyContactMailtoHref,
@@ -319,6 +321,23 @@ describe("the prompt covers opting out, not just asking a question", () => {
         "utf8",
       );
       expect(source.toLowerCase()).not.toContain("unsubscribe");
+    }
+  });
+});
+
+describe("the new-people survey's footer (api#661)", () => {
+  it('reads "Questions? Email <name>" with the same contact', () => {
+    const contact = surveyContactFrom({ name: "Tanya Harmon", email: "tharmon@byu.edu" })!;
+    expect(`${NEW_PEOPLE_CONTACT_PROMPT} ${newPeopleContactLinkText(contact)}`).toBe(
+      "Questions? Email Tanya Harmon",
+    );
+  });
+
+  it("is used on the new-people page only; the normal survey keeps its wording", () => {
+    const newPage = read("src/app/survey/new/[key]/page.tsx");
+    expect(newPage).toContain('variant="newPeople"');
+    for (const rel of ["src/app/survey/[token]/page.tsx", "src/app/survey/[token]/help/page.tsx"]) {
+      expect(read(rel)).not.toContain("newPeople");
     }
   });
 });
