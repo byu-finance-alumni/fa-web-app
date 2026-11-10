@@ -5743,6 +5743,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/survey/new-people/invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invite New People
+         * @description Email the shared new-people survey link to pasted addresses.
+         */
+        post: operations["invite_new_people_survey_new_people_invite_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/survey/new-people/submissions": {
         parameters: {
             query?: never;
@@ -9842,6 +9862,34 @@ export interface components {
         NewPeopleBulkRejectResult: {
             /** Rejected */
             rejected: number;
+        };
+        /**
+         * NewPeopleInviteRequest
+         * @description ``POST /survey/new-people/invite``: the raw pasted text.
+         */
+        NewPeopleInviteRequest: {
+            /** Emails */
+            emails: string;
+        };
+        /**
+         * NewPeopleInviteResult
+         * @description Who was emailed, and who was skipped and why.
+         */
+        NewPeopleInviteResult: {
+            /** Sent */
+            sent: number;
+            /** Sent To */
+            sent_to: string[];
+            /** Skipped */
+            skipped: {
+                /** Email */
+                email: string;
+                /**
+                 * Reason
+                 * @enum {string}
+                 */
+                reason: "invalid" | "duplicate" | "in_database" | "recently_invited";
+            }[];
         };
         /**
          * NewPeopleLinkRead
@@ -19096,6 +19144,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NewPeopleLinkRead"];
+                };
+            };
+        };
+    };
+    invite_new_people_survey_new_people_invite_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewPeopleInviteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewPeopleInviteResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
