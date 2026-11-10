@@ -5688,8 +5688,9 @@ export interface paths {
          *     * Honeypot (``website``) filled: 200 ``{"received": true}`` and NOTHING is
          *       stored, so a bot learns nothing from the response.
          *     * Over the survey's size caps: 413, nothing stored.
-         *     * A required group unanswered (or answered with a value the survey refuses):
-         *       422 naming the field keys.
+         *     * A required group unanswered (or answered with a value the survey refuses),
+         *       no state for a US country, or a BYU ID that is not 9 digits: 422 naming
+         *       the field keys.
          *     * Holding queue full: 429, nothing stored.
          */
         post: operations["new_people_survey_submit_survey_new__key__post"];
@@ -9948,9 +9949,9 @@ export interface components {
          */
         NewPeopleSurveyInfo: {
             required_fields: components["schemas"]["NewPeopleRequiredFields"];
-            support_contact: components["schemas"]["SurveySupportContact"] | null;
             /** State Required Countries */
             state_required_countries: string[];
+            support_contact: components["schemas"]["SurveySupportContact"] | null;
         };
         /**
          * NewPersonApproveRequest
@@ -10015,7 +10016,8 @@ export interface components {
         };
         /**
          * NewPersonPossibleMatch
-         * @description A live record that may be the same person (email or first + last name).
+         * @description A live record that may be the same person (same BYU ID, email, or
+         *     first + last name).
          */
         NewPersonPossibleMatch: {
             /** Alumni Id */
@@ -10030,7 +10032,7 @@ export interface components {
              * Match Reason
              * @enum {string}
              */
-            match_reason: "email" | "name";
+            match_reason: "byu_id" | "email" | "name";
         };
         /**
          * NewPersonSubmissionField
