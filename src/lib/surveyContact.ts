@@ -139,3 +139,16 @@ export const SURVEY_CONTACT_PROMPT =
 export function surveyContactLinkText(contact: SurveyContact): string {
   return `email ${contact.name}`;
 }
+
+/**
+ * The NEW-PEOPLE survey's footer (api#661, Jake 2026-11-10): "Questions? Email
+ * Tanya Harmon". Those respondents are not on any mailing yet, so the normal
+ * survey's opt-out sentence above does not apply to them. Same contact, same
+ * mailto, same "nothing when unset" rule — only the words differ.
+ */
+export const NEW_PEOPLE_CONTACT_PROMPT = "Questions?";
+
+/** "Email Tanya Harmon" — capitalised, as it starts its own sentence. */
+export function newPeopleContactLinkText(contact: SurveyContact): string {
+  return `Email ${contact.name}`;
+}
