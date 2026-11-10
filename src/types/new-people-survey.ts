@@ -20,3 +20,6 @@ export type NewPersonApproveResult = Schema<"NewPersonApproveResult">;
 export type NewPersonMergePreview = Schema<"NewPersonMergePreview">;
 export type NewPersonBulkRejectRequest = Schema<"NewPeopleBulkRejectRequest">;
 export type NewPersonBulkRejectResult = Schema<"NewPeopleBulkRejectResult">;
+export type NewPeopleInviteRequest = Schema<"NewPeopleInviteRequest">;
+export type NewPeopleInviteResult = Schema<"NewPeopleInviteResult">;
+export type NewPeopleInviteSkipReason = NewPeopleInviteResult["skipped"][number]["reason"];

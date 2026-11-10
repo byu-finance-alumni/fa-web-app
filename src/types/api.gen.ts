@@ -5854,6 +5854,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/survey/new-people/invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invite New People
+         * @description Email the shared survey link to the pasted addresses (one email each).
+         *
+         *     * 422: nothing to send to, or more than 50 unique addresses.
+         *     * 409: the link is off; the send does not fit the shared Resend budget
+         *       (nothing is sent, never a partial send); or a survey send holds the
+         *       shared send lock.
+         *     * 502: Resend did not accept the batch. Nothing was sent and nothing is
+         *       recorded.
+         *     * 200 with ``sent=0`` when every address was skipped.
+         *
+         *     One audit row per send with the COUNTS only, never an address.
+         */
+        post: operations["invite_new_people_survey_new_people_invite_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -9842,6 +9872,43 @@ export interface components {
         NewPeopleBulkRejectResult: {
             /** Rejected */
             rejected: number;
+        };
+        /**
+         * NewPeopleInviteRequest
+         * @description ``POST /survey/new-people/invite``: the raw pasted text. Addresses may be
+         *     separated by any mix of commas, semicolons, spaces and new lines.
+         */
+        NewPeopleInviteRequest: {
+            /** Emails */
+            emails: string;
+        };
+        /**
+         * NewPeopleInviteResult
+         * @description What the invite send did. ``sent_to`` holds the normalised (trimmed,
+         *     lower-cased) addresses actually emailed. ``skipped`` reports every address
+         *     that was not emailed, once, with its reason; an address listed twice is
+         *     emailed once AND reported once as ``duplicate``.
+         */
+        NewPeopleInviteResult: {
+            /** Sent */
+            sent: number;
+            /** Sent To */
+            sent_to: string[];
+            /** Skipped */
+            skipped: components["schemas"]["NewPeopleInviteSkipped"][];
+        };
+        /**
+         * NewPeopleInviteSkipped
+         * @description One pasted address that was NOT emailed, and why.
+         */
+        NewPeopleInviteSkipped: {
+            /** Email */
+            email: string;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "invalid" | "duplicate" | "in_database" | "recently_invited";
         };
         /**
          * NewPeopleLinkRead
@@ -19238,6 +19305,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    invite_new_people_survey_new_people_invite_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewPeopleInviteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewPeopleInviteResult"];
+                };
             };
             /** @description Validation Error */
             422: {

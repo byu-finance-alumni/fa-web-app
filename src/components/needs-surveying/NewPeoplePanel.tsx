@@ -6,6 +6,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogBody,
@@ -37,7 +39,16 @@ import {
   mergeButtonLabel,
   type NewPersonDecision,
 } from "@/components/needs-surveying/new-people-review";
+import {
+  INVITE_MAX_CHARS,
+  groupSkipped,
+  inviteConfirmText,
+  inviteCount,
+  inviteSentText,
+} from "@/components/needs-surveying/new-people-invite";
 import type {
+  NewPeopleInviteRequest,
+  NewPeopleInviteResult,
   NewPeopleLinkRead,
   NewPersonApproveResult,
   NewPersonBulkRejectRequest,
@@ -56,9 +67,13 @@ import type {
  * backend as well. No icons: text buttons only.
  */
 export function NewPeoplePanel() {
+  // The link card owns the fetch; the email card only needs to know whether
+  // the link is on (null while it loads or if it failed to load).
+  const [linkEnabled, setLinkEnabled] = useState<boolean | null>(null);
   return (
     <div className="space-y-4">
-      <NewPeopleLinkCard />
+      <NewPeopleLinkCard onEnabledChange={setLinkEnabled} />
+      <NewPeopleInviteCard linkEnabled={linkEnabled} />
       <NewPeopleQueue />
     </div>
   );
@@ -70,7 +85,11 @@ function errorText(err: unknown): string {
 
 /* ------------------------------------------------------------ link card -- */
 
-function NewPeopleLinkCard() {
+function NewPeopleLinkCard({
+  onEnabledChange,
+}: {
+  onEnabledChange: (enabled: boolean | null) => void;
+}) {
   const { toast } = useToast();
   const [link, setLink] = useState<NewPeopleLinkRead | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -90,6 +109,11 @@ function NewPeopleLinkCard() {
       cancelled = true;
     };
   }, []);
+
+  const enabled = link ? link.enabled : null;
+  useEffect(() => {
+    onEnabledChange(enabled);
+  }, [enabled, onEnabledChange]);
 
   // Read at render: the link only exists after the client-side fetch, so this
   // never runs during the server render.
@@ -142,8 +166,9 @@ function NewPeopleLinkCard() {
       <header className="border-b border-gray-200 px-5 py-3">
         <h2 className="text-sm font-semibold text-gray-900">New people survey link</h2>
         <p className="mt-0.5 text-xs text-gray-500">
-          One link for alumni and professionals who aren&apos;t in the database yet. Email it
-          yourself. Answers wait in the queue below; nobody is added until you approve them.
+          One link for alumni and professionals who aren&apos;t in the database yet. Copy it,
+          or email it from the card below. Answers wait in the queue; nobody is added until you
+          approve them.
         </p>
       </header>
       <div className="space-y-4 p-5">
@@ -240,6 +265,138 @@ function NewPeopleLinkCard() {
             </Button>
             <Button type="button" variant="destructive" size="sm" onClick={reissue} disabled={busy}>
               {busy ? "Making…" : "Make a new link"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------ email the link -- */
+
+/**
+ * "Email the link": staff paste addresses and the server emails each one the
+ * survey link. The server validates, dedupes and skips (already in the
+ * database, invited in the last 30 days) and reports every skip back; the
+ * count in the confirm dialog is only a rough client-side count of unique
+ * tokens.
+ */
+function NewPeopleInviteCard({ linkEnabled }: { linkEnabled: boolean | null }) {
+  const [text, setText] = useState("");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<NewPeopleInviteResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const count = inviteCount(text);
+  const linkOff = linkEnabled === false;
+  const canSend = count > 0 && !sending && linkEnabled === true;
+
+  const send = async () => {
+    setSending(true);
+    setError(null);
+    setResult(null);
+    try {
+      const body: NewPeopleInviteRequest = { emails: text };
+      const res = await clientPostJson<NewPeopleInviteResult>("/survey/new-people/invite", body);
+      setResult(res);
+      setText("");
+      setConfirmOpen(false);
+    } catch (err) {
+      setError(errorText(err));
+      setConfirmOpen(false);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const groups = result ? groupSkipped(result.skipped) : [];
+
+  return (
+    <Card className="overflow-hidden">
+      <header className="border-b border-gray-200 px-5 py-3">
+        <h2 className="text-sm font-semibold text-gray-900">Email the link</h2>
+      </header>
+      <div className="space-y-3 p-5">
+        <div className="space-y-1.5">
+          <Label htmlFor="new-people-invite-emails">Email addresses</Label>
+          <Textarea
+            id="new-people-invite-emails"
+            value={text}
+            maxLength={INVITE_MAX_CHARS}
+            onChange={(e) => setText(e.target.value)}
+            disabled={sending}
+            rows={4}
+            aria-describedby="new-people-invite-help"
+          />
+          <p id="new-people-invite-help" className="text-xs text-gray-500">
+            Paste one or more, separated by commas or new lines. Up to 50 at a time.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Button type="button" size="sm" onClick={() => setConfirmOpen(true)} disabled={!canSend}>
+            {sending ? "Sending…" : "Send"}
+          </Button>
+          {linkOff ? (
+            <span className="text-xs text-gray-500">Turn the link on to send it.</span>
+          ) : null}
+        </div>
+
+        {error ? <p className="text-sm text-danger-600">{error}</p> : null}
+
+        {result ? (
+          <div className="space-y-2 text-sm">
+            <p className="font-medium text-gray-900">{inviteSentText(result.sent)}</p>
+            {groups.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-gray-600">Not sent:</p>
+                {groups.map((g) => (
+                  <div key={g.reason}>
+                    <p className="text-xs font-medium text-gray-700">
+                      {g.label} ({g.emails.length})
+                    </p>
+                    <ul className="mt-0.5 space-y-0.5 text-xs text-gray-600">
+                      {g.emails.map((email, i) => (
+                        <li key={`${email}-${i}`} className="break-all font-mono">
+                          {email}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+
+      <Dialog
+        open={confirmOpen}
+        onOpenChange={(open) => {
+          if (!sending) setConfirmOpen(open);
+        }}
+      >
+        <DialogContent title={inviteConfirmText(count)}>
+          <DialogBody className="text-sm text-gray-600">
+            <p>
+              Each address gets one email with the survey link. Addresses already in the database
+              or sent in the last 30 days are skipped.
+            </p>
+          </DialogBody>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setConfirmOpen(false)}
+              disabled={sending}
+            >
+              Cancel
+            </Button>
+            <Button type="button" size="sm" onClick={send} disabled={sending}>
+              {sending ? "Sending…" : "Send"}
             </Button>
           </DialogFooter>
         </DialogContent>
