@@ -103,6 +103,8 @@ const MAXIMAL: AlumniFilterState = {
   designations: ["CFA", "CFP"],
   gender: "F",
   industryGroup: "other",
+  secondaryIndustryGroup: ["Healthcare", "Law"],
+  noSecondaryIndustry: true,
   commentFilter: "survey_comment",
   contactedAfter: "2024-01-01",
   contactedBefore: "2026-01-01",
@@ -638,6 +640,8 @@ function exportBodyAsParams(e: AlumniExportFilters): URLSearchParams {
   text("grad_year_max", e.grad_year_max);
   text("gender", e.gender);
   text("industry_group", e.industry_group);
+  multi("secondary_industry_group", e.secondary_industry_group);
+  flag("no_secondary_industry", e.no_secondary_industry);
   text("contacted_after", e.contacted_after);
   text("contacted_before", e.contacted_before);
   multi("employer", e.employer);
@@ -738,6 +742,8 @@ const SINGLE_FILTERS: [string, Partial<AlumniFilterState>][] = [
   ["grad year range", { ymin: "2008", ymax: "2015" }],
   ["gender", { gender: "F" }],
   ["industry_group", { industryGroup: "other" }],
+  ["secondary_industry_group", { secondaryIndustryGroup: ["Healthcare"] }],
+  ["no_secondary_industry", { noSecondaryIndustry: true }],
   ["comment_filter survey", { commentFilter: "survey_comment" }],
   ["comment_filter any note", { commentFilter: "any_note" }],
   ["contacted_after", { contactedAfter: "2024-01-01" }],

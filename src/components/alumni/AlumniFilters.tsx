@@ -262,6 +262,25 @@ export function AlumniFilters({
       remove: () => set("industryGroup", ""),
     });
   }
+  // fa-web-app#936: a row of the dashboard's Other table. "group" because it
+  // matches every spelling of the name (Healthcare - Biotech, healthcare
+  // services, ...), unlike the exact-match Secondary industry facet above.
+  for (const v of f.secondaryIndustryGroup) {
+    chips.push({
+      label: `Secondary industry group: ${v}`,
+      remove: () =>
+        set(
+          "secondaryIndustryGroup",
+          f.secondaryIndustryGroup.filter((x) => x !== v),
+        ),
+    });
+  }
+  if (f.noSecondaryIndustry) {
+    chips.push({
+      label: "No secondary industry",
+      remove: () => set("noSecondaryIndustry", false),
+    });
+  }
   if (f.ymin || f.ymax) {
     chips.push({
       label: `Grad year: ${f.ymin || "…"}–${f.ymax || "…"}`,

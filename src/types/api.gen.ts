@@ -1681,6 +1681,37 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/dashboard/other-industries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Other Industries
+         * @description The people in the industry chart's "Other" bar, grouped by SECONDARY
+         *     industry (fa-web-app#936). Aggregate counts only, like ``/summary``.
+         *
+         *     The population is ``build_alumni_query(industry_group="other")`` — the very
+         *     statement the alumni list runs for ``?industry_group=other`` — so the rows
+         *     sum to that list's total. Each stored secondary value is folded into its
+         *     group by ``secondary_industry_groups``, the same grouper the list's
+         *     ``secondary_industry_group`` / ``no_secondary_industry`` filters resolve
+         *     through, so a row's count equals the list (and CSV) it links to.
+         *
+         *     current_employment is unique per alumnus, so grouping on its secondary
+         *     column counts each person exactly once.
+         */
+        get: operations["other_industries_dashboard_other_industries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dashboard/birthdays": {
         parameters: {
             query?: never;
@@ -6323,6 +6354,13 @@ export interface components {
             industry: string[] | null;
             /** Secondary Industry */
             secondary_industry: string[] | null;
+            /** Secondary Industry Group */
+            secondary_industry_group: string[] | null;
+            /**
+             * No Secondary Industry
+             * @default false
+             */
+            no_secondary_industry: boolean;
             /** Title */
             title: string[] | null;
             /** Seniority */
@@ -10497,6 +10535,41 @@ export interface components {
             details: string | null;
         };
         /**
+         * OtherSecondaryIndustries
+         * @description ``GET /dashboard/other-industries``: the people in the "Other" bar,
+         *     grouped by secondary industry, highest count first. ``total`` is the sum of
+         *     the rows — the size of the ``industry_group=other`` population.
+         */
+        OtherSecondaryIndustries: {
+            /** Total */
+            total: number;
+            /** Rows */
+            rows: components["schemas"]["OtherSecondaryIndustryRow"][];
+        };
+        /**
+         * OtherSecondaryIndustryRow
+         * @description One row of the dashboard "Other" table (fa-web-app#936).
+         *
+         *     ``name`` is the clean display name ("Healthcare", "Law", or "No secondary
+         *     industry"). To open the alumni in this row, the client sends
+         *     ``industry_group=other`` plus ``secondary_industry_group=<group>`` — or
+         *     ``no_secondary_industry=true`` when ``no_secondary`` is set (``group`` is
+         *     then null).
+         */
+        OtherSecondaryIndustryRow: {
+            /** Name */
+            name: string;
+            /** Group */
+            group: string | null;
+            /**
+             * No Secondary
+             * @default false
+             */
+            no_secondary: boolean;
+            /** Count */
+            count: number;
+        };
+        /**
          * OutreachGroupKey
          * @description One Outreach landing page.
          * @enum {string}
@@ -12621,6 +12694,10 @@ export interface operations {
                 industry?: string[] | null;
                 /** @description SECONDARY industry / work area (#584) — repeatable (OR), exact match. Combined with 'industry' it AND-s: primary is X AND secondary is Y. */
                 secondary_industry?: string[] | null;
+                /** @description SECONDARY industry GROUP (fa-web-app#936) — repeatable (OR). Matches every stored spelling that folds into the named group: case and spacing are ignored, detail after ' - ', ':', ',' or '(' is dropped, a known name followed by more words folds into it, and anything starting with 'Healthcare' is Healthcare. The same grouping the dashboard's Other table counts with. */
+                secondary_industry_group?: string[] | null;
+                /** @description Only alumni with NO current secondary industry (blank or unset) — the 'No secondary industry' row of the dashboard's Other table (fa-web-app#936). OR-ed with 'secondary_industry_group' when both are given. */
+                no_secondary_industry?: boolean;
                 /** @description Current job title(s) — repeatable, exact match. */
                 title?: string[] | null;
                 /** @description Seniority level(s) — repeatable, exact match. */
@@ -14319,6 +14396,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DashboardSummary"];
+                };
+            };
+        };
+    };
+    other_industries_dashboard_other_industries_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OtherSecondaryIndustries"];
                 };
             };
         };
