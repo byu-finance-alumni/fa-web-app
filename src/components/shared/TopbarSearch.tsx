@@ -1,6 +1,7 @@
 "use client";
 
-import Link from "next/link";
+import { useProfileHref } from "@/hooks/useReturnTo";
+import { ProfileLink } from "@/components/shared/ProfileLink";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Search } from "lucide-react";
@@ -40,6 +41,8 @@ export function TopbarSearch({
   fullWidth?: boolean;
 }) {
   const router = useRouter();
+  // Carries this page as `?from=` so the profile's Back returns here (#937).
+  const profileHref = useProfileHref();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -111,7 +114,7 @@ export function TopbarSearch({
 
   function goToProfile(a: Alumni) {
     setOpen(false);
-    router.push(`/alumni/${a.alumni_id}`);
+    router.push(profileHref(`/alumni/${a.alumni_id}`));
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -198,7 +201,7 @@ export function TopbarSearch({
                   role="option"
                   aria-selected={i === active}
                 >
-                  <Link
+                  <ProfileLink
                     href={`/alumni/${a.alumni_id}`}
                     onClick={() => setOpen(false)}
                     onMouseEnter={() => setActive(i)}
@@ -217,7 +220,7 @@ export function TopbarSearch({
                       )}
                       {a.graduation_year ? `Class of ${a.graduation_year}` : ""}
                     </span>
-                  </Link>
+                  </ProfileLink>
                 </li>
               ))}
               {total > matches.length && (

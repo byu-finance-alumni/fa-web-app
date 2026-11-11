@@ -135,10 +135,19 @@ export function TopNav({
             shell shows the same lockup with a different descriptor and no link,
             since a stranger with a survey token has nowhere in the app to go. */}
         <Link href="/dashboard" className="shrink-0">
-          <BrandWordmark trail="Alumni Database" />
+          <BrandWordmark trail="Finance Alumni Database" />
         </Link>
 
-        <nav ref={navRef} className="ml-auto flex min-w-0 items-center gap-8">
+        {/* #935 — the longer "Finance Alumni Database" title is ~96px wider.
+            Measured with Inter: an engineer's full seven-entry menu then ran
+            ~70px past its box at 1280px and painted under Search. So below
+            1366px the links close up to 20px apart (and the right group to
+            24px), which fits with room to spare; from 1366px up the original
+            32px gaps return. The type size is unchanged. */}
+        <nav
+          ref={navRef}
+          className="ml-auto flex min-w-0 items-center gap-5 min-[1366px]:gap-8"
+        >
           {visibleNav.map((item) => {
             if (!isGroup(item)) {
               const active = item.href === activeHref;
@@ -236,7 +245,7 @@ export function TopNav({
         {/* Search sits between the links and Sign out (Jake, 2026-08-22). It is
             a control, not a destination, so it keeps the links' 32px gap on its
             left and rides in the same group as Sign out on its right. */}
-        <div className="ml-8 flex shrink-0 items-center gap-3">
+        <div className="ml-6 flex shrink-0 items-center gap-3 min-[1366px]:ml-8">
           <NavSearch />
           <SignOutButton onDark />
         </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useProfileHref } from "@/hooks/useReturnTo";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { clientGet } from "@/lib/api-client";
@@ -28,6 +29,8 @@ export function QuickLogButton({
   label: string;
 }) {
   const router = useRouter();
+  // Carries this page as `?from=` so the profile's Back returns here (#937).
+  const profileHref = useProfileHref();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [results, setResults] = useState<Alumni[]>([]);
@@ -68,7 +71,7 @@ export function QuickLogButton({
 
   const pick = (a: Alumni) => {
     setOpen(false);
-    router.push(`/alumni/${a.alumni_id}?log=${kind}`);
+    router.push(profileHref(`/alumni/${a.alumni_id}?log=${kind}`));
   };
 
   return (

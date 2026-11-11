@@ -29,6 +29,9 @@ import { toExportFilters } from "@/lib/exportFilters";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+  // Profile links read the current URL to carry it as `?from=` (#937).
+  usePathname: () => "/alumni",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 const DEEP_LINK = {

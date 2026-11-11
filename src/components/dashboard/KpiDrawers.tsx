@@ -1,7 +1,7 @@
 "use client";
 
+import { ProfileLink } from "@/components/shared/ProfileLink";
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { X } from "lucide-react";
 import { clientGet } from "@/lib/api-client";
 import { MetricCard } from "@/components/shared/MetricCard";
@@ -167,7 +167,7 @@ function KpiDrawer({
               <ul className="divide-y divide-gray-100">
                 {(rows as ContactedRow[]).map((r) => (
                   <li key={r.interaction_id} className="py-2">
-                    <Link
+                    <ProfileLink
                       href={`/alumni/${r.alumni_id}`}
                       className="block hover:opacity-80"
                     >
@@ -179,7 +179,7 @@ function KpiDrawer({
                           .filter(Boolean)
                           .join(" · ")}
                       </p>
-                    </Link>
+                    </ProfileLink>
                   </li>
                 ))}
               </ul>
@@ -187,7 +187,7 @@ function KpiDrawer({
               <ul className="divide-y divide-gray-100">
                 {(rows as FollowUpRow[]).map((r) => (
                   <li key={r.task_id} className="py-2">
-                    <Link
+                    <ProfileLink
                       href={`/alumni/${r.alumni_id}`}
                       className="block hover:opacity-80"
                     >
@@ -203,7 +203,7 @@ function KpiDrawer({
                           .filter(Boolean)
                           .join(" · ")}
                       </p>
-                    </Link>
+                    </ProfileLink>
                   </li>
                 ))}
               </ul>
