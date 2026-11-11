@@ -83,6 +83,17 @@ describe("sample survey parity with the real survey", () => {
     expect(secondary).not.toBe(industry);
   });
 
+  it("offers Not in the Labor Force as a secondary industry only (api#673)", () => {
+    // Jake, 2026-11-11: the survey shows it too, on the SECONDARY dropdown. The
+    // sample survey renders the same screens, so it offers it as well.
+    expect(SURVEY_SECONDARY_INDUSTRY_OPTIONS).toContain("Not in the Labor Force");
+    expect(SURVEY_INDUSTRY_OPTIONS).not.toContain("Not in the Labor Force");
+    const secondaryField = INFO_SECTIONS.flatMap((s) => s.fields).find(
+      (f) => f.key === "employment.current_industry_secondary",
+    );
+    expect(secondaryField?.kind).toBe("secondaryIndustry");
+  });
+
   it("never surfaces birth_name — maiden names live in middle_name", () => {
     expect(valueFields.some((f) => f.key.includes("birth_name"))).toBe(false);
     expect(SURVEY_FIELD_BY_KEY["profile.birth_name"]).toBeUndefined();
