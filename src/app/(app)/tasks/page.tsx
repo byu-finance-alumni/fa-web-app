@@ -1,3 +1,4 @@
+import { ProfileLink } from "@/components/shared/ProfileLink";
 import Link from "next/link";
 import { ScrollToTopOnPageChange } from "@/components/shared/ScrollToTopOnPageChange";
 import { apiGet, ApiError } from "@/lib/api";
@@ -151,7 +152,7 @@ export default async function TasksPage({
             {/* Mobile: stacked cards */}
             <div className="space-y-2 md:hidden">
               {data!.items.map((t) => (
-                <Link
+                <ProfileLink
                   key={t.follow_up_task_id}
                   href={`/alumni/${t.alumni_id}`}
                   className="block rounded-lg border border-gray-200 bg-white p-3 shadow-card"
@@ -171,7 +172,7 @@ export default async function TasksPage({
                     {t.due_date ? `Due ${fmtDate(t.due_date)}` : "No due date"}
                     {t.assigned_to ? ` · ${t.assigned_to}` : ""}
                   </p>
-                </Link>
+                </ProfileLink>
               ))}
             </div>
 
@@ -201,12 +202,12 @@ export default async function TasksPage({
                         )}
                       </td>
                       <td className="px-4 py-2.5">
-                        <Link
+                        <ProfileLink
                           href={`/alumni/${t.alumni_id}`}
                           className="font-medium text-brand-blue-600 hover:underline"
                         >
                           {t.alumni_name ?? `Alumni #${t.alumni_id}`}
-                        </Link>
+                        </ProfileLink>
                       </td>
                       <td
                         className={

@@ -1,3 +1,4 @@
+import { ProfileLink } from "@/components/shared/ProfileLink";
 import Link from "next/link";
 import { ScrollToTopOnPageChange } from "@/components/shared/ScrollToTopOnPageChange";
 import { apiGet, ApiError } from "@/lib/api";
@@ -166,12 +167,12 @@ export default async function ActivityPage({
                         {fmtWhen(r.when)}
                       </td>
                       <td className="px-4 py-2.5">
-                        <Link
+                        <ProfileLink
                           href={`/alumni/${r.alumni_id}`}
                           className="font-medium text-brand-blue-600 hover:underline"
                         >
                           {r.alumni_name}
-                        </Link>
+                        </ProfileLink>
                       </td>
                       <td className="px-4 py-2.5">
                         {r.type ? (

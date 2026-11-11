@@ -29,6 +29,12 @@
  * to "what do you do", and people scan for it under M. It was added because a
  * service member had no industry that fit and had to be recorded as Other or
  * Unknown, which dropped them out of the dashboard industry breakdown.
+ *
+ * "Not in the Labor Force" (api#673, Jake 2026-11-11) heads the pinned tail,
+ * above "Unknown". It is SECONDARY-only (see `PRIMARY_EXCLUDED_INDUSTRIES`):
+ * the server stores a job whose company is "Not in the Labor Force" as industry
+ * Other + secondary "Not in the Labor Force", so the secondary dropdowns (staff
+ * and survey) must offer it.
  */
 export const INDUSTRY_OPTIONS = [
   "Asset Management",
@@ -52,6 +58,7 @@ export const INDUSTRY_OPTIONS = [
   "Valuation & Advisory",
   "Venture Capital",
   "Wealth Management",
+  "Not in the Labor Force",
   "Unknown",
   "Graduate Student",
   "Other",
@@ -74,6 +81,9 @@ export type Industry = (typeof INDUSTRY_OPTIONS)[number];
  * handful of records holding it as primary are moved by hand-run prod SQL, not
  * by this list.
  *
+ * "Not in the Labor Force" joined on 2026-11-11 (api#673): it only ever appears
+ * as the secondary industry of a job whose company says so (industry Other).
+ *
  * A record that already STORES one of these as its primary stays valid — the
  * backend still accepts them on write, and the dropdown re-adds the stored
  * value via `withValue()` (staff forms) or the survey's on-file option, so
@@ -85,6 +95,7 @@ export const PRIMARY_EXCLUDED_INDUSTRIES = [
   "Sales and Trading",
   "Credit Risk",
   "FP&A",
+  "Not in the Labor Force",
 ] as const;
 
 const PRIMARY_EXCLUDED_LOWER = new Set<string>(

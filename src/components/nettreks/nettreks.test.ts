@@ -29,7 +29,12 @@ import {
   NetTrekReportTable,
 } from "./NetTrekReportTable";
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  // Profile links read the current URL to carry it as `?from=` (#937).
+  usePathname: () => "/nettreks/dallas/hosts",
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 /**
  * NetTreks tab (#887): nav visibility by capability, the landing page's report
@@ -238,7 +243,7 @@ describe("NetTrek report table", () => {
 
   it("renders a row, linking the name to the profile", () => {
     const html = table([row({ alumni_id: 42 })]);
-    expect(html).toContain('href="/alumni/42"');
+    expect(html).toContain('href="/alumni/42?from=%2Fnettreks%2Fdallas%2Fhosts"');
     expect(html).toContain("Goldman Sachs");
     expect(html).toContain("jane@dev.example");
     expect(html).toContain('href="https://www.linkedin.com/in/jane"');
@@ -318,7 +323,7 @@ describe("clicking a row", () => {
   it("has a pointer cursor and keeps the last name a real link", () => {
     const html = table([row({ alumni_id: 42 })]);
     expect(html).toContain('<tr class="cursor-pointer');
-    expect(html).toContain('href="/alumni/42"');
+    expect(html).toContain('href="/alumni/42?from=%2Fnettreks%2Fdallas%2Fhosts"');
   });
 });
 

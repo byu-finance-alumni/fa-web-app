@@ -1,5 +1,6 @@
 "use client";
 
+import { ProfileLink } from "@/components/shared/ProfileLink";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Title as DialogTitle } from "@radix-ui/react-dialog";
@@ -509,7 +510,7 @@ function EventSheet({
                     <ul className="divide-y divide-gray-100">
                       {attendees.map((a) => (
                         <li key={a.alumni_id} className="py-2">
-                          <Link
+                          <ProfileLink
                             href={`/alumni/${a.alumni_id}`}
                             className="block hover:opacity-80"
                           >
@@ -526,7 +527,7 @@ function EventSheet({
                                 .filter(Boolean)
                                 .join(" · ") || "—"}
                             </p>
-                          </Link>
+                          </ProfileLink>
                         </li>
                       ))}
                     </ul>

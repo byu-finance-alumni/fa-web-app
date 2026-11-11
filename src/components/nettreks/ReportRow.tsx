@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, type MouseEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { useProfileHref } from "@/hooks/useReturnTo";
 
 /** How long a first click waits for a second one: a double-click selects a word
  *  to copy, and must not navigate away on its first click. */
@@ -17,6 +18,9 @@ export function clickOpensRow(target: Element, selectedText: string): boolean {
  * A table row that opens `href` when clicked anywhere (#920). The cells keep
  * their own links: the last name stays a real `<Link>` for keyboard and
  * open-in-new-tab, and the LinkedIn link still opens LinkedIn.
+ *
+ * `href` is a profile, so the row carries this list's URL as `?from=` (#937) —
+ * the profile's Back button returns to the same filters, sort and page.
  */
 export function ReportRow({
   href,
@@ -28,6 +32,7 @@ export function ReportRow({
   children: ReactNode;
 }) {
   const router = useRouter();
+  const profileHref = useProfileHref();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function cancel() {
@@ -43,7 +48,7 @@ export function ReportRow({
     if (e.detail > 1 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     if (!clickOpensRow(e.target as Element, selected())) return;
     timer.current = setTimeout(() => {
-      if (selected() === "") router.push(href);
+      if (selected() === "") router.push(profileHref(href));
     }, DOUBLE_CLICK_MS);
   }
 

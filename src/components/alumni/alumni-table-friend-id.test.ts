@@ -15,6 +15,9 @@ import type { Alumni } from "@/types/alumni";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: () => {} }),
+  // Profile links read the current URL to carry it as `?from=` (#937).
+  usePathname: () => "/alumni",
+  useSearchParams: () => new URLSearchParams(),
 }));
 vi.mock("@/components/alumni/AlumniRowActions", () => ({
   AlumniRowActions: () => null,

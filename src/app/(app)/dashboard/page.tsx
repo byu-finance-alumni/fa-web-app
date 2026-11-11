@@ -247,7 +247,8 @@ export default async function DashboardPage() {
   // (catch-all value) and "Unknown" (no industry on file) buckets. The list
   // shows them all (zero-count ones muted). Every bar is the same brand blue —
   // see IndustryBarList. Each row is clickable — finance industries deep-link to
-  // `?industry=<name>`, "Other" to `?industry_group=other`, and "Unknown" to
+  // `?industry=<name>`, "Other" to the /dashboard/other-industries table (#936),
+  // and "Unknown" to
   // `?industry_group=unknown` so staff can open and fix the profiles that are
   // missing an industry.
   //
@@ -281,7 +282,9 @@ export default async function DashboardPage() {
         {
           label: "Other",
           count: breakdown.other,
-          href: `/alumni?industry_group=other`,
+          // #936: opens the Other table (grouped by secondary industry), whose
+          // rows then open the alumni list. Not straight to the list any more.
+          href: `/dashboard/other-industries`,
         },
         // Unknown = alumni with no industry on file: a "needs fixing" bucket,
         // labelled in danger red so the data gap is impossible to miss wherever

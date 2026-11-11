@@ -77,6 +77,16 @@ export interface AlumniFilterState {
    *  bucket, "unknown" = missing industry. Mutually exclusive with picking
    *  specific industries; "" = no grouping filter. */
   industryGroup: "" | "other" | "unknown";
+  /** Secondary-industry GROUP (fa-web-app#936): the rows of the dashboard's
+   *  Other table. Each value is a group NAME ("Healthcare", "Law"); the backend
+   *  folds every stored spelling of it in (case, spacing, "Healthcare - Biotech"
+   *  → Healthcare), so this is NOT the exact-match `secondaryIndustry` facet.
+   *  Repeated `secondary_industry_group=` params, OR-ed. No panel control —
+   *  set by the Other table's links, shown and cleared as a chip. */
+  secondaryIndustryGroup: string[];
+  /** The Other table's "No secondary industry" row (#936): only people with no
+   *  secondary industry on file. OR-ed with `secondaryIndustryGroup`. */
+  noSecondaryIndustry: boolean;
   /** "Left a comment" (#923): one choice, off by default ("").
    *  `survey_comment` = an APPROVED survey response with a comment (pending and
    *  rejected don't count). `any_note` = any note on the profile, staff's
@@ -159,6 +169,8 @@ export const EMPTY_FILTERS: AlumniFilterState = {
   designations: [],
   gender: "",
   industryGroup: "",
+  secondaryIndustryGroup: [],
+  noSecondaryIndustry: false,
   commentFilter: "",
   contactedAfter: "",
   contactedBefore: "",
@@ -437,6 +449,8 @@ export function parseAlumniFilters(sp: SearchParamMap): AlumniFilterState {
         : one(sp.industry_group).toLowerCase() === "unknown"
           ? "unknown"
           : "",
+    secondaryIndustryGroup: arr(sp.secondary_industry_group),
+    noSecondaryIndustry: isTrue(sp.no_secondary_industry),
     // Whitelisted: anything else would be a 422 from the API.
     commentFilter:
       one(sp.comment_filter) === "survey_comment"
@@ -482,6 +496,8 @@ export function toAlumniFilterQs(f: AlumniFilterState): string {
   for (const v of f.designations) p.append("designations", v);
   if (f.gender) p.set("gender", f.gender);
   if (f.industryGroup) p.set("industry_group", f.industryGroup);
+  for (const v of f.secondaryIndustryGroup) p.append("secondary_industry_group", v);
+  if (f.noSecondaryIndustry) p.set("no_secondary_industry", "1");
   if (f.commentFilter) p.set("comment_filter", f.commentFilter);
   if (f.contactedAfter) p.set("contacted_after", f.contactedAfter);
   if (f.contactedBefore) p.set("contacted_before", f.contactedBefore);
@@ -644,6 +660,10 @@ export function toAlumniPopulationParams(
   for (const v of f.designations) p.append("designations", v);
   if (f.gender) p.set("gender", f.gender);
   if (f.industryGroup) p.set("industry_group", f.industryGroup);
+  // #936: resolved server-side by the same grouper that counts the dashboard's
+  // Other table, for the list AND the export, so a row's count is its list.
+  for (const v of f.secondaryIndustryGroup) p.append("secondary_industry_group", v);
+  if (f.noSecondaryIndustry) p.set("no_secondary_industry", "true");
   if (f.commentFilter) p.set("comment_filter", f.commentFilter);
   if (f.contactedAfter) p.set("contacted_after", f.contactedAfter);
   if (f.contactedBefore) p.set("contacted_before", f.contactedBefore);
@@ -742,6 +762,8 @@ export function countActiveFilters(f: AlumniFilterState): number {
     f.designations.length +
     (f.gender ? 1 : 0) +
     (f.industryGroup ? 1 : 0) +
+    f.secondaryIndustryGroup.length +
+    (f.noSecondaryIndustry ? 1 : 0) +
     (f.commentFilter ? 1 : 0) +
     (f.ymin.trim() || f.ymax.trim() ? 1 : 0) +
     (f.workedInYear.trim() ? 1 : 0) +

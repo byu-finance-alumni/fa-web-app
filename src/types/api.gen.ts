@@ -1681,6 +1681,37 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/dashboard/other-industries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Other Industries
+         * @description The people in the industry chart's "Other" bar, grouped by SECONDARY
+         *     industry (fa-web-app#936). Aggregate counts only, like ``/summary``.
+         *
+         *     The population is ``build_alumni_query(industry_group="other")`` — the very
+         *     statement the alumni list runs for ``?industry_group=other`` — so the rows
+         *     sum to that list's total. Each stored secondary value is folded into its
+         *     group by ``secondary_industry_groups``, the same grouper the list's
+         *     ``secondary_industry_group`` / ``no_secondary_industry`` filters resolve
+         *     through, so a row's count equals the list (and CSV) it links to.
+         *
+         *     current_employment is unique per alumnus, so grouping on its secondary
+         *     column counts each person exactly once.
+         */
+        get: operations["other_industries_dashboard_other_industries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dashboard/birthdays": {
         parameters: {
             query?: never;
@@ -5646,6 +5677,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/survey/alumni/{alumni_id}/one-off": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Survey One Off Preview
+         * @description What the profile's "Send survey" button would do for this alum.
+         *
+         *     Who it goes to (name + the ONE address: personal, then work), when they were
+         *     last sent a survey of any kind, and -- when it can't be sent -- why
+         *     (deceased / Do Not Contact, no usable email, no graduation year, their
+         *     class's campaign paused or stopped). Sends nothing.
+         *
+         *     Gated like the profile's Edit button (`alumni.edit`).
+         */
+        get: operations["survey_one_off_preview_survey_alumni__alumni_id__one_off_get"];
+        put?: never;
+        /**
+         * Survey One Off Send
+         * @description Send the survey to this ONE alum now (a REAL send -- there is no dry run;
+         *     `GET` this same path is the preview).
+         *
+         *     Same email, copy and 7-day link as the class send, and the same day-7 and
+         *     day-14 reminders if they don't reply. It is NOT the class campaign: it is
+         *     logged apart from `survey_send_log`, so it never uses up, completes or
+         *     blocks their class's one-time send, and the class send still emails them.
+         *
+         *     Counts toward the daily/monthly send cap, takes the send lock, and is
+         *     refused (409, nothing sent) when they can't be sent to, the cap is spent,
+         *     another send is running, or their class's campaign is paused or stopped.
+         *     Re-sending to the same person is allowed. Audited on the alum's record.
+         *
+         *     Gated like the profile's Edit button (`alumni.edit`).
+         */
+        post: operations["survey_one_off_send_survey_alumni__alumni_id__one_off_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/survey/cron/run": {
         parameters: {
             query?: never;
@@ -6323,6 +6398,13 @@ export interface components {
             industry: string[] | null;
             /** Secondary Industry */
             secondary_industry: string[] | null;
+            /** Secondary Industry Group */
+            secondary_industry_group: string[] | null;
+            /**
+             * No Secondary Industry
+             * @default false
+             */
+            no_secondary_industry: boolean;
             /** Title */
             title: string[] | null;
             /** Seniority */
@@ -10497,6 +10579,41 @@ export interface components {
             details: string | null;
         };
         /**
+         * OtherSecondaryIndustries
+         * @description ``GET /dashboard/other-industries``: the people in the "Other" bar,
+         *     grouped by secondary industry, highest count first. ``total`` is the sum of
+         *     the rows — the size of the ``industry_group=other`` population.
+         */
+        OtherSecondaryIndustries: {
+            /** Total */
+            total: number;
+            /** Rows */
+            rows: components["schemas"]["OtherSecondaryIndustryRow"][];
+        };
+        /**
+         * OtherSecondaryIndustryRow
+         * @description One row of the dashboard "Other" table (fa-web-app#936).
+         *
+         *     ``name`` is the clean display name ("Healthcare", "Law", or "No secondary
+         *     industry"). To open the alumni in this row, the client sends
+         *     ``industry_group=other`` plus ``secondary_industry_group=<group>`` — or
+         *     ``no_secondary_industry=true`` when ``no_secondary`` is set (``group`` is
+         *     then null).
+         */
+        OtherSecondaryIndustryRow: {
+            /** Name */
+            name: string;
+            /** Group */
+            group: string | null;
+            /**
+             * No Secondary
+             * @default false
+             */
+            no_secondary: boolean;
+            /** Count */
+            count: number;
+        };
+        /**
          * OutreachGroupKey
          * @description One Outreach landing page.
          * @enum {string}
@@ -11380,6 +11497,59 @@ export interface components {
             last_sent_at: string | null;
         };
         /**
+         * SurveyOneOffPreview
+         * @description What "Send survey" on a profile would do for this alum, before it does it.
+         *
+         *     The confirm dialog shows ``name`` and ``email`` (the ONE address the email
+         *     goes to, personal first then work), and ``last_sent_at`` as the "Last sent
+         *     on <date>" warning. When ``can_send`` is false the button is disabled and
+         *     ``reason`` says why in plain words; ``reason_code`` is the stable key.
+         */
+        SurveyOneOffPreview: {
+            /** Alumni Id */
+            alumni_id: number;
+            /** Name */
+            name: string;
+            /** Graduation Year */
+            graduation_year: number | null;
+            /** Email */
+            email: string | null;
+            /** Email Source */
+            email_source: string | null;
+            /** Can Send */
+            can_send: boolean;
+            /** Reason Code */
+            reason_code: string | null;
+            /** Reason */
+            reason: string | null;
+            /** Last Sent At */
+            last_sent_at: string | null;
+            /** Last Replied At */
+            last_replied_at: string | null;
+        };
+        /**
+         * SurveyOneOffResult
+         * @description A one-off survey email that Resend accepted.
+         */
+        SurveyOneOffResult: {
+            /** Alumni Id */
+            alumni_id: number;
+            /** Email */
+            email: string;
+            /** Email Source */
+            email_source: string;
+            /**
+             * Sent At
+             * Format: date-time
+             */
+            sent_at: string;
+            /**
+             * Reminders Scheduled
+             * @default true
+             */
+            reminders_scheduled: boolean;
+        };
+        /**
          * SurveyRead
          * @description One row of the profile's Surveys tab.
          *
@@ -11754,6 +11924,11 @@ export interface components {
              * @default false
              */
             skipped_locked: boolean;
+            /**
+             * One Off Reminders Sent
+             * @default 0
+             */
+            one_off_reminders_sent: number;
         };
         /**
          * SurveySendConfigItem
@@ -12621,6 +12796,10 @@ export interface operations {
                 industry?: string[] | null;
                 /** @description SECONDARY industry / work area (#584) — repeatable (OR), exact match. Combined with 'industry' it AND-s: primary is X AND secondary is Y. */
                 secondary_industry?: string[] | null;
+                /** @description SECONDARY industry GROUP (fa-web-app#936) — repeatable (OR). Matches every stored spelling that folds into the named group: case and spacing are ignored, detail after ' - ', ':', ',' or '(' is dropped, a known name followed by more words folds into it, and anything starting with 'Healthcare' is Healthcare. The same grouping the dashboard's Other table counts with. */
+                secondary_industry_group?: string[] | null;
+                /** @description Only alumni with NO current secondary industry (blank or unset) — the 'No secondary industry' row of the dashboard's Other table (fa-web-app#936). OR-ed with 'secondary_industry_group' when both are given. */
+                no_secondary_industry?: boolean;
                 /** @description Current job title(s) — repeatable, exact match. */
                 title?: string[] | null;
                 /** @description Seniority level(s) — repeatable, exact match. */
@@ -14319,6 +14498,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DashboardSummary"];
+                };
+            };
+        };
+    };
+    other_industries_dashboard_other_industries_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OtherSecondaryIndustries"];
                 };
             };
         };
@@ -18999,6 +19198,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SurveyResetResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    survey_one_off_preview_survey_alumni__alumni_id__one_off_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alumni_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyOneOffPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    survey_one_off_send_survey_alumni__alumni_id__one_off_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alumni_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyOneOffResult"];
                 };
             };
             /** @description Validation Error */

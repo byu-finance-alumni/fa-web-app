@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useProfileHref } from "@/hooks/useReturnTo";
 import { MoreHorizontal, Eye, Pencil, MessageSquarePlus } from "lucide-react";
 import {
   DropdownMenu,
@@ -37,6 +38,7 @@ export function AlumniRowActions({
   canAdd: boolean;
 }) {
   const [logOpen, setLogOpen] = useState(false);
+  const profileHref = useProfileHref();
 
   return (
     <>
@@ -60,14 +62,14 @@ export function AlumniRowActions({
           onClick={(e) => e.stopPropagation()}
         >
           <DropdownMenuItem asChild>
-            <Link href={`/alumni/${alumniId}`}>
+            <Link href={profileHref(`/alumni/${alumniId}`)}>
               <Eye aria-hidden="true" />
               View profile
             </Link>
           </DropdownMenuItem>
           {canEdit ? (
             <DropdownMenuItem asChild>
-              <Link href={`/alumni/${alumniId}/edit`}>
+              <Link href={profileHref(`/alumni/${alumniId}/edit`)}>
                 <Pencil aria-hidden="true" />
                 Edit
               </Link>

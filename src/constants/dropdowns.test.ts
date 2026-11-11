@@ -27,10 +27,15 @@ import { ENGAGEMENT_SECTION } from "@/components/survey/survey-screens";
 
 /**
  * Case-insensitive sort with the pinned tail held last, in this fixed order:
- * "Unknown" (#295), "Graduate Student" (#294), then the "Other" catch-all (#282).
- * The rest of the list is alphabetized.
+ * "Not in the Labor Force" (api#673), "Unknown" (#295), "Graduate Student"
+ * (#294), then the "Other" catch-all (#282). The rest is alphabetized.
  */
-const PINNED_TAIL = ["Unknown", "Graduate Student", "Other"];
+const PINNED_TAIL = [
+  "Not in the Labor Force",
+  "Unknown",
+  "Graduate Student",
+  "Other",
+];
 function expectedOrder(values: readonly string[]): string[] {
   const rest = values.filter((v) => !PINNED_TAIL.includes(v));
   rest.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
@@ -142,8 +147,14 @@ describe("SECONDARY_INDUSTRY_OPTIONS", () => {
     }
   });
 
-  it("is the full industry list (finance + Unknown/Graduate Student/Other)", () => {
-    expect(SECONDARY_INDUSTRY_OPTIONS).toHaveLength(24);
+  it("is the full industry list (finance + Not in the Labor Force/Unknown/Graduate Student/Other)", () => {
+    expect(SECONDARY_INDUSTRY_OPTIONS).toHaveLength(25);
+  });
+
+  it("offers Not in the Labor Force as a secondary, never a primary (api#673)", () => {
+    expect(SECONDARY_INDUSTRY_OPTIONS).toContain("Not in the Labor Force");
+    expect(PRIMARY_EXCLUDED_INDUSTRIES).toContain("Not in the Labor Force");
+    expect(PRIMARY_INDUSTRY_OPTIONS).not.toContain("Not in the Labor Force");
   });
 });
 

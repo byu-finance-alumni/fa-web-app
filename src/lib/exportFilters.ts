@@ -113,6 +113,10 @@ const EXPORT_MAPPING: Record<string, ParamExport> = {
   email: { as: "text", field: "email" },
   gender: { as: "text", field: "gender" },
   industry_group: { as: "text", field: "industry_group" },
+  // fa-web-app#936: the dashboard Other table's rows. The backend resolves both
+  // through the same shared grouper for the list and the export.
+  secondary_industry_group: { as: "multi", field: "secondary_industry_group" },
+  no_secondary_industry: { as: "flag", field: "no_secondary_industry" },
   comment_filter: { as: "comment" },
   contacted_after: { as: "text", field: "contacted_after" },
   contacted_before: { as: "text", field: "contacted_before" },
@@ -188,6 +192,8 @@ const NO_PREDICATE: AlumniExportFilters = {
   past_employer: null,
   industry: null,
   secondary_industry: null,
+  secondary_industry_group: null,
+  no_secondary_industry: false,
   title: null,
   seniority: null,
   employment_status: null,
