@@ -45,6 +45,8 @@ import { ProfileHistory } from "@/components/alumni/ProfileHistory";
 import type { Note } from "@/types/notes";
 import { ExportProfileButton } from "@/components/alumni/ExportProfileButton";
 import { ConfirmCurrentButton } from "@/components/alumni/ConfirmCurrentButton";
+import { SendSurveyControl } from "@/components/alumni/SendSurveyControl";
+import type { SurveyOneOffPreview } from "@/lib/surveyOneOff";
 import { DrawerList } from "@/components/alumni/DrawerList";
 import { LoadError } from "@/components/shared/LoadError";
 import { MetricCard } from "@/components/shared/MetricCard";
@@ -521,6 +523,20 @@ export async function AlumniProfileView({
       : new ApiError(0, "Failed to read your access.");
   }
 
+  // "Send survey" (fa-web-api #669): same gate as the Edit button. The preview
+  // says who/where it goes and, for suppressed or unreachable people, why it
+  // can't. A failed read just leaves the button off — it never breaks the page.
+  let surveyOneOff: SurveyOneOffPreview | null = null;
+  if (canEdit) {
+    try {
+      surveyOneOff = await apiGet<SurveyOneOffPreview>(
+        `/survey/alumni/${id}/one-off`,
+      );
+    } catch {
+      surveyOneOff = null;
+    }
+  }
+
   // Contact PII (personal/work email, phone, street address, ZIP) is shown only
   // to editors — defense-in-depth for #166. The backend nulls these fields for
   // the view_only role; this keeps the client from rendering them regardless.
@@ -963,6 +979,9 @@ export async function AlumniProfileView({
                       <Button asChild>
                         <Link href={editHref}>Edit</Link>
                       </Button>
+                      {surveyOneOff ? (
+                        <SendSurveyControl preview={surveyOneOff} />
+                      ) : null}
                       {/* #772 — sets/clears the EXISTING `Do Not Contact`
                           status label (the one the survey already suppresses on)
                           in one click instead of hunting through the status
@@ -2302,6 +2321,7 @@ export async function AlumniProfileView({
                 <Button asChild>
                   <Link href={editHref}>Edit</Link>
                 </Button>
+                {surveyOneOff ? <SendSurveyControl preview={surveyOneOff} /> : null}
                 {canExport ? (
                   <ExportProfileButton
                     alumniId={aid}

@@ -1791,3 +1791,28 @@ export async function deleteHeadshot(
     };
   }
 }
+
+/**
+ * Send the survey to ONE alum now (fa-web-api #669). The backend re-checks
+ * everything — `alumni.edit`, suppression, the send cap, the send lock and the
+ * class campaign's pause — and refuses with a plain-words 409 that is shown
+ * as-is. A real send: there is no dry run.
+ */
+export async function sendSurveyOneOff(
+  alumniId: number,
+): Promise<{ email: string } | { error: string }> {
+  let result: { email: string };
+  try {
+    result = await apiPost<{ email: string }>(
+      `/survey/alumni/${alumniId}/one-off`,
+      {},
+    );
+  } catch (e) {
+    return {
+      error:
+        e instanceof ApiError ? e.message : "Couldn't send the survey. Nothing was sent.",
+    };
+  }
+  revalidatePath(`/alumni/${alumniId}`);
+  return { email: result.email };
+}
