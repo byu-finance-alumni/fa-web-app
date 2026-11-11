@@ -958,7 +958,7 @@ export async function AlumniProfileView({
               </div>
 
               {canAdd ? (
-                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 md:max-w-[60%]">
                   {/* Add-interaction is the only header control professors
                       (view_only) get — gated on canAdd. Every other control
                       below stays on canEdit so professors never gain edits to
