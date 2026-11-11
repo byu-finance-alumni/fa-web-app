@@ -1,5 +1,6 @@
 "use client";
 
+import { ProfileLink } from "@/components/shared/ProfileLink";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Loader2, Search, X } from "lucide-react";
@@ -362,12 +363,12 @@ export function AttendeeManager({
                 className="flex items-center justify-between gap-3 px-3 py-2.5"
               >
                 <div className="min-w-0">
-                  <Link
+                  <ProfileLink
                     href={`/alumni/${a.alumni_id}`}
                     className="block truncate text-sm font-medium text-gray-900 hover:text-brand-blue-600 hover:underline"
                   >
                     {a.name}
-                  </Link>
+                  </ProfileLink>
                   <p className="truncate text-xs text-gray-500">
                     {[
                       a.graduation_year ? `Class of ${a.graduation_year}` : null,

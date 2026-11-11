@@ -1,7 +1,7 @@
 "use client";
 
+import { ProfileLink } from "@/components/shared/ProfileLink";
 import { useState } from "react";
-import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import type { Donor } from "@/types/donations";
 
@@ -85,12 +85,12 @@ function DonorRows({
     <>
       <tr className="hover:bg-gray-50">
         <td className="px-4 py-2.5">
-          <Link
+          <ProfileLink
             href={`/alumni/${donor.alumni_id}`}
             className="font-medium text-brand-blue-600 hover:underline"
           >
             {donor.name}
-          </Link>
+          </ProfileLink>
           {donor.graduation_year ? (
             <span className="ml-2 text-xs text-gray-400">
               Class of {donor.graduation_year}

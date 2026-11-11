@@ -3,6 +3,7 @@ import { Topbar } from "@/components/shell/Topbar";
 import { Card, CardContent } from "@/components/ui/card";
 import { loadEditableProfile } from "./load-profile";
 import { AccessCheckError } from "@/components/shared/AccessCheckError";
+import { safeReturnPath, withReturnTo } from "@/lib/returnTo";
 
 /** The six focused edit sections shown as a picker. */
 const SECTIONS: { slug: string; title: string; description: string }[] = [
@@ -45,10 +46,15 @@ const SECTIONS: { slug: string; title: string; description: string }[] = [
 
 export default async function EditAlumniPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string | string[] }>;
 }) {
   const { id } = await params;
+  // #937 — carried on to the section forms so a save still lands on a profile
+  // whose Back names the list it was opened from.
+  const from = safeReturnPath((await searchParams).from);
   const gate = await loadEditableProfile(id);
   // An unreadable /auth/context is not a denial (#688). Staying on this URL and
   // naming the fault beats both alternatives: bouncing to the read-only profile
@@ -76,7 +82,7 @@ export default async function EditAlumniPage({
       <Topbar
         breadcrumb={[
           { label: "Alumni", href: "/alumni" },
-          { label: name, href: `/alumni/${a.alumni_id}` },
+          { label: name, href: withReturnTo(`/alumni/${a.alumni_id}`, from) },
           { label: "Edit" },
         ]}
       />
@@ -95,7 +101,7 @@ export default async function EditAlumniPage({
             {SECTIONS.map((s) => (
               <Link
                 key={s.slug}
-                href={`/alumni/${a.alumni_id}/edit/${s.slug}`}
+                href={withReturnTo(`/alumni/${a.alumni_id}/edit/${s.slug}`, from)}
                 className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500 focus-visible:ring-offset-1"
               >
                 <Card className="h-full transition-colors hover:border-brand-blue-600 hover:bg-gray-50">

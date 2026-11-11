@@ -1,5 +1,6 @@
 "use client";
 
+import { ProfileLink } from "@/components/shared/ProfileLink";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -86,12 +87,12 @@ export function SurveyBouncedList({ year }: { year: number | null }) {
                 key={a.alumni_id}
                 className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2"
               >
-                <a
+                <ProfileLink
                   href={`/alumni/${a.alumni_id}`}
                   className="text-sm font-medium text-navy-800 underline underline-offset-2"
                 >
                   {a.name}
-                </a>
+                </ProfileLink>
                 <span className="text-xs text-gray-600">
                   {bouncedDetail(a)}
                   {fixed ? (

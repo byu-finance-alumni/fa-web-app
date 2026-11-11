@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ProfileLink } from "@/components/shared/ProfileLink";
 import { ScrollToTopOnPageChange } from "@/components/shared/ScrollToTopOnPageChange";
 import { apiGet, apiGetWithRetry, ApiError } from "@/lib/api";
 import { readAuthContext, type AuthContextResult } from "@/lib/auth-context";
@@ -264,7 +265,7 @@ export async function AlumniRoster({
             {/* Mobile: stacked cards (dense tables collapse, never h-scroll) */}
             <div className="space-y-2 md:hidden">
               {data!.items.map((a) => (
-                <Link
+                <ProfileLink
                   key={a.alumni_id}
                   href={`${basePath}/${a.alumni_id}`}
                   className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 shadow-card"
@@ -285,7 +286,7 @@ export async function AlumniRoster({
                         .join(" · ") || "—"}
                     </p>
                   </div>
-                </Link>
+                </ProfileLink>
               ))}
             </div>
 

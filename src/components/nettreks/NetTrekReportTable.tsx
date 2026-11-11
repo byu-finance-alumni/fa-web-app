@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { ProfileLink } from "@/components/shared/ProfileLink";
 import { ReportRow } from "@/components/nettreks/ReportRow";
 import { SortTh } from "@/components/shared/SortTh";
 import { genderLabel } from "@/lib/format";
@@ -138,13 +138,13 @@ export function NetTrekReportTable({
               <td className={TD} title={full(r.first_name)}>{text(r.first_name)}</td>
               <td className={TD} title={full(r.middle_name)}>{text(r.middle_name)}</td>
               <td className={TD} title={full(r.last_name)}>
-                <Link
+                <ProfileLink
                   href={`/alumni/${r.alumni_id}`}
                   aria-label={`Open ${netTrekDisplayName(r)}'s profile`}
                   className="font-medium text-gray-900 underline-offset-4 hover:text-brand-blue-600 hover:underline"
                 >
                   {r.last_name || netTrekDisplayName(r)}
-                </Link>
+                </ProfileLink>
               </td>
               <td className={TD} title={full(r.company)}>{text(r.company)}</td>
               <td className={TD} title={full(r.industry)}>{text(r.industry)}</td>
