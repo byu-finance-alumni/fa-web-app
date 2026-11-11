@@ -19,7 +19,7 @@ export function BrandWordmark({
 }: {
   /** The bold first word. Defaults to "BYU"; there is no reason to change it. */
   lead?: string;
-  /** The lighter descriptor after it — "Alumni Database", "Finance Alumni Update". */
+  /** The lighter descriptor after it — "Finance Alumni Database", "Finance Alumni Update". */
   trail: string;
 }) {
   return (
