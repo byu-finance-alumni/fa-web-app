@@ -10,9 +10,14 @@ import { AlumniProfileView } from "../../alumni/[id]/page";
  */
 export default async function FriendProfilePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string | string[] }>;
 }) {
   const { id } = await params;
-  return <AlumniProfileView id={id} basePath="/friends" backLabel="Friends" />;
+  const { from } = await searchParams;
+  return (
+    <AlumniProfileView id={id} basePath="/friends" backLabel="Friends" from={from} />
+  );
 }

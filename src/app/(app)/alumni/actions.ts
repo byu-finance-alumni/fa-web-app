@@ -14,6 +14,7 @@ import {
   ApiError,
 } from "@/lib/api";
 import { HEADSHOT_CACHE_TAG } from "@/lib/headshots";
+import { RETURN_FIELD, safeReturnPath, withReturnTo } from "@/lib/returnTo";
 import type {
   HygienePreview,
   ImportPreview,
@@ -376,6 +377,7 @@ export async function updateAlumni(
  * so the duplicate warning the backend raises on the write is the ONLY chance
  * to tell anyone. It rides back on the redirect. */
 async function saveSection(
+  formData: FormData,
   id: number,
   payload: Record<string, unknown>,
 ): Promise<FormState> {
@@ -389,7 +391,16 @@ async function saveSection(
   revalidatePath("/alumni");
   updateTag("dashboard");
   updateTag("geography");
-  redirect(`/alumni/${id}${duplicateQuery(saved)}`);
+  // #937 — the list the profile was opened from rides through the edit form as
+  // a hidden field, so the profile's Back still names it after the save. The
+  // redirect itself is always this profile; `withReturnTo` only ever adds a
+  // validated internal path as a query value, never changes the destination.
+  redirect(
+    withReturnTo(
+      `/alumni/${id}${duplicateQuery(saved)}`,
+      safeReturnPath(getStr(formData, RETURN_FIELD) ?? null),
+    ),
+  );
 }
 
 /** Employment: top-level status/LinkedIn + nested career + contact work fields. */
@@ -418,6 +429,7 @@ export async function updateEmploymentSection(
   const archivePreviousRole =
     formData.get("archive_previous_role") !== null ? true : undefined;
   return saveSection(
+    formData,
     id,
     compact({
       employment_status: getStr(formData, "employment_status"),
@@ -503,7 +515,7 @@ export async function updatePersonalSection(
       payload.spouse_last_name = spouse.slice(i + 1).trim();
     }
   }
-  return saveSection(id, payload);
+  return saveSection(formData, id, payload);
 }
 
 /** Graduate program: shared employment status + degree dropdown + school/year. */
@@ -523,6 +535,7 @@ export async function updateGraduateSection(
   }
   const yearRaw = getStr(formData, "graduate_graduation_year");
   return saveSection(
+    formData,
     id,
     compact({
       employment_status: getStr(formData, "employment_status"),
@@ -545,6 +558,7 @@ export async function updateDesignationSection(
   const cfa = formData.get("cfa_designation") !== null ? "CFA" : null;
   const cfp = formData.get("cfp_designation") !== null ? "CFP" : null;
   return saveSection(
+    formData,
     id,
     compact({
       other_designations: getStr(formData, "other_designations"),
@@ -582,7 +596,7 @@ export async function updateEngagementSection(
   // Notes sent explicitly (null when blank) so they can be cleared.
   engagement.engagement_notes =
     getStr(formData, "engagement.engagement_notes") ?? null;
-  return saveSection(id, { engagement });
+  return saveSection(formData, id, { engagement });
 }
 
 /** Narrative: provisional secondary-affiliation free-text fields (top level). */
@@ -592,6 +606,7 @@ export async function updateNarrativeSection(
   formData: FormData,
 ): Promise<FormState> {
   return saveSection(
+    formData,
     id,
     compact({
       startup_involvement: getStr(formData, "startup_involvement"),
@@ -1775,4 +1790,29 @@ export async function deleteHeadshot(
       error: e instanceof ApiError ? e.message : "Couldn't remove the photo.",
     };
   }
+}
+
+/**
+ * Send the survey to ONE alum now (fa-web-api #669). The backend re-checks
+ * everything — `alumni.edit`, suppression, the send cap, the send lock and the
+ * class campaign's pause — and refuses with a plain-words 409 that is shown
+ * as-is. A real send: there is no dry run.
+ */
+export async function sendSurveyOneOff(
+  alumniId: number,
+): Promise<{ email: string } | { error: string }> {
+  let result: { email: string };
+  try {
+    result = await apiPost<{ email: string }>(
+      `/survey/alumni/${alumniId}/one-off`,
+      {},
+    );
+  } catch (e) {
+    return {
+      error:
+        e instanceof ApiError ? e.message : "Couldn't send the survey. Nothing was sent.",
+    };
+  }
+  revalidatePath(`/alumni/${alumniId}`);
+  return { email: result.email };
 }

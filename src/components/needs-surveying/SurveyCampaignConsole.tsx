@@ -1,5 +1,6 @@
 "use client";
 
+import { ProfileLink } from "@/components/shared/ProfileLink";
 import { useCallback, useEffect, useState } from "react";
 import {
   CalendarClock,
@@ -1203,12 +1204,12 @@ export function SurveyCampaignConsole({
                           key={a.alumni_id}
                           className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2"
                         >
-                          <a
+                          <ProfileLink
                             href={`/alumni/${a.alumni_id}`}
                             className="text-sm font-medium text-navy-800 underline underline-offset-2"
                           >
                             {a.name}
-                          </a>
+                          </ProfileLink>
                           <span className="text-xs text-gray-600">
                             {a.reason_label}
                             {/* Show the offending value so a typo can be
@@ -1628,12 +1629,12 @@ function HeldOutRow({
   return (
     <li className="py-2">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <a
+        <ProfileLink
           href={`/alumni/${alum.alumni_id}`}
           className="text-sm font-medium text-navy-800 underline underline-offset-2"
         >
           {alum.name}
-        </a>
+        </ProfileLink>
         <span className="flex flex-wrap items-baseline gap-3">
           {/* The date, not the fact — the fact is the whole list. */}
           <span className="text-xs tabular-nums text-gray-600">

@@ -27,6 +27,9 @@ import type { Alumni } from "@/types/alumni";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), prefetch: vi.fn() }),
+  // Profile links read the current URL to carry it as `?from=` (#937).
+  usePathname: () => "/alumni",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 /** A complete list row. Every field the generated `AlumniListItem` requires is

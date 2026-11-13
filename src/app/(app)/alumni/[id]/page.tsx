@@ -45,6 +45,8 @@ import { ProfileHistory } from "@/components/alumni/ProfileHistory";
 import type { Note } from "@/types/notes";
 import { ExportProfileButton } from "@/components/alumni/ExportProfileButton";
 import { ConfirmCurrentButton } from "@/components/alumni/ConfirmCurrentButton";
+import { SendSurveyControl } from "@/components/alumni/SendSurveyControl";
+import type { SurveyOneOffPreview } from "@/lib/surveyOneOff";
 import { DrawerList } from "@/components/alumni/DrawerList";
 import { LoadError } from "@/components/shared/LoadError";
 import { MetricCard } from "@/components/shared/MetricCard";
@@ -60,6 +62,8 @@ import { blankIfNa } from "@/lib/na";
 import { parseDuplicateOf } from "@/lib/duplicateNotice";
 import { formatPhone } from "@/lib/phone";
 import { formatResidenceLocation, formatCityStateCountry } from "@/lib/residence";
+import { profileBack, withReturnTo } from "@/lib/returnTo";
+import { ReportBackButton } from "@/components/nettreks/ReportBackButton";
 
 /* ----------------------------------------------------------------- helpers */
 
@@ -313,10 +317,10 @@ function ContactField({
   );
 }
 
-function EditLink({ id, label = "Edit" }: { id: number; label?: string }) {
+function EditLink({ href, label = "Edit" }: { href: string; label?: string }) {
   return (
     <Button asChild variant="link" size="sm" className="px-0">
-      <Link href={`/alumni/${id}/edit`}>{label}</Link>
+      <Link href={href}>{label}</Link>
     </Button>
   );
 }
@@ -370,10 +374,14 @@ export async function AlumniProfileView({
   basePath = "/alumni",
   backLabel = "Alumni",
   duplicateOf = [],
+  from,
 }: {
   id: string;
   basePath?: string;
   backLabel?: string;
+  /** The raw `?from=` the profile was opened with (#937) — the list to go
+   *  back to. Validated here; anything unsafe falls back to `basePath`. */
+  from?: string | string[];
   /** Alumni IDs this record now collides with by name + graduation year, handed
    *  over by the save that caused it (#627). Renders the notice below. */
   duplicateOf?: number[];
@@ -515,6 +523,20 @@ export async function AlumniProfileView({
       : new ApiError(0, "Failed to read your access.");
   }
 
+  // "Send survey" (fa-web-api #669): same gate as the Edit button. The preview
+  // says who/where it goes and, for suppressed or unreachable people, why it
+  // can't. A failed read just leaves the button off — it never breaks the page.
+  let surveyOneOff: SurveyOneOffPreview | null = null;
+  if (canEdit) {
+    try {
+      surveyOneOff = await apiGet<SurveyOneOffPreview>(
+        `/survey/alumni/${id}/one-off`,
+      );
+    } catch {
+      surveyOneOff = null;
+    }
+  }
+
   // Contact PII (personal/work email, phone, street address, ZIP) is shown only
   // to editors — defense-in-depth for #166. The backend nulls these fields for
   // the view_only role; this keeps the client from rendering them regardless.
@@ -526,6 +548,11 @@ export async function AlumniProfileView({
   const c = profile.contact;
   const career = profile.current_career;
   const aid = a.alumni_id;
+  // #937 — Back returns to the list this profile was opened from, filters and
+  // all; with no (safe) `from`, to the plain list. The edit screens carry the
+  // same `from`, so after a save this button still names the original list.
+  const back = profileBack(from, { href: basePath, label: backLabel });
+  const editHref = withReturnTo(`/alumni/${aid}/edit`, back.from);
   // Who last touched this profile (#453). `profile_updated_by_name` is resolved
   // server-side from the `profile_updated_by_user_id` actor FK the backend stamps
   // on every write; `profile_updated_by` is the intake sheet's free-text name and
@@ -747,6 +774,9 @@ export async function AlumniProfileView({
 
       <main className="flex-1 overflow-y-auto bg-gray-100 p-4 md:p-6">
         <div className="mx-auto max-w-6xl space-y-4">
+          <div>
+            <ReportBackButton href={back.href} label={back.label} />
+          </div>
           {/* #772 — the record's loudest fact, first, for EVERY role. The red
               `Do Not Contact` chip in the tag row is easy to skim past; this
               says the exclusion in words before anything else on the page. It
@@ -773,7 +803,7 @@ export async function AlumniProfileView({
                 {duplicates.map((d) => (
                   <li key={d.alumni_id}>
                     <Link
-                      href={`${basePath}/${d.alumni_id}`}
+                      href={withReturnTo(`${basePath}/${d.alumni_id}`, back.from)}
                       className="font-medium underline underline-offset-2"
                     >
                       {[d.first_name, d.last_name].filter(Boolean).join(" ") ||
@@ -928,7 +958,7 @@ export async function AlumniProfileView({
               </div>
 
               {canAdd ? (
-                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 md:max-w-[60%]">
                   {/* Add-interaction is the only header control professors
                       (view_only) get — gated on canAdd. Every other control
                       below stays on canEdit so professors never gain edits to
@@ -947,8 +977,11 @@ export async function AlumniProfileView({
                         />
                       ) : null}
                       <Button asChild>
-                        <Link href={`/alumni/${aid}/edit`}>Edit</Link>
+                        <Link href={editHref}>Edit</Link>
                       </Button>
+                      {surveyOneOff ? (
+                        <SendSurveyControl preview={surveyOneOff} />
+                      ) : null}
                       {/* #772 — sets/clears the EXISTING `Do Not Contact`
                           status label (the one the survey already suppresses on)
                           in one click instead of hunting through the status
@@ -1120,7 +1153,7 @@ export async function AlumniProfileView({
                   and the onward link is pushed to the bottom edge. */}
               <Panel
                 title="Career history"
-                action={canEdit ? <EditLink id={aid} /> : undefined}
+                action={canEdit ? <EditLink href={editHref} /> : undefined}
                 className="flex h-full flex-col lg:col-span-1"
                 contentClassName="flex flex-1 flex-col"
               >
@@ -1203,7 +1236,7 @@ export async function AlumniProfileView({
                   strip, which every role sees. */}
               <Panel
                 title="Current employment contact information"
-                action={canEdit ? <EditLink id={aid} /> : undefined}
+                action={canEdit ? <EditLink href={editHref} /> : undefined}
                 className="lg:col-span-2"
               >
                 {/* Employer + job title (#691 review). #691 pulled the current
@@ -1303,7 +1336,7 @@ export async function AlumniProfileView({
                   contact PII (editor-gated). Spouse shows the FIRST name only. */}
               <Panel
                 title="Personal & family"
-                action={canEdit ? <EditLink id={aid} /> : undefined}
+                action={canEdit ? <EditLink href={editHref} /> : undefined}
                 className="lg:col-span-2"
               >
                 <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-3">
@@ -1374,7 +1407,7 @@ export async function AlumniProfileView({
                   simply reverses the vertical order of these two boxes. */}
               <Panel
                 title="Graduate degrees & designations"
-                action={canEdit ? <EditLink id={aid} /> : undefined}
+                action={canEdit ? <EditLink href={editHref} /> : undefined}
                 className="lg:col-span-1"
               >
                 {hasGradContent ? (
@@ -1474,7 +1507,7 @@ export async function AlumniProfileView({
                   </ul>
                   {canEdit && missing.length ? (
                     <Button asChild variant="secondary" className="mt-4 w-full">
-                      <Link href={`/alumni/${aid}/edit`}>Add missing info</Link>
+                      <Link href={editHref}>Add missing info</Link>
                     </Button>
                   ) : null}
                 </Panel>
@@ -2286,8 +2319,9 @@ export async function AlumniProfileView({
               <>
                 <AddTaskButton alumniId={aid} label="Create task" />
                 <Button asChild>
-                  <Link href={`/alumni/${aid}/edit`}>Edit</Link>
+                  <Link href={editHref}>Edit</Link>
                 </Button>
+                {surveyOneOff ? <SendSurveyControl preview={surveyOneOff} /> : null}
                 {canExport ? (
                   <ExportProfileButton
                     alumniId={aid}
@@ -2494,16 +2528,20 @@ export default async function AlumniProfilePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ duplicate_of?: string | string[] }>;
+  searchParams: Promise<{
+    duplicate_of?: string | string[];
+    from?: string | string[];
+  }>;
 }) {
   const { id } = await params;
-  const { duplicate_of } = await searchParams;
+  const { duplicate_of, from } = await searchParams;
   return (
     <AlumniProfileView
       id={id}
       basePath="/alumni"
       backLabel="Alumni"
       duplicateOf={parseDuplicateOf(duplicate_of)}
+      from={from}
     />
   );
 }

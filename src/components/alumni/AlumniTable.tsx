@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useProfileHref } from "@/hooks/useReturnTo";
 import { ExternalLink } from "lucide-react";
 import { RowAvatar } from "@/components/shared/RowAvatar";
 import { SortTh, TH_BASE } from "@/components/shared/SortTh";
@@ -113,6 +114,8 @@ export function AlumniTable({
   showGender?: boolean;
 }) {
   const router = useRouter();
+  // Profile links carry this list's URL as `?from=` (#937), filters and all.
+  const profileHref = useProfileHref();
   const showActions = canEdit || canAdd;
 
   // Build a sort href: keep every active filter, drop offset (back to page 1),
@@ -212,7 +215,7 @@ export function AlumniTable({
           {items.map((a) => (
             <tr
               key={a.alumni_id}
-              onClick={() => router.push(`${basePath}/${a.alumni_id}`)}
+              onClick={() => router.push(profileHref(`${basePath}/${a.alumni_id}`))}
               className="group cursor-pointer border-b border-gray-200 last:border-0 even:bg-gray-50/50 hover:bg-gray-50"
             >
               <td className="px-3 py-2.5">
@@ -222,7 +225,7 @@ export function AlumniTable({
                     name={avatarName(a)}
                   />
                   <Link
-                    href={`${basePath}/${a.alumni_id}`}
+                    href={profileHref(`${basePath}/${a.alumni_id}`)}
                     onClick={(e) => e.stopPropagation()}
                     className="truncate font-medium text-gray-900 group-hover:text-brand-blue-600"
                   >

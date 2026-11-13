@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { RETURN_FIELD, RETURN_PARAM, safeReturnPath, withReturnTo } from "@/lib/returnTo";
 import { Section } from "@/components/alumni/form-fields";
 import { Button } from "@/components/ui/button";
 
@@ -51,15 +53,20 @@ export function FocusedEditForm({
   onSubmit?: (e: React.FormEvent<HTMLFormElement>) => void;
   children: React.ReactNode;
 }) {
+  // #937 — the list the profile was opened from. Kept on Cancel and the
+  // section-picker link, and sent with the save (the action re-validates it), so
+  // the profile's Back button still goes to that list afterwards.
+  const from = safeReturnPath(useSearchParams()?.get(RETURN_PARAM) ?? null);
   return (
     <form
       action={formAction}
       onSubmit={onSubmit}
       className="mx-auto w-full max-w-2xl space-y-4"
     >
+      {from ? <input type="hidden" name={RETURN_FIELD} value={from} /> : null}
       <div>
         <Link
-          href={pickerHref}
+          href={withReturnTo(pickerHref, from)}
           className="text-sm font-medium text-brand-blue-600 hover:underline"
         >
           ← Back to all sections
@@ -84,7 +91,7 @@ export function FocusedEditForm({
           {pending ? "Saving…" : submitLabel}
         </Button>
         <Button asChild variant="secondary">
-          <Link href={cancelHref}>Cancel</Link>
+          <Link href={withReturnTo(cancelHref, from)}>Cancel</Link>
         </Button>
       </div>
     </form>

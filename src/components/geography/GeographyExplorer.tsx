@@ -1,5 +1,6 @@
 "use client";
 
+import { ProfileLink } from "@/components/shared/ProfileLink";
 import {
   useCallback,
   useEffect,
@@ -11,7 +12,6 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { ChevronDown, Loader2 } from "lucide-react";
 import {
   geoCentroid,
@@ -1747,12 +1747,12 @@ function WorldGeoMap({
                   <ul className="divide-y divide-gray-100">
                     {alumniItems.map((a) => (
                       <li key={a.alumni_id} className="py-1.5">
-                        <Link
+                        <ProfileLink
                           href={`/alumni/${a.alumni_id}`}
                           className="font-medium text-brand-blue-700 hover:underline"
                         >
                           {a.name}
-                        </Link>
+                        </ProfileLink>
                         <p className="text-xs text-gray-500">
                           {[
                             a.city,
