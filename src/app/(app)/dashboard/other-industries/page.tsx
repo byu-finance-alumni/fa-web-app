@@ -2,7 +2,6 @@ import Link from "next/link";
 import { apiGet, ApiError } from "@/lib/api";
 import { Topbar } from "@/components/shell/Topbar";
 import { TopbarSearch } from "@/components/shared/TopbarSearch";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoadError } from "@/components/shared/LoadError";
 import {
   OTHER_LIST_HREF,
@@ -20,6 +19,12 @@ import {
  * of one name are folded together there ("Healthcare - Biotech" and "healthcare
  * services" count as Healthcare). The rows add up to the Other bar.
  */
+// The Outreach list tables' link styling (OutreachListLinks), so this page
+// reads like the Event Speakers lists.
+const LINK_CLASS =
+  "font-semibold text-brand-blue-600 underline-offset-4 hover:text-brand-blue-500 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500";
+const COUNT_CLASS = "ml-2 font-normal tabular-nums text-gray-500";
+
 export default async function OtherIndustriesPage() {
   let data: OtherIndustries | null = null;
   let error: ApiError | null = null;
@@ -40,77 +45,76 @@ export default async function OtherIndustriesPage() {
       <Topbar title="Other industries">
         <TopbarSearch />
       </Topbar>
-      <main className="flex-1 overflow-auto p-6">
-        <div className="mx-auto max-w-3xl space-y-4">
+      <main className="flex-1 overflow-auto p-4 md:p-6">
+        <div className="space-y-5">
           <Link
             href="/dashboard"
             className="text-sm text-brand-blue-600 hover:underline"
           >
             Back to dashboard
           </Link>
+          <h1 className="text-xl font-semibold tracking-tight text-gray-900">
+            Other industries
+          </h1>
+
           {error ? (
             <LoadError status={error.status} noun="the Other industries" />
           ) : data ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  Other, by secondary industry ({data.total.toLocaleString()})
-                </CardTitle>
-                <p className="text-sm text-gray-500">
-                  Alumni whose primary industry falls under Other on the
-                  dashboard, grouped by their secondary industry. Click a row to
-                  open those alumni.{" "}
-                  <Link
-                    href={OTHER_LIST_HREF}
-                    className="text-brand-blue-600 hover:underline"
-                  >
-                    Open all {data.total.toLocaleString()}
-                  </Link>
-                </p>
-              </CardHeader>
-              <CardContent>
-                {data.rows.length === 0 ? (
-                  <p className="text-sm text-gray-500">
-                    No alumni are in Other right now.
-                  </p>
-                ) : (
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-200 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                        <th className="py-2 pr-4 font-semibold">
-                          Secondary industry
-                        </th>
-                        <th className="py-2 text-right font-semibold">Alumni</th>
+            <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-card">
+              <table className="w-full table-fixed text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <th className="bg-gray-50 px-3 py-2.5">
+                      Secondary industries
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.rows.length === 0 ? (
+                    <tr>
+                      <td className="px-3 py-2.5 text-gray-500">
+                        No alumni are in Other right now.
+                      </td>
+                    </tr>
+                  ) : (
+                    <>
+                      <tr className="border-b border-gray-200">
+                        <td className="px-3 py-2.5">
+                          <Link href={OTHER_LIST_HREF} className={LINK_CLASS}>
+                            All Other
+                            <span className={COUNT_CLASS}>
+                              ({data.total.toLocaleString("en-US")})
+                            </span>
+                          </Link>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
                       {data.rows.map((row) => (
                         <tr
                           key={row.no_secondary ? "__none__" : row.group}
-                          className="border-b border-gray-100 last:border-0 hover:bg-gray-50"
+                          className="border-b border-gray-200 last:border-0 even:bg-gray-50/50"
                         >
-                          <td className="py-2 pr-4">
+                          <td className="px-3 py-2.5">
                             <Link
                               href={otherIndustryHref(row)}
                               className={
                                 row.no_secondary
-                                  ? "italic text-gray-600 hover:underline"
-                                  : "text-brand-blue-700 hover:underline"
+                                  ? `${LINK_CLASS} italic`
+                                  : LINK_CLASS
                               }
                             >
-                              {row.name} ({row.count.toLocaleString()})
+                              {row.name}
+                              <span className={COUNT_CLASS}>
+                                ({row.count.toLocaleString("en-US")})
+                              </span>
                             </Link>
-                          </td>
-                          <td className="py-2 text-right tabular-nums text-gray-700">
-                            {row.count.toLocaleString()}
                           </td>
                         </tr>
                       ))}
-                    </tbody>
-                  </table>
-                )}
-              </CardContent>
-            </Card>
+                    </>
+                  )}
+                </tbody>
+              </table>
+            </div>
           ) : null}
         </div>
       </main>
