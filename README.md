@@ -7,7 +7,6 @@ See `CLAUDE.md` for architecture/context and `UX-UI.md` for the design system.
 
 ⚠️ Work is tracked on the **GitHub Project board**
 (<https://github.com/orgs/byu-finance-alumni/projects/4>), not in this repo.
-`NEXT-STEPS.md` is a historical checklist and stopped being updated before launch.
 
 **Live:** https://finance.alumni.byu.edu (deployed on Vercel as `finance-alumni-database`)
 

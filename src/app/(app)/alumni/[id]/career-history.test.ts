@@ -184,7 +184,7 @@ describe("Overview — the onward link", () => {
       "const hasMorePreviousJobs = previousJobs.length > OVERVIEW_CAREER_HISTORY_LIMIT;",
     );
     expect(flat).toContain(
-      '{hasMorePreviousJobs ? ( <Link href="?tab=employment"',
+      '{hasMorePreviousJobs ? ( <Link href={withReturnTo(`${basePath}/${aid}?tab=employment`, back.from)}',
     );
   });
 
@@ -195,8 +195,9 @@ describe("Overview — the onward link", () => {
     expect(flat).not.toMatch(/View all \{/);
   });
 
-  it("points at the Employment tab", () => {
-    expect(src).toContain('href="?tab=employment"');
+  it("points at the Employment tab, keeping the profile's from (#944)", () => {
+    expect(src).toContain("href={withReturnTo(`${basePath}/${aid}?tab=employment`, back.from)}");
+    expect(src).not.toContain('href="?tab=employment"');
   });
 });
 
