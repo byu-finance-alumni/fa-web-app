@@ -46,6 +46,20 @@ function isFormPath(pathname: string): boolean {
     .some((s) => s === "edit" || s === "new" || s === "import");
 }
 
+/**
+ * Sections whose pages are all lists a profile can be opened from, even when a
+ * page is not (yet) its own nav entry. Every Outreach list lives under
+ * `/outreach/<group>/…`; a list added to that route (fa-web-app#944: Case
+ * Competition Hosts, Event Help) is accepted as a return target the day it
+ * ships, without waiting on the menu. Still internal paths only — everything
+ * else in `safeReturnPath` applies to them first.
+ */
+const LIST_ROOTS: readonly string[] = ["/outreach"];
+
+function underListRoot(pathname: string): boolean {
+  return LIST_ROOTS.some((r) => pathname.startsWith(`${r}/`));
+}
+
 /** The nav leaf whose href is the longest match for `pathname`, if any. */
 function navLeafFor(pathname: string): string | null {
   return LEAF_HREFS.reduce<string | null>((best, href) => {
@@ -86,7 +100,7 @@ export function safeReturnPath(
 
   const { pathname, search } = url;
   if (isProfilePath(pathname) || isFormPath(pathname)) return null;
-  if (navLeafFor(pathname) === null) return null;
+  if (navLeafFor(pathname) === null && !underListRoot(pathname)) return null;
   return `${pathname}${search}`;
 }
 
@@ -116,8 +130,9 @@ export function returnLabel(path: string): string {
   const outreach = /^\/outreach\/([^/]+)/.exec(pathname);
   if (outreach) {
     const group = OUTREACH_GROUPS.find((g) => g.key === outreach[1]);
-    if (group) return group.label;
+    return group ? group.label : "Outreach";
   }
+  if (pathname === "/dashboard/other-industries") return "Other industries";
   if (pathname.startsWith("/events/")) return "Event";
   const leaf = navLeafFor(pathname);
   return (leaf && LEAF_LABELS.get(leaf)) || "Alumni";
@@ -158,8 +173,13 @@ export function withReturnTo(href: string, from: string | null | undefined): str
 
 /**
  * A page's own URL rebuilt from its route `searchParams`, for server components
- * that link into profiles. Repeated keys stay repeated; `from` itself is
- * dropped, since a list never needs one.
+ * that link into profiles. Repeated keys stay repeated.
+ *
+ * A `from` that is a return PATH is dropped — a list never needs one, and
+ * nesting it would only grow the URL. A `from` that is anything else is the
+ * page's OWN filter and is kept: Activity and Events both use `?from=` as the
+ * start of a date range (fa-web-app#944 — dropping it sent Back to the list
+ * without its dates). A return path always starts with "/"; a date never does.
  */
 export function pathWithSearch(
   pathname: string,
@@ -174,7 +194,9 @@ export function pathWithSearch(
       for (const one of Array.isArray(v) ? v : [v]) params.append(k, one);
     }
   }
+  const own = params.getAll(RETURN_PARAM).filter((v) => !v.startsWith("/"));
   params.delete(RETURN_PARAM);
+  for (const v of own) params.append(RETURN_PARAM, v);
   const qs = params.toString();
   return qs ? `${pathname}?${qs}` : pathname;
 }

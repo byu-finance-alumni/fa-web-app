@@ -2,7 +2,9 @@
 
 import { ProfileLink } from "@/components/shared/ProfileLink";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { X } from "lucide-react";
+import { replaceUrlParams } from "@/lib/urlState";
 import { clientGet } from "@/lib/api-client";
 import { MetricCard } from "@/components/shared/MetricCard";
 
@@ -25,6 +27,14 @@ interface FollowUpRow {
 }
 
 type DrawerKind = "contacted" | "followups";
+
+/** The open drawer lives in `?drawer=` (#944), so a profile opened from it
+ *  carries it in `from` and the profile's Back reopens the same drawer. */
+const DRAWER_PARAM = "drawer";
+
+export function parseDrawer(raw: string | null | undefined): DrawerKind | null {
+  return raw === "contacted" || raw === "followups" ? raw : null;
+}
 
 const fmtDateTime = (iso: string | null) =>
   iso
@@ -56,7 +66,12 @@ export function KpiDrawers({
   contacted: React.ReactNode;
   followUps: React.ReactNode;
 }) {
-  const [open, setOpen] = useState<DrawerKind | null>(null);
+  const initial = parseDrawer(useSearchParams()?.get(DRAWER_PARAM));
+  const [open, setOpenState] = useState<DrawerKind | null>(initial);
+  const setOpen = (kind: DrawerKind | null) => {
+    setOpenState(kind);
+    replaceUrlParams({ [DRAWER_PARAM]: kind });
+  };
 
   return (
     <>

@@ -1217,10 +1217,13 @@ export async function AlumniProfileView({
                     is added is noise the owner asked us to drop. `mt-auto`
                     keeps it on the bottom edge of the box (#691 review) — it
                     only bites now that the column above it is a flex column
-                    with a resolved height. */}
+                    with a resolved height.
+                    #944: the href is the full profile URL WITH `from`. A bare
+                    "?tab=employment" replaced the whole query, `from` included,
+                    so the profile's Back then fell to the plain Alumni list. */}
                 {hasMorePreviousJobs ? (
                   <Link
-                    href="?tab=employment"
+                    href={withReturnTo(`${basePath}/${aid}?tab=employment`, back.from)}
                     className="mt-auto pt-4 text-sm font-medium text-brand-blue-600 hover:text-brand-blue-500"
                   >
                     View full employment history →
