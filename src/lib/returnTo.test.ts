@@ -83,6 +83,8 @@ describe("returnLabel", () => {
     ["/outreach/speakers/utah", "Event Speakers"],
     ["/outreach/mentors/industry?industry=Banking", "Alumni Mentors"],
     ["/outreach/conference", "Conference Interest"],
+    ["/outreach/case_competition/industry?industry=Real+Estate", "Case Competition Hosts"],
+    ["/outreach/event_help/all", "Event Help"],
     ["/tasks?status=open", "Tasks"],
     ["/activity", "Activity"],
     ["/needs-surveying", "Needs Surveying"],

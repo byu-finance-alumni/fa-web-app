@@ -31,6 +31,8 @@ const PAGES = [
   "/outreach/speakers",
   "/outreach/sponsors",
   "/outreach/mentors",
+  "/outreach/case_competition",
+  "/outreach/event_help",
 ];
 
 /* -------------------------------------------------------------- nav ---- */
@@ -67,10 +69,22 @@ describe("Outreach helpers", () => {
     expect(outreachListExists("mentors", "industry", "Sales")).toBe(true);
     expect(outreachListExists("mentors", "industry", null)).toBe(false);
     expect(outreachListExists("mentors", "women", "Sales")).toBe(false);
+    // Case Competition Hosts and Event Help (api#682): All, then industries.
+    for (const group of ["case_competition", "event_help"] as const) {
+      expect(outreachListExists(group, "all", null)).toBe(true);
+      expect(outreachListExists(group, "all", "Sales")).toBe(false);
+      expect(outreachListExists(group, "industry", "Real Estate")).toBe(true);
+      expect(outreachListExists(group, "industry", null)).toBe(false);
+      expect(outreachListExists(group, "women", null)).toBe(false);
+    }
+    expect(outreachListExists("mentors", "all", null)).toBe(false);
   });
 
   it("checks keys", () => {
     expect(isOutreachGroupKey("mentors")).toBe(true);
+    expect(isOutreachGroupKey("case_competition")).toBe(true);
+    expect(isOutreachGroupKey("event_help")).toBe(true);
+    expect(isOutreachListKey("all")).toBe(true);
     expect(isOutreachGroupKey("nettreks")).toBe(false);
     expect(isOutreachGroupKey("toString")).toBe(false);
     expect(isOutreachListKey("out_of_state")).toBe(true);
@@ -198,5 +212,47 @@ describe("Alumni Mentors chart", () => {
     expect(html).toContain('aria-label="View Sales mentors (5)"');
     expect(html).toContain('href="/outreach/mentors/no_industry"');
     expect(html).not.toContain("<svg");
+  });
+});
+
+/* ------------------------------- Case Competition Hosts / Event Help ---- */
+
+describe("Case Competition Hosts and Event Help landing", () => {
+  const html = renderToStaticMarkup(
+    createElement(OutreachListLinks, {
+      group: "case_competition",
+      heading: "Lists",
+      links: [
+        { key: "all", industry: null, title: "All Case Competition Hosts", count: 12 },
+        { key: "industry", industry: "Investment Banking", title: "Investment Banking", count: 5 },
+        { key: "industry", industry: "Valuation & Advisory", title: "Valuation & Advisory", count: 0 },
+      ],
+    }),
+  );
+
+  it("links All first, then each industry with its count, zeros included", () => {
+    expect(html).toContain('href="/outreach/case_competition/all"');
+    expect(html).toContain("All Case Competition Hosts");
+    expect(html).toContain(
+      'href="/outreach/case_competition/industry?industry=Investment+Banking"',
+    );
+    expect(html).toContain(
+      'href="/outreach/case_competition/industry?industry=Valuation+%26+Advisory"',
+    );
+    expect(html).toContain("(0)");
+    expect(html.indexOf("All Case Competition Hosts")).toBeLessThan(
+      html.indexOf("Investment Banking"),
+    );
+    expect(html).not.toContain("<svg");
+  });
+
+  it("names the fallback CSV like the backend does", () => {
+    const day = new Date("2026-11-17T12:00:00Z");
+    expect(outreachExportFilename("event_help", "industry", "Real Estate", day)).toBe(
+      "event_help_industry_real_estate_2026-11-17.csv",
+    );
+    expect(outreachExportFilename("case_competition", "all", null, day)).toBe(
+      "case_competition_all_2026-11-17.csv",
+    );
   });
 });

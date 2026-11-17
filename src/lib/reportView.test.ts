@@ -91,12 +91,15 @@ describe("the list URLs carry the view", () => {
 });
 
 describe("the filters in the URL", () => {
-  it("covers every column but nothing else, in column order", () => {
+  // Every CSV column, so Work email and Phone stay filterable although the
+  // on-screen table leaves them off (#945): the filters narrow the CSV too.
+  it("covers every CSV column but nothing else, in column order", () => {
     expect(REPORT_FILTERS.map((f) => f.label)).toEqual([
       "First",
       "Middle",
       "Last",
       "Company",
+      "Job title",
       "Industry",
       "Secondary",
       "City",
