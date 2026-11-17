@@ -24,8 +24,9 @@ import { ReportBackButton } from "./ReportBackButton";
 import { clickOpensRow } from "./ReportRow";
 import { ReportFiltersBar } from "./ReportFiltersBar";
 import {
+  NETTREK_EXPORT_COLUMNS,
+  NETTREK_EXPORT_ONLY_COLUMNS,
   NETTREK_SCREEN_COLUMNS,
-  NETTREK_TABLE_COLUMNS,
   NetTrekReportTable,
 } from "./NetTrekReportTable";
 
@@ -54,7 +55,9 @@ describe("NetTreks nav entry", () => {
       "Events",
       "Event Speakers",
       "Event Sponsors",
+      "Event Help",
       "Conference Interest",
+      "Case Competition Hosts",
       "NetTreks",
       "Alumni Mentors",
     ]);
@@ -183,6 +186,7 @@ function row(over: Partial<NetTrekRow>): NetTrekRow {
     middle_name: null,
     last_name: "Doe",
     company: "Goldman Sachs",
+    job_title: "Vice President",
     industry: "Investment Banking",
     secondary_industry: null,
     company_city: "Dallas",
@@ -215,19 +219,43 @@ const table = (
   );
 
 describe("NetTrek report table", () => {
-  it("has the issue's columns, in order", () => {
+  it("has the CSV's columns minus Work Email and Phone, in order (#945)", () => {
     const html = table([row({})]);
-    // Short screen labels, one per CSV column and in the same order; each
-    // header's hover text is the full CSV name.
+    // Short screen labels; each header's hover text is the full CSV name.
+    expect(headers(html)).toEqual([
+      "First",
+      "Middle",
+      "Last",
+      "Company",
+      "Job title",
+      "Industry",
+      "Secondary",
+      "City",
+      "State",
+      "Personal email",
+      "LinkedIn",
+      "Gender",
+      "Grad",
+    ]);
     expect(headers(html)).toEqual(NETTREK_SCREEN_COLUMNS.map((c) => c.label));
-    for (const name of NETTREK_TABLE_COLUMNS) expect(html).toContain(`title="${name}"`);
+    // Every CSV column is on screen, in the CSV's order, except the two left off.
+    expect(NETTREK_SCREEN_COLUMNS.map((c) => c.csv)).toEqual(
+      NETTREK_EXPORT_COLUMNS.filter((c) => !NETTREK_EXPORT_ONLY_COLUMNS.includes(c)),
+    );
+    expect(NETTREK_EXPORT_ONLY_COLUMNS).toEqual(["Work Email", "Phone"]);
+    for (const c of NETTREK_SCREEN_COLUMNS) expect(html).toContain(`title="${c.csv}"`);
+    expect(html).not.toContain('title="Work Email"');
+    expect(html).not.toContain('title="Phone"');
     const pct = NETTREK_SCREEN_COLUMNS.reduce((n, c) => n + Number(c.w.match(/\d+/)![0]), 0);
     expect(pct).toBe(100);
-    expect(NETTREK_TABLE_COLUMNS).toEqual([
+    // The CSV (the backend's NETTREK_EXPORT_COLUMNS) keeps Work Email and Phone
+    // and has Job Title right after Company.
+    expect(NETTREK_EXPORT_COLUMNS).toEqual([
       "First Name",
       "Middle Name",
       "Last Name",
       "Company",
+      "Job Title",
       "Industry",
       "Secondary Industry",
       "Company City",
@@ -250,13 +278,17 @@ describe("NetTrek report table", () => {
     expect(html).not.toContain("Host");
   });
 
-  it("shows a phone as the profile does, and an unknown one as stored", () => {
+  it("shows the job title and leaves work email and phone off the screen", () => {
     const html = table([
-      row({ alumni_id: 1, phone: "+1 8015551234" }),
-      row({ alumni_id: 2, phone: "+44 20 7946 0958" }),
+      row({ alumni_id: 1, work_email: "jane@work.example", phone: "+1 8015551234" }),
     ]);
-    expect(html).toContain(">(801) 555-1234<");
-    expect(html).toContain(">+44 20 7946 0958<");
+    expect(html).toContain(">Vice President<");
+    expect(html).not.toContain("jane@work.example");
+    expect(html).not.toContain("555-1234");
+    expect(html).not.toContain("8015551234");
+    expect(html).toContain('href="/nettreks/dallas/hosts?sort=job_title"');
+    expect(html).not.toContain("sort=work_email");
+    expect(html).not.toContain("sort=phone");
   });
 
   it("never makes an unsafe LinkedIn value a link", () => {
@@ -360,7 +392,7 @@ describe("Outreach filters", () => {
 
   it("has a control for every column, dropdowns offering the list's values", () => {
     const html = bar();
-    expect(html.match(/<input/g)?.length).toBe(9);
+    expect(html.match(/<input/g)?.length).toBe(10);
     expect(html.match(/<select/g)?.length).toBe(5);
     expect(html).toContain('<option value="UT">UT</option>');
     expect(html).toContain('<option value="2015">2015</option>');

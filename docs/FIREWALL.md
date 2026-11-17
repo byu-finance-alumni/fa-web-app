@@ -77,7 +77,7 @@ Vercel dashboard.
 
 | Purpose | Vercel project name | Source of the name | Confidence |
 | --- | --- | --- | --- |
-| Prod app (frontend) | `finance-alumni-database` | `README.md`, `NEXT-STEPS.md`, `CLAUDE.md`, `docs/PRE-LAUNCH.md` §8 | **Confirmed in repo docs** (multiple independent files) |
+| Prod app (frontend) | `finance-alumni-database` | `README.md`, `CLAUDE.md`, `docs/PRE-LAUNCH.md` §8 | **Confirmed in repo docs** (multiple independent files) |
 | Prod API (backend) | `finance-alumni-database-api` | `docs/PRE-LAUNCH.md` §1 and §8, `fa-web-api/docs/SECURITY-MONITORING.md` | **Confirmed in repo docs** (multiple independent files) |
 | Dev app | `dev-fa-web-app` | `README.md`, `NEXT-STEPS.md`, `fa-web-api/docs/SECURITY-MONITORING.md` | **Confirmed in repo docs** |
 | Dev API | `dev-fa-web-api` | `fa-web-api/docs/SECURITY-MONITORING.md` | **Confirmed in repo docs** (single source) |

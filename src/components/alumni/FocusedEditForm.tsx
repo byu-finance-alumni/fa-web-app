@@ -8,8 +8,7 @@ import { Button } from "@/components/ui/button";
 
 /**
  * Shared layout for a focused single-section edit form
- * (`/alumni/[id]/edit/*`). Renders the "← Back to all sections" link, the
- * titled card, a form-level error banner, and the Save / Cancel controls.
+ * (`/alumni/[id]/edit/*`). Renders the titled card, a form-level error banner, and the Save / Cancel controls.
  *
  * This is a PURE layout shell — it does not own the form state. Each section
  * component owns its own `useActionState` (so it can also hold local UI state
@@ -23,7 +22,6 @@ export function FocusedEditForm({
   pending,
   error,
   cancelHref,
-  pickerHref,
   submitLabel = "Save",
   onSubmit,
   children,
@@ -36,8 +34,9 @@ export function FocusedEditForm({
   error?: string;
   /** Where Cancel goes — the profile. */
   cancelHref: string;
-  /** Where the back link goes — the section picker. */
-  pickerHref: string;
+  /** No longer rendered (the shell's Back button covers it, 2026-11-17); kept
+   *  so the section pages that still pass it typecheck. */
+  pickerHref?: string;
   submitLabel?: string;
   /**
    * Optional pre-submit client validation (#626). Calling `preventDefault()`
@@ -53,8 +52,7 @@ export function FocusedEditForm({
   onSubmit?: (e: React.FormEvent<HTMLFormElement>) => void;
   children: React.ReactNode;
 }) {
-  // #937 — the list the profile was opened from. Kept on Cancel and the
-  // section-picker link, and sent with the save (the action re-validates it), so
+  // #937 — the list the profile was opened from. Kept on Cancel and sent with the save (the action re-validates it), so
   // the profile's Back button still goes to that list afterwards.
   const from = safeReturnPath(useSearchParams()?.get(RETURN_PARAM) ?? null);
   return (
@@ -64,15 +62,6 @@ export function FocusedEditForm({
       className="mx-auto w-full max-w-2xl space-y-4"
     >
       {from ? <input type="hidden" name={RETURN_FIELD} value={from} /> : null}
-      <div>
-        <Link
-          href={withReturnTo(pickerHref, from)}
-          className="text-sm font-medium text-brand-blue-600 hover:underline"
-        >
-          ← Back to all sections
-        </Link>
-      </div>
-
       <Section title={title}>
         <div className="space-y-4">
           {note ? <p className="text-sm text-gray-700">{note}</p> : null}

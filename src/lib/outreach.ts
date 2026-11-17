@@ -1,6 +1,6 @@
 /**
- * Outreach interest lists: Conference Interest, Event Speakers, Event Sponsors
- * and Alumni Mentors.
+ * Outreach interest lists: Conference Interest, Event Speakers, Event Sponsors,
+ * Alumni Mentors, Case Competition Hosts and Event Help.
  *
  * The backend owns who is on each list and what each list is called — see
  * fa-web-api `app/services/outreach_lists.py`. Every list shows the NetTrek
@@ -17,12 +17,14 @@ export type OutreachGroupSummary = Schema<"OutreachGroupSummary">;
 export type OutreachListLink = Schema<"OutreachListLink">;
 export type OutreachListPage = Schema<"OutreachListPage">;
 
-/** The four landing pages, in Outreach-menu order, with their menu labels. */
+/** The landing pages with their menu labels. */
 export const OUTREACH_GROUPS: readonly { key: OutreachGroupKey; label: string }[] = [
   { key: "conference", label: "Conference Interest" },
   { key: "speakers", label: "Event Speakers" },
   { key: "sponsors", label: "Event Sponsors" },
   { key: "mentors", label: "Alumni Mentors" },
+  { key: "case_competition", label: "Case Competition Hosts" },
+  { key: "event_help", label: "Event Help" },
 ];
 
 /** The lists each landing page has — mirrors the backend's `GROUP_LISTS`, so a
@@ -32,6 +34,10 @@ const GROUP_LISTS: Record<OutreachGroupKey, readonly OutreachListKey[]> = {
   speakers: ["utah", "out_of_state"],
   sponsors: ["utah", "out_of_state"],
   mentors: ["industry", "no_industry", "women"],
+  // "All", then one list per dashboard finance industry (fa-web-api #682). The
+  // backend decides which industries are lists (a 404 for any other).
+  case_competition: ["all", "industry"],
+  event_help: ["all", "industry"],
 };
 
 export const OUTREACH_PAGE_SIZE = 50;
@@ -64,7 +70,7 @@ export function cleanIndustry(raw: string | string[] | undefined | null): string
 
 /**
  * Whether `(group, key, industry)` is a list: the page has that list, and an
- * industry is given for (and only for) an Alumni Mentors `industry` list.
+ * industry is given for (and only for) an `industry` list.
  */
 export function outreachListExists(
   group: OutreachGroupKey,

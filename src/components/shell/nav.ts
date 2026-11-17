@@ -106,9 +106,21 @@ export const NAV: NavItem[] = [
         label: "Event Sponsors",
         capability: CAPABILITY.ALUMNI_EXPORT,
       },
+      // Case Competition Hosts and Event Help (fa-web-api #682): the same
+      // kind of list, behind the same gate.
+      {
+        href: "/outreach/event_help",
+        label: "Event Help",
+        capability: CAPABILITY.ALUMNI_EXPORT,
+      },
       {
         href: "/outreach/conference",
         label: "Conference Interest",
+        capability: CAPABILITY.ALUMNI_EXPORT,
+      },
+      {
+        href: "/outreach/case_competition",
+        label: "Case Competition Hosts",
         capability: CAPABILITY.ALUMNI_EXPORT,
       },
       { href: "/nettreks", label: "NetTreks", capability: CAPABILITY.ALUMNI_EXPORT },

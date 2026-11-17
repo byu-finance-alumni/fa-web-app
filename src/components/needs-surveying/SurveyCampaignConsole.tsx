@@ -1,7 +1,9 @@
 "use client";
 
 import { ProfileLink } from "@/components/shared/ProfileLink";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { replaceUrlParams } from "@/lib/urlState";
 import {
   CalendarClock,
   CalendarPlus,
@@ -300,6 +302,27 @@ export function zeroSendReason(result: SendResult): string {
   return `${parts.join("; ")}.`;
 }
 
+const CONSOLE_TABS = ["schedule", "submissions", "progress", "new-people"];
+
+/** The console state a URL asks for (#944): `?year=`, `?tab=`, and the two
+ *  name lists (`?unreachable=1`, `?replied=1`). Anything unrecognised is
+ *  ignored, so a hand-edited URL can only fall back to the defaults. */
+export function parseConsoleParams(sp: URLSearchParams | null | undefined): {
+  year: number | null;
+  tab: string | null;
+  unreachable: boolean;
+  replied: boolean;
+} {
+  const rawYear = sp?.get("year") ?? "";
+  const tab = sp?.get("tab") ?? null;
+  return {
+    year: /^\d{4}$/.test(rawYear) ? Number(rawYear) : null,
+    tab: tab !== null && CONSOLE_TABS.includes(tab) ? tab : null,
+    unreachable: sp?.get("unreachable") === "1",
+    replied: sp?.get("replied") === "1",
+  };
+}
+
 export function SurveyCampaignConsole({
   isEngineer = false,
   canExport = false,
@@ -339,12 +362,27 @@ export function SurveyCampaignConsole({
   const [schedulesFailed, setSchedulesFailed] = useState(false);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
 
+  // #944: the year, tab and open name lists are mirrored into the URL, so a
+  // profile opened from one of those lists carries them in `from` and its Back
+  // returns to the same year, tab and list — not to the console's defaults.
+  // Read once, on arrival; the console owns them after that.
+  const searchParams = useSearchParams();
+  const [urlSeed] = useState(() => parseConsoleParams(searchParams));
+  const pendingLists = useRef({
+    unreachable: urlSeed.unreachable,
+    replied: urlSeed.replied,
+  });
+
   // Which tab the operator last chose — "schedule" (Schedule & send, the
   // default), "submissions" (the review queue) or "progress" (all years). The
   // first two act on the selected year; "progress" does not. What actually
   // shows is `visibleTab` below, which falls back to Progress while no year is
   // selected and the other two are unusable.
-  const [activeTab, setActiveTab] = useState("schedule");
+  const [activeTab, setActiveTabState] = useState(urlSeed.tab ?? "schedule");
+  const setActiveTab = (tab: string) => {
+    setActiveTabState(tab);
+    replaceUrlParams({ tab: tab === "schedule" ? null : tab });
+  };
 
   /**
    * The selected year's review queue (Jake, 2026-08-07).
@@ -499,11 +537,12 @@ export function SurveyCampaignConsole({
       .then((list) => {
         if (cancelled) return;
         setYears(list);
-        setSelectedYear((cur) =>
-          cur !== null && list.some((y) => y.graduation_year === cur)
-            ? cur
-            : (list[0]?.graduation_year ?? null),
-        );
+        setSelectedYear((cur) => {
+          const want = cur ?? urlSeed.year;
+          return want !== null && list.some((y) => y.graduation_year === want)
+            ? want
+            : (list[0]?.graduation_year ?? null);
+        });
       })
       .catch(() => {
         if (!cancelled) setYears([]);
@@ -523,7 +562,7 @@ export function SurveyCampaignConsole({
         );
       }
     };
-  }, [loadUsage, loadSchedules, loadConfig, loadYears]);
+  }, [loadUsage, loadSchedules, loadConfig, loadYears, urlSeed.year]);
 
   const selected =
     years?.find((y) => y.graduation_year === selectedYear) ?? null;
@@ -665,6 +704,29 @@ export function SurveyCampaignConsole({
     loadBreakdown(selectedYear);
   }, [selectedYear, loadBreakdown]);
 
+  // Reopen the name lists the URL asked for (#944), once, after the first year
+  // is in place — declared after the reset above so it runs after it.
+  useEffect(() => {
+    if (selectedYear === null) return;
+    const want = pendingLists.current;
+    pendingLists.current = { unreachable: false, replied: false };
+    if (want.unreachable) {
+      setUnreachableOpen(true);
+      clientGet<SurveyUnreachableAlum[]>(
+        `/survey/campaigns/${selectedYear}/unreachable`,
+      )
+        .then((list) => setUnreachable(list ?? []))
+        .catch(() => setUnreachable([]));
+    }
+    if (want.replied) {
+      setRepliedOpen(true);
+      loadHeldOut(selectedYear, true);
+    }
+    // Runs on the year alone: `loadHeldOut` changes identity with every list
+    // it loads, and this is a one-shot restore, not a subscription.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedYear]);
+
   // Re-read the queue when someone opens the tab, which is what the panel did
   // for itself before the fetch moved up here — a reviewer coming back to it
   // should not be working from whatever was true when they picked the year.
@@ -680,6 +742,7 @@ export function SurveyCampaignConsole({
   const toggleUnreachable = () => {
     const opening = !unreachableOpen;
     setUnreachableOpen(opening);
+    replaceUrlParams({ unreachable: opening ? "1" : null });
     if (opening && unreachable === null && selectedYear !== null) {
       clientGet<SurveyUnreachableAlum[]>(
         `/survey/campaigns/${selectedYear}/unreachable`,
@@ -692,6 +755,7 @@ export function SurveyCampaignConsole({
   const toggleReplied = () => {
     const opening = !repliedOpen;
     setRepliedOpen(opening);
+    replaceUrlParams({ replied: opening ? "1" : null });
     if (opening) loadHeldOut(selectedYear);
   };
 
@@ -715,6 +779,8 @@ export function SurveyCampaignConsole({
   const changeSelectedYear = (year: number) => {
     // The auto-fill effect prefills the date input from this year's schedule.
     setSelectedYear(year);
+    // A new year closes both name lists (the reset effect), so the URL drops them.
+    replaceUrlParams({ year: String(year), unreachable: null, replied: null });
   };
 
   const confirmSend = async () => {
