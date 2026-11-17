@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ProfileLink } from "@/components/shared/ProfileLink";
 import { ScrollToTopOnPageChange } from "@/components/shared/ScrollToTopOnPageChange";
 import { redirect } from "next/navigation";
 import {
@@ -119,9 +120,11 @@ function EntityRef({ r }: { r: AuditRow }) {
   const label = `${r.entity_type}${r.entity_id ? ` · #${r.entity_id}` : ""}`;
   const href = entityHref(r.entity_type, r.entity_id);
   return href ? (
-    <Link href={href} className="font-medium text-brand-blue-600 hover:underline">
+    // A profile link, so the profile's Back returns to this audit page with its
+    // filters and page (#944) — every entity with a href is an alumni profile.
+    <ProfileLink href={href} className="font-medium text-brand-blue-600 hover:underline">
       {label}
-    </Link>
+    </ProfileLink>
   ) : (
     <span className="text-gray-700">{label}</span>
   );

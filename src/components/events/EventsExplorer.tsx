@@ -3,6 +3,8 @@
 import { ProfileLink } from "@/components/shared/ProfileLink";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { replaceUrlParams } from "@/lib/urlState";
 import { Title as DialogTitle } from "@radix-ui/react-dialog";
 import {
   CalendarDays,
@@ -130,7 +132,17 @@ export function EventsExplorer({
    *  /events/{id}/edit. view_only ("Professor") never sees it. */
   canManageEvents?: boolean;
 }) {
-  const [selected, setSelected] = useState<EventRow | null>(null);
+  const [selected, setSelectedState] = useState<EventRow | null>(null);
+  // The open event (and its tab) live in the URL (#944): an attendee's profile
+  // carries `?event=<id>&event_tab=attendees` in `from`, so its Back reopens
+  // this sheet on the same tab rather than landing on the bare list. `?event=`
+  // is the deep link this page already reads (`initialOpenId`).
+  const setSelected = useCallback((e: EventRow | null) => {
+    setSelectedState(e);
+    replaceUrlParams(
+      e ? { event: String(e.event_id) } : { event: null, event_tab: null },
+    );
+  }, []);
 
   // Deep-link support: when arriving via /events?event=<id>, auto-open that
   // event's sheet once the list is available. If the id isn't in the loaded
@@ -138,7 +150,7 @@ export function EventsExplorer({
   useEffect(() => {
     if (initialOpenId == null) return;
     const match = events.find((e) => e.event_id === initialOpenId);
-    if (match) setSelected(match);
+    if (match) setSelectedState(match);
   }, [initialOpenId, events]);
 
   return (
@@ -308,6 +320,11 @@ function EventNotes({
 
 /* ------------------------------------------------------------------ sheet -- */
 
+/** The sheet tab named by `?event_tab=`, or Overview. */
+export function eventTab(raw: string | null | undefined): string {
+  return raw === "attendees" || raw === "notes" ? raw : "overview";
+}
+
 function EventSheet({
   event,
   onClose,
@@ -319,6 +336,7 @@ function EventSheet({
   canWriteNotes: boolean;
   canManageEvents: boolean;
 }) {
+  const initialTab = eventTab(useSearchParams()?.get("event_tab"));
   const [detail, setDetail] = useState<EventDetail | null>(null);
   const [attendees, setAttendees] = useState<Attendee[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -409,7 +427,10 @@ function EventSheet({
 
           {/* Tabs: Overview / Attendees / Notes */}
           <Tabs
-            defaultValue="overview"
+            defaultValue={initialTab}
+            onValueChange={(v) =>
+              replaceUrlParams({ event_tab: v === "overview" ? null : v })
+            }
             className="flex min-h-0 flex-1 flex-col"
           >
             <TabsList className="shrink-0 gap-2 bg-white px-5 pt-3">

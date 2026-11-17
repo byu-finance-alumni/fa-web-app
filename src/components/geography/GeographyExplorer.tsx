@@ -11,7 +11,8 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { replaceUrlParams } from "@/lib/urlState";
 import { ChevronDown, Loader2 } from "lucide-react";
 import {
   geoCentroid,
@@ -155,7 +156,18 @@ export function GeographyExplorer({
   // US ↔ World map toggle (#213). The US view is the full interactive map; the
   // world view is wired behind a `WorldGeoMap` that loads a world topojson when
   // the asset is present (see note in that component).
-  const [mapView, setMapView] = useState<"us" | "world">("us");
+  //
+  // #944: the view and the open country live in the URL (`?view=world`,
+  // `?country=<key>`), so a profile opened from a country's list carries them
+  // in `from` and its Back reopens that country instead of the US map.
+  const urlParams = useSearchParams();
+  const [mapView, setMapViewState] = useState<"us" | "world">(
+    urlParams?.get("view") === "world" ? "world" : "us",
+  );
+  const setMapView = useCallback((v: "us" | "world") => {
+    setMapViewState(v);
+    replaceUrlParams(v === "world" ? { view: "world" } : { view: null, country: null });
+  }, []);
   // County boundary LINE overlay on/off (#2) — default ON (today's behavior:
   // county borders appear once zoomed past COUNTY_ZOOM). Toggling off hides just
   // the boundary strokes; county shading + everything else is untouched.
@@ -369,7 +381,10 @@ export function GeographyExplorer({
   const [worldFocusReq, setWorldFocusReq] = useState<{
     key: string;
     n: number;
-  } | null>(null);
+  } | null>(() => {
+    const key = urlParams?.get("country");
+    return mapView === "world" && key ? { key, n: 0 } : null;
+  });
   const requestWorldFocus = useCallback(
     (key: string) =>
       setWorldFocusReq((r) => ({ key, n: (r?.n ?? 0) + 1 })),
@@ -536,7 +551,7 @@ export function GeographyExplorer({
       }
       setGeoNote(`No location on file for ${name} to place on the map.`);
     },
-    [buildRadiusUrl, focusState, requestUsFocus, requestWorldFocus, router],
+    [buildRadiusUrl, focusState, requestUsFocus, requestWorldFocus, router, setMapView],
   );
 
   // Act on a picked local suggestion — dispatched by kind, no re-resolution.
@@ -584,7 +599,7 @@ export function GeographyExplorer({
           return;
       }
     },
-    [buildFilterUrl, buildRadiusUrl, focusState, requestUsFocus, requestWorldFocus, router],
+    [buildFilterUrl, buildRadiusUrl, focusState, requestUsFocus, requestWorldFocus, router, setMapView],
   );
 
   function applyActiveSuggestion(index: number) {
@@ -1533,6 +1548,7 @@ function WorldGeoMap({
         return;
       }
       setSelected({ name: display, count });
+      replaceUrlParams({ country: normalizeCountryName(display) });
       setAlumniResult(null);
       setAlumniItems([]);
       fetchAlumniPage(display, 0);
@@ -1564,6 +1580,7 @@ function WorldGeoMap({
     const entry = countsByKey.get(focusRequest.key);
     if (entry) {
       setSelected({ name: entry.display, count: entry.count });
+      replaceUrlParams({ country: focusRequest.key });
       setAlumniResult(null);
       setAlumniItems([]);
       fetchAlumniPage(entry.display, 0);
@@ -1726,6 +1743,7 @@ function WorldGeoMap({
                 type="button"
                 onClick={() => {
                   setSelected(null);
+                  replaceUrlParams({ country: null });
                   setAlumniResult(null);
                   setAlumniItems([]);
                 }}
