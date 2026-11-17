@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
 
 /**
  * "Back" — one step, on the data-entry screens only.
@@ -62,12 +63,16 @@ export function BackLink() {
   if (!pathname || !shouldShowBack(pathname)) return null;
 
   return (
-    <button
+    // A real button with a background (Jake, 2026-11-17), the same look as the
+    // profile's "Back to ..." button, not a blue text link.
+    <Button
       type="button"
+      variant="secondary"
+      size="sm"
       onClick={() => router.back()}
-      className="shrink-0 whitespace-nowrap text-sm font-medium text-brand-blue-600 transition hover:text-brand-blue-500"
+      className="shrink-0"
     >
       Back
-    </button>
+    </Button>
   );
 }
