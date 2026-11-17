@@ -238,6 +238,30 @@ function applyPreferredContactClear(
   return next;
 }
 
+/**
+ * Send an explicit `null` when Secondary industry is left blank on an EDIT
+ * (app#943).
+ *
+ * Secondary industry is optional — many alumni have none — but `buildSection`
+ * drops blanks, and on a PATCH an omitted field means "leave it alone", so
+ * clearing the box and saving silently kept the old value (it looked like the
+ * form forced a choice). `null` clears the column.
+ *
+ * Update paths only, and only when the form actually renders the field, so a
+ * section that doesn't show it can never wipe it. Primary industry is NOT
+ * clearable this way — its rules are unchanged.
+ */
+function applySecondaryIndustryClear(
+  formData: FormData,
+  career: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  const key = "career.current_industry_secondary";
+  if (!formData.has(key)) return career;
+  const next = career ?? {};
+  next.current_industry_secondary = getStr(formData, key) ?? null;
+  return next;
+}
+
 /** Full create payload: core fields plus the optional nested sections. */
 function buildCreatePayload(formData: FormData): Record<string, unknown> {
   const payload = buildPayload(formData);
@@ -349,6 +373,11 @@ export async function updateAlumni(
     payload.contact as Record<string, unknown> | undefined,
   );
   if (contact) payload.contact = contact;
+  const career = applySecondaryIndustryClear(
+    formData,
+    payload.career as Record<string, unknown> | undefined,
+  );
+  if (career) payload.career = career;
   let saved: AlumniWriteResponse;
   try {
     saved = await apiPatch<AlumniWriteResponse>(`/alumni/${id}`, payload);
@@ -409,15 +438,19 @@ export async function updateEmploymentSection(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const career = buildSection(formData, "career", [
-    { name: "current_employer" },
-    { name: "current_title" },
-    { name: "current_industry" },
-    { name: "current_industry_secondary" },
-    { name: "current_city" },
-    { name: "current_state" },
-    { name: "current_country" },
-  ]);
+  // Secondary industry may be cleared (app#943): blank -> explicit null.
+  const career = applySecondaryIndustryClear(
+    formData,
+    buildSection(formData, "career", [
+      { name: "current_employer" },
+      { name: "current_title" },
+      { name: "current_industry" },
+      { name: "current_industry_secondary" },
+      { name: "current_city" },
+      { name: "current_state" },
+      { name: "current_country" },
+    ]),
+  );
   const contact = buildSection(formData, "contact", [
     { name: "work_email" },
     { name: "region" },
