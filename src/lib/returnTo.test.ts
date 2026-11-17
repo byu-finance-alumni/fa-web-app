@@ -223,7 +223,7 @@ describe("#944 every profile source is a valid return target", () => {
   });
 
   it("accepts an Outreach list that is not in the menu yet (new lists inherit Back)", () => {
-    const path = "/outreach/case_competition/hosts?sort=company";
+    const path = "/outreach/not_built_yet/hosts?sort=company";
     expect(safeReturnPath(path)).toBe(path);
     expect(returnLabel(path)).toBe("Outreach");
   });

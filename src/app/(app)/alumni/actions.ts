@@ -1838,7 +1838,9 @@ export async function sendSurveyOneOff(
   try {
     result = await apiPost<{ email: string }>(
       `/survey/alumni/${alumniId}/one-off`,
-      {},
+      // The dialog already showed "last sent …" and the user clicked Send,
+      // so this click IS the confirm the 24-hour re-send guard asks for.
+      { confirm_resend: true },
     );
   } catch (e) {
     return {
