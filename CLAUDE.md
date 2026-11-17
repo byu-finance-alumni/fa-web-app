@@ -2,6 +2,9 @@
 
 This file provides guidance to Claude Code when working in the fa-web-app repository.
 
+> **Pasted an email of changes from Slack?** Follow `docs/CHANGE-REQUESTS-FROM-SLACK.md` exactly.
+> It covers asking questions, filing issues, putting the work on dev and reporting the time.
+
 > **Design system:** brand colors, typography, logos, and UI conventions live in `UX-UI.md` in this
 > repo. Read it before doing any styling or visual work — it is the single source of truth for design.
 > Brand assets are in `public/branding/`. The screen/feature inventory is `docs/Features.md` at the
