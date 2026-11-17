@@ -45,6 +45,7 @@ const FILTERS: Record<
   f_middle_name: { label: "Middle", max: TEXT_MAX },
   f_last_name: { label: "Last", max: TEXT_MAX },
   f_company: { label: "Company", max: TEXT_MAX },
+  f_job_title: { label: "Job title", max: TEXT_MAX },
   f_industry: { label: "Industry", max: CHOICE_MAX, options: "industry" },
   f_secondary_industry: {
     label: "Secondary",
@@ -106,6 +107,7 @@ const SORT_COLUMNS: Record<ReportSort, true> = {
   middle_name: true,
   last_name: true,
   company: true,
+  job_title: true,
   industry: true,
   secondary_industry: true,
   company_city: true,

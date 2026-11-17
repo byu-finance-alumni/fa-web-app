@@ -3403,7 +3403,9 @@ export interface paths {
          * @description One Outreach landing page: its lists, each with a count. Alumni Mentors
          *     has one ``industry`` link per industry with a mentor (most first, the
          *     industry in ``industry``), then ``no_industry`` if anyone is in it, then
-         *     ``women``.
+         *     ``women``. Case Competition Hosts and Event Help have ``all`` first, then
+         *     one ``industry`` link for EVERY dashboard finance industry, zeros
+         *     included, most first.
          */
         get: operations["outreach_summary_outreach__group__get"];
         put?: never;
@@ -3426,8 +3428,9 @@ export interface paths {
          * @description One list's people, paginated — the NetTrek report rows, sorted by last
          *     name, or by ``sort`` and ``dir`` with blanks last, and narrowed by the ``f_*``
          *     filters. ``total`` and ``filter_options`` follow the filters. 404 for a list
-         *     the group does not have, an ``industry`` list without ``industry``, or
-         *     ``industry`` on any other list. Gender is null for a
+         *     the group does not have, an ``industry`` list without ``industry``,
+         *     ``industry`` on any other list, or (Case Competition Hosts, Event Help) an
+         *     ``industry`` that is not a dashboard finance industry. Gender is null for a
          *     caller who cannot edit alumni, and ``sort=gender`` and ``f_gender`` are
          *     ignored for them. Audited as ``view`` on ``outreach_list``.
          */
@@ -9914,6 +9917,8 @@ export interface components {
             last_name: string | null;
             /** Company */
             company: string | null;
+            /** Job Title */
+            job_title: string | null;
             /** Industry */
             industry: string | null;
             /** Secondary Industry */
@@ -10618,7 +10623,7 @@ export interface components {
          * @description One Outreach landing page.
          * @enum {string}
          */
-        OutreachGroupKey: "conference" | "speakers" | "sponsors" | "mentors";
+        OutreachGroupKey: "conference" | "speakers" | "sponsors" | "mentors" | "case_competition" | "event_help";
         /** OutreachGroupSummary */
         OutreachGroupSummary: {
             group: components["schemas"]["OutreachGroupKey"];
@@ -10630,11 +10635,13 @@ export interface components {
         /**
          * OutreachListKey
          * @description One list on a landing page. Which keys a group has is fixed by the
-         *     backend (``outreach_lists.GROUP_LISTS``); ``industry`` (Alumni Mentors)
-         *     also takes an ``industry`` query parameter naming the industry.
+         *     backend (``outreach_lists.GROUP_LISTS``); ``industry`` (Alumni Mentors,
+         *     Case Competition Hosts, Event Help) also takes an ``industry`` query
+         *     parameter naming the industry. ``all`` is everyone willing (Case
+         *     Competition Hosts, Event Help).
          * @enum {string}
          */
-        OutreachListKey: "real_estate" | "corporate_finance" | "financial_services" | "utah" | "out_of_state" | "industry" | "no_industry" | "women";
+        OutreachListKey: "real_estate" | "corporate_finance" | "financial_services" | "utah" | "out_of_state" | "industry" | "no_industry" | "women" | "all";
         /**
          * OutreachListLink
          * @description One report link on a landing page.
@@ -10949,7 +10956,7 @@ export interface components {
          *     the NetTrek reports and the Outreach lists (fa-web-app #917).
          * @enum {string}
          */
-        ReportSortColumn: "first_name" | "middle_name" | "last_name" | "company" | "industry" | "secondary_industry" | "company_city" | "company_state" | "permanent_email" | "work_email" | "phone" | "linkedin_url" | "gender" | "graduation_year";
+        ReportSortColumn: "first_name" | "middle_name" | "last_name" | "company" | "job_title" | "industry" | "secondary_industry" | "company_city" | "company_state" | "permanent_email" | "work_email" | "phone" | "linkedin_url" | "gender" | "graduation_year";
         /**
          * ReportSortDir
          * @enum {string}
@@ -16186,6 +16193,7 @@ export interface operations {
                 f_middle_name?: string | null;
                 f_last_name?: string | null;
                 f_company?: string | null;
+                f_job_title?: string | null;
                 f_industry?: string | null;
                 f_secondary_industry?: string | null;
                 f_company_city?: string | null;
@@ -16235,6 +16243,7 @@ export interface operations {
                 f_middle_name?: string | null;
                 f_last_name?: string | null;
                 f_company?: string | null;
+                f_job_title?: string | null;
                 f_industry?: string | null;
                 f_secondary_industry?: string | null;
                 f_company_city?: string | null;
@@ -16318,6 +16327,7 @@ export interface operations {
                 f_middle_name?: string | null;
                 f_last_name?: string | null;
                 f_company?: string | null;
+                f_job_title?: string | null;
                 f_industry?: string | null;
                 f_secondary_industry?: string | null;
                 f_company_city?: string | null;
@@ -16368,6 +16378,7 @@ export interface operations {
                 f_middle_name?: string | null;
                 f_last_name?: string | null;
                 f_company?: string | null;
+                f_job_title?: string | null;
                 f_industry?: string | null;
                 f_secondary_industry?: string | null;
                 f_company_city?: string | null;
