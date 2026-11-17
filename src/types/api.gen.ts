@@ -5713,9 +5713,14 @@ export interface paths {
          *     Counts toward the daily/monthly send cap, takes the send lock, and is
          *     refused (409, nothing sent) when they can't be sent to, the cap is spent,
          *     another send is running, or their class's campaign is paused or stopped.
-         *     Re-sending to the same person is allowed. Audited on the alum's record.
+         *     Re-sending to the same person is allowed, but within 24 hours of their last
+         *     survey email (class or one-off) only with `{"confirm_resend": true}`;
+         *     without it the answer is 409 with `error.code` = `resend_confirm_required`
+         *     and `error.last_sent_at` (ISO 8601), and nothing is sent. Audited on the
+         *     alum's record.
          *
-         *     Gated like the profile's Edit button (`alumni.edit`).
+         *     Gated like the profile's Edit button (`alumni.edit`), and braked to 10 sends
+         *     per editor per 10 minutes (429).
          */
         post: operations["survey_one_off_send_survey_alumni__alumni_id__one_off_post"];
         delete?: never;
@@ -11555,6 +11560,23 @@ export interface components {
              * @default true
              */
             reminders_scheduled: boolean;
+        };
+        /**
+         * SurveyOneOffSendRequest
+         * @description Optional body of ``POST /survey/alumni/{alumni_id}/one-off``.
+         *
+         *     ``confirm_resend`` must be true to email someone who was sent a survey (class
+         *     or one-off) in the last 24 hours; without it that send is refused with a 409
+         *     whose ``error.code`` is ``resend_confirm_required`` and whose
+         *     ``error.last_sent_at`` is the previous send. An empty body (or ``{}``) means
+         *     "not confirmed".
+         */
+        SurveyOneOffSendRequest: {
+            /**
+             * Confirm Resend
+             * @default false
+             */
+            confirm_resend: boolean;
         };
         /**
          * SurveyRead
@@ -19262,7 +19284,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SurveyOneOffSendRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
