@@ -92,13 +92,13 @@ function person(overrides: Partial<Alumni> = {}): Alumni {
 const render = (items: Alumni[]) =>
   renderToStaticMarkup(createElement(AlumniTable, { items }));
 
-describe("the alumni list shows a friend's id (#538)", () => {
-  it("renders FRIEND-00042 on a friend row", () => {
+describe("the friends list no longer shows the record number (#956)", () => {
+  it("renders the name but not FRIEND-00042 on a friend row", () => {
     const html = render([
       person({ alumni_id: 42, is_alumni: false, friend_id: "FRIEND-00042" }),
     ]);
     expect(html).toContain("Jones, Pat");
-    expect(html).toContain("FRIEND-00042");
+    expect(html).not.toContain("FRIEND-00042");
   });
 
   it("renders nothing extra on an alumnus row", () => {
@@ -107,18 +107,23 @@ describe("the alumni list shows a friend's id (#538)", () => {
     ]);
     expect(html).toContain("Jones, Pat");
     expect(html).not.toContain("FRIEND");
-    // The Net ID is deliberately NOT a list column; the friend id fills the
-    // gap only for records that have no Net ID at all.
+    // The Net ID is deliberately NOT a list column.
     expect(html).not.toContain("pjones");
   });
 });
 
-describe("the profile header shows a friend's id (#538)", () => {
-  it("renders friend_id from the record, guarded on it being set", () => {
-    // The profile page is a server component with data loaders the Node
-    // runner cannot exercise, so this is a source guard: the header reads
-    // `a.friend_id` and renders it only when present.
-    const src = readFileSync("src/app/(app)/alumni/[id]/page.tsx", "utf8");
-    expect(src).toMatch(/\{a\.friend_id \? \(\s*<p[^>]*>\s*\{a\.friend_id\}/);
+describe("the profile header marks a friend with a Friend badge (#956)", () => {
+  // The profile page is a server component with data loaders the Node runner
+  // cannot exercise, so these are source guards.
+  const src = readFileSync("src/app/(app)/alumni/[id]/page.tsx", "utf8");
+
+  it("shows the word Friend as a tag badge, only for friends", () => {
+    expect(src).toMatch(
+      /\{a\.is_alumni === false \? \(\s*<Badge variant="tag">Friend<\/Badge>/,
+    );
+  });
+
+  it("no longer renders the friend's record number", () => {
+    expect(src).not.toMatch(/\{a\.friend_id\}/);
   });
 });

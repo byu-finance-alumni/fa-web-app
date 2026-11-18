@@ -52,3 +52,28 @@ export function emailSourceNote(source: string | null | undefined): string | nul
 export function sentToast(name: string, email: string): string {
   return `Survey sent to ${name} at ${email}.`;
 }
+
+/**
+ * What the profile's survey box shows (fa-web-app #957).
+ *
+ * * They filled out the survey (a reply staff have not rejected): the box is
+ *   one "Last updated" block with the survey date and THEIR name as who
+ *   updated it.
+ * * Otherwise: the usual "Last updated" on top, and "Last sent" with the date
+ *   of the last survey email (class or one-off) at the bottom, or null when
+ *   none was ever sent.
+ *
+ * There is no "Next survey" date any more.
+ */
+export type SurveyBox =
+  | { kind: "filled"; filledAt: string }
+  | { kind: "not_filled"; lastSentAt: string | null };
+
+export function surveyBox(
+  lastSubmittedAt: string | null | undefined,
+  lastSentAt: string | null | undefined,
+): SurveyBox {
+  return lastSubmittedAt
+    ? { kind: "filled", filledAt: lastSubmittedAt }
+    : { kind: "not_filled", lastSentAt: lastSentAt ?? null };
+}

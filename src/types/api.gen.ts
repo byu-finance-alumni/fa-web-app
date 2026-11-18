@@ -4757,6 +4757,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/survey/no-year/responses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Survey Pending Responses Without Year
+         * @description Admin review queue for submissions with NO class year (api#696): friends
+         *     of the program, who are sent the survey from their profile and usually have
+         *     no graduation year, so no class queue would ever show their reply. Same
+         *     gate, rows and audit as the per-year queue; approve/reject are the same
+         *     ``/responses/{id}`` routes.
+         */
+        get: operations["survey_pending_responses_without_year_survey_no_year_responses_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/survey/responses/{response_id}/apply": {
         parameters: {
             query?: never;
@@ -5906,6 +5930,32 @@ export interface paths {
          * @description A new key. The old URL stops working immediately; on/off is unchanged.
          */
         post: operations["reissue_new_people_link_survey_new_people_link_reissue_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/survey/new-people/submissions/count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Count New People Submissions
+         * @description How many new-people submissions wait for review (fa-web-app #958) -- the
+         *     small number on the top bar. Same capability as the queue itself
+         *     (``surveys.manage``), so only people who can review see it.
+         *
+         *     A bare count with no PII, so it is neither audit-logged nor charged to the
+         *     browse read budget: the top bar asks on every page, and spending the
+         *     per-user browse budget on it would throttle real list reads.
+         */
+        get: operations["count_new_people_submissions_survey_new_people_submissions_count_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -10122,6 +10172,15 @@ export interface components {
             enabled: boolean;
         };
         /**
+         * NewPeoplePendingCount
+         * @description ``GET /survey/new-people/submissions/count`` (fa-web-app #958): how many
+         *     new-people submissions wait for review. A number only -- no names.
+         */
+        NewPeoplePendingCount: {
+            /** Pending */
+            pending: number;
+        };
+        /**
          * NewPeopleRequiredFields
          * @description Required fields per kind. Each inner list is an ANY-OF group: at least one
          *     key in it must be answered (so the email group is personal OR work).
@@ -10917,6 +10976,10 @@ export interface components {
             surveys: components["schemas"]["SurveyRead"][];
             /** Next Survey Date */
             next_survey_date: string | null;
+            /** Survey Last Submitted At */
+            survey_last_submitted_at: string | null;
+            /** Survey Last Sent At */
+            survey_last_sent_at: string | null;
             /**
              * Interactions
              * @default []
@@ -18632,6 +18695,26 @@ export interface operations {
             };
         };
     };
+    survey_pending_responses_without_year_survey_no_year_responses_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurveyResponseItem"][];
+                };
+            };
+        };
+    };
     survey_apply_response_survey_responses__response_id__apply_post: {
         parameters: {
             query?: never;
@@ -19836,6 +19919,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NewPeopleLinkRead"];
+                };
+            };
+        };
+    };
+    count_new_people_submissions_survey_new_people_submissions_count_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewPeoplePendingCount"];
                 };
             };
         };

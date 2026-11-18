@@ -65,9 +65,10 @@ describe("the profile's confirm button", () => {
     "utf8",
   );
 
-  it("is gated on the alumni.edit capability, not a role", () => {
-    expect(src).toContain("canConfirmCurrent = canEditAlumniRecord(ctx.capabilities)");
-    expect(src).toMatch(/\{canConfirmCurrent \? \(\s*<span className="block">\s*<ConfirmCurrentButton/);
+  it("is no longer in the profile's survey box (#957)", () => {
+    expect(src).not.toContain("<ConfirmCurrentButton");
+    expect(src).not.toContain('bottomLabel="Next survey"');
+    expect(src).toContain('bottomLabel="Last sent"');
   });
 
   it("uses no icons", () => {
