@@ -213,15 +213,19 @@ function GradYearRange({
   ymax,
   onChange,
   error,
+  label = "Graduation year",
 }: {
   ymin: string;
   ymax: string;
   onChange: (next: { ymin: string; ymax: string }) => void;
   error?: string | null;
+  /** The field's heading; also the start of each input's accessible name. The
+   *  "Class of" range (#959) reuses this control under its own label. */
+  label?: string;
 }) {
   return (
     <div>
-      <p className={`mb-1 ${FIELD_LABEL}`}>Graduation year</p>
+      <p className={`mb-1 ${FIELD_LABEL}`}>{label}</p>
       {/* From/To share one cell and split it evenly, so the pair lines up with
           whatever single control sits in the cell beside it. `min-w-0` because
           a number input's default intrinsic width would otherwise stop the
@@ -234,7 +238,7 @@ function GradYearRange({
           value={ymin}
           onChange={(e) => onChange({ ymin: e.target.value, ymax })}
           placeholder="From"
-          aria-label="Graduation year from"
+          aria-label={`${label} from`}
           aria-invalid={error ? true : undefined}
           className="h-9 min-w-0 flex-1 tabular-nums"
         />
@@ -246,7 +250,7 @@ function GradYearRange({
           value={ymax}
           onChange={(e) => onChange({ ymin, ymax: e.target.value })}
           placeholder="To"
-          aria-label="Graduation year to"
+          aria-label={`${label} to`}
           aria-invalid={error ? true : undefined}
           className="h-9 min-w-0 flex-1 tabular-nums"
         />
@@ -345,6 +349,13 @@ function yearParams(p: URLSearchParams, y: { ymin: string; ymax: string }) {
   if (y.ymax.trim()) p.set("ymax", y.ymax.trim());
 }
 
+/** The "Class of" range (#959) under the list's `cmin` / `cmax` URL keys —
+ *  `parseAlumniFilters` owns them from there (list, export, Back-to-list). */
+function classParams(p: URLSearchParams, y: { ymin: string; ymax: string }) {
+  if (y.ymin.trim()) p.set("cmin", y.ymin.trim());
+  if (y.ymax.trim()) p.set("cmax", y.ymax.trim());
+}
+
 /** `gender=M|F`. "" means "all", which is the ABSENCE of the param — writing
  *  `gender=` would hand the roster an empty predicate rather than no predicate. */
 function genderParam(p: URLSearchParams, gender: Gender) {
@@ -406,6 +417,8 @@ export function DashboardSearch({
   const [adv, setAdv] = useState<Identity>(EMPTY_IDENTITY);
   const [advYear, setAdvYear] = useState({ ymin: "", ymax: "" });
   const [advYearError, setAdvYearError] = useState<string | null>(null);
+  const [advClass, setAdvClass] = useState({ ymin: "", ymax: "" });
+  const [advClassError, setAdvClassError] = useState<string | null>(null);
   const [facets, setFacets] = useState<Record<string, string[]>>({});
   const [flags, setFlags] = useState<Record<string, boolean>>({});
 
@@ -428,10 +441,13 @@ export function DashboardSearch({
   function runAdvanced() {
     const err = gradRangeError(advYear);
     setAdvYearError(err);
-    if (err) return;
+    const classErr = gradRangeError(advClass);
+    setAdvClassError(classErr);
+    if (err || classErr) return;
     const p = new URLSearchParams();
     identityParams(p, adv);
     yearParams(p, advYear);
+    classParams(p, advClass);
     for (const facet of FACETS) {
       for (const v of facets[facet.key] ?? []) p.append(facet.param, v);
     }
@@ -444,6 +460,8 @@ export function DashboardSearch({
     setAdv(EMPTY_IDENTITY);
     setAdvYear({ ymin: "", ymax: "" });
     setAdvYearError(null);
+    setAdvClass({ ymin: "", ymax: "" });
+    setAdvClassError(null);
     setFacets({});
     setFlags({});
   }
@@ -600,7 +618,9 @@ export function DashboardSearch({
             />
             {/* Same 2-up grid as everything above and below it, so the From/To
                 pair keeps the half-width cell it has on the Quick tab rather
-                than stretching across the whole panel. */}
+                than stretching across the whole panel. "Class of" (#959) takes
+                the cell beside it: a separate column from the graduation year
+                (they can differ by one), so it is its own range. */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <GradYearRange
                 ymin={advYear.ymin}
@@ -610,6 +630,16 @@ export function DashboardSearch({
                   if (advYearError) setAdvYearError(null);
                 }}
                 error={advYearError}
+              />
+              <GradYearRange
+                label="Class of"
+                ymin={advClass.ymin}
+                ymax={advClass.ymax}
+                onChange={(next) => {
+                  setAdvClass(next);
+                  if (advClassError) setAdvClassError(null);
+                }}
+                error={advClassError}
               />
             </div>
             {/* Single column on mobile, so the pairings above collapse to the
