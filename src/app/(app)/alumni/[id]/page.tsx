@@ -44,9 +44,8 @@ import { ProfileNotes } from "@/components/alumni/ProfileNotes";
 import { ProfileHistory } from "@/components/alumni/ProfileHistory";
 import type { Note } from "@/types/notes";
 import { ExportProfileButton } from "@/components/alumni/ExportProfileButton";
-import { ConfirmCurrentButton } from "@/components/alumni/ConfirmCurrentButton";
 import { SendSurveyControl } from "@/components/alumni/SendSurveyControl";
-import type { SurveyOneOffPreview } from "@/lib/surveyOneOff";
+import { surveyBox, type SurveyOneOffPreview } from "@/lib/surveyOneOff";
 import { DrawerList } from "@/components/alumni/DrawerList";
 import { LoadError } from "@/components/shared/LoadError";
 import { MetricCard } from "@/components/shared/MetricCard";
@@ -491,9 +490,6 @@ export async function AlumniProfileView({
   // view_only). Asked of the CAPABILITY, not the role, so a permission-editor
   // change is reflected here.
   let canViewHistory = false;
-  // "Mark info confirmed" (POST /alumni/{id}/confirm-current) is gated on the
-  // same `alumni.edit` capability server-side.
-  let canConfirmCurrent = false;
   const auth = await readAuthContext();
   if (auth.status === "ok") {
     const ctx = auth.ctx;
@@ -509,7 +505,6 @@ export async function AlumniProfileView({
       "profile.completeness",
     );
     canViewHistory = canEditAlumniRecord(ctx.capabilities);
-    canConfirmCurrent = canEditAlumniRecord(ctx.capabilities);
   } else if (auth.status === "unavailable") {
     // A 401/403 leaves the flags false — that is the backend telling us this
     // account is view-only, and the reduced profile is correct. A fault is not
@@ -585,25 +580,12 @@ export async function AlumniProfileView({
         (y.completed_at ?? "").localeCompare(x.completed_at ?? ""),
       )[0]?.completed_at ?? null;
 
-  // ---- Backend contract (profile detail payload) --------------------------
-  // Fields a separate backend agent is adding to `GET /alumni/{id}/profile`.
-  // Read via optional access (typed extension casts) so a not-yet-deployed
-  // backend simply renders an em-dash instead of failing to compile.
-  const profileExtra = profile as typeof profile & {
-    next_survey_date?: string | null;
-  };
-
-
-  // Next scheduled survey (#364) — prefer a backend-provided date, else derive
-  // the nearest not-yet-completed due date from the survey list.
-  const nextSurveyIso =
-    profileExtra.next_survey_date ??
-    profile.surveys
-      .filter((s) => !s.completed && !!s.survey_due_date)
-      .sort((x, y) =>
-        (x.survey_due_date ?? "").localeCompare(y.survey_due_date ?? ""),
-      )[0]?.survey_due_date ??
-    null;
+  // The survey box (#957): filled out → their survey date and name; not →
+  // "Last sent". No "Next survey" date any more.
+  const box = surveyBox(
+    profile.survey_last_submitted_at,
+    profile.survey_last_sent_at,
+  );
 
   // Display location (#450): the header leads with the EMPLOYMENT city/state and
   // falls back to the residence (contact) location when
@@ -907,6 +889,13 @@ export async function AlumniProfileView({
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-3xl font-semibold text-gray-900">{name}</h2>
+                    {/* fa-web-app #956: a friend of the program is marked with
+                        the word "Friend" as a tag-family badge (UX-UI.md), so
+                        it is obvious whose profile this is. Their record
+                        number (FRIEND-00042) is no longer shown. No icon. */}
+                    {a.is_alumni === false ? (
+                      <Badge variant="tag">Friend</Badge>
+                    ) : null}
                     {recordStatus !== "Active" ? (
                       <Badge variant="muted">
                         <span className="h-1.5 w-1.5 rounded-full bg-gray-400" />
@@ -917,13 +906,6 @@ export async function AlumniProfileView({
                   {/* BYU ID and BYU Net ID removed from the header (#361) — the
                       Net ID now lives in the Personal & family box; the BYU ID
                       number is not rendered in the UI at all. */}
-                  {/* #538: a friend of the program has no Net ID; their visible
-                      FRIEND-00042 id goes here instead. Null for every alumnus. */}
-                  {a.friend_id ? (
-                    <p className="mt-0.5 text-sm tabular-nums text-gray-500">
-                      {a.friend_id}
-                    </p>
-                  ) : null}
                   {/* Job title on its own line, company name underneath (#363);
                       the job/city icons are removed (#362). */}
                   <div className="mt-1.5 space-y-0.5 text-base text-gray-600">
@@ -1088,45 +1070,51 @@ export async function AlumniProfileView({
               }
               title="Pay It Forward giving"
             />
-            {/* Last updated + Next survey combined into one stacked tile (#364),
-                kept as the last tile in the row.
+            {/* The survey box (#957), kept as the last tile in the row.
 
-                #453: read `updated_at` — the ORM auto-bumps it on every write —
-                NOT the hand-typed `profile_updated_date`. The manual date came
-                off the intake sheet and was never auto-set, so the profile and
-                the alumni list (which has always read `updated_at`) could show
-                different dates for the same alum. One auto date, both surfaces.
-                `profile_updated_date` stays in the DB as the provenance record
-                of what the spreadsheet claimed; it just isn't displayed.
+                FILLED OUT: "Last updated" takes the whole box — the date they
+                filled out the survey, and THEM as who updated it.
 
-                `updatedBy` prefers the name resolved from `profile_updated_by_user_id`
-                (the backend now stamps the actor on every write), falling back to
-                the free-text `profile_updated_by` for legacy rows that only ever
-                came from the spreadsheet and so have no actor FK. */}
-            <StackedTile
-              topLabel="Last updated"
-              topValue={
-                <>
-                  {fmtDate(a.updated_at) ?? "—"}
-                  {updatedBy ? (
+                NOT FILLED OUT: "Last updated" on top as before, "Last sent"
+                (the last survey email, class or one-off) at the bottom. No
+                "Next survey" date, and no "Mark info confirmed" button here.
+
+                #453: the top reads `updated_at` — the ORM auto-bumps it on
+                every write — NOT the hand-typed `profile_updated_date`.
+                `updatedBy` prefers the name resolved from
+                `profile_updated_by_user_id`, falling back to the free-text
+                `profile_updated_by` for legacy spreadsheet rows. */}
+            {box.kind === "filled" ? (
+              <StackedTile
+                topLabel="Last updated"
+                topValue={
+                  <>
+                    {fmtDate(box.filledAt) ?? "—"}
                     <span className="block text-xs font-normal text-gray-500">
-                      by {updatedBy}
+                      by {name}
                     </span>
-                  ) : null}
-                  {/* Stamp it checked today without editing a field. On the
-                      `alumni.edit` capability — the gate the backend's
-                      confirm-current route uses — not the role. */}
-                  {canConfirmCurrent ? (
-                    <span className="block">
-                      <ConfirmCurrentButton alumniId={aid} />
-                    </span>
-                  ) : null}
-                </>
-              }
-              bottomLabel="Next survey"
-              bottomValue={fmtDate(nextSurveyIso) ?? "—"}
-              title={updatedBy ? `Updated by ${updatedBy}` : undefined}
-            />
+                  </>
+                }
+                title={`Updated by ${name} on the survey`}
+              />
+            ) : (
+              <StackedTile
+                topLabel="Last updated"
+                topValue={
+                  <>
+                    {fmtDate(a.updated_at) ?? "—"}
+                    {updatedBy ? (
+                      <span className="block text-xs font-normal text-gray-500">
+                        by {updatedBy}
+                      </span>
+                    ) : null}
+                  </>
+                }
+                bottomLabel="Last sent"
+                bottomValue={fmtDate(box.lastSentAt) ?? "—"}
+                title={updatedBy ? `Updated by ${updatedBy}` : undefined}
+              />
+            )}
           </div>
 
           {/* Secondary-nav tabs organize the long profile into Overview /
@@ -2373,8 +2361,9 @@ function StackedTile({
 }: {
   topLabel: string;
   topValue: React.ReactNode;
-  bottomLabel: string;
-  bottomValue: React.ReactNode;
+  /** Omit both to let the top block take the whole box (#957). */
+  bottomLabel?: string;
+  bottomValue?: React.ReactNode;
   title?: string;
 }) {
   return (
@@ -2390,14 +2379,16 @@ function StackedTile({
           {topValue}
         </p>
       </div>
-      <div className="border-t border-gray-100 pt-2">
-        <p className="text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
-          {bottomLabel}
-        </p>
-        <p className="mt-0.5 text-center text-sm font-semibold tabular-nums text-gray-900">
-          {bottomValue}
-        </p>
-      </div>
+      {bottomLabel ? (
+        <div className="border-t border-gray-100 pt-2">
+          <p className="text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
+            {bottomLabel}
+          </p>
+          <p className="mt-0.5 text-center text-sm font-semibold tabular-nums text-gray-900">
+            {bottomValue}
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }
