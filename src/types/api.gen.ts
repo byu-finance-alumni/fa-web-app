@@ -3021,6 +3021,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/events/attendees/sheet/template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Attendee Sheet Template
+         * @description Download the attendee SPREADSHEET template (api#693): Fname, Lname,
+         *     Company, Role, Email, Focus, UG, UG YR, LinkedIn, Grad, GradYR, Net ID, with
+         *     one Finance alum and one friend as examples. Net ID may be left blank and
+         *     extra columns are ignored. Declared before ``/{event_id}`` so the literal
+         *     path wins.
+         */
+        get: operations["attendee_sheet_template_events_attendees_sheet_template_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/events/import/preview": {
         parameters: {
             query?: never;
@@ -3149,17 +3173,19 @@ export interface paths {
         };
         /**
          * Export Event Attendees
-         * @description Download an event's attendee list as CSV — columns **Name, Email, Net ID**
-         *     (#219). Gated at ``full_access`` (a rung above the view-only attendee list)
+         * @description Download an event's attendee list as CSV — columns **Name, Alumni/Friend,
+         *     Email, Net ID** (#219; the Alumni/Friend column and alumni-then-friends
+         *     order are api#694). Gated at ``full_access`` (a rung above the view-only attendee list)
          *     because bulk contact details — alumni PII — leave the system here, and audited
          *     as a disclosure (action ``export_event_attendees``, row count only, never the
          *     data itself). 404 if the event is unknown.
          *
          *     Email is the alumnus's personal email, falling back to the work email. Rows
-         *     are ordered by name, matching the on-screen roster.
+         *     list every alumnus first, then every friend, each group ordered by name.
          *
-         *     A non-editor holding the assignable ``alumni.export`` gets **Name, Email**
-         *     only: Net ID is nulled on every read they make (VIEW_ONLY_HIDDEN_FIELDS), so
+         *     A non-editor holding the assignable ``alumni.export`` gets **Name,
+         *     Alumni/Friend, Email** only: Net ID is nulled on every read they make
+         *     (VIEW_ONLY_HIDDEN_FIELDS), so
          *     the column is dropped rather than the export refused.
          *
          *     Archived attendees are left out below full_access, matching the on-screen
@@ -3309,6 +3335,65 @@ export interface paths {
          *     Every created / reused item carries the visible ``friend_id``.
          */
         post: operations["create_attendee_friends_events__event_id__attendees_match_friends_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/{event_id}/attendees/sheet/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Attendee Sheet
+         * @description Confirm-screen report for an attendee spreadsheet (NO alumni or
+         *     attendance writes). Same 4 MB / 2,000-row limits as the conference matcher.
+         *     Audited as a disclosure: row counts plus the ids of every record surfaced
+         *     as a candidate, never the file's contents. 404 if the event is unknown.
+         */
+        post: operations["preview_attendee_sheet_events__event_id__attendees_sheet_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/{event_id}/attendees/sheet/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Commit Attendee Sheet
+         * @description Save the confirmed spreadsheet rows (api#693).
+         *
+         *     Each row carries the reviewer's choice:
+         *
+         *     * ``match`` + ``alumni_id`` — record attendance for that record (re-checked:
+         *       must exist and not be archived; ``not_found`` otherwise).
+         *     * ``new_alumni`` / ``new_friend`` — create the record from the row's name,
+         *       Net ID, LinkedIn, years, email, company and role through the shared
+         *       ``create_alumni`` path (cleaning, duplicate blocking and audit logging
+         *       fire exactly as for a manual create), then record attendance.
+         *     * ``skip`` — nothing.
+         *
+         *     Idempotent per (event, record): someone already on the roster is reported
+         *     ``already_attending``. One transaction, with a savepoint per new record so
+         *     a refused row never takes the rest down. At most
+         *     ``MAX_NEW_RECORDS_PER_COMMIT`` new records per call. 404 if the event is
+         *     unknown.
+         */
+        post: operations["commit_attendee_sheet_events__event_id__attendees_sheet_commit_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7961,6 +8046,11 @@ export interface components {
             /** File */
             file: string;
         };
+        /** Body_preview_attendee_sheet_events__event_id__attendees_sheet_preview_post */
+        Body_preview_attendee_sheet_events__event_id__attendees_sheet_preview_post: {
+            /** File */
+            file: string;
+        };
         /** Body_preview_import_alumni_alumni_import_preview_post */
         Body_preview_import_alumni_alumni_import_preview_post: {
             /** File */
@@ -8857,6 +8947,8 @@ export interface components {
             event_location?: string | null;
             /** Event Notes */
             event_notes?: string | null;
+            /** Keynote Speaker */
+            keynote_speaker?: string | null;
         };
         /** EventImportAttendee */
         EventImportAttendee: {
@@ -8982,6 +9074,8 @@ export interface components {
             event_location?: string | null;
             /** Event Notes */
             event_notes?: string | null;
+            /** Keynote Speaker */
+            keynote_speaker?: string | null;
         };
         /**
          * ExportColumn
@@ -11041,6 +11135,185 @@ export interface components {
             user_id: number | null;
             /** Email */
             email: string | null;
+        };
+        /** SheetCandidate */
+        SheetCandidate: {
+            /** Alumni Id */
+            alumni_id: number;
+            /** Name */
+            name: string;
+            /** Graduation Year */
+            graduation_year: number | null;
+            /** Graduate Graduation Year */
+            graduate_graduation_year: number | null;
+            /** Is Alumni */
+            is_alumni: boolean;
+            /** Friend Id */
+            friend_id: string | null;
+            /** Current Employer */
+            current_employer: string | null;
+        };
+        /** SheetCommitItem */
+        SheetCommitItem: {
+            /** Row */
+            row: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "added" | "created_alumni" | "created_friend" | "already_attending" | "skipped" | "not_found" | "rejected";
+            /** Alumni Id */
+            alumni_id: number | null;
+            /** Friend Id */
+            friend_id: string | null;
+            /** Name */
+            name: string | null;
+            /** Message */
+            message: string | null;
+        };
+        /**
+         * SheetCommitRequest
+         * @description ``POST /events/{id}/attendees/sheet/commit`` body.
+         */
+        SheetCommitRequest: {
+            /** Rows */
+            rows: components["schemas"]["SheetCommitRow"][];
+        };
+        /** SheetCommitResult */
+        SheetCommitResult: {
+            /** Event Id */
+            event_id: number;
+            /** Added */
+            added: number;
+            /** Created Alumni */
+            created_alumni: number;
+            /** Created Friends */
+            created_friends: number;
+            /** Already Attending */
+            already_attending: number;
+            /** Skipped */
+            skipped: number;
+            /** Not Found */
+            not_found: number;
+            /** Rejected */
+            rejected: number;
+            /** Items */
+            items: components["schemas"]["SheetCommitItem"][];
+        };
+        /** SheetCommitRow */
+        SheetCommitRow: {
+            /** Row */
+            row: number;
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "match" | "new_alumni" | "new_friend" | "skip";
+            /** Alumni Id */
+            alumni_id: number | null;
+            /** First Name */
+            first_name: string | null;
+            /** Last Name */
+            last_name: string | null;
+            /** Company */
+            company: string | null;
+            /** Role */
+            role: string | null;
+            /** Email */
+            email: string | null;
+            /** Linkedin */
+            linkedin: string | null;
+            /** Ug Year */
+            ug_year: number | null;
+            /** Grad Year */
+            grad_year: number | null;
+            /** Net Id */
+            net_id: string | null;
+        };
+        /**
+         * SheetPreview
+         * @description ``POST /events/{id}/attendees/sheet/preview`` — writes nothing.
+         */
+        SheetPreview: {
+            /** Columns Ok */
+            columns_ok: boolean;
+            /** Header Errors */
+            header_errors: string[];
+            /** Ignored Columns */
+            ignored_columns: string[];
+            summary: components["schemas"]["SheetPreviewSummary"];
+            /** Rows */
+            rows: components["schemas"]["SheetPreviewRow"][];
+            /** Warnings */
+            warnings: string[];
+        };
+        /** SheetPreviewRow */
+        SheetPreviewRow: {
+            /** First Name */
+            first_name: string | null;
+            /** Last Name */
+            last_name: string | null;
+            /** Company */
+            company: string | null;
+            /** Role */
+            role: string | null;
+            /** Email */
+            email: string | null;
+            /** Focus */
+            focus: string | null;
+            /** Ug */
+            ug: string | null;
+            /** Ug Year */
+            ug_year: number | null;
+            /** Linkedin */
+            linkedin: string | null;
+            /** Grad */
+            grad: string | null;
+            /** Grad Year */
+            grad_year: number | null;
+            /** Net Id */
+            net_id: string | null;
+            /** Row */
+            row: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "matched" | "ambiguous" | "new_alumni" | "new_friend" | "already_attending" | "invalid";
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "match" | "new_alumni" | "new_friend" | "skip";
+            /** Alumni Id */
+            alumni_id: number | null;
+            /**
+             * Candidates
+             * @default []
+             */
+            candidates: components["schemas"]["SheetCandidate"][];
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: string[];
+        };
+        /** SheetPreviewSummary */
+        SheetPreviewSummary: {
+            /** Total Rows */
+            total_rows: number;
+            /** Matched */
+            matched: number;
+            /** Ambiguous */
+            ambiguous: number;
+            /** New Alumni */
+            new_alumni: number;
+            /** New Friend */
+            new_friend: number;
+            /** Already Attending */
+            already_attending: number;
+            /** Invalid */
+            invalid: number;
         };
         /** StateCount */
         StateCount: {
@@ -15785,6 +16058,26 @@ export interface operations {
             };
         };
     };
+    attendee_sheet_template_events_attendees_sheet_template_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
     preview_import_events_events_import_preview_post: {
         parameters: {
             query?: never;
@@ -16179,6 +16472,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AttendeeFriendResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_attendee_sheet_events__event_id__attendees_sheet_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                event_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_preview_attendee_sheet_events__event_id__attendees_sheet_preview_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    commit_attendee_sheet_events__event_id__attendees_sheet_commit_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                event_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SheetCommitRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetCommitResult"];
                 };
             };
             /** @description Validation Error */

@@ -37,6 +37,8 @@ export interface EventRow {
 
 interface EventDetail extends EventRow {
   event_notes: string | null;
+  /** Plain typed name, not a profile link (api#695). */
+  keynote_speaker: string | null;
 }
 
 interface Attendee {
@@ -379,7 +381,11 @@ function EventSheet({
       {event != null ? (
         <SheetContent
           aria-label={event.event_name}
-          className="w-full gap-0 p-0 sm:max-w-lg"
+          // Wide enough at 1280px for the attendee tab's header row (title,
+          // count, Upload, Import spreadsheet, Download CSV) to sit on one line
+          // inside its card (app#955). `max-w-lg` overflowed the Download
+          // button out of the box.
+          className="w-full gap-0 p-0 sm:max-w-3xl"
         >
           {/* Radix Dialog requires an accessible title; we render a rich custom
               header below, so the required Title is provided visually-hidden. */}
@@ -480,6 +486,11 @@ function EventSheet({
                   >
                     <span className="font-medium text-gray-900">
                       {event.event_location ?? "—"}
+                    </span>
+                  </Fact>
+                  <Fact label="Keynote speaker">
+                    <span className="font-medium text-gray-900">
+                      {loading ? "…" : detail?.keynote_speaker || "—"}
                     </span>
                   </Fact>
                   <Fact
@@ -586,13 +597,14 @@ function Fact({
   children,
 }: {
   label: string;
-  icon: React.ReactNode;
+  /** Decorative only. A fact without one keeps the label aligned with the rest. */
+  icon?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div className="flex items-center justify-between gap-3">
       <dt className="flex items-center gap-2 text-gray-500">
-        <span className="text-gray-400">{icon}</span>
+        <span className="inline-block w-4 text-gray-400">{icon}</span>
         {label}
       </dt>
       <dd className="min-w-0 truncate text-right">{children}</dd>

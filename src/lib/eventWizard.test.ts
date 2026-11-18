@@ -25,6 +25,7 @@ const BASE: EventValues = {
   event_date: "2026-09-01",
   event_location: "Tanner Building",
   event_notes: null,
+  keynote_speaker: null,
 };
 
 describe("wizard shape", () => {
@@ -91,6 +92,7 @@ describe("readEventValues", () => {
           event_date: "2026-09-01",
           event_location: "   ",
           event_notes: " Bring name tags ",
+          keynote_speaker: "  Ada Smith ",
         }),
       ),
     ).toEqual({
@@ -99,6 +101,7 @@ describe("readEventValues", () => {
       event_date: "2026-09-01",
       event_location: null,
       event_notes: "Bring name tags",
+      keynote_speaker: "Ada Smith",
     });
   });
 });
@@ -176,6 +179,7 @@ describe("buildEventSummary", () => {
       "Type",
       "Date",
       "Location",
+      "Keynote speaker",
       "Notes",
     ]);
     expect(rows.find((r) => r.label === "Notes")).toEqual({
