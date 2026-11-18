@@ -63,6 +63,7 @@ export const EVENT_MAX_LEN = {
   event_type: 100,
   event_location: 255,
   event_notes: 10000,
+  keynote_speaker: 255,
 } as const;
 
 /** `<input type="date">` always submits YYYY-MM-DD; reject anything else. */
@@ -75,6 +76,7 @@ export const EVENT_VALIDATED_FIELDS = [
   "event_type",
   "event_location",
   "event_notes",
+  "keynote_speaker",
 ] as const;
 
 /** Validate a single field's raw string value. Returns a message or null. */
@@ -105,6 +107,11 @@ export function validateEventField(name: string, raw: string): string | null {
       if (v === "") return null;
       if (v.length > EVENT_MAX_LEN.event_location)
         return `Must be ${EVENT_MAX_LEN.event_location} characters or fewer.`;
+      return null;
+
+    case "keynote_speaker":
+      if (v.length > EVENT_MAX_LEN.keynote_speaker)
+        return `Must be ${EVENT_MAX_LEN.keynote_speaker} characters or fewer.`;
       return null;
 
     case "event_notes":
@@ -144,6 +151,8 @@ export interface EventValues {
   event_date: string;
   event_location: string | null;
   event_notes: string | null;
+  /** Plain typed name, not a profile link (api#695). */
+  keynote_speaker: string | null;
 }
 
 /** Pull the saveable values out of a submitted FormData. */
@@ -158,6 +167,7 @@ export function readEventValues(formData: FormData): EventValues {
     event_date: str(formData, "event_date").trim(),
     event_location: trimmed("event_location"),
     event_notes: trimmed("event_notes"),
+    keynote_speaker: trimmed("keynote_speaker"),
   };
 }
 
@@ -261,6 +271,7 @@ export function buildEventSummary(values: EventValues): EventSummaryRow[] {
     row("Type", values.event_type),
     row("Date", values.event_date),
     row("Location", values.event_location),
+    row("Keynote speaker", values.keynote_speaker),
     row("Notes", values.event_notes),
   ];
 }
