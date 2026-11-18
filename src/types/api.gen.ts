@@ -6392,6 +6392,10 @@ export interface components {
             grad_year_min: number | null;
             /** Grad Year Max */
             grad_year_max: number | null;
+            /** Graduation Class Min */
+            graduation_class_min: number | null;
+            /** Graduation Class Max */
+            graduation_class_max: number | null;
             /** Deceased */
             deceased: boolean | null;
             /** Gender */
@@ -12811,6 +12815,10 @@ export interface operations {
                 graduation_year?: number | null;
                 grad_year_min?: number | null;
                 grad_year_max?: number | null;
+                /** @description 'Class of' year, from (inclusive). */
+                graduation_class_min?: number | null;
+                /** @description 'Class of' year, to (inclusive). */
+                graduation_class_max?: number | null;
                 /** @description Filter by deceased flag. */
                 deceased?: boolean | null;
                 /** @description Gender facet (#360): 'M' or 'F'. Combinable with the industry filter (and every other filter). Matches on the first letter of the stored gender value, so 'Male'/'M' and 'Female'/'F' both match. */

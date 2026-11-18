@@ -287,6 +287,12 @@ export function AlumniFilters({
       remove: () => setF((p) => ({ ...p, ymin: "", ymax: "" })),
     });
   }
+  if (f.cmin || f.cmax) {
+    chips.push({
+      label: `Class of: ${f.cmin || "…"}–${f.cmax || "…"}`,
+      remove: () => setF((p) => ({ ...p, cmin: "", cmax: "" })),
+    });
+  }
   if (f.workedInYear) {
     chips.push({
       label: `Working in ${f.workedInYear}`,
@@ -678,6 +684,34 @@ export function AlumniFilters({
                     onChange={(e) => set("ymax", e.target.value)}
                     placeholder="To"
                     aria-label="Graduation year to"
+                    className="w-24 tabular-nums"
+                  />
+                </div>
+              </div>
+
+              {/* The Marriott "Class of" year (#959) — its own column, which can
+                  differ from the graduation year by one (December and summer
+                  graduates), so it gets its own range rather than sharing one. */}
+              <div>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Class of
+                </p>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    value={f.cmin}
+                    onChange={(e) => set("cmin", e.target.value)}
+                    placeholder="From"
+                    aria-label="Class of from"
+                    className="w-24 tabular-nums"
+                  />
+                  <span className="text-sm text-gray-500">–</span>
+                  <Input
+                    type="number"
+                    value={f.cmax}
+                    onChange={(e) => set("cmax", e.target.value)}
+                    placeholder="To"
+                    aria-label="Class of to"
                     className="w-24 tabular-nums"
                   />
                 </div>
