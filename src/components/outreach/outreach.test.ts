@@ -16,6 +16,7 @@ import {
   outreachListExists,
   outreachListHref,
   showMentorChart,
+  sortOutreachLinks,
   type OutreachListLink,
 } from "@/lib/outreach";
 import { OutreachListLinks } from "./OutreachListLinks";
@@ -254,5 +255,41 @@ describe("Case Competition Hosts and Event Help landing", () => {
     expect(outreachExportFilename("case_competition", "all", null, day)).toBe(
       "case_competition_all_2026-11-17.csv",
     );
+  });
+});
+
+describe("Case Competition Hosts and Event Help link order (#954)", () => {
+  const all: OutreachListLink = { key: "all", industry: null, title: "All Event Help", count: 9 };
+  const ind = (industry: string, count = 1): OutreachListLink => ({
+    key: "industry",
+    industry,
+    title: `Event Help — ${industry}`,
+    count,
+  });
+  const input = [ind("Real Estate", 5), ind("banking", 0), all, ind("FP&A", 3), ind("Consulting")];
+
+  it.each(["case_competition", "event_help"] as const)("%s: All first, then A–Z", (group) => {
+    const sorted = sortOutreachLinks(group, input);
+    expect(sorted.map((l) => l.industry ?? l.key)).toEqual([
+      "all",
+      "banking",
+      "Consulting",
+      "FP&A",
+      "Real Estate",
+    ]);
+    expect(sorted.find((l) => l.industry === "Real Estate")?.count).toBe(5);
+    expect(input[0].industry).toBe("Real Estate");
+  });
+
+  it("leaves every other Outreach page in the backend's order", () => {
+    const mentors: OutreachListLink[] = [
+      { key: "industry", industry: "Real Estate", title: "Real Estate", count: 2 },
+      { key: "industry", industry: "Banking", title: "Banking", count: 1 },
+      { key: "no_industry", industry: null, title: "Industry Not Listed", count: 1 },
+      { key: "women", industry: null, title: "Alumni Mentors for Women", count: 1 },
+    ];
+    for (const group of ["conference", "speakers", "sponsors", "mentors"] as const) {
+      expect(sortOutreachLinks(group, mentors)).toEqual(mentors);
+    }
   });
 });
