@@ -149,6 +149,24 @@ export function outreachExportFilename(
   return `${parts.join("_")}_${now.toISOString().slice(0, 10)}.csv`;
 }
 
+/**
+ * A landing page's link order. Case Competition Hosts and Event Help
+ * (fa-web-app#954): "All" first, then every industry list A–Z,
+ * case-insensitive. Every other page keeps the backend's order.
+ */
+export function sortOutreachLinks(
+  group: OutreachGroupKey,
+  links: readonly OutreachListLink[],
+): OutreachListLink[] {
+  if (group !== "case_competition" && group !== "event_help") return [...links];
+  return [...links].sort((a, b) => {
+    if ((a.key === "all") !== (b.key === "all")) return a.key === "all" ? -1 : 1;
+    return (a.industry ?? a.title).localeCompare(b.industry ?? b.title, "en", {
+      sensitivity: "base",
+    });
+  });
+}
+
 /* ------------------------------------------------- Alumni Mentors chart -- */
 
 /** The mentor chart only earns its place with this many mentors in all… */

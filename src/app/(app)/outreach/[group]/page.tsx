@@ -7,6 +7,7 @@ import { ApiError, apiGet } from "@/lib/api";
 import {
   isOutreachGroupKey,
   outreachGroupLabel,
+  sortOutreachLinks,
   type OutreachGroupSummary,
 } from "@/lib/outreach";
 
@@ -14,8 +15,8 @@ import {
  * An Outreach landing page — Conference Interest, Event Speakers, Event
  * Sponsors, Alumni Mentors, Case Competition Hosts or Event Help: every list
  * with its count, like NetTreks. Case Competition Hosts and Event Help are
- * "All …" then every dashboard finance industry, zeros included (the backend
- * decides the rows and their titles). The
+ * "All …" then every dashboard finance industry A–Z, zeros included (the
+ * backend decides the rows and their titles; #954 sorts them here). The
  * nav entries are gated on `alumni.export`, and so is `GET /outreach/{group}`:
  * someone who reaches this URL without it gets the backend's 403 rendered as
  * the shared error card. The backend decides who is on each list.
@@ -53,7 +54,11 @@ export default async function OutreachGroupPage({
           ) : group === "mentors" ? (
             <MentorLists links={data!.links} />
           ) : (
-            <OutreachListLinks group={group} links={data!.links} heading="Lists" />
+            <OutreachListLinks
+              group={group}
+              links={sortOutreachLinks(group, data!.links)}
+              heading="Lists"
+            />
           )}
         </div>
       </main>

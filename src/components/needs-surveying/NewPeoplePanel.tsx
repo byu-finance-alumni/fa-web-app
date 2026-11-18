@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/Toast";
 import { ApiClientError, clientGet, clientPost, clientPostJson, clientPutJson } from "@/lib/api-client";
+import { notifyNewPeoplePendingChanged } from "@/lib/newPeoplePending";
 import { newPeopleSurveyUrl } from "@/lib/newPeopleSurvey";
 import { cn } from "@/lib/utils";
 import {
@@ -621,6 +622,12 @@ function NewPeopleQueue() {
   const remove = (id: number) => {
     setItems((prev) => (prev ? prev.filter((r) => r.submission_id !== id) : prev));
   };
+
+  // #958: the top bar's count re-reads whenever this queue changes — a load,
+  // an approve, a reject — so it never lags what the reviewer sees here.
+  useEffect(() => {
+    if (items !== null) notifyNewPeoplePendingChanged();
+  }, [items]);
 
   // Only ids still in the queue count as selected, so a card that left on a
   // refresh can never be rejected by a stale tick.

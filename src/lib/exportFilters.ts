@@ -81,6 +81,8 @@ const EXPORT_MAPPING: Record<string, ParamExport> = {
   q: { as: "text", field: "q" },
   grad_year_min: { as: "int", field: "grad_year_min" },
   grad_year_max: { as: "int", field: "grad_year_max" },
+  graduation_class_min: { as: "int", field: "graduation_class_min" },
+  graduation_class_max: { as: "int", field: "graduation_class_max" },
   // Multi-select facets.
   employment_status: { as: "multi", field: "employment_status" },
   past_employer: { as: "multi", field: "past_employer" },
@@ -184,6 +186,8 @@ const NO_PREDICATE: AlumniExportFilters = {
   graduation_year: null,
   grad_year_min: null,
   grad_year_max: null,
+  graduation_class_min: null,
+  graduation_class_max: null,
   deceased: null,
   gender: null,
   industry_group: null,

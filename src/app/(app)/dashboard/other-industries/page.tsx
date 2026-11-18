@@ -6,13 +6,14 @@ import { LoadError } from "@/components/shared/LoadError";
 import {
   OTHER_LIST_HREF,
   otherIndustryHref,
+  sortOtherIndustryRows,
   type OtherIndustries,
 } from "@/lib/otherIndustries";
 
 /**
  * The dashboard industry chart's "Other" bar, opened up (fa-web-app#936): the
- * people in it grouped by SECONDARY industry, highest count first, each row
- * linking to the alumni list of exactly those people.
+ * people in it grouped by SECONDARY industry, "All Other" and "No secondary
+ * industry" pinned on top and the rest A–Z (#953), each row linking to the alumni list of exactly those people.
  *
  * The rows are built by the backend from the data each time — a secondary
  * industry nobody has used before simply appears as a new row — and spellings
@@ -88,7 +89,7 @@ export default async function OtherIndustriesPage() {
                           </Link>
                         </td>
                       </tr>
-                      {data.rows.map((row) => (
+                      {sortOtherIndustryRows(data.rows).map((row) => (
                         <tr
                           key={row.no_secondary ? "__none__" : row.group}
                           className="border-b border-gray-200 last:border-0 even:bg-gray-50/50"

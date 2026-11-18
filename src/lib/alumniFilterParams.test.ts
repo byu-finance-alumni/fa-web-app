@@ -81,6 +81,8 @@ const MAXIMAL: AlumniFilterState = {
   q: "hansen",
   ymin: "2008",
   ymax: "2015",
+  cmin: "2009",
+  cmax: "2016",
   employmentStatus: ["Employed", "Self-Employed"],
   pastEmployer: ["Goldman Sachs"],
   country: ["Canada", "United States"],
@@ -168,6 +170,30 @@ describe("the dashboard deep link survives the Filters panel", () => {
   it("lets Clear all clear them", () => {
     expect(toAlumniFilterQs(EMPTY_FILTERS)).toBe("");
     expect(countActiveFilters(EMPTY_FILTERS)).toBe(0);
+  });
+});
+
+/* --------------------------------------------------- Class of (#959) ----- */
+
+describe("the Class of range", () => {
+  const f = { ...EMPTY_FILTERS, cmin: "2015", cmax: "2018" };
+
+  it("round-trips through the URL, so Back-to-list keeps it", () => {
+    expect(toAlumniFilterQs(f)).toBe("cmin=2015&cmax=2018");
+    expect(roundTrip(f)).toEqual(f);
+  });
+
+  it("asks the API for the class column, not the graduation year", () => {
+    const p = toAlumniPopulationParams(f);
+    expect(p.get("graduation_class_min")).toBe("2015");
+    expect(p.get("graduation_class_max")).toBe("2018");
+    expect(p.has("grad_year_min")).toBe(false);
+    expect(p.has("grad_year_max")).toBe(false);
+  });
+
+  it("counts as one filter, like the graduation-year range", () => {
+    expect(countActiveFilters(f)).toBe(1);
+    expect(countActiveFilters({ ...f, ymin: "2014" })).toBe(2);
   });
 });
 
@@ -638,6 +664,8 @@ function exportBodyAsParams(e: AlumniExportFilters): URLSearchParams {
   text("graduation_year", e.graduation_year);
   text("grad_year_min", e.grad_year_min);
   text("grad_year_max", e.grad_year_max);
+  text("graduation_class_min", e.graduation_class_min);
+  text("graduation_class_max", e.graduation_class_max);
   text("gender", e.gender);
   text("industry_group", e.industry_group);
   multi("secondary_industry_group", e.secondary_industry_group);
@@ -740,6 +768,7 @@ const SINGLE_FILTERS: [string, Partial<AlumniFilterState>][] = [
   ),
   ["q", { q: "hansen" }],
   ["grad year range", { ymin: "2008", ymax: "2015" }],
+  ["class of range", { cmin: "2009", cmax: "2016" }],
   ["gender", { gender: "F" }],
   ["industry_group", { industryGroup: "other" }],
   ["secondary_industry_group", { secondaryIndustryGroup: ["Healthcare"] }],

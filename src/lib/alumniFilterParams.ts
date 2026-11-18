@@ -35,6 +35,11 @@ export interface AlumniFilterState {
   /** Grad-year range (inclusive). Same value in both = exact year. */
   ymin: string;
   ymax: string;
+  /** "Class of" range (inclusive, fa-web-app#959) — the Marriott class year
+   *  (`alumni.graduation_class`), a different column from the graduation year
+   *  above: the two can differ by a year. Same value in both = exact class. */
+  cmin: string;
+  cmax: string;
   // Multi-select facets (repeated URL params; OR within a facet).
   employmentStatus: string[];
   pastEmployer: string[];
@@ -147,6 +152,8 @@ export const EMPTY_FILTERS: AlumniFilterState = {
   q: "",
   ymin: "",
   ymax: "",
+  cmin: "",
+  cmax: "",
   employmentStatus: [],
   pastEmployer: [],
   industry: [],
@@ -435,6 +442,8 @@ export function parseAlumniFilters(sp: SearchParamMap): AlumniFilterState {
     q: one(sp.q),
     ymin: one(sp.ymin) || one(sp.year),
     ymax: one(sp.ymax) || one(sp.year),
+    cmin: one(sp.cmin),
+    cmax: one(sp.cmax),
     workedInYear: one(sp.worked_in_year),
     designations: arr(sp.designations),
     gender:
@@ -488,6 +497,8 @@ export function toAlumniFilterQs(f: AlumniFilterState): string {
   if (f.q.trim()) p.set("q", f.q.trim());
   if (f.ymin.trim()) p.set("ymin", f.ymin.trim());
   if (f.ymax.trim()) p.set("ymax", f.ymax.trim());
+  if (f.cmin.trim()) p.set("cmin", f.cmin.trim());
+  if (f.cmax.trim()) p.set("cmax", f.cmax.trim());
   if (f.workedInYear.trim()) p.set("worked_in_year", f.workedInYear.trim());
   for (const facet of FACETS) {
     for (const v of f[facet.key] as string[]) p.append(facet.param, v);
@@ -652,6 +663,8 @@ export function toAlumniPopulationParams(
   if (f.q.trim()) p.set("q", f.q.trim());
   if (f.ymin.trim()) p.set("grad_year_min", f.ymin.trim());
   if (f.ymax.trim()) p.set("grad_year_max", f.ymax.trim());
+  if (f.cmin.trim()) p.set("graduation_class_min", f.cmin.trim());
+  if (f.cmax.trim()) p.set("graduation_class_max", f.cmax.trim());
   if (f.workedInYear.trim()) p.set("worked_in_year", f.workedInYear.trim());
   for (const facet of FACETS) {
     for (const v of f[facet.key] as string[]) p.append(facet.param, v);
@@ -766,6 +779,7 @@ export function countActiveFilters(f: AlumniFilterState): number {
     (f.noSecondaryIndustry ? 1 : 0) +
     (f.commentFilter ? 1 : 0) +
     (f.ymin.trim() || f.ymax.trim() ? 1 : 0) +
+    (f.cmin.trim() || f.cmax.trim() ? 1 : 0) +
     (f.workedInYear.trim() ? 1 : 0) +
     (f.contactedAfter ? 1 : 0) +
     (f.contactedBefore ? 1 : 0) +

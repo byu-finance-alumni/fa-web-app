@@ -13,6 +13,7 @@ export interface EventFieldValues {
   event_date?: string | null;
   event_location?: string | null;
   event_notes?: string | null;
+  keynote_speaker?: string | null;
 }
 
 /**
@@ -86,6 +87,14 @@ export function EventFields({
         error={errors.event_location}
         onBlur={onBlur}
         placeholder="Tanner Building, Provo"
+      />
+      {/* Plain typed name, not linked to a profile (api#695). Optional. */}
+      <Field
+        label="Keynote speaker"
+        name="keynote_speaker"
+        defaultValue={values?.keynote_speaker ?? ""}
+        error={errors.keynote_speaker}
+        onBlur={onBlur}
       />
       <TextareaField
         label="Notes"

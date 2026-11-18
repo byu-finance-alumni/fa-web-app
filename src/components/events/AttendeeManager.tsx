@@ -167,7 +167,8 @@ export function AttendeeManager({
     }
   }
 
-  // Download the roster as CSV (Name, Email, Net ID). The server action returns
+  // Download the roster as CSV (Name, Alumni/Friend, Email, Net ID; alumni
+  // first, then friends — api#694). The server action returns
   // the CSV text (full_access on the backend); we turn it into a Blob download.
   const [exporting, setExporting] = useState(false);
   function saveCsv(csv: string, filename: string) {
@@ -241,7 +242,9 @@ export function AttendeeManager({
           instead of pushing the page taller when the caller stretches us to
           full height (the event edit screen does). */}
       <CardContent className="flex min-h-0 flex-1 flex-col pt-5">
-        <div className="mb-4 flex items-center gap-2">
+        {/* flex-wrap: on a narrow card the buttons drop to a second line
+            instead of spilling out of the box (app#955). */}
+        <div className="mb-4 flex flex-wrap items-center gap-2">
           <h3 className="text-sm font-semibold text-gray-900">Attendees</h3>
           <Badge variant="neutral" className="tabular-nums">
             {attendees.length}
@@ -251,6 +254,13 @@ export function AttendeeManager({
           <Button asChild variant="secondary" size="sm" className="ml-auto">
             <Link href={`/events/${eventId}/attendees/import`}>
               Upload attendee list
+            </Link>
+          </Button>
+          {/* The sign-up spreadsheet import (api#693): matches on name + grad
+              year and creates new alumni / friends after a confirm screen. */}
+          <Button asChild variant="secondary" size="sm">
+            <Link href={`/events/${eventId}/attendees/sheet`}>
+              Import spreadsheet
             </Link>
           </Button>
           <Button

@@ -7,6 +7,7 @@ import {
   lastRepliedNote,
   lastSentWarning,
   sentToast,
+  surveyBox,
   type SurveyOneOffPreview,
 } from "./surveyOneOff";
 
@@ -92,5 +93,28 @@ describe("sentToast", () => {
     expect(sentToast("Ann Lovelace", "ann@byu.edu")).toBe(
       "Survey sent to Ann Lovelace at ann@byu.edu.",
     );
+  });
+});
+
+describe("the profile survey box (#957)", () => {
+  it("is the survey date once they have filled it out", () => {
+    expect(surveyBox("2026-11-02T10:00:00Z", "2026-11-01T10:00:00Z")).toEqual({
+      kind: "filled",
+      filledAt: "2026-11-02T10:00:00Z",
+    });
+  });
+
+  it("is Last sent when they have not", () => {
+    expect(surveyBox(null, "2026-11-01T10:00:00Z")).toEqual({
+      kind: "not_filled",
+      lastSentAt: "2026-11-01T10:00:00Z",
+    });
+  });
+
+  it("has no date to show when nothing was ever sent", () => {
+    expect(surveyBox(undefined, undefined)).toEqual({
+      kind: "not_filled",
+      lastSentAt: null,
+    });
   });
 });

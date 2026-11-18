@@ -16,6 +16,15 @@ import { SignOutButton } from "@/components/auth/SignOutButton";
 import { NavSearch } from "@/components/shell/NavSearch";
 import { BrandPhotoBackdrop } from "@/components/shell/BrandPhotoBackdrop";
 import { BrandWordmark } from "@/components/shell/BrandWordmark";
+import { canManageSurveys } from "@/constants/capabilities";
+import { pendingBadgeText } from "@/components/needs-surveying/pending-review";
+import {
+  newPeoplePendingLabel,
+  useNewPeoplePendingCount,
+} from "@/lib/newPeoplePending";
+
+/** The nav entry that carries the new-people review count (#958). */
+const SURVEY_HREF = "/needs-surveying";
 
 /**
  * EXPERIMENT ONLY — horizontal navigation across the top, over the Marriott
@@ -72,6 +81,11 @@ export function TopNav({
   const visibleNav = getVisibleNav(role, canVocab, capabilities);
   const activeHref = resolveActiveHref(pathname);
   const [openKey, setOpenKey] = useState<string | null>(null);
+  // #958: new-people submissions waiting in review. Only reviewers
+  // (`surveys.manage`) ever ask; the backend gates the count on the same code.
+  const newPeoplePending = useNewPeoplePendingCount(
+    canManageSurveys(capabilities),
+  );
   const navRef = useRef<HTMLElement | null>(null);
 
   // Escape closes, and so does a click anywhere outside the nav. Without these
@@ -166,6 +180,9 @@ export function TopNav({
                   }`}
                 >
                   {item.label}
+                  {item.href === SURVEY_HREF ? (
+                    <NavCount count={newPeoplePending} />
+                  ) : null}
                 </Link>
               );
             }
@@ -190,6 +207,9 @@ export function TopNav({
                   }`}
                 >
                   {item.label}
+                  {leafHrefs(item).includes(SURVEY_HREF) ? (
+                    <NavCount count={newPeoplePending} />
+                  ) : null}
                   <ChevronDown
                     className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`}
                     aria-hidden="true"
@@ -212,6 +232,9 @@ export function TopNav({
                                 key={leaf.href}
                                 href={leaf.href}
                                 label={leaf.label}
+                                count={
+                                  leaf.href === SURVEY_HREF ? newPeoplePending : null
+                                }
                                 active={leaf.href === activeHref}
                                 onSelect={() => setOpenKey(null)}
                                 indented
@@ -224,6 +247,9 @@ export function TopNav({
                           key={child.href}
                           href={child.href}
                           label={child.label}
+                          count={
+                            child.href === SURVEY_HREF ? newPeoplePending : null
+                          }
                           active={child.href === activeHref}
                           onSelect={() => setOpenKey(null)}
                         />
@@ -275,18 +301,42 @@ export function TopNav({
   );
 }
 
+/**
+ * The small "waiting for review" number (#958): a circle in the same shape as
+ * the console's Submissions badge, nothing at all at zero or while unknown.
+ * The number is announced in words; the circle itself is hidden from screen
+ * readers so it is not read twice. Text only, no icon.
+ */
+function NavCount({ count }: { count: number | null }) {
+  const text = pendingBadgeText(count);
+  if (!text) return null;
+  return (
+    <>
+      <span
+        aria-hidden="true"
+        className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-blue-600 px-1 text-[11px] font-semibold leading-none tabular-nums text-white"
+      >
+        {text}
+      </span>
+      <span className="sr-only">, {newPeoplePendingLabel(count)}</span>
+    </>
+  );
+}
+
 function MenuLink({
   href,
   label,
   active,
   onSelect,
   indented = false,
+  count = null,
 }: {
   href: string;
   label: string;
   active: boolean;
   onSelect: () => void;
   indented?: boolean;
+  count?: number | null;
 }) {
   return (
     <Link
@@ -300,6 +350,7 @@ function MenuLink({
       }`}
     >
       {label}
+      <NavCount count={count} />
     </Link>
   );
 }
