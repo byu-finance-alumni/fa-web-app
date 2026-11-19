@@ -18,6 +18,7 @@ interface EventDetail {
   event_date: string | null;
   event_location: string | null;
   event_notes: string | null;
+  keynote_speaker: string | null;
 }
 
 export default async function EditEventPage({
@@ -111,6 +112,7 @@ export default async function EditEventPage({
                   event_date: event.event_date,
                   event_location: event.event_location,
                   event_notes: event.event_notes,
+                  keynote_speaker: event.keynote_speaker,
                 }}
               />
 

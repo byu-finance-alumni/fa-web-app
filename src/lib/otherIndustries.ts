@@ -27,3 +27,18 @@ export function otherIndustryHref(row: OtherIndustryRow): string {
   }
   return `/alumni?${p.toString()}`;
 }
+
+/**
+ * The table's row order (fa-web-app#953): "No secondary industry" first (it sits
+ * right under the pinned "All Other" row), then every secondary industry A–Z,
+ * case-insensitive. The backend sends them highest count first; only the order
+ * changes here — counts and links stay the backend's.
+ */
+export function sortOtherIndustryRows(
+  rows: readonly OtherIndustryRow[],
+): OtherIndustryRow[] {
+  return [...rows].sort((a, b) => {
+    if (a.no_secondary !== b.no_secondary) return a.no_secondary ? -1 : 1;
+    return a.name.localeCompare(b.name, "en", { sensitivity: "base" });
+  });
+}

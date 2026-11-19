@@ -40,8 +40,13 @@ type ApplyResult = components["schemas"]["SurveyApplyResult"];
  */
 export function PendingSubmissions({
   queue,
+  title = "Pending submissions",
+  emptyText = "No submissions waiting for review in this graduation year.",
 }: {
   queue: PendingSubmissionsQueue;
+  /** The panel heading — the no-class-year queue (api#696) names itself. */
+  title?: string;
+  emptyText?: string;
 }) {
   const { toast } = useToast();
   const { items, removeItem } = queue;
@@ -104,9 +109,7 @@ export function PendingSubmissions({
   return (
     <Card className="mt-4 overflow-hidden">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-5 py-3">
-        <h2 className="text-sm font-semibold text-gray-900">
-          Pending submissions
-        </h2>
+        <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
         {/* The same figure the tab's badge shows, through the same derivation —
             this header and that circle are two views of one list. */}
         <Badge variant="neutral">
@@ -118,9 +121,7 @@ export function PendingSubmissions({
         {items === null ? (
           <p className="px-2 py-3 text-sm text-gray-500">Loading…</p>
         ) : items.length === 0 ? (
-          <p className="px-2 py-3 text-sm text-gray-500">
-            No submissions waiting for review in this graduation year.
-          </p>
+          <p className="px-2 py-3 text-sm text-gray-500">{emptyText}</p>
         ) : (
           items.map((r) => {
             const comment = submissionComment(r);

@@ -47,13 +47,18 @@ import { PendingSubmissions } from "@/components/needs-surveying/PendingSubmissi
 import { NewPeoplePanel } from "@/components/needs-surveying/NewPeoplePanel";
 import { CampaignProgressTable } from "@/components/needs-surveying/CampaignProgressTable";
 import { SurveyBouncedList } from "@/components/needs-surveying/SurveyBouncedList";
-import { usePendingSubmissions } from "@/components/needs-surveying/use-pending-submissions";
+import {
+  useNoYearSubmissions,
+  usePendingSubmissions,
+} from "@/components/needs-surveying/use-pending-submissions";
+import { useNewPeoplePendingCount } from "@/lib/newPeoplePending";
 import { nextSendLine } from "@/components/needs-surveying/next-send";
 import {
   pendingBadgeText,
   pendingReviewCount,
   yearOptionLabel,
   submissionsTabLabel,
+  tabCountLabel,
 } from "@/components/needs-surveying/pending-review";
 import {
   campaignRemoveConfirm,
@@ -302,7 +307,7 @@ export function zeroSendReason(result: SendResult): string {
   return `${parts.join("; ")}.`;
 }
 
-const CONSOLE_TABS = ["schedule", "submissions", "progress", "new-people"];
+const CONSOLE_TABS = ["schedule", "submissions", "progress", "new-people", "friends"];
 
 /** The console state a URL asks for (#944): `?year=`, `?tab=`, and the two
  *  name lists (`?unreachable=1`, `?replied=1`). Anything unrecognised is
@@ -398,6 +403,13 @@ export function SurveyCampaignConsole({
    */
   const pending = usePendingSubmissions(selectedYear);
   const pendingCount = pendingReviewCount(pending.items);
+  // Friends' replies (api#696) carry no class year, so they have their own
+  // queue and tab, reachable with no year selected.
+  const noYearPending = useNoYearSubmissions();
+  const noYearCount = pendingReviewCount(noYearPending.items);
+  // New-people submissions waiting (#958) — the same count the top bar shows.
+  // This console is surveys.manage-only, so it always asks.
+  const newPeopleCount = useNewPeoplePendingCount(true);
 
   // Keep the year picker's "2020 (14)" (#856) equal to the badge: once the
   // queue for a year is loaded, its length IS that year's pending figure, so an
@@ -1086,7 +1098,20 @@ export function SurveyCampaignConsole({
             <PendingCountBadge count={pendingCount} />
           </TabsTrigger>
           <TabsTrigger value="progress">Progress</TabsTrigger>
-          <TabsTrigger value="new-people">New people</TabsTrigger>
+          <TabsTrigger
+            value="new-people"
+            aria-label={tabCountLabel("New people", newPeopleCount)}
+          >
+            New people
+            <PendingCountBadge count={newPeopleCount} />
+          </TabsTrigger>
+          <TabsTrigger
+            value="friends"
+            aria-label={tabCountLabel("Friends", noYearCount)}
+          >
+            Friends
+            <PendingCountBadge count={noYearCount} />
+          </TabsTrigger>
         </TabsList>
 
         {/* ── Tab 1: a SINGLE box — the year's overview + status badge with
@@ -1431,6 +1456,17 @@ export function SurveyCampaignConsole({
             own review queue. Not year-scoped, so always reachable. ── */}
         <TabsContent value="new-people">
           <NewPeoplePanel />
+        </TabsContent>
+
+        {/* ── Tab 5: replies with no class year (api#696) — friends of the
+            program sent the survey from their profile. Same review card and
+            apply/reject as a class's Submissions; not year-scoped. ── */}
+        <TabsContent value="friends">
+          <PendingSubmissions
+            queue={noYearPending}
+            title="Friend submissions"
+            emptyText="No friend submissions waiting for review."
+          />
         </TabsContent>
       </Tabs>
 

@@ -29,6 +29,11 @@ import type {
   AttendeeFriendResult,
   AttendeeMatchPreview,
 } from "@/types/attendee-match";
+import type {
+  SheetCommitResult,
+  SheetCommitRow,
+  SheetPreview,
+} from "@/types/attendee-sheet";
 
 /**
  * Result of an event form server action.
@@ -75,6 +80,11 @@ function buildPayload(formData: FormData): Record<string, unknown> {
   for (const k of Object.keys(payload)) {
     if (payload[k] === undefined) delete payload[k];
   }
+  // Keynote speaker (api#695) is sent whenever the form carries the field, even
+  // blank, so clearing it on the edit form actually clears it (the backend turns
+  // "" into null).
+  const keynote = formData.get("keynote_speaker");
+  if (typeof keynote === "string") payload.keynote_speaker = keynote.trim();
   return payload;
 }
 
@@ -339,7 +349,8 @@ export async function downloadEventsTemplate(): Promise<
 
 /**
  * Download an event's attendee roster as CSV (GET /events/{id}/attendees/export)
- * — columns Name, Email, Net ID. full_access on the backend (bulk alumni PII);
+ * — columns Name, Alumni/Friend, Email, Net ID, alumni first then friends
+ * (api#694). full_access on the backend (bulk alumni PII);
  * the client turns the returned text into a Blob download. Returns the raw CSV
  * plus a suggested filename so the caller doesn't have to know the shape.
  */
@@ -500,6 +511,83 @@ export async function downloadAttendeeMatchTemplate(): Promise<
 > {
   try {
     const csv = await apiGetText("/events/attendees/match/template");
+    return { ok: true, csv };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Couldn't download the template.",
+    };
+  }
+}
+
+/* ------------------------------ Attendee spreadsheet import (api#693) ----- */
+//
+// Upload a sign-up sheet for ONE event. The preview writes NOTHING; the
+// confirm screen sends every row back (with the reviewer's edits and choice)
+// to the commit, which re-validates everything server-side.
+
+export type SheetPreviewState =
+  | { ok: true; data: SheetPreview }
+  | { ok: false; error: string };
+
+export type SheetCommitState =
+  | { ok: true; data: SheetCommitResult }
+  | { ok: false; error: string };
+
+/** POST /events/{id}/attendees/sheet/preview (multipart `file`; no writes). */
+export async function previewAttendeeSheet(
+  eventId: number,
+  formData: FormData,
+): Promise<SheetPreviewState> {
+  const file = attendeeFile(formData);
+  if (!file) return { ok: false, error: "Choose a .csv file to check." };
+  const fd = new FormData();
+  fd.append("file", file, file.name);
+  try {
+    const data = await apiPostForm<SheetPreview>(
+      `/events/${eventId}/attendees/sheet/preview`,
+      fd,
+    );
+    return { ok: true, data };
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof ApiError ? e.message : "Couldn't read the file. Try again.",
+    };
+  }
+}
+
+/** POST /events/{id}/attendees/sheet/commit — the confirmed rows. */
+export async function commitAttendeeSheet(
+  eventId: number,
+  rows: SheetCommitRow[],
+): Promise<SheetCommitState> {
+  if (rows.length === 0) return { ok: false, error: "Nothing to save." };
+  try {
+    const data = await apiPost<SheetCommitResult>(
+      `/events/${eventId}/attendees/sheet/commit`,
+      { rows },
+    );
+    revalidatePath("/events");
+    revalidatePath("/friends");
+    updateTag("events");
+    updateTag("dashboard");
+    return { ok: true, data };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof ApiError ? e.message : "Couldn't save. Try again.",
+    };
+  }
+}
+
+/** GET /events/attendees/sheet/template as text. */
+export async function downloadAttendeeSheetTemplate(): Promise<
+  { ok: true; csv: string } | { ok: false; error: string }
+> {
+  try {
+    const csv = await apiGetText("/events/attendees/sheet/template");
     return { ok: true, csv };
   } catch (e) {
     return {

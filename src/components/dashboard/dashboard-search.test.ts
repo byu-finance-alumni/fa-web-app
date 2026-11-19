@@ -347,3 +347,33 @@ describe("advanced search fills the card", () => {
     expect(fieldBlock).not.toMatch(/lg:max-h-/);
   });
 });
+
+describe("advanced search: Class of (#959)", () => {
+  const src = read(SEARCH);
+
+  it("sits in the cell next to Graduation year", () => {
+    const grad = src.indexOf("ymin={advYear.ymin}");
+    const classOf = src.indexOf('label="Class of"');
+    expect(grad).toBeGreaterThan(-1);
+    expect(classOf).toBeGreaterThan(grad);
+    // Same grid, nothing in between: the next `<div` after Graduation year's
+    // range is not before the Class of range.
+    const between = src.slice(grad, classOf);
+    expect(between).not.toContain("<div");
+  });
+
+  it("navigates with the list's cmin/cmax keys, which reach the API as the class column", () => {
+    expect(src).toMatch(/p\.set\("cmin", /);
+    expect(src).toMatch(/p\.set\("cmax", /);
+    const f = parseAlumniFilters({ cmin: "2015", cmax: "2015" });
+    expect(f).toEqual({ ...EMPTY_FILTERS, cmin: "2015", cmax: "2015" });
+    const api = toAlumniPopulationParams(f);
+    expect(api.get("graduation_class_min")).toBe("2015");
+    expect(api.get("graduation_class_max")).toBe("2015");
+  });
+
+  it("is cleared by Reset", () => {
+    const reset = src.slice(src.indexOf("function resetAdvanced"));
+    expect(reset.slice(0, reset.indexOf("}\n"))).toContain("setAdvClass(");
+  });
+});

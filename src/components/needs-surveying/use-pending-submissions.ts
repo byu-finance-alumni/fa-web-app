@@ -108,3 +108,41 @@ export function usePendingSubmissions(
 
   return { items, loadedYear, reload, removeItem };
 }
+
+/**
+ * The review queue for replies with NO class year (fa-web-api #696): friends of
+ * the program, who are sent the survey from their profile and usually have no
+ * graduation year, so no year's queue above ever lists them. Same shape as the
+ * per-year queue so `PendingSubmissions` renders it unchanged; `loadedYear` is
+ * always null (there is no year).
+ */
+export function useNoYearSubmissions(): PendingSubmissionsQueue {
+  const [items, setItems] = useState<SurveyResponseItem[] | null>(null);
+  const [nonce, setNonce] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    clientGet<SurveyResponseItem[]>("/survey/no-year/responses")
+      .then((data) => {
+        if (!cancelled) setItems(data ?? []);
+      })
+      .catch(() => {
+        // Same as the year queue: under-claim on a failed read.
+        if (!cancelled) setItems([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [nonce]);
+
+  const reload = useCallback(() => setNonce((n) => n + 1), []);
+  const removeItem = useCallback((surveyResponseId: number) => {
+    setItems((prev) =>
+      prev
+        ? prev.filter((r) => r.survey_response_id !== surveyResponseId)
+        : prev,
+    );
+  }, []);
+
+  return { items, loadedYear: null, reload, removeItem };
+}

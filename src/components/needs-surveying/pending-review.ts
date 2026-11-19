@@ -59,8 +59,13 @@ export function pendingBadgeText(count: number | null): string {
  * is never read twice. With nothing waiting the name is just the tab.
  */
 export function submissionsTabLabel(count: number | null): string {
-  if (count === null || count <= 0) return "Submissions";
-  return `Submissions, ${count.toLocaleString()} waiting for review`;
+  return tabCountLabel("Submissions", count);
+}
+
+/** Any console tab's accessible name with its waiting count (#958, api#696). */
+export function tabCountLabel(label: string, count: number | null): string {
+  if (count === null || count <= 0) return label;
+  return `${label}, ${count.toLocaleString()} waiting for review`;
 }
 
 /**
