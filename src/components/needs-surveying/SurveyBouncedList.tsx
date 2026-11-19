@@ -73,7 +73,9 @@ export function SurveyBouncedList({ year }: { year: number | null }) {
       </div>
       <p className="mt-1 text-xs text-gray-500">
         The receiving mail server permanently refused these addresses. Open the
-        profile to correct the email; nothing is changed automatically.
+        profile to correct the email. A person drops off this list on their own
+        once their email is changed or a later survey email to them is
+        delivered.
       </p>
       {open && truncated ? (
         <p className="mt-3 text-xs text-gray-500">{truncated}</p>
