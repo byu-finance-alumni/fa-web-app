@@ -382,7 +382,7 @@ function EventSheet({
         <SheetContent
           aria-label={event.event_name}
           // Wide enough at 1280px for the attendee tab's header row (title,
-          // count, Upload, Import spreadsheet, Download CSV) to sit on one line
+          // count, Import attendees, Download CSV) to sit on one line
           // inside its card (app#955). `max-w-lg` overflowed the Download
           // button out of the box.
           className="w-full gap-0 p-0 sm:max-w-3xl"

@@ -147,7 +147,8 @@ describe("attendees can be brought later, from the event (#611)", () => {
     // One at a time…
     expect(src).toContain("Add attendee: search alumni");
     // …and by uploading a list onto THIS event (never creating another).
-    expect(src).toContain("Upload attendee list");
+    expect(src).toContain("Import attendees");
+    expect(src).not.toContain("/attendees/sheet");
     expect(src).toContain("/attendees/import");
   });
 });
