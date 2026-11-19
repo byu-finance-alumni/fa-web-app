@@ -249,18 +249,12 @@ export function AttendeeManager({
           <Badge variant="neutral" className="tabular-nums">
             {attendees.length}
           </Badge>
-          {/* Conference lists don't carry Net IDs (#612), so the bulk path in
-              is the name/email matcher rather than the Net-ID attendee CSV. */}
+          {/* One way in for every attendee list (2026-11-19): the import screen
+              reads the file's columns and sends a sign-up sheet to the sheet
+              import (api#693) and anything else to the name/email matcher (#612). */}
           <Button asChild variant="secondary" size="sm" className="ml-auto">
             <Link href={`/events/${eventId}/attendees/import`}>
-              Upload attendee list
-            </Link>
-          </Button>
-          {/* The sign-up spreadsheet import (api#693): matches on name + grad
-              year and creates new alumni / friends after a confirm screen. */}
-          <Button asChild variant="secondary" size="sm">
-            <Link href={`/events/${eventId}/attendees/sheet`}>
-              Import spreadsheet
+              Import attendees
             </Link>
           </Button>
           <Button

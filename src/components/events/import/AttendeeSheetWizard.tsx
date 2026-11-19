@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import {
   commitAttendeeSheet,
   downloadAttendeeSheetTemplate,
@@ -77,12 +77,18 @@ function Stat({ label, value }: { label: string; value: number }) {
 export function AttendeeSheetWizard({
   eventId,
   eventName,
+  initialFile,
+  onRestart,
 }: {
   eventId: number;
   eventName: string;
+  /** A file already chosen on the combined "Import attendees" screen; checked on mount. */
+  initialFile?: File;
+  /** "Start over" goes back to the combined upload screen instead of this one's. */
+  onRestart?: () => void;
 }) {
   const [step, setStep] = useState<Step>("upload");
-  const [file, setFile] = useState<File | null>(null);
+  const [file, setFile] = useState<File | null>(initialFile ?? null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<SheetPreview | null>(null);
@@ -129,6 +135,16 @@ export function AttendeeSheetWizard({
       setStep("confirm");
     });
   }
+
+  // Run the check once for a file handed over by the combined upload screen.
+  const autoChecked = useRef(false);
+  useEffect(() => {
+    if (initialFile && !autoChecked.current) {
+      autoChecked.current = true;
+      onCheck();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function onTemplate() {
     startTemplate(async () => {
@@ -395,6 +411,10 @@ export function AttendeeSheetWizard({
               <Button
                 variant="secondary"
                 onClick={() => {
+                  if (onRestart) {
+                    onRestart();
+                    return;
+                  }
                   setStep("upload");
                   setPreview(null);
                 }}
