@@ -162,3 +162,80 @@ export const STATUS_LABEL: Record<SheetStatus, string> = {
   already_attending: "Already attending",
   invalid: "Missing name",
 };
+
+/* ------------------------------------------------ which import flow ------ */
+
+/**
+ * One "Import attendees" button serves two kinds of file:
+ *
+ *  - "sheet": the event sign-up spreadsheet (Fname, Lname, ..., UG YR, GradYR).
+ *    Matched on first + last name + a grad year, and can create new alumni /
+ *    friends (api#693).
+ *  - "match": any other attendee list (conference registration, a list of
+ *    names or emails, Net IDs). Matched on Net ID, then email, then name, and
+ *    only links people already on file (#612).
+ *
+ * A file is a sign-up sheet when its header carries a first name, a last name
+ * AND a grad-year column, because the sheet flow can only match on name + year;
+ * a list without a year goes to the matcher, which can also use email.
+ * The spellings mirror fa-web-api `attendee_sheet._ALIASES` (same punctuation
+ * collapsing as `_header_key`).
+ */
+export type AttendeeListKind = "sheet" | "match";
+
+const FIRST_NAME_KEYS = new Set(["fname", "first name", "firstname", "first"]);
+const LAST_NAME_KEYS = new Set(["lname", "last name", "lastname", "last", "surname"]);
+const YEAR_KEYS = new Set([
+  "ug yr",
+  "ugyr",
+  "ug year",
+  "undergrad year",
+  "gradyr",
+  "grad yr",
+  "grad year",
+  "graduate year",
+]);
+
+export function headerKey(raw: string): string {
+  return raw
+    .replace(/^﻿/, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+/** Split the first record of a CSV into its header cells (handles quotes). */
+export function csvHeaderCells(text: string): string[] {
+  const cells: string[] = [];
+  let cur = "";
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quoted) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else quoted = false;
+      } else cur += ch;
+      continue;
+    }
+    if (ch === '"') quoted = true;
+    else if (ch === ",") {
+      cells.push(cur);
+      cur = "";
+    } else if (ch === "\n" || ch === "\r") break;
+    else cur += ch;
+  }
+  cells.push(cur);
+  return cells;
+}
+
+export function detectAttendeeListKind(csvText: string): AttendeeListKind {
+  const keys = csvHeaderCells(csvText).map(headerKey);
+  const has = (set: Set<string>) => keys.some((k) => set.has(k));
+  return has(FIRST_NAME_KEYS) && has(LAST_NAME_KEYS) && has(YEAR_KEYS)
+    ? "sheet"
+    : "match";
+}

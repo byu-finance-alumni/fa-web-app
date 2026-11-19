@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   applyChoice,
+  detectAttendeeListKind,
+  headerKey,
   candidateLabel,
   choiceCounts,
   choiceValue,
@@ -107,5 +109,36 @@ describe("attendee sheet drafts", () => {
         current_employer: "Acme",
       }),
     ).toBe("Sam Lee (Acme, FRIEND-00060)");
+  });
+});
+
+describe("detectAttendeeListKind", () => {
+  it("routes the meeting's sign-up sheet to the sheet import", () => {
+    const csv =
+      "Fname,Lname,Company,Role,Email,Focus,UG,UG YR,LinkedIn,Grad,GradYR\nA,B,C,D,e@x.com,Fin,BYU,2015,,MBA,2019\n";
+    expect(detectAttendeeListKind(csv)).toBe("sheet");
+  });
+
+  it("accepts a BOM, quotes, CRLF and extra columns", () => {
+    const csv = '﻿"First Name","Last Name","Grad Year","Shirt, size"\r\nA,B,2019,M\r\n';
+    expect(detectAttendeeListKind(csv)).toBe("sheet");
+  });
+
+  it("sends a list with no grad-year column to the matcher", () => {
+    expect(detectAttendeeListKind("First Name,Last Name,Email,Company\n")).toBe("match");
+  });
+
+  it("sends a combined Name column or Net ID list to the matcher", () => {
+    expect(detectAttendeeListKind("Name,E-mail Address,Organization\n")).toBe("match");
+    expect(detectAttendeeListKind("Net ID\nabc12\n")).toBe("match");
+  });
+
+  it("does not read a year column from the data rows", () => {
+    expect(detectAttendeeListKind("Fname,Lname,Email\nGradYR,x,y\n")).toBe("match");
+  });
+
+  it("headerKey collapses punctuation like the backend", () => {
+    expect(headerKey("  UG-YR ")).toBe("ug yr");
+    expect(headerKey("﻿Fname")).toBe("fname");
   });
 });

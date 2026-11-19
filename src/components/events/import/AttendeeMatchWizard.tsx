@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   approveAttendeeMatches,
   createAttendeeFriends,
@@ -122,12 +122,18 @@ function SummaryCard({
 export function AttendeeMatchWizard({
   eventId,
   eventName,
+  initialFile,
+  onRestart,
 }: {
   eventId: number;
   eventName: string;
+  /** A file already chosen on the combined "Import attendees" screen; checked on mount. */
+  initialFile?: File;
+  /** "Start over" / "Upload another list" go back to the combined upload screen. */
+  onRestart?: () => void;
 }) {
   const [step, setStep] = useState<Step>("upload");
-  const [file, setFile] = useState<File | null>(null);
+  const [file, setFile] = useState<File | null>(initialFile ?? null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -216,6 +222,16 @@ export function AttendeeMatchWizard({
     });
   };
 
+  // Run the check once for a file handed over by the combined upload screen.
+  const autoChecked = useRef(false);
+  useEffect(() => {
+    if (initialFile && !autoChecked.current) {
+      autoChecked.current = true;
+      onCheck();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const onTemplate = () => {
     setTemplateError(null);
     startTemplate(async () => {
@@ -229,6 +245,10 @@ export function AttendeeMatchWizard({
   };
 
   const restart = () => {
+    if (onRestart) {
+      onRestart();
+      return;
+    }
     setStep("upload");
     setFile(null);
     setPreview(null);

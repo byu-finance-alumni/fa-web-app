@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { Topbar } from "@/components/shell/Topbar";
-import { AttendeeMatchWizard } from "@/components/events/import/AttendeeMatchWizard";
+import { AttendeeImportWizard } from "@/components/events/import/AttendeeImportWizard";
 import { AccessCheckError } from "@/components/shared/AccessCheckError";
 import { apiGet, ApiError } from "@/lib/api";
 import { readAuthContext } from "@/lib/auth-context";
@@ -12,8 +12,9 @@ interface EventDetail {
 }
 
 /**
- * Upload a conference attendee list for ONE existing event and match it to
- * alumni (#612).
+ * Import attendees for ONE existing event: the single entry point for both the
+ * conference-list matcher (#612) and the sign-up spreadsheet import (api#693).
+ * The uploaded file's columns pick the review screen (2026-11-19).
  *
  * Scoped to an event on purpose (Jake, 2026-08-04): approving a match means
  * "this person attended THIS event", so there is always an obvious "attending
@@ -47,7 +48,7 @@ export default async function ImportEventAttendeesPage({
         status={auth.httpStatus}
         breadcrumb={[
           { label: "Events", href: "/events" },
-          { label: "Match attendees" },
+          { label: "Import attendees" },
         ]}
       />
     );
@@ -68,11 +69,11 @@ export default async function ImportEventAttendeesPage({
         breadcrumb={[
           { label: "Events", href: "/events" },
           { label: event.event_name || "Event", href: `/events/${event.event_id}/edit` },
-          { label: "Match attendees" },
+          { label: "Import attendees" },
         ]}
       />
       <main className="flex-1 overflow-auto p-6">
-        <AttendeeMatchWizard
+        <AttendeeImportWizard
           eventId={event.event_id}
           eventName={event.event_name}
         />
