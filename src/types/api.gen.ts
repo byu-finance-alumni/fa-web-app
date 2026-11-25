@@ -3180,7 +3180,9 @@ export interface paths {
          *     as a disclosure (action ``export_event_attendees``, row count only, never the
          *     data itself). 404 if the event is unknown.
          *
-         *     Email is the alumnus's personal email, falling back to the work email. Rows
+         *     Email is the alumnus's personal email, falling back to the work email. It is
+         *     left BLANK for anyone deceased or marked Do Not Contact (the Outreach lists'
+         *     rule); they stay on the list because they did attend. Rows
          *     list every alumnus first, then every friend, each group ordered by name.
          *
          *     A non-editor holding the assignable ``alumni.export`` gets **Name,
@@ -5825,7 +5827,8 @@ export interface paths {
          *     Re-sending to the same person is allowed, but within 24 hours of their last
          *     survey email (class or one-off) only with `{"confirm_resend": true}`;
          *     without it the answer is 409 with `error.code` = `resend_confirm_required`
-         *     and `error.last_sent_at` (ISO 8601), and nothing is sent. Audited on the
+         *     and `error.last_sent_at` (ISO 8601), and nothing is sent. A fourth one-off to
+         *     the same person within 24 hours is refused (409) even with it. Audited on the
          *     alum's record.
          *
          *     Gated like the profile's Edit button (`alumni.edit`), and braked to 10 sends
